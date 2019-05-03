@@ -121,3 +121,8 @@ def get_allowed_url():
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
     return f"tcp://{ip}:{port}"
+
+
+def get_database(db_fname):
+    with TinyDB(db_fname) as db:
+        return db.all()

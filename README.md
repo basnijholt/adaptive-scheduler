@@ -80,8 +80,7 @@ job_task = ioloop.create_task(
         cores=200,
         interval=60,
         run_script="run_learner.py",
-        python_executable="~/miniconda3/envs/py37_min/bin/python",
-        job_script_function=adaptive_scheduler.slurm.make_sbatch,
+        python_executable="~/miniconda3/envs/python37/bin/python",
     )
 )
 ```
