@@ -5,13 +5,15 @@ from adaptive_scheduler.slurm import get_job_id
 ctx = zmq.Context()
 
 
-def get_learner(url, learners, combos):
+def get_learner(url, learners, fnames):
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         job_id = get_job_id()
         socket.send_pyobj(("start", job_id))
-        fname, combo = socket.recv_pyobj()
-    learner = next(lrn for lrn, c in zip(learners, combos) if c == combo)
+        fname = socket.recv_pyobj()
+        if fname is None:
+            raise RuntimeError(f'No learners to be run for {job_id}.')
+    learner = next(lrn for lrn, fn in zip(learners, fnames) if fn == fname)
     return learner, fname
 
 

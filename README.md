@@ -48,13 +48,13 @@ from adaptive_scheduler import client_support
 from mpi4py.futures import MPIPoolExecutor
 
 # the file that defines the learners
-from learners_file import learners, combos
+from learners_file import learners, fnames
 
 # the address of the "database manager"
 url = "tcp://10.75.0.5:37371"
 
 # ask the database for a learner that we can run
-learner, fname = client_support.get_learner(url, learners, combos)  
+learner, fname = client_support.get_learner(url, learners, fnames)
 
 # load the data
 learner.load(fname)
@@ -77,11 +77,11 @@ client_support.is_done(url, fname)
 In a Jupyter notebook we can start the "job manager" and the "database manager" like:
 ```python
 from adaptive_scheduler import server_support
-from learners_file import learners, combos, fname
+from learners_file import learners, fname
 
 # create a new database
 db_fname = "running.tinydb"
-server_support.create_empty_db(db_fname, fnames, combos)
+server_support.create_empty_db(db_fname, fnames)
 
 # create unique names for the jobs
 job_names = [f"test-job-{i}" for i in range(len(learners))]
@@ -132,3 +132,8 @@ git clone git@github.com:basnijholt/adaptive-scheduler.git
 cd adaptive-scheduler
 pip install -e .
 ```
+
+
+## Limitations
+
+Right now `adaptive_scheduler` is only working for SLURM, however only the functions in [`adaptive_scheduler/slurm.py`](adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.

@@ -20,8 +20,8 @@ def dispatch(request, db_fname):
 
     if request_type == "start":
         job_id = request_arg  # workers send us their slurm ID for us to fill in
-        # give the worker a job and send back the fname and combo to the worker
-        return choose_combo(db_fname, job_id)
+        # give the worker a job and send back the fname to the worker
+        return choose_fname(db_fname, job_id)
 
     elif request_type == "stop":
         fname = request_arg  # workers send us the fname they were given
@@ -72,11 +72,8 @@ async def manage_jobs(
             await asyncio.sleep(interval)
 
 
-def create_empty_db(db_fname, fnames, combos):
-    entries = [
-        dict(fname=fname, combo=combo, job_id=None, is_done=False)
-        for fname, combo in zip(fnames, combos)
-    ]
+def create_empty_db(db_fname, fnames):
+    entries = [dict(fname=fname, job_id=None, is_done=False) for fname in fnames]
     if os.path.exists(db_fname):
         os.remove(db_fname)
     with TinyDB(db_fname) as db:
@@ -90,12 +87,15 @@ def update_db(db_fname, running):
         db.update({"job_id": None}, doc_ids=doc_ids)
 
 
-def choose_combo(db_fname, job_id):
+def choose_fname(db_fname, job_id):
     Entry = Query()
     with TinyDB(db_fname) as db:
-        entry = db.get(Entry.job_id == None)
+        assert not db.contains(Entry.job_id == job_id)
+        entry = db.get((Entry.job_id == None) & (Entry.is_done == False))
+        if entry is None:
+            return
         db.update({"job_id": job_id}, doc_ids=[entry.doc_id])
-    return entry["fname"], entry["combo"]
+    return entry["fname"]
 
 
 def done_with_learner(db_fname, fname):
@@ -106,7 +106,7 @@ def done_with_learner(db_fname, fname):
 
 def start_job(name, cores, job_script_function, run_script, python_executable):
     with open(name + ".sbatch", "w") as f:
-        job_script = job_script_function(name, cores, run_script, python_executable)
+        job_script = make_sbatch(name, cores, run_script, python_executable)
         f.write(job_script)
 
     returncode = None
