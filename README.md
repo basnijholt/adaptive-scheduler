@@ -14,7 +14,28 @@ With `adaptive_scheduler` you only need to define the learners and then it takes
 
 ## How does it work?
 
-You create a file where you define a bunch of learners such that they can be imported.
+You create a file where you define a bunch of learners such that they can be imported, like:
+```python
+# learners_file.py
+import adaptive
+from functools import partial
+
+def h(x, power=0):
+    return x**power
+
+combos = adaptive.utils.named_product(power=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+learners = []
+fnames = []
+
+for i, combo in enumerate(combos):
+    f = partial(h, offset=combo["offset"])
+    learner = adaptive.Learner1D(f, bounds=(-1, 1))
+    fnames.append(f"data/{combo}")
+    learners.append(learner)
+
+learner = adaptive.BalancingLearner(learners)
+```
 
 Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of `job_id <--> learner`.
