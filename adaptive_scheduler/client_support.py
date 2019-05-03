@@ -1,6 +1,6 @@
 import zmq
 
-from adaptive.scheduler.slurm import get_job_id
+from adaptive_scheduler.slurm import get_job_id
 
 ctx = zmq.Context()
 

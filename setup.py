@@ -2,9 +2,9 @@
 
 # Copyright 2019 Bas Nijholt authors.
 #
-# This file is part of adaptive.scheduler. It is subject to the license terms
+# This file is part of adaptive_scheduler. It is subject to the license terms
 # in the file LICENSE found in the top-level directory of this distribution.
-# A list of adaptive.scheduler authors can be found using git, with
+# A list of adaptive_scheduler authors can be found using git, with
 # `git shortlog -s HEAD` and at
 # https://github.com/basnijholt/adaptive-scheduler/graphs/contributors.
 
@@ -39,15 +39,14 @@ def get_version_and_cmdclass(package_name):
     return module.__version__, module.cmdclass
 
 
-version, cmdclass = get_version_and_cmdclass("adaptive/scheduler")
+version, cmdclass = get_version_and_cmdclass("adaptive_scheduler")
 
 
 setup(
-    name="adaptive.scheduler",
+    name="adaptive_scheduler",
     version=version,
     cmdclass=cmdclass,
     python_requires=">=3.6",
-    namespace_packages=["adaptive"],
     packages=find_packages(),
     include_package_data=True,
     maintainer="Bas Nijholt",
@@ -55,7 +54,7 @@ setup(
     description=description("README.md"),
     license="BSD-3",
     # url='https://adaptive-scheduler.readthedocs.io',
-    # download_url='https://pypi.python.org/pypi/adaptive.scheduler',
+    # download_url='https://pypi.python.org/pypi/adaptive_scheduler',
     install_requires=["adaptive", "mpi4py", "pyzmq", "tinydb"],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",

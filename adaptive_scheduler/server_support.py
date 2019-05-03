@@ -10,7 +10,7 @@ import zmq
 import zmq.asyncio
 import zmq.ssh
 
-from adaptive.scheduler.slurm import make_sbatch, check_running
+from adaptive_scheduler.slurm import make_sbatch, check_running
 
 ctx = zmq.asyncio.Context()
 

@@ -53,7 +53,7 @@ learner = adaptive.BalancingLearner(learners
 Create `run_learner.py`:
 ```python
 import adaptive
-from adaptive.scheduler import client_support
+from adaptive_scheduler import client_support
 from mpi4py.futures import MPIPoolExecutor
 
 from _learners import learners, combos
@@ -86,7 +86,7 @@ One can do this interactively in a Jupyter notebook on the cluster head node:
 import asyncio
 from pprint import pprint
 
-from adaptive.scheduler import client_support
+from adaptive_scheduler import client_support
 from tinydb import TinyDB
 
 import _learners
