@@ -16,6 +16,7 @@ Create `_learners.py`:
 import adaptive
 from functools import partial
 
+
 def h(x, offset=0):
     import numpy as np
     import random
@@ -25,25 +26,25 @@ def h(x, offset=0):
         np.linalg.eig(np.random.rand(1000, 1000))
 
     a = 0.01
-    return x + a**2 / (a**2 + (x - offset)**2)
+    return x + a ** 2 / (a ** 2 + (x - offset) ** 2)
 
-offset = list(range(50))
+
+offset = [i / 100 for i in range(100)]
 
 combos = adaptive.utils.named_product(offset=offset)
 
 learners = []
 fnames = []
 
-folder = "data/test/"
+folder = "data/"
 
 for i, combo in enumerate(combos):
-    f = partial(h, offset=combo['offset'])
-    learner = adaptive.Learner1D(f, bounds=(0, 1))
+    f = partial(h, offset=combo["offset"])
+    learner = adaptive.Learner1D(f, bounds=(-1, 1))
     fnames.append(f"{folder}{combo}")
     learners.append(learner)
 
-learner = adaptive.BalancingLearner(learners)
-```
+learner = adaptive.BalancingLearner(learners)```
 
 
 ### Run the learners
