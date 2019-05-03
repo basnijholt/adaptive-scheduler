@@ -2,117 +2,98 @@
 
 Run many learners on many cores (>10k) using MPI.
 
-## Example
+## What is this?
 
-### Define the learners in a Python file
+The Adaptive scheduler solves the following problem, you need to run a few 100 learners and can use >1k cores.
+ 
+You can't use a centrally managed place that is responsible for all the workers (like with `dask` or `ipyparallel`) because >1k cores is too many for them to handle.
+ 
+You also don't want to use `dask` or `ipyparallel` inside a job script because they write job scripts on their own. Having a job script that runs code that creates job scripts...
 
-We need the following variables:
-* `learners` a list of learners
-* `combos` a list of dicts of parameters that describe each learner
-* `fnames` a list of filenames of each learner
+With `adaptive_scheduler` you only need to define the learners and then it takes care of the running (and restarting) of the jobs on the cluster.
 
-Create `_learners.py`:
+## How does it work?
+
+You create a file where you define a bunch of learners such that they can be imported.
+
+Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
+This is the responsibility of the "database manager", which keeps a database of `job_id <--> learner`.
+
+In another Python file (the file that is run on the nodes) we do something like:
 ```python
-import adaptive
-from functools import partial
-
-
-def h(x, offset=0):
-    import numpy as np
-    import random
-
-    # Burn some CPU time just because
-    for _ in range(10):
-        np.linalg.eig(np.random.rand(1000, 1000))
-
-    a = 0.01
-    return x + a ** 2 / (a ** 2 + (x - offset) ** 2)
-
-
-offset = [i / 100 for i in range(100)]
-
-combos = adaptive.utils.named_product(offset=offset)
-
-learners = []
-fnames = []
-
-folder = "data/"
-
-for i, combo in enumerate(combos):
-    f = partial(h, offset=combo["offset"])
-    learner = adaptive.Learner1D(f, bounds=(-1, 1))
-    fnames.append(f"{folder}{combo}")
-    learners.append(learner)
-
-learner = adaptive.BalancingLearner(learners
-```
-
-
-### Run the learners
-
-Create `run_learner.py`:
-```python
+# run_learner.py
 import adaptive
 from adaptive_scheduler import client_support
 from mpi4py.futures import MPIPoolExecutor
 
-from _learners import learners, combos
+# the file that defines the learners
+from learners_file import learners, combos
 
+# the address of the "database manager"
+url = "tcp://10.75.0.5:37371"
 
-url = "tcp://10.76.0.5:57681"  # ip of the headnode
+# ask the database for a learner that we can run
+learner, fname = client_support.get_learner(url, learners, combos)  
 
-if __name__ == "__main__":
-    learner, fname = client_support.get_learner(url, learners, combos)
-    learner.load(fname)
-    ex = MPIPoolExecutor()
-    runner = adaptive.Runner(
-        learner,
-        executor=ex,
-        goal=None,  # run forever
-        shutdown_executor=True,
-        retries=10,
-        raise_if_retries_exceeded=False,
-    )
-    runner.start_periodic_saving(dict(fname=fname), interval=600)
-    runner.ioloop.run_until_complete(runner.task)  # wait until runner goal reached
-    client_support.is_done(url, fname)
+# load the data
+learner.load(fname)
+
+# run until `some_goal` is reached with an `MPIPoolExecutor`
+runner = adaptive.Runner(
+learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
+)
+
+# periodically save the data (in case the job dies)
+runner.start_periodic_saving(dict(fname=fname), interval=600)
+
+# block until runner goal reached
+runner.ioloop.run_until_complete(runner.task)
+
+# tell the database that we are done
+client_support.is_done(url, fname)
 ```
 
-
-### Run the database and job manager
-
-One can do this interactively in a Jupyter notebook on the cluster head node:
+In a Jupyter notebook we can start the "job manager" and the "database manager" like:
 ```python
-import asyncio
-from pprint import pprint
+from adaptive_scheduler import server_support
+from learners_file import learners, combos, fname
 
-from adaptive_scheduler import client_support
-from tinydb import TinyDB
+# create a new database
+db_fname = "running.tinydb"
+server_support.create_empty_db(db_fname, fnames, combos)
 
-import _learners
+# create unique names for the jobs
+job_names = [f"test-job-{i}" for i in range(len(learners))]
 
-# Create a new database that keeps track of (learner -> job_id, is_done)
-db_fname = 'running.tinydb'
-server_support.create_empty_db(db_fname, _learners.fnames, _learners.combos)
-
-## Check the running learners
-# All the onces that are `None` are still `PENDING` or are not scheduled.
-with TinyDB(db_fname) as db:
-    pprint(db.all())
-
-
-## Start the job scripts
-
-# Get some unique names for the jobs
-job_names = [f"test-{i}" for i in range(len(_learners.learners))]
-
+# start the "job manager" and the "database manager"
 ioloop = asyncio.get_event_loop()
 
 database_task = ioloop.create_task(
-    server_support.manage_database("tcp://*:57681", db_fname)
+    server_support.manage_database("tcp://10.75.0.5:37371", db_fname)
 )
 
 job_task = ioloop.create_task(
-    server_support.manage_jobs(job_names, db_fname, ioloop, cores=50*8, interval=60)
+    server_support.manage_jobs(
+        job_names,
+        db_fname=db_fname,
+        ioloop=ioloop,
+        cores=200,
+        interval=60,
+        run_script="run_learner.py",
+        python_executable="~/miniconda3/envs/py37_min/bin/python",
+        job_script_function=adaptive_scheduler.slurm.make_sbatch,
+    )
 )
 ```
+
+So in summary, you have three files:
+1. `learners_file.py` which defines the learners and its filenames
+2. `run_learner.py` which picks a learner and runs it
+3. a Jupyter notebook where you run the "database manager" and the "job manager"
+
+You don't actually ever have to leave the Jupter notebook, take a look at the [example notebook](example.ipynb).
+
+## Example
+
+See [`example.ipynb`](example.ipynb).
+
