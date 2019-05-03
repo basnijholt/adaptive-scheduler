@@ -1,4 +1,5 @@
 import getpass
+import os
 import subprocess
 import textwrap
 
@@ -57,3 +58,7 @@ def check_running(me_only=True):
         if state in allowed
     }
     return running
+
+
+def get_job_id():
+    return os.environ.get("SLURM_JOB_ID", "UNKNOWN")
