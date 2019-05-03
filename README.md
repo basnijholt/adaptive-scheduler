@@ -29,7 +29,7 @@ learners = []
 fnames = []
 
 for i, combo in enumerate(combos):
-    f = partial(h, offset=combo["offset"])
+    f = partial(h, power=combo["power"])
     learner = adaptive.Learner1D(f, bounds=(-1, 1))
     fnames.append(f"data/{combo}")
     learners.append(learner)
