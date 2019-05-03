@@ -113,7 +113,22 @@ So in summary, you have three files:
 
 You don't actually ever have to leave the Jupter notebook, take a look at the [example notebook](example.ipynb).
 
-## Example
+## Jupyter notebook example
 
 See [`example.ipynb`](example.ipynb).
 
+
+## Installation
+
+**WARNING:** This is still the pre-alpha development stage. No error-handling is done, an its stability is uncertain.
+
+Install master with
+```bash
+pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/master.zip
+```
+or clone the repository and do a dev install (recommended)
+```
+git clone git@github.com:basnijholt/adaptive-scheduler.git
+cd adaptive-scheduler
+pip install -e .
+```
