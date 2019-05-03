@@ -10,9 +10,13 @@ def get_learner(url, learners, fnames):
         socket.connect(url)
         job_id = get_job_id()
         socket.send_pyobj(("start", job_id))
-        fname = socket.recv_pyobj()
-        if fname is None:
+        reply = socket.recv_pyobj()
+        if reply is None:
             raise RuntimeError(f'No learners to be run for {job_id}.')
+        elif isinstance(reply, Exception):
+            raise reply
+        else:
+            fname = reply
     learner = next(lrn for lrn, fn in zip(learners, fnames) if fn == fname)
     return learner, fname
 

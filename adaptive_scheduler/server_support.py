@@ -17,18 +17,20 @@ ctx = zmq.asyncio.Context()
 
 def dispatch(request, db_fname):
     request_type, request_arg = request
+    try:
+        if request_type == "start":
+            job_id = request_arg  # workers send us their slurm ID for us to fill in
+            # give the worker a job and send back the fname to the worker
+            return choose_fname(db_fname, job_id)
 
-    if request_type == "start":
-        job_id = request_arg  # workers send us their slurm ID for us to fill in
-        # give the worker a job and send back the fname to the worker
-        return choose_fname(db_fname, job_id)
+        elif request_type == "stop":
+            fname = request_arg  # workers send us the fname they were given
+            return done_with_learner(db_fname, fname)  # reset the job_id to None
 
-    elif request_type == "stop":
-        fname = request_arg  # workers send us the fname they were given
-        return done_with_learner(db_fname, fname)  # reset the job_id to None
-
-    else:
-        print(f"unknown request type: {request_type}")
+        else:
+            return ValueError(f"unknown request type: {request_type}")
+    except Exception as e:
+        return e
 
 
 async def manage_database(address, db_fname):
