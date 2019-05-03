@@ -67,7 +67,6 @@ if __name__ == "__main__":
         executor=ex,
         goal=None,  # run forever
         shutdown_executor=True,
-        ioloop=None,
         retries=10,
         raise_if_retries_exceeded=False,
     )
