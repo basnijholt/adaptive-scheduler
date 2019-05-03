@@ -44,7 +44,8 @@ for i, combo in enumerate(combos):
     fnames.append(f"{folder}{combo}")
     learners.append(learner)
 
-learner = adaptive.BalancingLearner(learners)```
+learner = adaptive.BalancingLearner(learners
+```
 
 
 ### Run the learners
