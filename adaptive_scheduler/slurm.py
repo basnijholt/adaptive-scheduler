@@ -45,7 +45,7 @@ def check_running(me_only=True):
         or "slurm_load_jobs error" in squeue
         or proc.returncode != 0
     ):
-        raise RuntimeError("SLURM is too busy.")
+        raise RuntimeError("SLURM is not responding.")
 
     squeue = [line.split() for line in squeue.split("\n")]
     squeue = [line for line in squeue if line]
