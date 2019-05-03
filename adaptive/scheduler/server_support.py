@@ -1,15 +1,16 @@
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 import os
+import socket
 import subprocess
 import time
 
 from tinydb import TinyDB, Query
 import zmq
 import zmq.asyncio
+import zmq.ssh
 
 from adaptive.scheduler.slurm import make_sbatch, check_running
-
 
 ctx = zmq.asyncio.Context()
 
@@ -97,3 +98,9 @@ def start_job(name, cores=8, *, job_script_function=make_sbatch):
             f"sbatch {name}.sbatch".split(), stderr=subprocess.PIPE
         ).returncode
         time.sleep(0.5)
+
+
+def get_allowed_url():
+    ip = socket.gethostbyname(socket.gethostname())
+    port = zmq.ssh.tunnel.select_random_ports(1)[0]
+    return f"tcp://{ip}:{port}"
