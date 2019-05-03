@@ -45,6 +45,7 @@ for i, combo in enumerate(combos):
 learner = adaptive.BalancingLearner(learners)
 ```
 
+
 ### Run the learners
 
 Create `run_learner.py`:
@@ -73,4 +74,43 @@ if __name__ == "__main__":
     runner.start_periodic_saving(dict(fname=fname), interval=600)
     runner.ioloop.run_until_complete(runner.task)  # wait until runner goal reached
     client_support.is_done(url, fname)
+```
+
+
+### Run the database and job manager
+
+One can do this interactively in a Jupyter notebook on the cluster head node:
+```python
+import asyncio
+from pprint import pprint
+
+from adaptive.scheduler import client_support
+from tinydb import TinyDB
+
+import _learners
+
+# Create a new database that keeps track of (learner -> job_id, is_done)
+db_fname = 'running.tinydb'
+server_support.create_empty_db(db_fname, _learners.fnames, _learners.combos)
+
+## Check the running learners
+# All the onces that are `None` are still `PENDING` or are not scheduled.
+with TinyDB(db_fname) as db:
+    pprint(db.all())
+
+
+## Start the job scripts
+
+# Get some unique names for the jobs
+job_names = [f"test-{i}" for i in range(len(_learners.learners))]
+
+ioloop = asyncio.get_event_loop()
+
+database_task = ioloop.create_task(
+    server_support.manage_database("tcp://*:57681", db_fname)
+)
+
+job_task = ioloop.create_task(
+    server_support.manage_jobs(job_names, db_fname, ioloop, cores=50*8, interval=60)
+)
 ```
