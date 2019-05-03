@@ -43,7 +43,16 @@ async def manage_database(address, db_fname):
         socket.close()
 
 
-async def manage_jobs(job_names, db_fname, ioloop, cores=8, interval=30):
+async def manage_jobs(
+    job_names,
+    db_fname,
+    ioloop,
+    cores=8,
+    job_script_function=make_sbatch,
+    run_script="run_learner.py",
+    python_executable=None,
+    interval=30,
+):
     with ProcessPoolExecutor() as ex:
         while True:
             running = check_running()
@@ -51,7 +60,15 @@ async def manage_jobs(job_names, db_fname, ioloop, cores=8, interval=30):
             running_job_names = {job["job_name"] for job in running.values()}
             for job_name in job_names:
                 if job_name not in running_job_names:
-                    await ioloop.run_in_executor(ex, start_job, job_name, cores)
+                    await ioloop.run_in_executor(
+                        ex,
+                        start_job,
+                        job_name,
+                        cores,
+                        job_script_function,
+                        run_script,
+                        python_executable,
+                    )
             await asyncio.sleep(interval)
 
 
@@ -87,9 +104,9 @@ def done_with_learner(db_fname, fname):
         db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
 
 
-def start_job(name, cores=8, *, job_script_function=make_sbatch):
+def start_job(name, cores, job_script_function, run_script, python_executable):
     with open(name + ".sbatch", "w") as f:
-        job_script = job_script_function(name, cores)
+        job_script = job_script_function(name, cores, run_script, python_executable)
         f.write(job_script)
 
     returncode = None

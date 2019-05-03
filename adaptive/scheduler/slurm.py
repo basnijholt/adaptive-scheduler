@@ -1,10 +1,13 @@
 import getpass
 import os
 import subprocess
+import sys
 import textwrap
 
 
-def make_sbatch(name, cores, executable="run_learner.py", env="py37_min"):
+def make_sbatch(name, cores, run_script="run_learner.py", python_executable=None):
+    if python_executable is None:
+        python_executable = sys.executable
     job_script = textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -18,7 +21,7 @@ def make_sbatch(name, cores, executable="run_learner.py", env="py37_min"):
         export OMP_NUM_THREADS=1
 
         export MPI4PY_MAX_WORKERS=$SLURM_NTASKS
-        srun -n $SLURM_NTASKS --mpi=pmi2 ~/miniconda3/envs/{env}/bin/python3 -m mpi4py.futures {executable}
+        srun -n $SLURM_NTASKS --mpi=pmi2 {python_executable} -m mpi4py.futures {run_script}
         """
     )
     return job_script
