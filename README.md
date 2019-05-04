@@ -2,6 +2,7 @@
 
 Run many learners on many cores (>10k) using MPI.
 
+
 ## What is this?
 
 The Adaptive scheduler solves the following problem, you need to run a few 100 learners and can use >1k cores.
@@ -12,6 +13,7 @@ You also don't want to use `dask` or `ipyparallel` inside a job script because t
 
 With `adaptive_scheduler` you only need to define the learners and then it takes care of the running (and restarting) of the jobs on the cluster.
 
+
 ## How does it work?
 
 You create a file where you define a bunch of learners such that they can be imported, like:
@@ -20,16 +22,19 @@ You create a file where you define a bunch of learners such that they can be imp
 import adaptive
 from functools import partial
 
-def h(x, power=0):
-    return x**power
+def h(x, pow, a):
+    return a * x**pow
 
-combos = adaptive.utils.named_product(power=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+combos = adaptive.utils.named_product(
+    pow=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    a=[0.1, 0.5],
+)  # returns list of dicts, cartesian product of all values
 
 learners = []
 fnames = []
 
-for i, combo in enumerate(combos):
-    f = partial(h, power=combo["power"])
+for combo in combos:
+    f = partial(h, **combo)
     learner = adaptive.Learner1D(f, bounds=(-1, 1))
     fnames.append(f"data/{combo}")
     learners.append(learner)
@@ -45,7 +50,7 @@ import adaptive
 from adaptive_scheduler import client_support
 from mpi4py.futures import MPIPoolExecutor
 
-# the file that defines the learners
+# the file that defines the learners we created above
 from learners_file import learners, fnames
 
 # the address of the "database manager"
@@ -59,7 +64,7 @@ learner.load(fname)
 
 # run until `some_goal` is reached with an `MPIPoolExecutor`
 runner = adaptive.Runner(
-learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
+    learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
 )
 
 # periodically save the data (in case the job dies)
@@ -68,21 +73,22 @@ runner.start_periodic_saving(dict(fname=fname), interval=600)
 # block until runner goal reached
 runner.ioloop.run_until_complete(runner.task)
 
-# tell the database that we are done
+# tell the database that this learner has reached its goal
 client_support.is_done(url, fname)
 ```
 
 In a Jupyter notebook we can start the "job manager" and the "database manager" like:
 ```python
 from adaptive_scheduler import server_support
-from learners_file import learners, fname
+from learners_file import learners, fnames
 
 # create a new database
 db_fname = "running.tinydb"
 server_support.create_empty_db(db_fname, fnames)
 
 # create unique names for the jobs
-job_names = [f"test-job-{i}" for i in range(len(learners))]
+n_jobs = len(learners)
+job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
 # start the "job manager" and the "database manager"
 ioloop = asyncio.get_event_loop()
@@ -96,7 +102,7 @@ job_task = ioloop.create_task(
         job_names,
         db_fname=db_fname,
         ioloop=ioloop,
-        cores=200,
+        cores=200,  # number of cores per job
         interval=60,
         run_script="run_learner.py",
         python_executable="~/miniconda3/envs/python37/bin/python",
@@ -111,6 +117,7 @@ So in summary, you have three files:
 
 You don't actually ever have to leave the Jupter notebook, take a look at the [example notebook](example.ipynb).
 
+
 ## Jupyter notebook example
 
 See [`example.ipynb`](example.ipynb).
@@ -118,7 +125,7 @@ See [`example.ipynb`](example.ipynb).
 
 ## Installation
 
-**WARNING:** This is still the pre-alpha development stage. No error-handling is done, an its stability is uncertain.
+**WARNING:** This is still the pre-alpha development stage. No error-handling is done and its stability is uncertain.
 
 Install master with
 ```bash
