@@ -5,6 +5,7 @@ import socket
 import subprocess
 import time
 
+import structlog
 from tinydb import TinyDB, Query
 import zmq
 import zmq.asyncio
@@ -13,27 +14,29 @@ import zmq.ssh
 from adaptive_scheduler.slurm import make_sbatch, check_running
 
 ctx = zmq.asyncio.Context()
+log = structlog.get_logger("adaptive_scheduler.server")
 
 
 def dispatch(request, db_fname):
     request_type, request_arg = request
+    log.debug("got a request", request=request)
     try:
         if request_type == "start":
             job_id = request_arg  # workers send us their slurm ID for us to fill in
             # give the worker a job and send back the fname to the worker
-            return choose_fname(db_fname, job_id)
-
+            fname = choose_fname(db_fname, job_id)
+            log.debug("choose a fname", fname=fname, job_id=job_id)
+            return fname
         elif request_type == "stop":
             fname = request_arg  # workers send us the fname they were given
+            log.debug("got a stop request", fname=fname)
             return done_with_learner(db_fname, fname)  # reset the job_id to None
-
-        else:
-            return ValueError(f"unknown request type: {request_type}")
     except Exception as e:
         return e
 
 
 async def manage_database(address, db_fname):
+    log.debug("started database")
     socket = ctx.socket(zmq.REP)
     socket.bind(address)
     try:
@@ -94,6 +97,7 @@ def choose_fname(db_fname, job_id):
     with TinyDB(db_fname) as db:
         assert not db.contains(Entry.job_id == job_id)
         entry = db.get((Entry.job_id == None) & (Entry.is_done == False))
+        log.debug("chose fname", entry=entry)
         if entry is None:
             return
         db.update({"job_id": job_id}, doc_ids=[entry.doc_id])

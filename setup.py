@@ -55,7 +55,7 @@ setup(
     license="BSD-3",
     # url='https://adaptive-scheduler.readthedocs.io',
     # download_url='https://pypi.python.org/pypi/adaptive_scheduler',
-    install_requires=["adaptive", "mpi4py", "pyzmq", "tinydb"],
+    install_requires=["adaptive", "mpi4py", "pyzmq", "structlog", "tinydb"],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
