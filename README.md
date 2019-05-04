@@ -33,8 +33,6 @@ for i, combo in enumerate(combos):
     learner = adaptive.Learner1D(f, bounds=(-1, 1))
     fnames.append(f"data/{combo}")
     learners.append(learner)
-
-learner = adaptive.BalancingLearner(learners)
 ```
 
 Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
