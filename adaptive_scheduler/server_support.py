@@ -62,7 +62,7 @@ async def manage_jobs(
         while True:
             running = check_running()
             update_db(db_fname, running)  # in case some jobs died
-            running_job_names = {job["job_name"] for job in running.values()}
+            running_job_names = {job["name"] for job in running.values()}
             for job_name in job_names:
                 if job_name not in running_job_names:
                     await ioloop.run_in_executor(
