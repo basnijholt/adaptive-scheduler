@@ -33,7 +33,7 @@ def check_running(me_only=True):
         "name": 100,
         "state": 100,
         "numnodes": 100,
-        "reasonlist": 400,
+        "reasonlist": 1000,
     }  # (key -> length) mapping
 
     slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
