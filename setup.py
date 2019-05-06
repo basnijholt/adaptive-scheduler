@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2019 Bas Nijholt authors.
+# Copyright 2019 Bas Nijholt.
 #
 # This file is part of adaptive_scheduler. It is subject to the license terms
 # in the file LICENSE found in the top-level directory of this distribution.
