@@ -28,38 +28,40 @@ def make_sbatch(name, cores, run_script="run_learner.py", python_executable=None
 
 
 def check_running(me_only=True):
-    cmd = [
-        "/usr/bin/squeue",
-        r'--Format=",jobid:100,name:100,state:100,numnodes:100,reasonlist:400,"',
-        "--noheader",
-        "--array",
-    ]
+    python_format = {
+        "jobid": 100,
+        "name": 100,
+        "state": 100,
+        "numnodes": 100,
+        "reasonlist": 400,
+    }  # (key -> length) mapping
+
+    slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
+    cmd = ["/usr/bin/squeue", rf'--Format=",{slurm_format},"', "--noheader", "--array"]
     if me_only:
         username = getpass.getuser()
         cmd.append(f"--user={username}")
     proc = subprocess.run(cmd, text=True, capture_output=True)
-    squeue = proc.stdout
+    output = proc.stdout
 
     if (
-        "squeue: error" in squeue
-        or "slurm_load_jobs error" in squeue
+        "squeue: error" in output
+        or "slurm_load_jobs error" in output
         or proc.returncode != 0
     ):
         raise RuntimeError("SLURM is not responding.")
 
-    squeue = [line.split() for line in squeue.split("\n")]
-    squeue = [line for line in squeue if line]
-    allowed = ("PENDING", "RUNNING")
-    running = {
-        job_id: dict(
-            job_name=job_name,
-            state=state,
-            n_nodes=int(n_nodes),
-            reason_list=reason_list,
-        )
-        for job_id, job_name, state, n_nodes, reason_list in squeue
-        if state in allowed
-    }
+    def line_to_dict(line):
+        line = list(line)
+        info = {}
+        for k, v in python_format.items():
+            info[k] = "".join(line[:v]).strip()
+            line = line[v:]
+        return info
+
+    squeue = [line_to_dict(line) for line in output.split("\n")]
+    squeue = [info for info in squeue if info["state"] in ("PENDING", "RUNNING")]
+    running = {info.pop("jobid"): info for info in squeue}
     return running
 
 
