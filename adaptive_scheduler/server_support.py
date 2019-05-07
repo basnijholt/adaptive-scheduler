@@ -1,22 +1,22 @@
 import asyncio
-from concurrent.futures import ProcessPoolExecutor
 import logging
 import os
 import socket
 import subprocess
 import time
+from concurrent.futures import ProcessPoolExecutor
 
 import structlog
-from tinydb import TinyDB, Query
 import zmq
 import zmq.asyncio
 import zmq.ssh
+from tinydb import Query, TinyDB
 
-from adaptive_scheduler.slurm import make_sbatch, check_running
+from adaptive_scheduler.slurm import check_running, make_sbatch
 
 ctx = zmq.asyncio.Context()
 
-logger = logging.getLogger('adaptive_scheduler.server')
+logger = logging.getLogger("adaptive_scheduler.server")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
@@ -104,7 +104,7 @@ def choose_fname(db_fname, job_id):
     Entry = Query()
     with TinyDB(db_fname) as db:
         assert not db.contains(Entry.job_id == job_id)
-        entry = db.get((Entry.job_id == None) & (Entry.is_done == False))
+        entry = db.get((Entry.job_id == None) & (Entry.is_done == False))  # noqa: E711
         log.debug("chose fname", entry=entry)
         if entry is None:
             return

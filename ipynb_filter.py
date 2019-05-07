@@ -30,9 +30,9 @@ if __name__ == "__main__":
     os.system(git_cmd)
 else:
     # This script is used as config
-    c.Exporter.preprocessors = [RemoveMetadata]
-    c.ClearOutputPreprocessor.enabled = True
-    c.ClearOutputPreprocessor.remove_metadata_fields = [
+    c.Exporter.preprocessors = [RemoveMetadata]  # noqa: F821
+    c.ClearOutputPreprocessor.enabled = True  # noqa: F821
+    c.ClearOutputPreprocessor.remove_metadata_fields = [  # noqa: F821
         "deletable",
         "editable",
         "collapsed",
