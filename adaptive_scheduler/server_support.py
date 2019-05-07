@@ -17,7 +17,7 @@ from adaptive_scheduler.slurm import make_sbatch, check_running
 ctx = zmq.asyncio.Context()
 
 logger = logging.getLogger('adaptive_scheduler.server')
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
 
