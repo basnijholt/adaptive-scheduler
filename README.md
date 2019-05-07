@@ -139,6 +139,21 @@ pip install -e .
 ```
 
 
+## Development
+
+In order to not pollute the history with the output of the notebooks, please setup the git filter by executing
+```
+python ipynb_filter.py
+```
+in the repository.
+
+We also use [pre-commit](https://pre-commit.com), so `pip install pre_commit` and run
+```
+pre-commit install
+```
+in the repository.
+
+
 ## Limitations
 
 Right now `adaptive_scheduler` is only working for SLURM, however only the functions in [`adaptive_scheduler/slurm.py`](adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.
