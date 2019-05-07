@@ -77,7 +77,8 @@ async def manage_jobs(
                         )
                 await asyncio.sleep(interval)
             except Exception as e:
-                log.exception('got exception when starting a job', exception=e)
+                log.exception("got exception when starting a job", exception=e)
+                await asyncio.sleep(5)
 
 
 def create_empty_db(db_fname, fnames):
