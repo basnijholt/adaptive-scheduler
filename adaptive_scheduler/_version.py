@@ -150,8 +150,8 @@ def get_version_from_git_archive(version_info):
         return None
 
     VTAG = "tag: v"
-    refs = set(r.strip() for r in refnames.split(","))
-    version_tags = set(r[len(VTAG) :] for r in refs if r.startswith(VTAG))
+    refs = {r.strip() for r in refnames.split(",")}
+    version_tags = {r[len(VTAG) :] for r in refs if r.startswith(VTAG)}
     if version_tags:
         release, *_ = sorted(version_tags)  # prefer e.g. "2.0" over "2.0rc1"
         return Version(release, dev=None, labels=None)
