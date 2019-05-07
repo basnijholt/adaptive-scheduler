@@ -9,9 +9,9 @@
 # https://github.com/basnijholt/adaptive-scheduler/graphs/contributors.
 
 
-from setuptools import setup, find_packages
 import sys
 
+from setuptools import find_packages, setup
 
 if sys.version_info < (3, 7):
     print("adaptive requires Python 3.7 or above.")
