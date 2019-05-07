@@ -60,21 +60,24 @@ async def manage_jobs(
 ):
     with ProcessPoolExecutor() as ex:
         while True:
-            running = check_running()
-            update_db(db_fname, running)  # in case some jobs died
-            running_job_names = {job["name"] for job in running.values()}
-            for job_name in job_names:
-                if job_name not in running_job_names:
-                    await ioloop.run_in_executor(
-                        ex,
-                        start_job,
-                        job_name,
-                        cores,
-                        job_script_function,
-                        run_script,
-                        python_executable,
-                    )
-            await asyncio.sleep(interval)
+            try:
+                running = check_running()
+                update_db(db_fname, running)  # in case some jobs died
+                running_job_names = {job["name"] for job in running.values()}
+                for job_name in job_names:
+                    if job_name not in running_job_names:
+                        await ioloop.run_in_executor(
+                            ex,
+                            start_job,
+                            job_name,
+                            cores,
+                            job_script_function,
+                            run_script,
+                            python_executable,
+                        )
+                await asyncio.sleep(interval)
+            except Exception as e:
+                log.exception('got exception when starting a job', exception=e)
 
 
 def create_empty_db(db_fname, fnames):
