@@ -1,5 +1,6 @@
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
+import logging
 import os
 import socket
 import subprocess
@@ -15,6 +16,9 @@ from adaptive_scheduler.slurm import make_sbatch, check_running
 
 ctx = zmq.asyncio.Context()
 log = structlog.get_logger("adaptive_scheduler.server")
+
+logger = logging.getLogger('adaptive_scheduler.server')
+logger.setLevel(logging.WARNING)
 
 
 def dispatch(request, db_fname):
