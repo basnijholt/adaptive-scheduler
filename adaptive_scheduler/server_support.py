@@ -67,9 +67,13 @@ async def manage_jobs(
             try:
                 running = check_running()
                 update_db(db_fname, running)  # in case some jobs died
-                running_job_names = {job["name"] for job in running.values()}
+                running_job_names = {
+                    job["name"] for job in running.values() if job["name"] in job_names
+                }
+                n_jobs_done = get_n_jobs_done(db_fname)
+                to_start = len(job_names) - len(running_job_names) - n_jobs_done
                 for job_name in job_names:
-                    if job_name not in running_job_names:
+                    if job_name not in running_job_names and to_start > 0:
                         await ioloop.run_in_executor(
                             ex,
                             start_job,
@@ -79,6 +83,7 @@ async def manage_jobs(
                             run_script,
                             python_executable,
                         )
+                        to_start -= 1
                 await asyncio.sleep(interval)
             except Exception as e:
                 log.exception("got exception when starting a job", exception=e)
@@ -129,6 +134,12 @@ def start_job(name, cores, job_script_function, run_script, python_executable):
             f"sbatch {name}.sbatch".split(), stderr=subprocess.PIPE
         ).returncode
         time.sleep(0.5)
+
+
+def get_n_jobs_done(db_fname):
+    Entry = Query()
+    with TinyDB(db_fname) as db:
+        return db.count(Entry.is_done == True)  # noqa: E711
 
 
 def get_allowed_url():
