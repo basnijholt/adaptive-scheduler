@@ -53,8 +53,8 @@ setup(
     maintainer_email="bas@nijho.lt",
     description=description("README.md"),
     license="BSD-3",
-    # url='https://adaptive-scheduler.readthedocs.io',
-    # download_url='https://pypi.python.org/pypi/adaptive_scheduler',
+    url="https://github.com/basnijholt/adaptive-scheduler",
+    download_url="https://pypi.python.org/pypi/adaptive_scheduler",
     install_requires=["adaptive", "mpi4py", "pyzmq", "structlog", "tinydb"],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
