@@ -1,6 +1,7 @@
 # An asynchronous scheduler using MPI for Adaptive
 
 [![PyPI](https://img.shields.io/pypi/v/adaptive-scheduler.svg)](https://pypi.python.org/pypi/adaptive-scheduler)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 
 Run many learners on many cores (>10k) using MPI.
 
