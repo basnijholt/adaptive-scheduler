@@ -129,7 +129,12 @@ See [`example.ipynb`](example.ipynb).
 
 **WARNING:** This is still the pre-alpha development stage. No error-handling is done and its stability is uncertain.
 
-Install master with
+Install the latest stable version for PyPI with
+```bash
+pip install adaptive_scheduler
+```
+
+or install master with
 ```bash
 pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/master.zip
 ```
