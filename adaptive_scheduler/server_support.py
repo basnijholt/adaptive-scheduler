@@ -86,7 +86,7 @@ async def manage_jobs(
                         to_start -= 1
                 await asyncio.sleep(interval)
             except Exception as e:
-                log.exception("got exception when starting a job", exception=e)
+                log.exception("got exception when starting a job", exception=str(e))
                 await asyncio.sleep(5)
 
 

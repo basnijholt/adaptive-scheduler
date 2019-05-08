@@ -21,7 +21,7 @@ def get_learner(url, learners, fnames):
             log.exception(msg)
             raise RuntimeError(msg)
         elif isinstance(reply, Exception):
-            log.exception("got an exception", reply=reply)
+            log.exception("got an exception", reply=str(reply))
             raise reply
         else:
             fname = reply
