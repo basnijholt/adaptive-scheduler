@@ -132,16 +132,21 @@ See [`example.ipynb`](example.ipynb).
 
 **WARNING:** This is still the pre-alpha development stage. No error-handling is done and its stability is uncertain.
 
-Install the latest stable version for PyPI with
+Install the **latest stable** version from conda with (recommended)
+```bash
+conda install adaptive_scheduler
+```
+
+or from PyPI with
 ```bash
 pip install adaptive_scheduler
 ```
 
-or install master with
+or install **master** with
 ```bash
 pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/master.zip
 ```
-or clone the repository and do a dev install (recommended)
+or clone the repository and do a dev install (recommended for dev)
 ```
 git clone git@github.com:basnijholt/adaptive-scheduler.git
 cd adaptive-scheduler
