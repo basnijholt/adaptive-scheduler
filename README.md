@@ -1,4 +1,4 @@
-# An asynchronous scheduler using MPI for Adaptive
+# An asynchronous scheduler using MPI for [Adaptive](https://github.com/python-adaptive/adaptive/)
 
 [![PyPI](https://img.shields.io/pypi/v/adaptive-scheduler.svg)](https://pypi.python.org/pypi/adaptive-scheduler)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
