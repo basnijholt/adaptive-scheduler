@@ -1,10 +1,10 @@
 import asyncio
+import concurrent.futures
 import logging
 import os
 import socket
 import subprocess
 import time
-from concurrent.futures import ProcessPoolExecutor
 
 import structlog
 import zmq
@@ -62,7 +62,7 @@ async def manage_jobs(
     python_executable=None,
     interval=30,
 ):
-    with ProcessPoolExecutor() as ex:
+    with concurrent.futures.ProcessPoolExecutor() as ex:
         while True:
             try:
                 running = check_running()
@@ -85,6 +85,9 @@ async def manage_jobs(
                         )
                         to_start -= 1
                 await asyncio.sleep(interval)
+            except concurrent.futures.CancelledError:
+                log.exception("task was cancelled because of a CancelledError")
+                raise
             except Exception as e:
                 log.exception("got exception when starting a job", exception=str(e))
                 await asyncio.sleep(5)
