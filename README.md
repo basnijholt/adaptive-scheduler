@@ -171,4 +171,4 @@ in the repository.
 
 ## Limitations
 
-Right now `adaptive_scheduler` is only working for SLURM, however only the functions in [`adaptive_scheduler/slurm.py`](adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.
+Right now `adaptive_scheduler` is only working for SLURM and PBS, however only the functions in [`adaptive_scheduler/slurm.py`](adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.
