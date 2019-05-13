@@ -134,7 +134,7 @@ See [`example.ipynb`](example.ipynb).
 
 Install the **latest stable** version from conda with (recommended)
 ```bash
-conda install adaptive_scheduler
+conda install adaptive-scheduler
 ```
 
 or from PyPI with
