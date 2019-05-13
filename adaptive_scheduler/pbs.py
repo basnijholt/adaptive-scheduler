@@ -71,6 +71,9 @@ def queue(me_only=False):
         jobid = header.split("Job Id: ")[1]
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
         if info["job_state"] in ["R", "Q"]:
+            info["name"] = info[
+                "Job_Name"
+            ]  # used in `server_support.manage_jobs`
             running[jobid] = info
     return running
 

@@ -12,16 +12,7 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-
-scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "SLURM")
-if scheduler_system == "SLURM":
-    from adaptive_scheduler.slurm import queue, make_job_script
-elif scheduler_system == "PBS":
-    from adaptive_scheduler.pbs import queue, make_job_script
-else:
-    raise NotImplementedError(
-        f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
-    )
+from adaptive_scheduler._scheduler import queue, make_job_script, ext, submit_cmd
 
 ctx = zmq.asyncio.Context()
 
@@ -136,14 +127,14 @@ def done_with_learner(db_fname, fname):
 
 
 def start_job(name, cores, job_script_function, run_script, python_executable):
-    with open(name + ".sbatch", "w") as f:
+    with open(name + ext, "w") as f:
         job_script = job_script_function(name, cores, run_script, python_executable)
         f.write(job_script)
 
     returncode = None
     while returncode != 0:
         returncode = subprocess.run(
-            f"sbatch {name}.sbatch".split(), stderr=subprocess.PIPE
+            f"{submit_cmd} {name}{ext}".split(), stderr=subprocess.PIPE
         ).returncode
         time.sleep(0.5)
 

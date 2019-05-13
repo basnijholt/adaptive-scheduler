@@ -1,7 +1,7 @@
 import structlog
 import zmq
 
-from adaptive_scheduler.slurm import get_job_id
+from adaptive_scheduler._scheduler import get_job_id
 
 ctx = zmq.Context()
 log = structlog.get_logger("adaptive_scheduler.client")
