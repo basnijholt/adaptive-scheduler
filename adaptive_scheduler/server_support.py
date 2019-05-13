@@ -128,7 +128,7 @@ def done_with_learner(db_fname, fname):
 
 def start_job(name, cores, job_script_function, run_script, python_executable):
     with open(name + ".sbatch", "w") as f:
-        job_script = make_sbatch(name, cores, run_script, python_executable)
+        job_script = job_script_function(name, cores, run_script, python_executable)
         f.write(job_script)
 
     returncode = None

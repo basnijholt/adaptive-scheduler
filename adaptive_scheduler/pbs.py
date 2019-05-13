@@ -5,7 +5,7 @@ import sys
 import textwrap
 
 
-def make_sbatch(name, cores, run_script="run_learner.py", python_executable=None):
+def make_job_script(name, cores, run_script="run_learner.py", python_executable=None):
     if python_executable is None:
         python_executable = sys.executable
     job_script = textwrap.dedent(
