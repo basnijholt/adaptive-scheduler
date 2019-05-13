@@ -13,7 +13,7 @@ def make_sbatch(name, cores, run_script="run_learner.py", python_executable=None
         #!/bin/bash
         #SBATCH --job-name {name}
         #SBATCH --ntasks {cores}
-        #SBATCH --output {name}.out
+        #SBATCH --output {name}-%A.out
         #SBATCH --no-requeue
 
         export MKL_NUM_THREADS=1
