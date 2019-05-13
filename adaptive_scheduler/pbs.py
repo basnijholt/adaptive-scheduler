@@ -70,7 +70,10 @@ def queue(me_only=False):
     for header, *raw_info in jobs:
         jobid = header.split("Job Id: ")[1]
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
-        if info["job_state"] in ["R", "P"]:  # XXX: check that P is actually pending jobs
+        if info["job_state"] in [
+            "R",
+            "P",
+        ]:  # XXX: check that P is actually pending jobs
             running[jobid] = info
     return running
 
