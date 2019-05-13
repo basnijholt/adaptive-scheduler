@@ -27,7 +27,7 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
     return job_script
 
 
-def check_running(me_only=True):
+def queue(me_only=True):
     python_format = {
         "jobid": 100,
         "name": 100,

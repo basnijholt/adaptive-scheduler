@@ -48,7 +48,7 @@ def _split_by_job(lines):
     return [j for j in jobs if j]
 
 
-def check_running(me_only=False):
+def queue(me_only=False):
     cmd = ["qstat", "-f"]
     if me_only:
         username = getpass.getuser()

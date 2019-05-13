@@ -12,7 +12,7 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.slurm import check_running, make_sbatch
+from adaptive_scheduler.slurm import queue, make_sbatch
 
 ctx = zmq.asyncio.Context()
 
@@ -65,7 +65,7 @@ async def manage_jobs(
     with concurrent.futures.ProcessPoolExecutor() as ex:
         while True:
             try:
-                running = check_running()
+                running = queue()
                 update_db(db_fname, running)  # in case some jobs died
                 running_job_names = {
                     job["name"] for job in running.values() if job["name"] in job_names
