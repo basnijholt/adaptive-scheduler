@@ -12,7 +12,7 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler._scheduler import queue, make_job_script, ext, submit_cmd
+from adaptive_scheduler._scheduler import ext, make_job_script, queue, submit_cmd
 
 ctx = zmq.asyncio.Context()
 
