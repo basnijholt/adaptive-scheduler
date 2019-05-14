@@ -93,6 +93,25 @@ async def manage_jobs(
                 await asyncio.sleep(5)
 
 
+def start_job(name, cores, job_script_function, run_script, python_executable):
+    with open(name + ext, "w") as f:
+        job_script = job_script_function(name, cores, run_script, python_executable)
+        f.write(job_script)
+
+    returncode = None
+    while returncode != 0:
+        returncode = subprocess.run(
+            f"{submit_cmd} {name}{ext}".split(), stderr=subprocess.PIPE
+        ).returncode
+        time.sleep(0.5)
+
+
+def get_allowed_url():
+    ip = socket.gethostbyname(socket.gethostname())
+    port = zmq.ssh.tunnel.select_random_ports(1)[0]
+    return f"tcp://{ip}:{port}"
+
+
 def create_empty_db(db_fname, fnames):
     entries = [dict(fname=fname, job_id=None, is_done=False) for fname in fnames]
     if os.path.exists(db_fname):
@@ -126,29 +145,10 @@ def done_with_learner(db_fname, fname):
         db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
 
 
-def start_job(name, cores, job_script_function, run_script, python_executable):
-    with open(name + ext, "w") as f:
-        job_script = job_script_function(name, cores, run_script, python_executable)
-        f.write(job_script)
-
-    returncode = None
-    while returncode != 0:
-        returncode = subprocess.run(
-            f"{submit_cmd} {name}{ext}".split(), stderr=subprocess.PIPE
-        ).returncode
-        time.sleep(0.5)
-
-
 def get_n_jobs_done(db_fname):
     Entry = Query()
     with TinyDB(db_fname) as db:
         return db.count(Entry.is_done == True)  # noqa: E711
-
-
-def get_allowed_url():
-    ip = socket.gethostbyname(socket.gethostname())
-    port = zmq.ssh.tunnel.select_random_ports(1)[0]
-    return f"tcp://{ip}:{port}"
 
 
 def get_database(db_fname):
