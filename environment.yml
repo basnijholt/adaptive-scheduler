@@ -1,0 +1,13 @@
+name: adaptive-scheduler
+
+channels:
+- conda-forge
+
+dependencies:
+  - python
+  - adaptive
+  - mpi4py
+  - pyzmq
+  - structlog
+  - tinydb
+  - toolz
