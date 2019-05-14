@@ -4,6 +4,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 [![Conda](https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
 [![Downloads](https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
+[![Pipeline status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=6?branchName=master)
 
 Run many learners on many cores (>10k) using MPI.
 

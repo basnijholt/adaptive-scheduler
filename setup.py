@@ -41,6 +41,8 @@ def get_version_and_cmdclass(package_name):
 
 version, cmdclass = get_version_and_cmdclass("adaptive_scheduler")
 
+with open("requirements.txt") as f:
+    requirements = f.read().split()
 
 setup(
     name="adaptive_scheduler",
@@ -55,7 +57,7 @@ setup(
     license="BSD-3",
     url="https://github.com/basnijholt/adaptive-scheduler",
     download_url="https://pypi.python.org/pypi/adaptive_scheduler",
-    install_requires=["adaptive", "mpi4py", "pyzmq", "structlog", "tinydb", "toolz"],
+    install_requires=requirements,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
