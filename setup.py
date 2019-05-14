@@ -46,7 +46,7 @@ setup(
     name="adaptive_scheduler",
     version=version,
     cmdclass=cmdclass,
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     packages=find_packages(),
     include_package_data=True,
     maintainer="Bas Nijholt",
