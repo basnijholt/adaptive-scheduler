@@ -26,7 +26,14 @@ def get_learner(url, learners, fnames):
         else:
             fname = reply
             log.info(f"got fname", fname=fname)
-    learner = next(lrn for lrn, fn in zip(learners, fnames) if fn == fname)
+
+    def maybe_lst(fname):
+        if isinstance(fname, tuple):
+            # TinyDB converts tuples to lists
+            fname = list(fname)
+        return fname
+
+    learner = next(lrn for lrn, fn in zip(learners, fnames) if maybe_lst(fn) == fname)
     log.info("picked a learner")
     return learner, fname
 
