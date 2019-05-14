@@ -21,20 +21,20 @@ logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
 
-def dispatch(request, db_fname):
+def _dispatch(request, db_fname):
     request_type, request_arg = request
     log.debug("got a request", request=request)
     try:
         if request_type == "start":
             job_id = request_arg  # workers send us their slurm ID for us to fill in
             # give the worker a job and send back the fname to the worker
-            fname = choose_fname(db_fname, job_id)
+            fname = _choose_fname(db_fname, job_id)
             log.debug("choose a fname", fname=fname, job_id=job_id)
             return fname
         elif request_type == "stop":
             fname = request_arg  # workers send us the fname they were given
             log.debug("got a stop request", fname=fname)
-            return done_with_learner(db_fname, fname)  # reset the job_id to None
+            return _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
         return e
 
@@ -46,7 +46,7 @@ async def manage_database(address, db_fname):
     try:
         while True:
             request = await socket.recv_pyobj()
-            reply = dispatch(request, db_fname)
+            reply = _dispatch(request, db_fname)
             await socket.send_pyobj(reply)
     finally:
         socket.close()
@@ -66,17 +66,17 @@ async def manage_jobs(
         while True:
             try:
                 running = queue()
-                update_db(db_fname, running)  # in case some jobs died
+                _update_db(db_fname, running)  # in case some jobs died
                 running_job_names = {
                     job["name"] for job in running.values() if job["name"] in job_names
                 }
-                n_jobs_done = get_n_jobs_done(db_fname)
+                n_jobs_done = _get_n_jobs_done(db_fname)
                 to_start = len(job_names) - len(running_job_names) - n_jobs_done
                 for job_name in job_names:
                     if job_name not in running_job_names and to_start > 0:
                         await ioloop.run_in_executor(
                             ex,
-                            start_job,
+                            _start_job,
                             job_name,
                             cores,
                             job_script_function,
@@ -93,7 +93,7 @@ async def manage_jobs(
                 await asyncio.sleep(5)
 
 
-def start_job(name, cores, job_script_function, run_script, python_executable):
+def _start_job(name, cores, job_script_function, run_script, python_executable):
     with open(name + ext, "w") as f:
         job_script = job_script_function(name, cores, run_script, python_executable)
         f.write(job_script)
@@ -120,14 +120,19 @@ def create_empty_db(db_fname, fnames):
         db.insert_multiple(entries)
 
 
-def update_db(db_fname, running):
+def get_database(db_fname):
+    with TinyDB(db_fname) as db:
+        return db.all()
+
+
+def _update_db(db_fname, running):
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
         db.update({"job_id": None}, doc_ids=doc_ids)
 
 
-def choose_fname(db_fname, job_id):
+def _choose_fname(db_fname, job_id):
     Entry = Query()
     with TinyDB(db_fname) as db:
         assert not db.contains(Entry.job_id == job_id)
@@ -139,18 +144,13 @@ def choose_fname(db_fname, job_id):
     return entry["fname"]
 
 
-def done_with_learner(db_fname, fname):
+def _done_with_learner(db_fname, fname):
     Entry = Query()
     with TinyDB(db_fname) as db:
         db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
 
 
-def get_n_jobs_done(db_fname):
+def _get_n_jobs_done(db_fname):
     Entry = Query()
     with TinyDB(db_fname) as db:
         return db.count(Entry.is_done == True)  # noqa: E711
-
-
-def get_database(db_fname):
-    with TinyDB(db_fname) as db:
-        return db.all()
