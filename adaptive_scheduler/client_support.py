@@ -18,13 +18,13 @@ def get_learner(url, learners, fnames):
         socket.send_pyobj(("start", job_id))
         log.info(f"sent start signal")
         reply = socket.recv_pyobj()
-        log.info("got reply", reply=reply)
+        log.info("got reply", reply=str(reply))
         if reply is None:
             msg = f"No learners to be run for {job_id}."
             log.exception(msg)
             raise RuntimeError(msg)
         elif isinstance(reply, Exception):
-            log.exception("got an exception", reply=str(reply))
+            log.exception("got an exception")
             raise reply
         else:
             fname = reply
