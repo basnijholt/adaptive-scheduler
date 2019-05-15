@@ -1,5 +1,8 @@
+import asyncio
+import datetime
 import structlog
 import zmq
+from contextlib import suppress
 
 from adaptive_scheduler._scheduler import get_job_id
 
@@ -44,3 +47,26 @@ def tell_done(url, fname):
         socket.send_pyobj(("stop", fname))
         log.info("sent stop signal", fname=fname)
         socket.recv_pyobj()  # Needed because of socket type
+
+
+def log_info(runner, interval=300):
+    async def coro(runner, interval):
+        while runner.status() == "running":
+            await asyncio.sleep(interval)
+            info = {}
+            dt = datetime.timedelta(seconds=runner.elapsed_time())
+            info["elapsed_time"] = str(dt)
+            info["overhead"] = f"{runner.overhead():.2f}%"
+            with suppress(AttributeError):
+                info["npoints"] = runner.learner.npoints
+            with suppress(AttributeError):
+                # If the Learner is a BalancingLearner
+                info["npoints"] = sum(l.npoints for l in runner.learner.learners)
+            if "npoints" in info:
+                info["npoint_per_second"] = f'{info["npoints"] / dt.seconds:.3f}'
+            with suppress(Exception):
+                info["latest loss"] = f'{runner.learner._cache["loss"]:.3f}'
+            log.info(f"current status", **info)
+        log.info(f"runner statues changed to {runner.status()}")
+
+    return runner.ioloop.create_task(coro(runner, interval))
