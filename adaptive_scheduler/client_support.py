@@ -50,6 +50,8 @@ def tell_done(url, fname):
 
 
 def log_info(runner, interval=300):
+    """Log info in the terminal, similar to ``runner.live_info()``."""
+
     async def coro(runner, interval):
         while runner.status() == "running":
             await asyncio.sleep(interval)
