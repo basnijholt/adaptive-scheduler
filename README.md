@@ -89,7 +89,7 @@ from adaptive_scheduler import server_support
 from learners_file import learners, fnames
 
 # create a new database
-db_fname = "running.tinydb"
+db_fname = "running.json"
 server_support.create_empty_db(db_fname, fnames)
 
 # create unique names for the jobs
