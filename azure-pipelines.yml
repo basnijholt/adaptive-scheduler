@@ -4,9 +4,6 @@ jobs:
   - bash: echo "##vso[task.prependpath]/usr/share/miniconda/bin"
     displayName: Add conda to PATH
 
-  - script: python conda-environment.py
-    displayName: Create environment.yml file from requirements.txt
-
   - script: conda env create --quiet --file environment.yml
     displayName: Create Anaconda environment
 
@@ -25,3 +22,8 @@ jobs:
       pre-commit install
       pre-commit run --all-files
     displayName: 'Run pre-commit'
+
+  - script: |
+      python conda-environment.py
+      if [[ `git status --porcelain --untracked-files=no` ]]; then exit 1; fi
+    displayName: Check if environment.yml is in sync with requirements.txt
