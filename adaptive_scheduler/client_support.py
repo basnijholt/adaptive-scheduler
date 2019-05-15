@@ -28,7 +28,7 @@ def get_learner(url, learners, fnames):
             raise reply
         else:
             fname = reply
-            log.info(f"got fname", fname=fname)
+            log.info(f"got fname")
 
     def maybe_lst(fname):
         if isinstance(fname, tuple):
