@@ -52,20 +52,26 @@ def tell_done(url, fname):
 def log_info(runner, interval=300):
     """Log info in the terminal, similar to ``runner.live_info()``."""
 
+    def get_npoints(learner):
+        with suppress(AttributeError):
+            return learner.npoints
+        with suppress(AttributeError):
+            # If the Learner is a BalancingLearner
+            return sum(l.npoints for l in learner.learners)
+
     async def coro(runner, interval):
+        npoints_start = get_npoints(runner.learner)
         while runner.status() == "running":
             await asyncio.sleep(interval)
             info = {}
-            dt = datetime.timedelta(seconds=runner.elapsed_time())
-            info["elapsed_time"] = str(dt)
+            Δt = datetime.timedelta(seconds=runner.elapsed_time())
+            info["elapsed_time"] = str(Δt)
             info["overhead"] = f"{runner.overhead():.2f}%"
-            with suppress(AttributeError):
-                info["npoints"] = runner.learner.npoints
-            with suppress(AttributeError):
-                # If the Learner is a BalancingLearner
-                info["npoints"] = sum(l.npoints for l in runner.learner.learners)
-            if "npoints" in info:
-                info["npoint_per_second"] = f'{info["npoints"] / dt.seconds:.3f}'
+            npoints = get_npoints(runner.learner)
+            if npoints is not None:
+                info["npoints"] = get_npoints(runner.learner)
+                Δnpoints = npoints - npoints_start
+                info["npoint_per_second"] = f'{Δnpoints / Δt.seconds:.3f}'
             with suppress(Exception):
                 info["latest loss"] = f'{runner.learner._cache["loss"]:.3f}'
             log.info(f"current status", **info)
