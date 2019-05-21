@@ -36,7 +36,13 @@ def get_learner(url, learners, fnames):
             fname = list(fname)
         return fname
 
-    learner = next(lrn for lrn, fn in zip(learners, fnames) if maybe_lst(fn) == fname)
+    try:
+        learner = next(l for l, f in zip(learners, fnames) if maybe_lst(f) == fname)
+    except StopIteration:
+        msg = "Learner with this fname doesn't exist in the database."
+        log.exception(msg)
+        raise KeyError(msg)
+
     log.info("picked a learner")
     return learner, fname
 
@@ -60,20 +66,23 @@ def log_info(runner, interval=300):
             return sum(l.npoints for l in learner.learners)
 
     async def coro(runner, interval):
-        npoints_start = get_npoints(runner.learner)
+        learner = runner.learner
+        npoints_start = get_npoints(learner)
         while runner.status() == "running":
             await asyncio.sleep(interval)
             info = {}
             Δt = datetime.timedelta(seconds=runner.elapsed_time())
             info["elapsed_time"] = str(Δt)
             info["overhead"] = f"{runner.overhead():.2f}%"
-            npoints = get_npoints(runner.learner)
+            npoints = get_npoints(learner)
             if npoints is not None:
-                info["npoints"] = get_npoints(runner.learner)
+                info["npoints"] = get_npoints(learner)
                 Δnpoints = npoints - npoints_start
-                info["npoint_per_second"] = f'{Δnpoints / Δt.seconds:.3f}'
+                info["npoints/s"] = f"{Δnpoints / Δt.seconds:.3f}"
             with suppress(Exception):
-                info["latest loss"] = f'{runner.learner._cache["loss"]:.3f}'
+                info["latest loss"] = f'{learner._cache["loss"]:.3f}'
+            with suppress(AttributeError):
+                info['nlearners'] = len(learner.learners)
             log.info(f"current status", **info)
         log.info(f"runner statues changed to {runner.status()}")
 
