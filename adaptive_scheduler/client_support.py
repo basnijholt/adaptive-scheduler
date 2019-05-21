@@ -11,6 +11,23 @@ log = structlog.get_logger("adaptive_scheduler.client")
 
 
 def get_learner(url, learners, fnames):
+    """Get a learner from the database running at `url`.
+
+    Parameters
+    ----------
+    url : str
+        The url of the database manager running via
+        (`adaptive_scheduler.server_support.manage_database`).
+    learners : list of `adaptive.BaseLearner`s type
+        List of `learners` corresponding to `fnames`.
+    fnames : list
+        List of `fnames` corresponding to `learners`.
+
+    Returns
+    -------
+    fname : str
+        The filename of the learner that was chosen.
+    """
     job_id = get_job_id()
     log.info(f"trying to get learner", job_id=job_id)
     with ctx.socket(zmq.REQ) as socket:
@@ -48,6 +65,16 @@ def get_learner(url, learners, fnames):
 
 
 def tell_done(url, fname):
+    """Tell the database that the learner has reached it's goal.
+
+    Parameters
+    ----------
+    url : str
+        The url of the database manager running via
+        (`adaptive_scheduler.server_support.manage_database`).
+    fname : str
+        The filename of the learner that is done.
+    """
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("stop", fname))
@@ -56,7 +83,18 @@ def tell_done(url, fname):
 
 
 def log_info(runner, interval=300):
-    """Log info in the terminal, similar to ``runner.live_info()``."""
+    """Log info in the job's logfile, similar to ``runner.live_info()``.
+
+    Parameters
+    ----------
+    runner : adaptive.Runner instance
+    interval : int, default: 300
+        Time in seconds between log entries.
+
+    Returns
+    -------
+    asyncio.Task
+    """
 
     def get_npoints(learner):
         with suppress(AttributeError):

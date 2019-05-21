@@ -44,10 +44,10 @@ def _dispatch(request, db_fname):
         return e
 
 
-async def manage_database(address, db_fname):
+async def manage_database(url, db_fname):
     log.debug("started database")
     socket = ctx.socket(zmq.REP)
-    socket.bind(address)
+    socket.bind(url)
     try:
         while True:
             request = await socket.recv_pyobj()
