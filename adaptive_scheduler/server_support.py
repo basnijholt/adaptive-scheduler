@@ -21,6 +21,11 @@ logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
 
+class MaxRestartsReached(Exception):
+    """Jobs can fail instantly because of a error in
+    your Python code which results jobs being started indefinitely."""
+
+
 def _dispatch(request, db_fname):
     request_type, request_arg = request
     log.debug("got a request", request=request)
@@ -61,7 +66,11 @@ async def manage_jobs(
     run_script="run_learner.py",
     python_executable=None,
     interval=30,
+    *,
+    max_fails_per_job=100,
 ):
+    n_started = 0
+    max_job_starts = max_fails_per_job * len(job_names)
     with concurrent.futures.ProcessPoolExecutor() as ex:
         while True:
             try:
@@ -84,9 +93,23 @@ async def manage_jobs(
                             python_executable,
                         )
                         to_start -= 1
+                        n_started += 1
+                if n_started > max_job_starts:
+                    raise MaxRestartsReached(
+                        "Too many jobs failed, your Python code probably has a bug."
+                    )
                 await asyncio.sleep(interval)
             except concurrent.futures.CancelledError:
                 log.exception("task was cancelled because of a CancelledError")
+                raise
+            except MaxRestartsReached as e:
+                log.exception(
+                    "too many jobs have failed, cancelling the job manager",
+                    n_started=n_started,
+                    max_fails_per_job=max_fails_per_job,
+                    max_job_starts=max_job_starts,
+                    exception=str(e),
+                )
                 raise
             except Exception as e:
                 log.exception("got exception when starting a job", exception=str(e))
