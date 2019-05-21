@@ -41,7 +41,7 @@ def get_learner(url, learners, fnames):
     except StopIteration:
         msg = "Learner with this fname doesn't exist in the database."
         log.exception(msg)
-        raise KeyError(msg)
+        raise UserWarning(msg)
 
     log.info("picked a learner")
     return learner, fname
