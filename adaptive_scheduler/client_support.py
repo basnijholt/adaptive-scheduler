@@ -82,7 +82,7 @@ def log_info(runner, interval=300):
             with suppress(Exception):
                 info["latest loss"] = f'{learner._cache["loss"]:.3f}'
             with suppress(AttributeError):
-                info['nlearners'] = len(learner.learners)
+                info["nlearners"] = len(learner.learners)
             log.info(f"current status", **info)
         log.info(f"runner statues changed to {runner.status()}")
 
