@@ -123,7 +123,7 @@ See [example.ipynb](https://github.com/basnijholt/adaptive-scheduler/blob/master
 
 ## Installation
 
-**WARNING:** This is still the pre-alpha development stage. No error-handling is done and its stability is uncertain.
+**WARNING:** This is still the pre-alpha development stage.
 
 Install the **latest stable** version from conda with (recommended)
 ```bash
