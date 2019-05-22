@@ -18,7 +18,7 @@ def get_learner(url, learners, fnames):
     url : str
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    learners : list of `adaptive.BaseLearner`s type
+    learners : list of `adaptive.BaseLearner` isinstances
         List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
@@ -87,7 +87,7 @@ def log_info(runner, interval=300):
 
     Parameters
     ----------
-    runner : adaptive.Runner instance
+    runner : `adaptive.Runner` instance
     interval : int, default: 300
         Time in seconds between log entries.
 

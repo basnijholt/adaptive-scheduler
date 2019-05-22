@@ -5,6 +5,8 @@
 [![Conda](https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
 [![Downloads](https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
 [![Pipeline status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=6?branchName=master)
+[![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
+
 
 Run many learners on many cores (>10k) using MPI.
 
@@ -121,12 +123,12 @@ So in summary, you have three files:
 2. `run_learner.py` which picks a learner and runs it
 3. a Jupyter notebook where you run the "database manager" and the "job manager"
 
-You don't actually ever have to leave the Jupter notebook, take a look at the [example notebook](example.ipynb).
+You don't actually ever have to leave the Jupter notebook, take a look at the [example notebook](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
 
 
 ## Jupyter notebook example
 
-See [`example.ipynb`](example.ipynb).
+See [example.ipynb](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
 
 
 ## Installation
@@ -172,4 +174,4 @@ in the repository.
 
 ## Limitations
 
-Right now `adaptive_scheduler` is only working for SLURM and PBS, however only the functions in [`adaptive_scheduler/slurm.py`](adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.
+Right now `adaptive_scheduler` is only working for SLURM and PBS, however only the functions in [adaptive_scheduler/slurm.py](https://github.com/basnijholt/adaptive-scheduler/blob/master/adaptive_scheduler/slurm.py) would have to be implemented for another type of scheduler.

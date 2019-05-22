@@ -19,7 +19,7 @@ def _split(seq, n_parts):
 
 
 def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
-    """Split a list of learners and fnames into `adaptive.BalancingLearners`.
+    r"""Split a list of learners and fnames into `adaptive.BalancingLearner`\s.
 
     Parameters
     ----------
@@ -28,7 +28,7 @@ def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
     fnames : list
         List of filenames.
     n_parts : int
-        Total number of `~adaptive.BalancingLeaner`s.
+        Total number of `~adaptive.BalancingLeaner`\s.
     strategy : str
         Learning strategy of the `~adaptive.BalancingLeaner`.
 
