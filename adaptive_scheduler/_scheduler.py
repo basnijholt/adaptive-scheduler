@@ -1,3 +1,17 @@
+"""In this file it is determined which scheduler system is being used.
+
+One needs to set an environment variable called 'SCHEDULER_SYSTEM' which
+is either 'PBS' or 'SLURM'.
+
+For example add the following to your `.bashrc`
+
+```bash
+export SCHEDULER_SYSTEM="PBS"
+```
+
+By default it is "SLURM".
+"""
+
 import os
 
 DEFAULT = "SLURM"
