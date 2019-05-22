@@ -82,7 +82,7 @@ manage_database.__doc__ = _DATABASE_MANAGER_DOC.format(
 
 def start_database_manager(url, db_fname):
     ioloop = asyncio.get_event_loop()
-    coro = manage_database("tcp://10.75.0.5:37371", db_fname)
+    coro = manage_database(url, db_fname)
     return ioloop.create_task(coro)
 
 
