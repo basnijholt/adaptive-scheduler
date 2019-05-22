@@ -94,7 +94,7 @@ async def manage_jobs(
         specific learner.
     db_fname : str
         Filename of the database, e.g. 'running.json'
-    ioloop : asyncio.AbstractEventLoop instance
+    ioloop : `asyncio.AbstractEventLoop` instance
         A running eventloop.
     cores : int
         Number of cores per job (so per learner.)
@@ -106,7 +106,7 @@ async def manage_jobs(
     run_script : str
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
-    python_executable : str, default: sys.executable
+    python_executable : str, default: `sys.executable`
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
     interval : int, default: 30

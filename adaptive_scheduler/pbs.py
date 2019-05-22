@@ -14,7 +14,7 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         Name of the job.
     cores : int
         Number of cores per job (so per learner.)
-    job_script_function : callable, default: adaptive_scheduler.slurm/pbs.make_job_script
+    job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script`
         A function with the following signature:
         ``job_script(name, cores, run_script, python_executable)`` that returns
         a job script in string form. See ``adaptive_scheduler/slurm.py`` or
