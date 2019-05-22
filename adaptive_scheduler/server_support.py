@@ -103,8 +103,7 @@ db_fname : str
 {extra_args}
 cores : int
     Number of cores per job (so per learner.)
-job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script`\
-                      or `adaptive_scheduler.pbs.make_job_script` depending on the scheduler.
+job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script` depending on the scheduler.
     A function with the following signature:
     ``job_script(name, cores, run_script, python_executable)`` that returns
     a job script in string form. See ``adaptive_scheduler/slurm.py`` or
@@ -216,7 +215,7 @@ def start_job_manager(
         run_script,
         python_executable,
         interval,
-        max_fails_per_job,
+        max_fails_per_job=max_fails_per_job,
     )
     return ioloop.create_task(coro)
 
