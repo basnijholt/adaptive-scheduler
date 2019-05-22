@@ -105,3 +105,8 @@ venv.bak/
 
 # MacOS files
 *.DS_Store
+
+# scheduler
+*.sbatch
+*.out
+*.batch
