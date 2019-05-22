@@ -45,6 +45,21 @@ def _dispatch(request, db_fname):
 
 
 async def manage_database(url, db_fname):
+    """Database manager co-routine.
+
+    Parameters
+    ----------
+    url : str
+        The url of the database manager, with the format
+        ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
+        to get a `url` that will work.
+    db_name : str
+        Filename of the database, e.g. 'running.json'
+
+    Returns
+    -------
+    coroutine
+    """
     log.debug("started database")
     socket = ctx.socket(zmq.REP)
     socket.bind(url)
@@ -69,6 +84,43 @@ async def manage_jobs(
     *,
     max_fails_per_job=100,
 ):
+    """Job manager co-routine.
+
+    Parameters
+    ----------
+    job_names : list
+        List of unique names used for the jobs with the same length as
+        `learners`. Note that a job name does not correspond to a certain
+        specific learner.
+    db_fname : str
+        Filename of the database, e.g. 'running.json'
+    ioloop : asyncio.AbstractEventLoop instance
+        A running eventloop.
+    cores : int
+        Number of cores per job (so per learner.)
+    job_script_function : callable, default: adaptive_scheduler.slurm/pbs.make_job_script
+        A function with the following signature:
+        ``job_script(name, cores, run_script, python_executable)`` that returns
+        a job script in string form. See ``adaptive_scheduler/slurm.py`` or
+        ``adaptive_scheduler/pbs.py`` for an example.
+    run_script : str
+        Filename of the script that is run on the nodes. Inside this script we
+        query the database and run the learner.
+    python_executable : str, default: sys.executable
+        The Python executable that should run the `run_script`. By default
+        it uses the same Python as where this function is called.
+    interval : int, default: 30
+        Time in seconds between checking and starting jobs.
+    max_fails_per_job : int, default: 100
+        Maximum number of times that a job can fail. This is here as a fail switch
+        because a job might fail instantly because of a bug inside `run_script`.
+        The job manager will stop when
+        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+
+    Returns
+    -------
+    coroutine
+    """
     n_started = 0
     max_job_starts = max_fails_per_job * len(job_names)
     with concurrent.futures.ProcessPoolExecutor() as ex:
@@ -130,12 +182,29 @@ def _start_job(name, cores, job_script_function, run_script, python_executable):
 
 
 def get_allowed_url():
+    """Get an allowed url for the database manager.
+
+    Returns
+    -------
+    url : str
+        An url that can be used for the database manager, with the format
+        ``tcp://ip_of_this_machine:allowed_port.``.
+    """
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
     return f"tcp://{ip}:{port}"
 
 
 def create_empty_db(db_fname, fnames):
+    """Create an empty database that keeps track of fname -> (job_id, is_done).
+
+    Parameters
+    ----------
+    db_fname : str
+        Filename of the database, e.g. 'running.json'
+    fnames : list
+        List of `fnames` corresponding to `learners`.
+    """
     entries = [dict(fname=fname, job_id=None, is_done=False) for fname in fnames]
     if os.path.exists(db_fname):
         os.remove(db_fname)
@@ -144,6 +213,7 @@ def create_empty_db(db_fname, fnames):
 
 
 def get_database(db_fname):
+    """Get the database as a list of dicts."""
     with TinyDB(db_fname) as db:
         return db.all()
 
