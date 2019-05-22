@@ -28,9 +28,9 @@ def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
     fnames : list
         List of filenames.
     n_parts : int
-        Total number of `~adaptive.BalancingLeaner`\s.
+        Total number of `~adaptive.BalancingLearner`\s.
     strategy : str
-        Learning strategy of the `~adaptive.BalancingLeaner`.
+        Learning strategy of the `~adaptive.BalancingLearner`.
 
     Returns
     -------
