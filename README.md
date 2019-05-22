@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/adaptive-scheduler.svg)](https://pypi.python.org/pypi/adaptive-scheduler)
 [![Conda](https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
 [![Downloads](https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
-[![Pipeline status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=6?branchName=master)
+[![Build Status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=1&branchName=master)
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 
 
