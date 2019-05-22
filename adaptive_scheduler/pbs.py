@@ -4,6 +4,9 @@ import subprocess
 import sys
 import textwrap
 
+ext = ".batch"
+submit_cmd = "qsub"
+
 
 def make_job_script(name, cores, run_script="run_learner.py", python_executable=None):
     """Get a jobscript in string form.
