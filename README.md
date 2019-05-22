@@ -98,22 +98,13 @@ n_jobs = len(learners)
 job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
 # start the "job manager" and the "database manager"
-ioloop = asyncio.get_event_loop()
+database_task = server_support.start_database_manager("tcp://10.75.0.5:37371", db_fname)
 
-database_task = ioloop.create_task(
-    server_support.manage_database("tcp://10.75.0.5:37371", db_fname)
-)
-
-job_task = ioloop.create_task(
-    server_support.manage_jobs(
-        job_names,
-        db_fname=db_fname,
-        ioloop=ioloop,
-        cores=200,  # number of cores per job
-        interval=60,
-        run_script="run_learner.py",
-        python_executable="~/miniconda3/envs/python37/bin/python",
-    )
+job_task = server_support.start_job_manager(
+    job_names,
+    db_fname,
+    cores=200,  # number of cores per job
+    run_script="run_learner.py",
 )
 ```
 

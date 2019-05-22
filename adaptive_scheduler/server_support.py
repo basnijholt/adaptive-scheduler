@@ -44,22 +44,25 @@ def _dispatch(request, db_fname):
         return e
 
 
+_DATABASE_MANAGER_DOC = """\
+{first_line}
+
+Parameters
+----------
+url : str
+    The url of the database manager, with the format
+    ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
+    to get a `url` that will work.
+db_fname : str
+    Filename of the database, e.g. 'running.json'
+
+Returns
+-------
+{returns}
+"""
+
+
 async def manage_database(url, db_fname):
-    """Database manager co-routine.
-
-    Parameters
-    ----------
-    url : str
-        The url of the database manager, with the format
-        ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
-        to get a `url` that will work.
-    db_name : str
-        Filename of the database, e.g. 'running.json'
-
-    Returns
-    -------
-    coroutine
-    """
     log.debug("started database")
     socket = ctx.socket(zmq.REP)
     socket.bind(url)
@@ -70,6 +73,60 @@ async def manage_database(url, db_fname):
             await socket.send_pyobj(reply)
     finally:
         socket.close()
+
+
+manage_database.__doc__ = _DATABASE_MANAGER_DOC.format(
+    first_line="Database manager co-routine.", returns="coroutine"
+)
+
+
+def start_database_manager(url, db_fname):
+    ioloop = asyncio.get_event_loop()
+    coro = manage_database("tcp://10.75.0.5:37371", db_fname)
+    return ioloop.create_task(coro)
+
+
+start_database_manager.__doc__ = _DATABASE_MANAGER_DOC.format(
+    first_line="Start database manager task.", returns="asyncio.Task"
+)
+
+_JOB_MANAGER_DOC = """{first_line}
+
+Parameters
+----------
+job_names : list
+    List of unique names used for the jobs with the same length as
+    `learners`. Note that a job name does not correspond to a certain
+    specific learner.
+db_fname : str
+    Filename of the database, e.g. 'running.json'
+{extra_args}
+cores : int
+    Number of cores per job (so per learner.)
+job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script`\
+                      or `adaptive_scheduler.pbs.make_job_script` depending on the scheduler.
+    A function with the following signature:
+    ``job_script(name, cores, run_script, python_executable)`` that returns
+    a job script in string form. See ``adaptive_scheduler/slurm.py`` or
+    ``adaptive_scheduler/pbs.py`` for an example.
+run_script : str
+    Filename of the script that is run on the nodes. Inside this script we
+    query the database and run the learner.
+python_executable : str, default: `sys.executable`
+    The Python executable that should run the `run_script`. By default
+    it uses the same Python as where this function is called.
+interval : int, default: 30
+    Time in seconds between checking and starting jobs.
+max_fails_per_job : int, default: 100
+    Maximum number of times that a job can fail. This is here as a fail switch
+    because a job might fail instantly because of a bug inside `run_script`.
+    The job manager will stop when
+    ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+
+Returns
+-------
+{returns}
+"""
 
 
 async def manage_jobs(
@@ -84,43 +141,6 @@ async def manage_jobs(
     *,
     max_fails_per_job=100,
 ):
-    """Job manager co-routine.
-
-    Parameters
-    ----------
-    job_names : list
-        List of unique names used for the jobs with the same length as
-        `learners`. Note that a job name does not correspond to a certain
-        specific learner.
-    db_fname : str
-        Filename of the database, e.g. 'running.json'
-    ioloop : `asyncio.AbstractEventLoop` instance
-        A running eventloop.
-    cores : int
-        Number of cores per job (so per learner.)
-    job_script_function : callable, default: adaptive_scheduler.slurm/pbs.make_job_script
-        A function with the following signature:
-        ``job_script(name, cores, run_script, python_executable)`` that returns
-        a job script in string form. See ``adaptive_scheduler/slurm.py`` or
-        ``adaptive_scheduler/pbs.py`` for an example.
-    run_script : str
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner.
-    python_executable : str, default: `sys.executable`
-        The Python executable that should run the `run_script`. By default
-        it uses the same Python as where this function is called.
-    interval : int, default: 30
-        Time in seconds between checking and starting jobs.
-    max_fails_per_job : int, default: 100
-        Maximum number of times that a job can fail. This is here as a fail switch
-        because a job might fail instantly because of a bug inside `run_script`.
-        The job manager will stop when
-        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
-
-    Returns
-    -------
-    coroutine
-    """
     n_started = 0
     max_job_starts = max_fails_per_job * len(job_names)
     with concurrent.futures.ProcessPoolExecutor() as ex:
@@ -166,6 +186,44 @@ async def manage_jobs(
             except Exception as e:
                 log.exception("got exception when starting a job", exception=str(e))
                 await asyncio.sleep(5)
+
+
+manage_jobs.__doc__ = _JOB_MANAGER_DOC.format(
+    first_line="Job manager co-routine.",
+    returns="coroutine",
+    extra_args="ioloop : `asyncio.AbstractEventLoop` instance\n    A running eventloop.",
+)
+
+
+def start_job_manager(
+    job_names,
+    db_fname,
+    cores=8,
+    job_script_function=make_job_script,
+    run_script="run_learner.py",
+    python_executable=None,
+    interval=30,
+    *,
+    max_fails_per_job=100,
+):
+    ioloop = asyncio.get_event_loop()
+    coro = manage_jobs(
+        job_names,
+        db_fname,
+        ioloop,
+        cores,
+        job_script_function,
+        run_script,
+        python_executable,
+        interval,
+        max_fails_per_job,
+    )
+    return ioloop.create_task(coro)
+
+
+start_job_manager.__doc__ = _JOB_MANAGER_DOC.format(
+    first_line="Start the job manager task.", returns="asyncio.Task", extra_args=""
+)
 
 
 def _start_job(name, cores, job_script_function, run_script, python_executable):
