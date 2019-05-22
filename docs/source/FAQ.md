@@ -42,3 +42,6 @@ learners, fnames = split_in_balancing_learners(
     strategy="npoints"
 )
 ```
+
+#### Q: Why aren't my jobs dying when I cancel the job manager?
+**A:** The job manager just starts the jobs and you want the job to keep running in case the job manager somehow dies. So you still need to `scancel` or `qdel` them in case you want to really cancel the jobs.
