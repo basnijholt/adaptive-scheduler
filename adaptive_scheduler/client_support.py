@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import socket
 import structlog
 import zmq
 from contextlib import suppress
@@ -104,8 +105,10 @@ def log_info(runner, interval=300):
             return sum(l.npoints for l in learner.learners)
 
     async def coro(runner, interval):
+        log.info(f"started logger on hostname {socket.gethostname()}")
         learner = runner.learner
         npoints_start = get_npoints(learner)
+        log.info(f"npoints at start {npoints_start}")
         while runner.status() == "running":
             await asyncio.sleep(interval)
             info = {}
