@@ -37,14 +37,9 @@ combos = adaptive.utils.named_product(
     a=[0.1, 0.5],
 )  # returns list of dicts, cartesian product of all values
 
-learners = []
-fnames = []
-
-for combo in combos:
-    f = partial(h, **combo)
-    learner = adaptive.Learner1D(f, bounds=(-1, 1))
-    fnames.append(f"data/{combo}")
-    learners.append(learner)
+learners = [adaptive.Learner1D(partial(h, **combo),
+            bounds=(-1, 1)) for combo in combos]
+fnames = [f"data/{combo}" for combo in combos]
 ```
 
 Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
