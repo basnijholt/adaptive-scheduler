@@ -1,5 +1,6 @@
 import math
 import random
+import os.path
 import subprocess
 import warnings
 
@@ -64,3 +65,11 @@ def _cancel_function(cancel_cmd, queue_function):
                 warnings.warn("Couldn't cancel '{job_id}'.", UserWarning)
 
     return cancel
+
+
+def combo_to_fname(combo, folder=None):
+    """Converts a dict into a human readable filename."""
+    fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ".pickle"
+    if folder is None:
+        return fname
+    return os.path.join(folder, fname)
