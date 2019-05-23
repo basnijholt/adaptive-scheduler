@@ -7,7 +7,7 @@ import textwrap
 from adaptive_scheduler.utils import _cancel_function
 
 ext = ".batch"
-submit_cmd = "qsub"
+submit_cmd = "qsub -k oe"
 
 
 def make_job_script(name, cores, run_script="run_learner.py", python_executable=None):
@@ -50,6 +50,8 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
 
+        cd $PBS_O_WORKDIR
+
         export MPI4PY_MAX_WORKERS={cores}
         mpiexec -n {cores} {python_executable} -m mpi4py.futures {run_script}
         """
@@ -78,7 +80,7 @@ def _split_by_job(lines):
     return [j for j in jobs if j]
 
 
-def queue(me_only=False):
+def queue(me_only=True):
     """Get the current running and pending jobs.
 
     Parameters
@@ -99,7 +101,7 @@ def queue(me_only=False):
     cmd = ["qstat", "-f"]
     if me_only:
         username = getpass.getuser()
-        cmd.append(f"-u={username}")
+        cmd.extend(["-u", username])
     proc = subprocess.run(
         cmd,
         text=True,
@@ -111,7 +113,7 @@ def queue(me_only=False):
     if proc.returncode != 0:
         raise RuntimeError("qstat is not responding.")
 
-    jobs = _split_by_job(output.split("\n"))
+    jobs = _split_by_job(output.replace("\n\t", "").split("\n"))
 
     running = {}
     for header, *raw_info in jobs:
