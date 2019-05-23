@@ -7,6 +7,10 @@ import textwrap
 from adaptive_scheduler.utils import _cancel_function
 
 ext = ".batch"
+
+# "-k oe" writes the log output to files directly instead of
+# at the end of the job. The downside is that the logfiles
+# are put in the homefolder.
 submit_cmd = "qsub -k oe"
 
 
