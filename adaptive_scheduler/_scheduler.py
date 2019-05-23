@@ -24,6 +24,7 @@ if scheduler_system == "SLURM":
         queue,
         ext,
         submit_cmd,
+        cancel,
     )
 elif scheduler_system == "PBS":
     from adaptive_scheduler.pbs import (
@@ -32,10 +33,11 @@ elif scheduler_system == "PBS":
         queue,
         ext,
         submit_cmd,
+        cancel,
     )
 else:
     raise NotImplementedError(
         f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
     )
 
-__all__ = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd"]
+__all__ = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
