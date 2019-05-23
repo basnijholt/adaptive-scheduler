@@ -285,7 +285,15 @@ def _update_db(db_fname, running):
 def _choose_fname(db_fname, job_id):
     Entry = Query()
     with TinyDB(db_fname) as db:
-        assert not db.contains(Entry.job_id == job_id)
+        if db.contains(Entry.job_id == job_id):
+            entry = db.get(Entry.job_id == job_id)
+            fname = entry["fname"]  # already running
+            raise Exception(
+                f"The job_id {job_id} already exists in the database and "
+                f"runs {fname}. You might have forgotten to use the "
+                "`if __name__ == '__main__': ...` idom in your code. Read the "
+                "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
+            )
         entry = db.get((Entry.job_id == None) & (Entry.is_done == False))  # noqa: E711
         log.debug("chose fname", entry=entry)
         if entry is None:
