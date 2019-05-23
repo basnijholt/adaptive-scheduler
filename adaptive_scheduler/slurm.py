@@ -4,6 +4,8 @@ import subprocess
 import sys
 import textwrap
 
+from adaptive_scheduler.utils import _cancel_function
+
 ext = ".sbatch"
 submit_cmd = "sbatch"
 
@@ -113,3 +115,6 @@ def queue(me_only=True):
 def get_job_id():
     """Get the job_id from the current job's environment."""
     return os.environ.get("SLURM_JOB_ID", "UNKNOWN")
+
+
+cancel = _cancel_function("scancel", queue)

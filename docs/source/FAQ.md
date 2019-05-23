@@ -44,4 +44,4 @@ learners, fnames = split_in_balancing_learners(
 ```
 
 #### Q: Why aren't my jobs dying when I cancel the job manager?
-**A:** The job manager just starts the jobs and you want the job to keep running in case the job manager somehow dies. So you still need to `scancel` or `qdel` them in case you want to really cancel the jobs.
+**A:** The job manager just starts the jobs and you want the job to keep running in case the job manager somehow dies. So you still need to `scancel` or `qdel` them in case you want to really cancel the jobs or use ``adaptive_scheduler.slurm.cancel(job_names)`` (or ``adaptive_scheduler.pbs.cancel(job_names)``) from your Python environment.

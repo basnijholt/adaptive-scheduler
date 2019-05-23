@@ -1,5 +1,7 @@
 import math
 import random
+import subprocess
+import warnings
 
 import adaptive
 import toolz
@@ -44,3 +46,21 @@ def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
         new_learners.append(learner)
         new_fnames.append(fnames_part)
     return new_learners, new_fnames
+
+
+def _cancel_function(cancel_cmd, queue_function):
+    def cancel(job_names):
+        """Cancel all jobs in `job_names`."""
+        job_names = set(job_names)
+        to_cancel = [
+            job_id
+            for job_id, info in queue_function().items()
+            if info["name"] in job_names
+        ]
+        for job_id in to_cancel:
+            cmd = f"{cancel_cmd} {job_id}"
+            returncode = subprocess.run(cmd.split(), stderr=subprocess.PIPE).returncode
+            if returncode != 0:
+                warnings.warn("Couldn't cancel '{job_id}'.", UserWarning)
+
+    return cancel

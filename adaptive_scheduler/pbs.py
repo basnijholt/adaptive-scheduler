@@ -4,6 +4,8 @@ import subprocess
 import sys
 import textwrap
 
+from adaptive_scheduler.utils import _cancel_function
+
 ext = ".batch"
 submit_cmd = "qsub"
 
@@ -124,3 +126,6 @@ def queue(me_only=False):
 def get_job_id():
     """Get the job_id from the current job's environment."""
     return os.environ.get("PBS_JOBID", "UNKNOWN")
+
+
+cancel = _cancel_function("qdel", queue)
