@@ -55,28 +55,30 @@ from mpi4py.futures import MPIPoolExecutor
 # the file that defines the learners we created above
 from learners_file import learners, fnames
 
-# the address of the "database manager"
-url = "tcp://10.75.0.5:37371"
 
-# ask the database for a learner that we can run
-learner, fname = client_support.get_learner(url, learners, fnames)
+if __name__ == "__main__": # ← use this see warning @ https://bit.ly/2HAk0GG
+    # the address of the "database manager"
+    url = "tcp://10.75.0.5:37371"
 
-# load the data
-learner.load(fname)
+    # ask the database for a learner that we can run
+    learner, fname = client_support.get_learner(url, learners, fnames)
 
-# run until `some_goal` is reached with an `MPIPoolExecutor`
-runner = adaptive.Runner(
-    learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
-)
+    # load the data
+    learner.load(fname)
 
-# periodically save the data (in case the job dies)
-runner.start_periodic_saving(dict(fname=fname), interval=600)
+    # run until `some_goal` is reached with an `MPIPoolExecutor`
+    runner = adaptive.Runner(
+        learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
+    )
 
-# block until runner goal reached
-runner.ioloop.run_until_complete(runner.task)
+    # periodically save the data (in case the job dies)
+    runner.start_periodic_saving(dict(fname=fname), interval=600)
 
-# tell the database that this learner has reached its goal
-client_support.is_done(url, fname)
+    # block until runner goal reached
+    runner.ioloop.run_until_complete(runner.task)
+
+    # tell the database that this learner has reached its goal
+    client_support.is_done(url, fname)
 ```
 
 In a Jupyter notebook we can start the "job manager" and the "database manager" like:
