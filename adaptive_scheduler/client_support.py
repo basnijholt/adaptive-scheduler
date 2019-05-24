@@ -124,6 +124,8 @@ def log_info(runner, interval=300):
                 info["latest loss"] = f'{learner._cache["loss"]:.3f}'
             with suppress(AttributeError):
                 info["nlearners"] = len(learner.learners)
+                if "npoints" in info:
+                    info["npoints/learner"] = info["npoints"] / info["nlearners"]
             log.info(f"current status", **info)
         log.info(f"runner statues changed to {runner.status()}")
 
