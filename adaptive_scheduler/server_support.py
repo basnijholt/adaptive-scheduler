@@ -116,7 +116,7 @@ python_executable : str, default: `sys.executable`
     it uses the same Python as where this function is called.
 interval : int, default: 30
     Time in seconds between checking and starting jobs.
-max_fails_per_job : int, default: 100
+max_fails_per_job : int, default: 40
     Maximum number of times that a job can fail. This is here as a fail switch
     because a job might fail instantly because of a bug inside `run_script`.
     The job manager will stop when
@@ -203,7 +203,7 @@ def start_job_manager(
     python_executable=None,
     interval=30,
     *,
-    max_fails_per_job=100,
+    max_fails_per_job=40,
 ):
     ioloop = asyncio.get_event_loop()
     coro = manage_jobs(
