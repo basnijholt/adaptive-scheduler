@@ -51,7 +51,7 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         export OMP_NUM_THREADS=1
 
         export MPI4PY_MAX_WORKERS=$SLURM_NTASKS
-        srun -n $SLURM_NTASKS --mpi=pmi2 {python_executable} -m mpi4py.futures {run_script}
+        mpiexec -n 1 {python_executable} -m mpi4py.futures {run_script}
         """
     )
     return job_script
