@@ -8,7 +8,15 @@ ext = ".sbatch"
 submit_cmd = "sbatch"
 
 
-def make_job_script(name, cores, run_script="run_learner.py", python_executable=None):
+def make_job_script(
+    name,
+    cores,
+    run_script="run_learner.py",
+    python_executable=None,
+    *,
+    extra_sbatch=None,
+    extra_env_vars=None,
+):
     """Get a jobscript in string form.
 
     Parameters
@@ -22,12 +30,17 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         ``job_script(name, cores, run_script, python_executable)`` that returns
         a job script in string form. See ``adaptive_scheduler/slurm.py`` or
         ``adaptive_scheduler/pbs.py`` for an example.
-    run_script : str
+    run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
     python_executable : str, default: sys.executable
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
+    extra_sbatch : list, optional
+        Extra #SBATCH arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+    extra_env_vars : list, optional
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
 
     Returns
     -------
@@ -39,6 +52,11 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
 
     if python_executable is None:
         python_executable = sys.executable
+    if extra_sbatch is None:
+        extra_sbatch = []
+    if extra_env_vars is None:
+        extra_env_vars = []
+
     job_script = textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -46,15 +64,24 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         #SBATCH --ntasks {cores}
         #SBATCH --output {name}-%A.out
         #SBATCH --no-requeue
+        {{extra_sbatch}}
 
         export MKL_NUM_THREADS=1
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
+        {{extra_env_vars}}
 
         export MPI4PY_MAX_WORKERS=$SLURM_NTASKS
         srun -n $SLURM_NTASKS --mpi=pmi2 {python_executable} -m mpi4py.futures {run_script}
         """
     )
+
+    extra_sbatch = "\n".join(f"#SBATCH {arg}" for arg in extra_sbatch)
+    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
+    job_script = job_script.format(
+        extra_sbatch=extra_sbatch, extra_env_vars=extra_env_vars
+    )
+
     return job_script
 
 

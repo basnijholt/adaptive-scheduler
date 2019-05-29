@@ -1,8 +1,6 @@
 import getpass
 import os
 import subprocess
-import sys
-import textwrap
 
 from adaptive_scheduler.utils import _cancel_function
 
@@ -14,7 +12,15 @@ ext = ".batch"
 submit_cmd = "qsub -k oe"
 
 
-def make_job_script(name, cores, run_script="run_learner.py", python_executable=None):
+def make_job_script(
+    name,
+    cores,
+    run_script="run_learner.py",
+    python_executable=None,
+    *,
+    extra_pbs=None,
+    extra_env_vars=None,
+):
     """Get a jobscript in string form.
 
     Parameters
@@ -28,20 +34,33 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         ``job_script(name, cores, run_script, python_executable)`` that returns
         a job script in string form. See ``adaptive_scheduler/slurm.py`` or
         ``adaptive_scheduler/pbs.py`` for an example.
-    run_script : str
+    run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
     python_executable : str, default: sys.executable
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
+    extra_pbs : list, optional
+        Extra #PBS arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+    extra_env_vars : list, optional
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
 
     Returns
     -------
     job_script : str
         A job script that can be submitted to the scheduler system.
     """
+    import sys
+    import textwrap
+
     if python_executable is None:
         python_executable = sys.executable
+    if extra_pbs is None:
+        extra_pbs = []
+    if extra_env_vars is None:
+        extra_env_vars = []
+
     job_script = textwrap.dedent(
         f"""\
         #!/bin/sh
@@ -49,10 +68,12 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         #PBS -V
         #PBS -N {name}
         #PBS -o {name}.out
+        {{extra_pbs}}
 
         export MKL_NUM_THREADS=1
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
+        {{extra_env_vars}}
 
         cd $PBS_O_WORKDIR
 
@@ -60,6 +81,11 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
         mpiexec -n {cores} {python_executable} -m mpi4py.futures {run_script}
         """
     )
+
+    extra_pbs = "\n".join(f"#PBS {arg}" for arg in extra_pbs)
+    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
+    job_script = job_script.format(extra_pbs=extra_pbs, extra_env_vars=extra_env_vars)
+
     return job_script
 
 
