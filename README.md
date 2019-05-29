@@ -74,6 +74,9 @@ if __name__ == "__main__": # ← use this see warning @ https://bit.ly/2HAk0GG
     # periodically save the data (in case the job dies)
     runner.start_periodic_saving(dict(fname=fname), interval=600)
 
+    # log progress info in the job output script, optional
+    client_support.log_info(runner, interval=600)
+
     # block until runner goal reached
     runner.ioloop.run_until_complete(runner.task)
 
