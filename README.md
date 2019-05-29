@@ -56,7 +56,7 @@ from mpi4py.futures import MPIPoolExecutor
 from learners_file import learners, fnames
 
 
-if __name__ == "__main__": # ← use this see warning @ https://bit.ly/2HAk0GG
+if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
     # the address of the "database manager"
     url = "tcp://10.75.0.5:37371"
 
