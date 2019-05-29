@@ -11,3 +11,4 @@ dependencies:
   - structlog
   - tinydb
   - toolz
+  - tqdm
