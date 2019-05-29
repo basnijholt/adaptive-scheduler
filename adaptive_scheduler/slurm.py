@@ -1,8 +1,6 @@
 import getpass
 import os
 import subprocess
-import sys
-import textwrap
 
 from adaptive_scheduler.utils import _cancel_function
 
@@ -36,6 +34,9 @@ def make_job_script(name, cores, run_script="run_learner.py", python_executable=
     job_script : str
         A job script that can be submitted to the scheduler system.
     """
+    import sys
+    import textwrap
+
     if python_executable is None:
         python_executable = sys.executable
     job_script = textwrap.dedent(
