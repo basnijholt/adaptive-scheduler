@@ -95,8 +95,8 @@ def queue(me_only=True):
 
     Returns
     -------
-    dictionary of `job_id` -> dict with `name and `state`.
-    e.g. ``{job_id: {'name': 'TEST_JOB-1', 'state': "PENDING" or "RUNNING"}}``.
+    dictionary of `job_id` -> dict with `name` and `state`.
+    e.g. ``{job_id: {"name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
 
     Notes
     -----
