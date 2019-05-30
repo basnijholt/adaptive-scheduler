@@ -175,7 +175,7 @@ def _get_status_prints(fname, only_last=True):
         lines = f.readlines()
         if not lines:
             return status_lines
-        for line in lines[-1].split("\n"):
+        for line in reversed(lines):
             if "current status" in line:
                 status_lines.append(line)
                 if only_last:
