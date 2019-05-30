@@ -46,6 +46,20 @@ learners, fnames = split_in_balancing_learners(
 #### Q: Why aren't my jobs dying when I cancel the job manager?
 **A:** The job manager just starts the jobs and you want the job to keep running in case the job manager somehow dies. So you still need to `scancel` or `qdel` them in case you want to really cancel the jobs or use ``adaptive_scheduler.cancel_jobs(job_names)`` from your Python environment.
 
+#### Q: How do I set extra SBATCH/PBS arguments or environment variables in my job script?
+**A:** The job_manager expects a function, so you need to modify the `make_job_script` function using `functools.partial`.
+For example modifying a job script for SLURM:
+```python
+from functools import partial
+from adaptive_scheduler.slurm import make_job_script
+job_script_function = partial(
+    make_job_script,
+    extra_sbatch=["--exclusive=user", "--time=1"],
+    extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
+    mpiexec_executable="srun --mpi=pmi2",
+)  # pass this to `server_support.start_job_manager`
+```
+
 #### Q: Cool! What else should I check out?
 **A:** There are a bunch of things that are not present in the example notebook, I recommend to take a look at:
 
