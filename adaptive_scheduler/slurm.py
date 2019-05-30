@@ -13,6 +13,7 @@ def make_job_script(
     cores,
     run_script="run_learner.py",
     python_executable=None,
+    mpiexec_executable="mpiexec",
     *,
     extra_sbatch=None,
     extra_env_vars=None,
@@ -36,6 +37,9 @@ def make_job_script(
     python_executable : str, default: sys.executable
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
+    mpiexec_executable : str, default: "mpiexec"
+        ``mpiexec`` executable. By default `which mpiexec` will be
+        used (so probably from `conda``).
     extra_sbatch : list, optional
         Extra #SBATCH arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
@@ -71,8 +75,7 @@ def make_job_script(
         export OMP_NUM_THREADS=1
         {{extra_env_vars}}
 
-        export MPI4PY_MAX_WORKERS=$SLURM_NTASKS
-        srun -n $SLURM_NTASKS --mpi=pmi2 {python_executable} -m mpi4py.futures {run_script}
+        {mpiexec_executable} -n $SLURM_NTASKS {python_executable} -m mpi4py.futures {run_script}
         """
     )
 

@@ -77,7 +77,6 @@ def make_job_script(
 
         cd $PBS_O_WORKDIR
 
-        export MPI4PY_MAX_WORKERS={cores}
         mpiexec -n {cores} {python_executable} -m mpi4py.futures {run_script}
         """
     )
