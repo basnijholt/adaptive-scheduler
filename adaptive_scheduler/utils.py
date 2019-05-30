@@ -5,6 +5,7 @@ import random
 import subprocess
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable
 
 import adaptive
 import toolz
@@ -25,7 +26,12 @@ def _split(seq, n_parts):
     return toolz.partition_all(n, lst)
 
 
-def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
+def split_in_balancing_learners(
+    learners: List[adaptive.BaseLearner],
+    fnames: List[str],
+    n_parts: int,
+    strategy: str = "npoints",
+) -> Tuple[List[adaptive.BaseLearner], List[str]]:
     r"""Split a list of learners and fnames into `adaptive.BalancingLearner`\s.
 
     Parameters
@@ -53,7 +59,7 @@ def split_in_balancing_learners(learners, fnames, n_parts, strategy="npoints"):
     return new_learners, new_fnames
 
 
-def _progress(seq, with_progress_bar, desc=""):
+def _progress(seq: Sequence, with_progress_bar: bool, desc: str = ""):
     if not with_progress_bar:
         return seq
     else:
@@ -63,8 +69,8 @@ def _progress(seq, with_progress_bar, desc=""):
             return tqdm(list(seq), desc=desc)
 
 
-def _cancel_function(cancel_cmd, queue_function):
-    def cancel(job_names, with_progress_bar=True):
+def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
+    def cancel(job_names: List[str], with_progress_bar: bool = True) -> Callable:
         """Cancel all jobs in `job_names`.
 
         Parameters
@@ -89,7 +95,7 @@ def _cancel_function(cancel_cmd, queue_function):
     return cancel
 
 
-def combo_to_fname(combo, folder=None):
+def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ".pickle"
     if folder is None:
@@ -98,8 +104,10 @@ def combo_to_fname(combo, folder=None):
 
 
 def cleanup_files(
-    job_names, extensions=("sbatch", "out", "batch"), with_progress_bar=True
-):
+    job_names: List[str],
+    extensions: List[str] = ("sbatch", "out", "batch"),
+    with_progress_bar: bool = True,
+) -> None:
     """Cleanup scheduler output files.
 
     Parameters
@@ -129,7 +137,12 @@ def cleanup_files(
         warnings.warn(f"Failed to remove {n_failed} files.")
 
 
-def load_parallel(learners, fnames, *, with_progress_bar=True):
+def load_parallel(
+    learners: List[adaptive.BaseLearner],
+    fnames: List[str],
+    *,
+    with_progress_bar: bool = True,
+) -> None:
     r"""Load a sequence of learners in parallel.
 
     Parameters
