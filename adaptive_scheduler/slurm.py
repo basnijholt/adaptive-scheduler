@@ -41,7 +41,7 @@ def make_job_script(
         ``mpiexec`` executable. By default `which mpiexec` will be
         used (so probably from `conda``).
     extra_sbatch : list, optional
-        Extra #SBATCH arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+        Extra ``#SBATCH`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
@@ -98,8 +98,8 @@ def queue(me_only=True):
 
     Returns
     -------
-    dictionary of `job_id` -> dict with `name` and `state`.
-    e.g. ``{job_id: {"name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
+    dictionary of `job_id` -> dict with `name` and `state`, for
+    example ``{job_id: {"name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
 
     Notes
     -----

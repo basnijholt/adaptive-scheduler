@@ -37,11 +37,11 @@ def make_job_script(
     run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
-    python_executable : str, default: sys.executable
+    python_executable : str, default: `sys.executable`
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
     extra_pbs : list, optional
-        Extra #PBS arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+        Extra ``#PBS`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
@@ -119,8 +119,8 @@ def queue(me_only=True):
 
     Returns
     -------
-    dictionary of `job_id` -> dict with `name` and `state`.
-    e.g. ``{job_id: {"name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+    dictionary of `job_id` -> dict with `name` and `state`, for
+    example ``{job_id: {"name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
     Notes
     -----

@@ -84,7 +84,7 @@ def tell_done(url, fname):
 
 
 def log_info(runner, interval=300):
-    """Log info in the job's logfile, similar to ``runner.live_info()``.
+    """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
     ----------

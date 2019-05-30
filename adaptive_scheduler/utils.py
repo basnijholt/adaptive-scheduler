@@ -198,7 +198,7 @@ def parse_log_files(job_names: List[str], only_last: bool = True):
 
     Returns
     -------
-    pandas.DataFrame
+    `pandas.DataFrame`
     """
     import pandas as pd
 
