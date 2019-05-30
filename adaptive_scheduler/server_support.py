@@ -62,7 +62,7 @@ Returns
 """
 
 
-async def manage_database(url, db_fname):
+async def manage_database(url: str, db_fname: str):
     log.debug("started database")
     socket = ctx.socket(zmq.REP)
     socket.bind(url)
@@ -80,7 +80,7 @@ manage_database.__doc__ = _DATABASE_MANAGER_DOC.format(
 )
 
 
-def start_database_manager(url, db_fname):
+def start_database_manager(url: str, db_fname: str):
     ioloop = asyncio.get_event_loop()
     coro = manage_database(url, db_fname)
     return ioloop.create_task(coro)
