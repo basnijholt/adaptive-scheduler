@@ -1,6 +1,7 @@
+import glob
 import math
+import os
 import random
-import os.path
 import subprocess
 import warnings
 
@@ -67,9 +68,9 @@ def _cancel_function(cancel_cmd, queue_function):
 
         Parameters
         ----------
-        job_names : str
+        job_names : list
             List of job names.
-        with_progress_bar : bool, default False
+        with_progress_bar : bool, default True
             Display a progress bar using `tqdm`.
         """
         job_names = set(job_names)
@@ -93,3 +94,35 @@ def combo_to_fname(combo, folder=None):
     if folder is None:
         return fname
     return os.path.join(folder, fname)
+
+
+def cleanup_files(
+    job_names, extensions=("sbatch", "out", "batch"), with_progress_bar=True
+):
+    """Cleanup scheduler output files.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    extensions : list
+        List of file extensions to be removed.
+    with_progress_bar : bool, default True
+        Display a progress bar using `tqdm`.
+    """
+    # Finding the files
+    fnames = []
+    for job in job_names:
+        for ext in extensions:
+            fnames += glob.glob(f"{job}*.{ext}")
+
+    # Removing the files
+    n_failed = 0
+    for fname in _progress(fnames, with_progress_bar, "Removing files"):
+        try:
+            os.remove(fname)
+        except Exception:
+            n_failed += 1
+
+    if n_failed:
+        warnings.warn(f"Failed to remove {n_failed} files.")
