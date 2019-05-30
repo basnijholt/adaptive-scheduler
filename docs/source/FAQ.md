@@ -66,3 +66,4 @@ job_script_function = partial(
 - `adaptive_scheduler.utils.combo_to_fname`
 - `adaptive_scheduler.utils.cleanup_files`
 - `adaptive_scheduler.utils.load_parallel`
+- `adaptive_scheduler.utils.parse_log_files`

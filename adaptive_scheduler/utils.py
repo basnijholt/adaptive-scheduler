@@ -1,3 +1,4 @@
+import ast
 import glob
 import math
 import os
@@ -5,6 +6,7 @@ import random
 import subprocess
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable
 
 import adaptive
@@ -165,3 +167,64 @@ def load_parallel(
         futs = [ex.submit(load, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing loading"):
             fut.result()
+
+
+def _get_status_prints(fname, only_last=True):
+    status_lines = []
+    with open(fname) as f:
+        lines = f.readlines()
+        if not lines:
+            return status_lines
+        for line in lines[-1].split("\n"):
+            if "current status" in line:
+                status_lines.append(line)
+                if only_last:
+                    return status_lines
+    return status_lines
+
+
+def parse_log_files(job_names: List[str], only_last: bool = True):
+    """Parse the log-files and convert it to a `pandas.DataFrame`.
+
+    This only works if you use `adaptive_scheduler.client_support.log_info`
+    inside your ``run_script``.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    only_last : bool, default: True
+        Only look use the last printed status message.
+
+    Returns
+    -------
+    pandas.DataFrame
+    """
+    import pandas as pd
+
+    def convert_type(k, v):
+        if k == "elapsed_time":
+            return pd.to_timedelta(v)
+        elif k == "overhead":
+            return float(v[:-1])
+        else:
+            return ast.literal_eval(v)
+
+    infos = []
+    for job in job_names:
+        fnames = glob.glob(f"{job}-*.out")
+        if not fnames:
+            continue
+        fname = fnames[-1]  # take the last file
+        statuses = _get_status_prints(fname, only_last)
+        if statuses is None:
+            continue
+        for status in statuses:
+            time, info = status.split("current status")
+            info = info.strip().split(" ")
+            info = dict([x.split("=") for x in info])
+            info = {k: convert_type(k, v) for k, v in info.items()}
+            info["job"] = job
+            info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
+            infos.append(info)
+    return pd.DataFrame(infos)
