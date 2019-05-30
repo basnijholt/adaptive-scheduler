@@ -4,6 +4,7 @@ import os
 import random
 import subprocess
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import adaptive
 import toolz
@@ -126,3 +127,28 @@ def cleanup_files(
 
     if n_failed:
         warnings.warn(f"Failed to remove {n_failed} files.")
+
+
+def load_parallel(learners, fnames, *, with_progress_bar=True):
+    r"""Load a sequence of learners in parallel.
+
+    Parameters
+    ----------
+    learners : sequence of `adaptive.BaseLearner`\s
+        The learners to be loaded.
+    fnames : sequence of str
+        A list of filenames corresponding to `learners`.
+    with_progress_bar : bool, default True
+        Display a progress bar using `tqdm`.
+    """
+
+    def load(learner, fname):
+        learner.load(fname)
+
+    with ThreadPoolExecutor() as ex:
+        futs = []
+        iterator = zip(learners, fnames)
+        pbar = _progress(iterator, with_progress_bar, "Submitting loading tasks")
+        futs = [ex.submit(load, *args) for args in pbar]
+        for fut in _progress(futs, with_progress_bar, "Finishing loading"):
+            fut.result()
