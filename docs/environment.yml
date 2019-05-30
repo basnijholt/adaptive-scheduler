@@ -9,6 +9,7 @@ dependencies:
   - mpi4py
   - pyzmq
   - structlog
+  - tqdm
   - tinydb
   - toolz
   - pip:
