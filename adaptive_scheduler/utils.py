@@ -184,7 +184,7 @@ def _get_status_prints(fname, only_last=True):
 
 
 def parse_log_files(job_names: List[str], only_last: bool = True):
-    """Parse the log-files and convert it to a `pandas.DataFrame`.
+    """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
     This only works if you use `adaptive_scheduler.client_support.log_info`
     inside your ``run_script``.
@@ -198,7 +198,7 @@ def parse_log_files(job_names: List[str], only_last: bool = True):
 
     Returns
     -------
-    `pandas.DataFrame`
+    `~pandas.core.frame.DataFrame`
     """
     import pandas as pd
 
