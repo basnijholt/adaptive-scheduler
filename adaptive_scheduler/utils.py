@@ -14,6 +14,9 @@ import toolz
 from adaptive.notebook_integration import in_ipynb
 from tqdm import tqdm, tqdm_notebook
 
+from adaptive_scheduler.server_support import get_database
+from adaptive_scheduler._scheduler import queue
+
 
 def shuffle_list(*lists, seed=0):
     """Shuffle multiple lists in the same order."""
@@ -183,7 +186,9 @@ def _get_status_prints(fname, only_last=True):
     return status_lines
 
 
-def parse_log_files(job_names: List[str], only_last: bool = True):
+def parse_log_files(
+    job_names: List[str], only_last: bool = True, db_fname: Optional[str] = None
+):
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
     This only works if you use `adaptive_scheduler.client_support.log_info`
@@ -195,11 +200,15 @@ def parse_log_files(job_names: List[str], only_last: bool = True):
         List of job names.
     only_last : bool, default: True
         Only look use the last printed status message.
+    db_fname : str, optional
+        The database filename. If passed, ``fname`` will be populated.
 
     Returns
     -------
     `~pandas.core.frame.DataFrame`
     """
+    # XXX: it could be that the job_id and the logfile don't match up ATM! This
+    # probably happens when a job got canceled and is pending now.
     import pandas as pd
 
     def convert_type(k, v):
@@ -226,5 +235,22 @@ def parse_log_files(job_names: List[str], only_last: bool = True):
             info = {k: convert_type(k, v) for k, v in info.items()}
             info["job"] = job
             info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
+            info["log_file"] = fname
             infos.append(info)
+
+    # Polulate state and job_id from the queue
+    mapping = {
+        info["name"]: (job_id, info["state"]) for job_id, info in queue().items()
+    }
+
+    for info in infos:
+        info["job_id"], info["state"] = mapping[info["job"]]
+
+    if db_fname is not None:
+        # populate job_id
+        db = get_database(db_fname)
+        fnames = {info["job_id"]: info["fname"] for info in db}
+        for info in infos:
+            info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
+
     return pd.DataFrame(infos)
