@@ -14,9 +14,6 @@ import toolz
 from adaptive.notebook_integration import in_ipynb
 from tqdm import tqdm, tqdm_notebook
 
-from adaptive_scheduler.server_support import get_database
-from adaptive_scheduler._scheduler import queue
-
 
 def shuffle_list(*lists, seed=0):
     """Shuffle multiple lists in the same order."""
@@ -209,7 +206,16 @@ def parse_log_files(
     """
     # XXX: it could be that the job_id and the logfile don't match up ATM! This
     # probably happens when a job got canceled and is pending now.
-    import pandas as pd
+    try:
+        import pandas as pd
+
+        with_pandas = True
+    except ImportError:
+        with_pandas = False
+        warnings.warn("`pandas` is not installed, a list of dicts will be returned.")
+
+    # import here to avoid circular imports
+    from adaptive_scheduler.server_support import queue, get_database
 
     def convert_type(k, v):
         if k == "elapsed_time":
@@ -253,4 +259,4 @@ def parse_log_files(
         for info in infos:
             info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
 
-    return pd.DataFrame(infos)
+    return pd.DataFrame(infos) if with_pandas else infos
