@@ -225,6 +225,20 @@ def parse_log_files(
         else:
             return ast.literal_eval(v)
 
+    def join_str(info):
+        """Turns an incorrectly split string
+        ["elapsed_time=1", "day,", "0:20:57.330515", "nlearners=31"]
+        back the correct thing
+        ['elapsed_time=1 day, 0:20:57.330515', 'nlearners=31']
+        """
+        _info = []
+        for x in info:
+            if "=" in x:
+                _info.append(x)
+            else:
+                _info[-1] += f" {x}"
+        return _info
+
     infos = []
     for job in job_names:
         fnames = glob.glob(f"{job}-*.out")
@@ -236,7 +250,7 @@ def parse_log_files(
             continue
         for status in statuses:
             time, info = status.split("current status")
-            info = info.strip().split(" ")
+            info = join_str(info.strip().split(" "))
             info = dict([x.split("=") for x in info])
             info = {k: convert_type(k, v) for k, v in info.items()}
             info["job"] = job
