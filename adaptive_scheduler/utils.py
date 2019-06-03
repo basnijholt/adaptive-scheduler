@@ -1,8 +1,10 @@
 import ast
+import collections
 import glob
 import math
 import os
 import random
+import shutil
 import subprocess
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -72,27 +74,42 @@ def _progress(seq: Sequence, with_progress_bar: bool, desc: str = ""):
 
 
 def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
-    def cancel(job_names: List[str], with_progress_bar: bool = True) -> Callable:
+    def cancel(
+        job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
+    ) -> Callable:
         """Cancel all jobs in `job_names`.
 
         Parameters
         ----------
         job_names : list
             List of job names.
-        with_progress_bar : bool, default True
+        with_progress_bar : bool, default: True
             Display a progress bar using `tqdm`.
+        max_tries : int, default: 5
+            Maximum number of attempts to cancel a job.
         """
+
+        def to_cancel(job_names):
+            return [
+                job_id
+                for job_id, info in queue_function().items()
+                if info["name"] in job_names
+            ]
+
+        def cancel_jobs(job_ids):
+            for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
+                cmd = f"{cancel_cmd} {job_id}".split()
+                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
+                if returncode != 0:
+                    warnings.warn(f"Couldn't cancel '{job_id}'.", UserWarning)
+
         job_names = set(job_names)
-        to_cancel = [
-            job_id
-            for job_id, info in queue_function().items()
-            if info["name"] in job_names
-        ]
-        for job_id in _progress(to_cancel, with_progress_bar, "Canceling jobs"):
-            cmd = f"{cancel_cmd} {job_id}"
-            returncode = subprocess.run(cmd.split(), stderr=subprocess.PIPE).returncode
-            if returncode != 0:
-                warnings.warn("Couldn't cancel '{job_id}'.", UserWarning)
+        for _ in range(max_tries):
+            job_ids = to_cancel(job_names)
+            if not job_ids:
+                # no more running jobs
+                break
+            cancel_jobs(job_ids)
 
     return cancel
 
@@ -109,6 +126,7 @@ def cleanup_files(
     job_names: List[str],
     extensions: List[str] = ("sbatch", "out", "batch"),
     with_progress_bar: bool = True,
+    move_to: Optional[str] = None,
 ) -> None:
     """Cleanup scheduler output files.
 
@@ -118,8 +136,11 @@ def cleanup_files(
         List of job names.
     extensions : list
         List of file extensions to be removed.
-    with_progress_bar : bool, default True
+    with_progress_bar : bool, default: True
         Display a progress bar using `tqdm`.
+    move_to : str, default None
+        Move the file to a different directory.
+        If None the file is removed.
     """
     # Finding the files
     fnames = []
@@ -131,7 +152,11 @@ def cleanup_files(
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, "Removing files"):
         try:
-            os.remove(fname)
+            if move_to is None:
+                os.remove(fname)
+            else:
+                os.makedirs(move_to, exist_ok=True)
+                shutil.move(fname, move_to)
         except Exception:
             n_failed += 1
 
@@ -169,7 +194,7 @@ def load_parallel(
             fut.result()
 
 
-def _get_status_prints(fname, only_last=True):
+def _get_status_prints(fname: str, only_last: bool = True):
     status_lines = []
     with open(fname) as f:
         lines = f.readlines()
@@ -274,3 +299,36 @@ def parse_log_files(
             info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
 
     return pd.DataFrame(infos) if with_pandas else infos
+
+
+def _is_string_inside_file(fname, string):
+    with open(fname) as f:
+        lines = f.readlines()
+    return string in "".join(lines)
+
+
+def logs_with_string(job_names: List[str], string: str) -> Dict[str, list]:
+    """Get jobs that have `string` inside their log-file.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    string : str
+        String that is searched for.
+
+    Returns
+    -------
+    has_string : list
+        List with jobs that have the string inside their log-file.
+    """
+    has_string = collections.defaultdict(list)
+    for job in job_names:
+        fnames = glob.glob(f"{job}-*.out")
+        if not fnames:
+            continue
+        for fname in fnames:
+            job_id = fname.split(f"{job}-")[1].split(".out")[0]
+            if _is_string_inside_file(fname, string):
+                has_string[job].append(job_id)
+    return dict(has_string)

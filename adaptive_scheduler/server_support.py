@@ -5,6 +5,7 @@ import os
 import socket
 import subprocess
 import time
+from typing import Coroutine, Dict, List, Optional
 
 import structlog
 import zmq
@@ -12,7 +13,13 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler._scheduler import ext, make_job_script, queue, submit_cmd
+from adaptive_scheduler._scheduler import (
+    ext,
+    make_job_script,
+    queue,
+    submit_cmd,
+    cancel,
+)
 
 ctx = zmq.asyncio.Context()
 
@@ -62,7 +69,7 @@ Returns
 """
 
 
-async def manage_database(url: str, db_fname: str):
+async def manage_database(url: str, db_fname: str) -> Coroutine:
     log.debug("started database")
     socket = ctx.socket(zmq.REP)
     socket.bind(url)
@@ -139,7 +146,7 @@ async def manage_jobs(
     interval=30,
     *,
     max_fails_per_job=100,
-):
+) -> Coroutine:
     n_started = 0
     max_job_starts = max_fails_per_job * len(job_names)
     with concurrent.futures.ProcessPoolExecutor() as ex:
@@ -204,7 +211,7 @@ def start_job_manager(
     interval=30,
     *,
     max_fails_per_job=40,
-):
+) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
     coro = manage_jobs(
         job_names,
@@ -252,7 +259,7 @@ def get_allowed_url():
     return f"tcp://{ip}:{port}"
 
 
-def create_empty_db(db_fname, fnames):
+def create_empty_db(db_fname: str, fnames: List[str]):
     """Create an empty database that keeps track of fname -> (job_id, is_done).
 
     Parameters
@@ -269,20 +276,20 @@ def create_empty_db(db_fname, fnames):
         db.insert_multiple(entries)
 
 
-def get_database(db_fname):
+def get_database(db_fname: str):
     """Get the database as a list of dicts."""
     with TinyDB(db_fname) as db:
         return db.all()
 
 
-def _update_db(db_fname, running):
+def _update_db(db_fname: str, running: Dict[str, dict]):
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
         db.update({"job_id": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname, job_id):
+def _choose_fname(db_fname: str, job_id: str):
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -302,13 +309,38 @@ def _choose_fname(db_fname, job_id):
     return entry["fname"]
 
 
-def _done_with_learner(db_fname, fname):
+def _done_with_learner(db_fname: str, fname: str):
     Entry = Query()
     with TinyDB(db_fname) as db:
         db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
 
 
-def _get_n_jobs_done(db_fname):
+def _get_n_jobs_done(db_fname: str):
     Entry = Query()
     with TinyDB(db_fname) as db:
         return db.count(Entry.is_done == True)  # noqa: E711
+
+
+async def kill_failed(
+    job_names: List[str],
+    error: str = "srun: error:",
+    interval: int = 600,
+    max_cancel_tries: int = 5,
+    move_to: Optional[str] = None,
+) -> Coroutine:
+    """XXX: IS NOT FULLY WORKING/TESTED YET"""
+    # It seems like tasks that print the error message do not always stop working
+    # I think it only stops working when the error happens on a node where the logger runs.
+    from adaptive_scheduler.utils import cleanup_files, logs_with_string
+
+    while True:
+        failed_jobs = logs_with_string(job_names, error)
+        to_cancel = []
+        for job_id, info in queue().items():
+            job_name = info["name"]
+            if job_id in failed_jobs.get(job_name, []):
+                to_cancel.append(job_name)
+
+        cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
+        cleanup_files(to_cancel, with_progress_bar=False, move_to=move_to)
+        await asyncio.sleep(interval)
