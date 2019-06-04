@@ -128,7 +128,7 @@ def cleanup_files(
     with_progress_bar: bool = True,
     move_to: Optional[str] = None,
 ) -> None:
-    """Cleanup scheduler output files.
+    """Cleanup the scheduler log-files files.
 
     Parameters
     ----------
@@ -148,7 +148,24 @@ def cleanup_files(
         for ext in extensions:
             fnames += glob.glob(f"{job}*.{ext}")
 
-    # Removing the files
+    _remove_or_move_files(fnames, with_progress_bar, move_to)
+
+
+def _remove_or_move_files(
+    fnames: List[str], with_progress_bar: bool = True, move_to: Optional[str] = None
+) -> None:
+    """Remove files by filename.
+
+    Parameters
+    ----------
+    fnames : list
+        List of filenames.
+    with_progress_bar : bool, default: True
+        Display a progress bar using `tqdm`.
+    move_to : str, default None
+        Move the file to a different directory.
+        If None the file is removed.
+    """
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, "Removing files"):
         try:
