@@ -334,15 +334,18 @@ async def kill_failed(
     from adaptive_scheduler.utils import _remove_or_move_files, logs_with_string
 
     while True:
-        failed_jobs = logs_with_string(job_names, error)
-        to_cancel = []
-        to_delete = []
-        for job_id, info in queue().items():
-            job_name = info["name"]
-            if job_id in failed_jobs.get(job_name, []):
-                to_cancel.append(job_name)
-                to_delete.append(f"{job_name}-{job_id}.out")
+        try:
+            failed_jobs = logs_with_string(job_names, error)
+            to_cancel = []
+            to_delete = []
+            for job_id, info in queue().items():
+                job_name = info["name"]
+                if job_id in failed_jobs.get(job_name, []):
+                    to_cancel.append(job_name)
+                    to_delete.append(f"{job_name}-{job_id}.out")
 
-        cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
-        _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
-        await asyncio.sleep(interval)
+            cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
+            _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
+            await asyncio.sleep(interval)
+        except Exception as e:
+            log.exception("got exception in kill manager", exception=str(e))
