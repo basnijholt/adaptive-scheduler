@@ -420,6 +420,9 @@ def _make_default_run_script(
         # block until runner goal reached
         runner.ioloop.run_until_complete(runner.task)
 
+        # save once more after the runner is done
+        learner.save(fname)
+
         # tell the database that this learner has reached its goal
         client_support.tell_done(url, fname)
     """
