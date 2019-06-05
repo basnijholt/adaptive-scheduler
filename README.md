@@ -81,7 +81,7 @@ if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
     runner.ioloop.run_until_complete(runner.task)
 
     # tell the database that this learner has reached its goal
-    client_support.is_done(url, fname)
+    client_support.tell_done(url, fname)
 ```
 
 In a Jupyter notebook we can start the "job manager" and the "database manager" like:

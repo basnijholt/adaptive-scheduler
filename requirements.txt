@@ -1,4 +1,5 @@
 adaptive
+dill
 mpi4py
 pyzmq
 structlog

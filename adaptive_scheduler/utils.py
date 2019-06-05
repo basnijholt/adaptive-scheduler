@@ -306,14 +306,16 @@ def parse_log_files(
     }
 
     for info in infos:
-        info["job_id"], info["state"] = mapping[info["job"]]
+        info["job_id"], info["state"] = mapping.get(info["job"], (None, None))
 
     if db_fname is not None:
         # populate job_id
         db = get_database(db_fname)
         fnames = {info["job_id"]: info["fname"] for info in db}
+        id_done = {info["job_id"]: info["is_done"] for info in db}
         for info in infos:
             info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
+            info["is_done"] = id_done.get(info["job_id"], "UNKNOWN")
 
     return pd.DataFrame(infos) if with_pandas else infos
 

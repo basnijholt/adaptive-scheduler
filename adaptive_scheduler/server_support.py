@@ -8,6 +8,7 @@ import textwrap
 import time
 from typing import Coroutine, Dict, List, Optional
 
+import dill
 import structlog
 import zmq
 import zmq.asyncio
@@ -350,6 +351,9 @@ async def kill_failed(
             cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
             _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
             await asyncio.sleep(interval)
+        except concurrent.futures.CancelledError:
+            log.exception("task was cancelled because of a CancelledError")
+            raise
         except Exception as e:
             log.exception("got exception in kill manager", exception=str(e))
 
@@ -375,16 +379,14 @@ def _make_default_run_script(
     goal=None,
     run_script_fname="run_learner.py",
 ):
-    if goal is not None:
-        raise NotImplementedError(
-            "There is no way to set a goal using the automated run script generator."
-        )
+    serialized_goal = dill.dumps(goal)
 
     template = textwrap.dedent(
         f"""\
     # {run_script_fname}, automatically generated
     # by `adaptive_scheduler.server_support._make_default_run_script()`.
     import adaptive
+    import dill
     from adaptive_scheduler import client_support
     from mpi4py.futures import MPIPoolExecutor
 
@@ -401,9 +403,12 @@ def _make_default_run_script(
         # load the data
         learner.load(fname)
 
+        # this is serialized by dill.dumps
+        goal = dill.loads({serialized_goal})
+
         # run until `some_goal` is reached with an `MPIPoolExecutor`
         runner = adaptive.Runner(
-            learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal={goal}
+            learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=goal
         )
 
         # periodically save the data (in case the job dies)
@@ -416,7 +421,7 @@ def _make_default_run_script(
         runner.ioloop.run_until_complete(runner.task)
 
         # tell the database that this learner has reached its goal
-        client_support.is_done(url, fname)
+        client_support.tell_done(url, fname)
     """
     )
     with open(run_script_fname, "w") as f:
@@ -432,7 +437,11 @@ class RunManager:
     run_script : str, default: None
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner. If None, a standard script
-        will be created, the downside of this is that you can't specify a ``runner.goal``.
+        will be created.
+    goal : callable, default: None
+        The goal passed to the `adaptive.Runner`. Note that this function will
+        be serialized and pasted in the job script. If using a custom ``run_script``.
+        the goal is ignored.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -463,7 +472,7 @@ class RunManager:
         Move logs of killed jobs to this directory. If None the logs will be deleted.
     db_fname : str, default: "running.json"
         Filename of the database, e.g. 'running.json'.
-    overwrite_db : bool, default: False
+    overwrite_db : bool, default: True
         Overwrite the existing database.
     start_job_manager_kwargs : dict, default: None
         Keyword arguments for the `start_job_manager` function that aren't set in ``__init__`` here.
@@ -495,6 +504,7 @@ class RunManager:
     def __init__(
         self,
         run_script: Optional[str] = None,
+        goal: Optional[callable] = None,
         url: Optional[str] = None,
         learners_file: str = "learners_file.py",
         save_interval: int = 300,
@@ -507,12 +517,13 @@ class RunManager:
         kill_on_error: str = "srun: error:",
         move_logs_to: Optional[str] = "old_logs",
         db_fname: str = "running.json",
-        overwrite_db: bool = False,
+        overwrite_db: bool = True,
         start_job_manager_kwargs: Optional[dict] = None,
         start_kill_manager_kwargs: Optional[dict] = None,
     ):
         # Set from arguments
         self.run_script = run_script
+        self.goal = goal
         self.learners_file = learners_file
         self.save_interval = save_interval
         self.log_interval = log_interval
@@ -537,12 +548,18 @@ class RunManager:
         self.url = url or get_allowed_url()
         self.learners_module = self._get_learners_file()
         self._set_job_names()
+        self.is_started = False
+
+        # Check incompatible arguments
+        if goal is not None and run_script is not None:
+            raise ValueError("Do not pass a goal if you are using a custom run_script.")
 
     def start(self):
         self.write_db()
         self._start_database_manager()
         self._start_job_manager(**self.start_job_manager_kwargs)
         self._start_kill_manager(**self.start_kill_manager_kwargs)
+        self.is_started = True
         return self
 
     def _get_learners_file(self):
@@ -566,7 +583,11 @@ class RunManager:
 
         if self.run_script is None:
             self.run_script = _make_default_run_script(
-                self.url, self.learners_file, self.save_interval, self.log_interval
+                self.url,
+                self.learners_file,
+                self.save_interval,
+                self.log_interval,
+                self.goal,
             )
 
         self.job_task = start_job_manager(
@@ -593,10 +614,10 @@ class RunManager:
 
     def cancel(self):
         return (
+            cancel(self.job_names),
             self.job_task.cancel(),
             self.database_task.cancel(),
             self.kill_task.cancel(),
-            cancel(self.job_names),
         )
 
     def cleanup(self):
@@ -607,7 +628,7 @@ class RunManager:
     def parse_log_files(self):
         from adaptive_scheduler.utils import parse_log_files
 
-        return parse_log_files(self.job_names, only_last=True)
+        return parse_log_files(self.job_names, only_last=True, db_fname=self.db_fname)
 
     def task_status(self):
         return (
