@@ -6,11 +6,12 @@ channels:
 dependencies:
   - python
   - adaptive
+  - dill
   - mpi4py
   - pyzmq
   - structlog
-  - tqdm
   - tinydb
   - toolz
+  - tqdm
   - pip:
     - m2r
