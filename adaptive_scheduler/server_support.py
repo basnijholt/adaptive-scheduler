@@ -6,7 +6,7 @@ import socket
 import subprocess
 import textwrap
 import time
-from typing import Coroutine, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional
 
 import dill
 import structlog
@@ -278,7 +278,7 @@ def create_empty_db(db_fname: str, fnames: List[str]):
         db.insert_multiple(entries)
 
 
-def get_database(db_fname: str):
+def get_database(db_fname: str) -> List[Dict[str, Any]]:
     """Get the database as a list of dicts."""
     with TinyDB(db_fname) as db:
         return db.all()
@@ -640,5 +640,5 @@ class RunManager:
             self.kill_task.print_stack(),
         )
 
-    def get_database(self):
+    def get_database(self) -> List[Dict[str, Any]]:
         return get_database(self.db_fname)
