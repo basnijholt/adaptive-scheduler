@@ -125,6 +125,11 @@ python_executable : str, default: `sys.executable`
     it uses the same Python as where this function is called.
 interval : int, default: 30
     Time in seconds between checking and starting jobs.
+max_simultaneous_jobs : int, default: 5000
+    Maximum number of simultaneously running jobs. By default no more than 5000
+    jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
+    jobs will run forever, resulting in the jobs that were not initially started
+    (because of this `max_simultaneous_jobs` condition) to not ever start.
 max_fails_per_job : int, default: 40
     Maximum number of times that a job can fail. This is here as a fail switch
     because a job might fail instantly because of a bug inside `run_script`.
@@ -147,6 +152,7 @@ async def manage_jobs(
     python_executable=None,
     interval=30,
     *,
+    max_simultaneous_jobs=5000,
     max_fails_per_job=100,
 ) -> Coroutine:
     n_started = 0
@@ -161,6 +167,7 @@ async def manage_jobs(
                 }
                 n_jobs_done = _get_n_jobs_done(db_fname)
                 to_start = len(job_names) - len(running_job_names) - n_jobs_done
+                to_start = min(max_simultaneous_jobs, to_start)
                 for job_name in job_names:
                     if job_name not in running_job_names and to_start > 0:
                         await ioloop.run_in_executor(
@@ -212,6 +219,7 @@ def start_job_manager(
     python_executable=None,
     interval=30,
     *,
+    max_simultaneous_jobs=5000,
     max_fails_per_job=40,
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
@@ -224,6 +232,7 @@ def start_job_manager(
         run_script,
         python_executable,
         interval,
+        max_simultaneous_jobs=max_simultaneous_jobs,
         max_fails_per_job=max_fails_per_job,
     )
     return ioloop.create_task(coro)
