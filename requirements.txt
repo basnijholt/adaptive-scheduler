@@ -1,6 +1,7 @@
 adaptive
 dill
 mpi4py
+psutil
 pyzmq
 structlog
 tinydb

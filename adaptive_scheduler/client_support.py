@@ -5,6 +5,7 @@ import structlog
 import zmq
 from contextlib import suppress
 
+import psutil
 from adaptive_scheduler._scheduler import get_job_id
 
 ctx = zmq.Context()
@@ -126,6 +127,8 @@ def log_info(runner, interval=300):
                 info["nlearners"] = len(learner.learners)
                 if "npoints" in info:
                     info["npoints/learner"] = info["npoints"] / info["nlearners"]
+            info["cpu_usage"] = psutil.cpu_percent()
+            info["mem_usage"] = psutil.virtual_memory().percent
             log.info(f"current status", **info)
         log.info(f"runner statues changed to {runner.status()}")
 
