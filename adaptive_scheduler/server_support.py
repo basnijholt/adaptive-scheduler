@@ -637,10 +637,21 @@ class RunManager:
 
         return cleanup_files(self.job_names)
 
-    def parse_log_files(self):
+    def parse_log_files(self, only_last=True):
+        """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
+
+        Parameters
+        ----------
+        only_last : bool, default: True
+            Only look use the last printed status message.
+
+        Returns
+        -------
+        `~pandas.core.frame.DataFrame`
+        """
         from adaptive_scheduler.utils import parse_log_files
 
-        return parse_log_files(self.job_names, only_last=True, db_fname=self.db_fname)
+        return parse_log_files(self.job_names, only_last, self.db_fname)
 
     def task_status(self):
         return (
