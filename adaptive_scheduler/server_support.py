@@ -1,11 +1,13 @@
 import asyncio
 import concurrent.futures
+import datetime
 import logging
 import os
 import socket
 import subprocess
 import textwrap
 import time
+from contextlib import suppress
 from typing import Any, Coroutine, Dict, List, Optional
 
 import dill
@@ -166,6 +168,8 @@ async def manage_jobs(
                     job["name"] for job in running.values() if job["name"] in job_names
                 }
                 n_jobs_done = _get_n_jobs_done(db_fname)
+                if n_jobs_done == len(job_names):
+                    return
                 to_start = len(job_names) - len(running_job_names) - n_jobs_done
                 to_start = min(max_simultaneous_jobs, to_start)
                 for job_name in job_names:
@@ -187,7 +191,7 @@ async def manage_jobs(
                     )
                 await asyncio.sleep(interval)
             except concurrent.futures.CancelledError:
-                log.exception("task was cancelled because of a CancelledError")
+                log.info("task was cancelled because of a CancelledError")
                 raise
             except MaxRestartsReached as e:
                 log.exception(
@@ -361,7 +365,7 @@ async def kill_failed(
             _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
             await asyncio.sleep(interval)
         except concurrent.futures.CancelledError:
-            log.exception("task was cancelled because of a CancelledError")
+            log.info("task was cancelled because of a CancelledError")
             raise
         except Exception as e:
             log.exception("got exception in kill manager", exception=str(e))
@@ -555,23 +559,32 @@ class RunManager:
         self.job_task = None
         self.database_task = None
         self.kill_task = None
+        self.start_time = None
+        self.end_time = None
 
         # Set on init
         self.url = url or get_allowed_url()
         self.learners_module = self._get_learners_file()
         self._set_job_names()
         self.is_started = False
+        self.ioloop = asyncio.get_event_loop()
 
         # Check incompatible arguments
         if goal is not None and run_script is not None:
             raise ValueError("Do not pass a goal if you are using a custom run_script.")
 
     def start(self):
+        async def _start():
+            await self.job_task
+            self.end_time = time.time()
+
         self.write_db()
         self._start_database_manager()
         self._start_job_manager(**self.start_job_manager_kwargs)
         self._start_kill_manager(**self.start_kill_manager_kwargs)
         self.is_started = True
+        self.start_time = time.time()
+        self.ioloop.create_task(_start())
         return self
 
     def _get_learners_file(self):
@@ -615,22 +628,20 @@ class RunManager:
         self.database_task = start_database_manager(self.url, self.db_fname)
 
     def _start_kill_manager(self) -> None:
-        ioloop = asyncio.get_event_loop()
-        coro = kill_failed(
+        self.kill_task = start_kill_manager(
             self.job_names,
             error=self.kill_on_error,
             interval=self.kill_interval,
             move_to=self.move_logs_to,
+            **self.start_kill_manager_kwargs,
         )
-        self.kill_task = ioloop.create_task(coro)
 
     def cancel(self):
-        return (
-            cancel(self.job_names),
-            self.job_task.cancel(),
-            self.database_task.cancel(),
-            self.kill_task.cancel(),
-        )
+        if self.job_task is not None:
+            self.job_task.cancel()
+            self.database_task.cancel()
+            self.kill_task.cancel()
+        return cancel(self.job_names)
 
     def cleanup(self):
         from adaptive_scheduler.utils import cleanup_files
@@ -662,3 +673,116 @@ class RunManager:
 
     def get_database(self) -> List[Dict[str, Any]]:
         return get_database(self.db_fname)
+
+    def elapsed_time(self):
+        """Return the total time elapsed since the RunManager
+        was started."""
+        if self.job_task.done():
+            end_time = self.end_time
+            if end_time is None:
+                # task was cancelled before it began
+                assert self.job_task.cancelled()
+                return 0
+        else:
+            end_time = time.time()
+        return end_time - self.start_time
+
+    def _task_status(self, task):
+        try:
+            task.result()
+        except asyncio.InvalidStateError:
+            return "running"
+        except asyncio.CancelledError:
+            status = "cancelled"
+        except Exception:
+            status = "failed"
+        else:
+            status = "finished"
+
+        if self.end_time is None:
+            self.end_time = time.time()
+        return status
+
+    def status(self):
+        return self._task_status(self.job_task)
+
+    def info(self, *, update_interval=0.5):
+        """Display information about the run_manager.
+        Returns an interactive ipywidget that can be
+        visualized in a Jupyter notebook.
+        """
+        from ipywidgets import Layout, Button, VBox, HBox, HTML
+        from IPython.display import display
+
+        status = HTML(value=self._info_html(update_interval))
+
+        layout = Layout(width="150px")
+        buttons = [
+            Button(description="update info", layout=layout, button_color="lightgreen"),
+            Button(description="cancel jobs", layout=layout, button_style="danger"),
+            Button(
+                description="cleanup log files", layout=layout, button_style="danger"
+            ),
+        ]
+        buttons = {b.description: b for b in buttons}
+
+        def update(_):
+            status.value = self._info_html(update_interval)
+
+        buttons["cancel jobs"].on_click(lambda _: self.cancel())
+        buttons["cleanup log files"].on_click(lambda _: self.cleanup())
+        buttons["update info"].on_click(update)
+
+        buttons = VBox(list(buttons.values()))
+        display(
+            HBox(
+                (status, buttons),
+                layout=Layout(border="solid 1px", width="400px", align_items="center"),
+            )
+        )
+
+    def _info_html(self, update_interval):
+        jobs = [job for job in queue().values() if job["name"] in self.job_names]
+        n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
+        n_pending = sum(job["state"] in ("PENDING", "P") for job in jobs)
+        n_done = sum(job["is_done"] for job in self.get_database())
+
+        status = self.status()
+        color = {
+            "cancelled": "orange",
+            "running": "blue",
+            "failed": "red",
+            "finished": "green",
+        }[status]
+
+        info = [
+            ("status", f'<font color="{color}">{status}</font>'),
+            ("# running jobs", f'<font color="blue">{n_running}</font>'),
+            ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
+            ("# finished jobs", f'<font color="green">{n_done}</font>'),
+            ("elapsed time", datetime.timedelta(seconds=self.elapsed_time())),
+        ]
+
+        with suppress(Exception):
+            df = self.parse_log_files()
+            abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
+            from_logs = [
+                ("# of points", df.npoints.sum()),
+                ("mean CPU usage", f"{df.cpu_usage.mean().round(1)} %"),
+                ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
+                ("mean overhead", f"{df.overhead.mean().round(1)} %"),
+            ]
+            msg = "this is extracted from the log files, so it might not be up-to-date"
+            info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
+
+        template = '<dt class="ignore-css">{}</dt><dd>{}</dd>'
+        table = "\n".join(template.format(k, v) for k, v in info)
+
+        return f"""
+            <dl>
+            {table}
+            </dl>
+        """
+
+    def _repr_html_(self):
+        return self.info()
