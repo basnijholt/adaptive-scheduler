@@ -14,19 +14,8 @@ import sys
 from setuptools import find_packages, setup
 
 if sys.version_info < (3, 7):
-    print("adaptive requires Python 3.7 or above.")
+    print("adaptive-scheduler requires Python 3.7 or above.")
     sys.exit(1)
-
-
-def description(filename):
-    """Provide a short description."""
-    with open(filename) as fp:
-        for lineno, line in enumerate(fp):
-            if lineno < 3:
-                continue
-            line = line.strip()
-            if len(line) > 0:
-                return line
 
 
 def get_version_and_cmdclass(package_name):
@@ -44,6 +33,9 @@ version, cmdclass = get_version_and_cmdclass("adaptive_scheduler")
 with open("requirements.txt") as f:
     requirements = f.read().split()
 
+with open("README.md") as f:
+    readme = f.read().split()
+
 setup(
     name="adaptive_scheduler",
     version=version,
@@ -53,7 +45,8 @@ setup(
     include_package_data=True,
     maintainer="Bas Nijholt",
     maintainer_email="bas@nijho.lt",
-    description=description("README.md"),
+    description="Run many adaptive.learners on many cores (>10k) using MPI.",
+    long_description=readme,
     license="BSD-3",
     url="https://github.com/basnijholt/adaptive-scheduler",
     download_url="https://pypi.python.org/pypi/adaptive_scheduler",

@@ -7,7 +7,7 @@
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 
 
-Run many learners on many cores (>10k) using MPI.
+Run many adaptive.learners on many cores (>10k) using MPI.
 
 
 ## What is this?
