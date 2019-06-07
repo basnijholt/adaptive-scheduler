@@ -77,6 +77,7 @@ def tell_done(url, fname):
     fname : str
         The filename of the learner that is done.
     """
+    log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("stop", fname))
