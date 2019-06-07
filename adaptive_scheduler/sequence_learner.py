@@ -11,7 +11,10 @@ def ensure_hashable(x):
         hash(x)
         return x
     except TypeError:
-        return tuple(x)
+        if isinstance(x, dict):
+            return tuple(x.items())
+        else:
+            return tuple(x)
 
 
 class SequenceLearner(BaseLearner):
