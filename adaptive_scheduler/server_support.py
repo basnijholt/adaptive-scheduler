@@ -687,9 +687,9 @@ class RunManager:
             end_time = time.time()
         return end_time - self.start_time
 
-    def _task_status(self, task):
+    def status(self):
         try:
-            task.result()
+            self.job_task.result()
         except asyncio.InvalidStateError:
             return "running"
         except asyncio.CancelledError:
@@ -702,9 +702,6 @@ class RunManager:
         if self.end_time is None:
             self.end_time = time.time()
         return status
-
-    def status(self):
-        return self._task_status(self.job_task)
 
     def info(self):
         """Display information about the run_manager.
