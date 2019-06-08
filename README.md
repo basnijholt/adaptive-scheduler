@@ -6,7 +6,6 @@
 [![Build Status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=1&branchName=master)
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 
-
 Run many adaptive.learners on many cores (>10k) using MPI.
 
 
@@ -21,9 +20,9 @@ You also don't want to use `dask` or `ipyparallel` inside a job script because t
 With `adaptive_scheduler` you only need to define the learners and then it takes care of the running (and restarting) of the jobs on the cluster.
 
 
-## How does it work?
+# How does it work?
 
-You create a file where you define a bunch of learners such that they can be imported, like:
+You create a file where you define a bunch of `learners` and corresponding `fnames` such that they can be imported, like:
 ```python
 # learners_file.py
 import adaptive
@@ -42,7 +41,32 @@ learners = [adaptive.Learner1D(partial(h, **combo),
 fnames = [f"data/{combo}" for combo in combos]
 ```
 
-Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
+Then you start a process that creates a job-script which runs the learners. Like:
+```python
+import adaptive_scheduler
+
+def goal(learner):
+    return learner.npoints > 200
+
+run_manager = adaptive_scheduler.server_support.RunManager(
+    learners_file="learners_file.py",
+    goal=goal,
+    cores_per_job=12,  # every learner is one job
+    log_interval=30,  #  write info such as npoints, cpu_usage, time, etc. to the job log file
+    save_interval=300,  # save the data every 300 seconds
+)
+run_manager.start()
+```
+
+That's it! You can run `run_manager.info()` which will display an interactive `ipywidget` that shows the amount of running, pending, and finished jobs and buttons to cancel your job, and other information.
+
+![](http://files.nijho.lt/info.gif)
+
+## But how does *really* it work?
+
+The `RunManager` basically does what is written below.
+So, you need to create a `learners_file.py` that defines `learners` and `fnames`.
+Them a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of `job_id <--> learner`.
 
 In another Python file (the file that is run on the nodes) we do something like:
