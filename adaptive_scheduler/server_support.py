@@ -706,7 +706,7 @@ class RunManager:
     def status(self):
         return self._task_status(self.job_task)
 
-    def info(self, *, update_interval=0.5):
+    def info(self):
         """Display information about the run_manager.
         Returns an interactive ipywidget that can be
         visualized in a Jupyter notebook.
@@ -714,7 +714,7 @@ class RunManager:
         from ipywidgets import Layout, Button, VBox, HBox, HTML
         from IPython.display import display
 
-        status = HTML(value=self._info_html(update_interval))
+        status = HTML(value=self._info_html())
 
         layout = Layout(width="150px")
         buttons = [
@@ -727,7 +727,7 @@ class RunManager:
         buttons = {b.description: b for b in buttons}
 
         def update(_):
-            status.value = self._info_html(update_interval)
+            status.value = self._info_html()
 
         buttons["cancel jobs"].on_click(lambda _: self.cancel())
         buttons["cleanup log files"].on_click(lambda _: self.cleanup())
@@ -741,7 +741,7 @@ class RunManager:
             )
         )
 
-    def _info_html(self, update_interval):
+    def _info_html(self):
         jobs = [job for job in queue().values() if job["name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "P") for job in jobs)
