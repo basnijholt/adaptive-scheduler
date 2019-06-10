@@ -400,6 +400,7 @@ def _make_default_run_script(
     # by `adaptive_scheduler.server_support._make_default_run_script()`.
     import adaptive
     import dill
+    from contextlib import suppress
     from adaptive_scheduler import client_support
     from mpi4py.futures import MPIPoolExecutor
 
@@ -414,7 +415,8 @@ def _make_default_run_script(
         learner, fname = client_support.get_learner(url, learners, fnames)
 
         # load the data
-        learner.load(fname)
+        with suppress(Exception):
+            learner.load(fname)
 
         # this is serialized by dill.dumps
         goal = dill.loads({serialized_goal})
@@ -726,8 +728,16 @@ class RunManager:
         def update(_):
             status.value = self._info_html()
 
-        buttons["cancel jobs"].on_click(lambda _: self.cancel())
-        buttons["cleanup log files"].on_click(lambda _: self.cleanup())
+        def cancel(_):
+            self.cancel()
+            update(_)
+
+        def cleanup(_):
+            self.cleanup()
+            update(_)
+
+        buttons["cancel jobs"].on_click(cancel)
+        buttons["cleanup log files"].on_click(cleanup)
         buttons["update info"].on_click(update)
 
         buttons = VBox(list(buttons.values()))

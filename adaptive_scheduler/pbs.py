@@ -20,6 +20,7 @@ def make_job_script(
     *,
     extra_pbs=None,
     extra_env_vars=None,
+    num_threads=1,
 ):
     """Get a jobscript in string form.
 
@@ -45,6 +46,9 @@ def make_job_script(
     extra_env_vars : list, optional
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
+    num_threads : int, default 1
+        ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
+        will be set to this number.
 
     Returns
     -------
@@ -70,9 +74,9 @@ def make_job_script(
         #PBS -o {name}.out
         {{extra_pbs}}
 
-        export MKL_NUM_THREADS=1
-        export OPENBLAS_NUM_THREADS=1
-        export OMP_NUM_THREADS=1
+        export MKL_NUM_THREADS={num_threads}
+        export OPENBLAS_NUM_THREADS={num_threads}
+        export OMP_NUM_THREADS={num_threads}
         {{extra_env_vars}}
 
         cd $PBS_O_WORKDIR
