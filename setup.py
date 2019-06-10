@@ -47,6 +47,7 @@ setup(
     maintainer_email="bas@nijho.lt",
     description="Run many adaptive.learners on many cores (>10k) using MPI.",
     long_description=readme,
+    long_description_content_type="text/markdown",
     license="BSD-3",
     url="https://github.com/basnijholt/adaptive-scheduler",
     download_url="https://pypi.python.org/pypi/adaptive_scheduler",
