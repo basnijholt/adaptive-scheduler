@@ -34,7 +34,7 @@ with open("requirements.txt") as f:
     requirements = f.read().split()
 
 with open("README.md") as f:
-    readme = f.read().split()
+    readme = f.read()
 
 setup(
     name="adaptive_scheduler",
