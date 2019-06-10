@@ -40,7 +40,7 @@ def make_job_script(
         it uses the same Python as where this function is called.
     mpiexec_executable : str, default: "mpiexec"
         ``mpiexec`` executable. By default `which mpiexec` will be
-        used (so probably from `conda``).
+        used (so probably from ``conda``).
     extra_sbatch : list, optional
         Extra ``#SBATCH`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
