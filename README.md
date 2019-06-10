@@ -66,7 +66,7 @@ That's it! You can run `run_manager.info()` which will display an interactive `i
 
 The `RunManager` basically does what is written below.
 So, you need to create a `learners_file.py` that defines `learners` and `fnames`.
-Them a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
+Then a "job manager" writes and submits as many jobs as there are learners but _doesn't know_ which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of `job_id <--> learner`.
 
 In another Python file (the file that is run on the nodes) we do something like:
