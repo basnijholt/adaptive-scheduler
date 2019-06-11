@@ -570,6 +570,7 @@ class RunManager:
         self._set_job_names()
         self.is_started = False
         self.ioloop = asyncio.get_event_loop()
+        self._default_run_script_name = f"{self.job_name}_run_script.py"
 
         # Check incompatible arguments
         if goal is not None and run_script is not None:
@@ -615,6 +616,7 @@ class RunManager:
                 self.save_interval,
                 self.log_interval,
                 self.goal,
+                self._default_run_script_name,
             )
 
         self.job_task = start_job_manager(
