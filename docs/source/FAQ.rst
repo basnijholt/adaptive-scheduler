@@ -75,5 +75,5 @@ Q: Cool! What else should I check out?
 
 * `adaptive_scheduler.utils.combo_to_fname`
 * `adaptive_scheduler.utils.cleanup_files`
-* `adaptive_scheduler.utils.load_parallel`
+* `adaptive_scheduler.utils.load_parallel` and `adaptive_scheduler.utils.save_parallel`
 * `adaptive_scheduler.utils.parse_log_files`

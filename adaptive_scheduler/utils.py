@@ -211,6 +211,36 @@ def load_parallel(
             fut.result()
 
 
+def save_parallel(
+    learners: List[adaptive.BaseLearner],
+    fnames: List[str],
+    *,
+    with_progress_bar: bool = True,
+) -> None:
+    r"""Save a sequence of learners in parallel.
+
+    Parameters
+    ----------
+    learners : sequence of `adaptive.BaseLearner`\s
+        The learners to be saved.
+    fnames : sequence of str
+        A list of filenames corresponding to `learners`.
+    with_progress_bar : bool, default True
+        Display a progress bar using `tqdm`.
+    """
+
+    def save(learner, fname):
+        learner.save(fname)
+
+    with ThreadPoolExecutor() as ex:
+        futs = []
+        iterator = zip(learners, fnames)
+        pbar = _progress(iterator, with_progress_bar, "Submitting saving tasks")
+        futs = [ex.submit(save, *args) for args in pbar]
+        for fut in _progress(futs, with_progress_bar, "Finishing saving"):
+            fut.result()
+
+
 def _get_status_prints(fname: str, only_last: bool = True):
     status_lines = []
     with open(fname) as f:
