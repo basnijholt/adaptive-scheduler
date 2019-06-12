@@ -415,7 +415,13 @@ def _wait_for_successful_ipyparallel_client_start(client, n, timeout):
     raise Exception(f"Not all ({n_engines}/{n}) connected after {timeout} seconds.")
 
 
-def connect_to_ipyparallel(n, profile, timeout=300, folder=None, client_kwargs=None):
+def connect_to_ipyparallel(
+    n: int,
+    profile: str,
+    timeout: int = 300,
+    folder: Optional[str] = None,
+    client_kwargs=None,
+):
     """Connect to an `ipcluster` on the cluster headnode.
 
     Parameters
