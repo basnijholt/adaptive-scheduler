@@ -1,5 +1,6 @@
 adaptive
 dill
+ipyparallel
 mpi4py
 psutil
 pyzmq

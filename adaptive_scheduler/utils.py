@@ -16,6 +16,7 @@ from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable
 import adaptive
 import toolz
 from adaptive.notebook_integration import in_ipynb
+from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
 
 MAX_LINE_LENGTH = 100
@@ -433,8 +434,6 @@ def connect_to_ipyparallel(n, profile, timeout=300, folder=None, client_kwargs=N
     client : ipython.Client object
         An IPyparallel client.
     """
-    from ipyparallel import Client
-
     client = Client(profile=profile, **(client_kwargs or {}))
     dview = _wait_for_successful_ipyparallel_client_start(client, n, timeout)
     dview.use_dill()
