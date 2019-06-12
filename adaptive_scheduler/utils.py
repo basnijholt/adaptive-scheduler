@@ -6,8 +6,10 @@ import os
 import random
 import shutil
 import subprocess
+import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from datetime import datetime
 from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable
 
@@ -15,6 +17,8 @@ import adaptive
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from tqdm import tqdm, tqdm_notebook
+
+MAX_LINE_LENGTH = 100
 
 
 def shuffle_list(*lists, seed=0):
@@ -381,3 +385,63 @@ def logs_with_string(job_names: List[str], string: str) -> Dict[str, list]:
             if _is_string_inside_file(fname, string):
                 has_string[job].append(job_id)
     return dict(has_string)
+
+
+def _print_same_line(msg, new_line_end=False):
+    msg = msg.strip()
+    global MAX_LINE_LENGTH
+    MAX_LINE_LENGTH = max(len(msg), MAX_LINE_LENGTH)
+    empty_space = max(MAX_LINE_LENGTH - len(msg), 0) * " "
+    print(msg + empty_space, end="\r" if not new_line_end else "\n")
+
+
+def _wait_for_successful_ipyparallel_client_start(client, n, timeout):
+    from ipyparallel.error import NoEnginesRegistered
+
+    n_engines_old = 0
+    for t in range(timeout):
+        n_engines = len(client)
+        with suppress(NoEnginesRegistered):
+            # This can happen, we just need to wait a little longer.
+            dview = client[:]
+        msg = f"Connected to {n_engines} out of {n} engines after {t} seconds."
+        _print_same_line(msg, new_line_end=(n_engines_old != n_engines))
+        if n_engines >= n:
+            return dview
+        n_engines_old = n_engines
+        time.sleep(1)
+
+    raise Exception(f"Not all ({n_engines}/{n}) connected after {timeout} seconds.")
+
+
+def connect_to_ipyparallel(n, profile, timeout=300, folder=None, client_kwargs=None):
+    """Connect to an `ipcluster` on the cluster headnode.
+
+    Parameters
+    ----------
+    n : int
+        Number of engines to be started.
+    profile : str
+        Profile name of IPython profile.
+    timeout : int
+        Time for which we try to connect to get all the engines.
+    folder : str, optional
+        Folder that is added to the path of the engines, e.g. "~/Work/my_current_project".
+
+    Returns
+    -------
+    client : ipython.Client object
+        An IPyparallel client.
+    """
+    from ipyparallel import Client
+
+    client = Client(profile=profile, **(client_kwargs or {}))
+    dview = _wait_for_successful_ipyparallel_client_start(client, n, timeout)
+    dview.use_dill()
+
+    if folder is not None:
+        print(f"Adding {folder} to path.")
+        cmd = f"import sys, os; sys.path.append(os.path.expanduser('{folder}'))"
+        dview.execute(cmd).result()
+
+    return client

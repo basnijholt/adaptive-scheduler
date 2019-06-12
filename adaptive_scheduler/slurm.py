@@ -13,7 +13,8 @@ def make_job_script(
     cores,
     run_script="run_learner.py",
     python_executable=None,
-    mpiexec_executable="mpiexec",
+    mpiexec_executable=None,
+    executor_type="mpi4py",
     *,
     extra_sbatch=None,
     extra_env_vars=None,
@@ -38,8 +39,8 @@ def make_job_script(
     python_executable : str, default: sys.executable
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
-    mpiexec_executable : str, default: "mpiexec"
-        ``mpiexec`` executable. By default `which mpiexec` will be
+    mpiexec_executable : str, optional
+        ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
     extra_sbatch : list, optional
         Extra ``#SBATCH`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
@@ -58,12 +59,36 @@ def make_job_script(
     import sys
     import textwrap
 
-    if python_executable is None:
-        python_executable = sys.executable
-    if extra_sbatch is None:
-        extra_sbatch = []
-    if extra_env_vars is None:
-        extra_env_vars = []
+    python_executable = python_executable or sys.executable
+    extra_sbatch = extra_sbatch or []
+    extra_sbatch = "\n".join(f"#SBATCH {arg}" for arg in extra_sbatch)
+    extra_env_vars = extra_env_vars or []
+    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
+
+    if executor_type == "mpi4py":
+        mpiexec_executable = mpiexec_executable or "mpiexec"
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+    elif executor_type == "ipyparallel":
+        job_id = "${SLURM_JOB_ID}"
+        profile = "${profile}"
+        executor_specific = textwrap.dedent(
+            f"""\
+            profile=job_{job_id}_$(hostname)
+
+            echo "Creating profile {profile}"
+            ipython profile create {profile}
+
+            echo "Launching controller"
+            ipcontroller --ip="*" --profile={profile} --log-to-file &
+            sleep 10
+
+            echo "Launching engines"
+            srun --ntasks {cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
+
+            echo "Starting the Python script"
+            srun --ntasks 1 {python_executable} {run_script} {profile} {cores-1}
+            """
+        )
 
     job_script = textwrap.dedent(
         f"""\
@@ -79,14 +104,14 @@ def make_job_script(
         export OMP_NUM_THREADS={num_threads}
         {{extra_env_vars}}
 
-        {mpiexec_executable} -n $SLURM_NTASKS {python_executable} -m mpi4py.futures {run_script}
+        {{executor_specific}}
         """
     )
 
-    extra_sbatch = "\n".join(f"#SBATCH {arg}" for arg in extra_sbatch)
-    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
     job_script = job_script.format(
-        extra_sbatch=extra_sbatch, extra_env_vars=extra_env_vars
+        extra_sbatch=extra_sbatch,
+        extra_env_vars=extra_env_vars,
+        executor_specific=executor_specific,
     )
 
     return job_script
