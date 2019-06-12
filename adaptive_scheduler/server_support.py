@@ -8,7 +8,7 @@ import subprocess
 import textwrap
 import time
 from contextlib import suppress
-from typing import Any, Coroutine, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Union
 
 import dill
 import structlog
@@ -391,8 +391,21 @@ def _make_default_run_script(
     log_interval,
     goal=None,
     run_script_fname="run_learner.py",
+    executor_type="mpi4py",
 ):
     serialized_goal = dill.dumps(goal)
+    if executor_type == "mpi4py":
+        import_line = "from mpi4py.futures import MPIPoolExecutor"
+        executor_line = "MPIPoolExecutor()"
+    elif executor_type == "ipyparallel":
+        import_line = (
+            "from adaptive_scheduler.utils import connect_to_ipyparallel; import sys"
+        )
+        executor_line = (
+            "connect_to_ipyparallel(profile=sys.argv[1], n=int(sys.argv[2]))"
+        )
+    else:
+        raise NotImplementedError("Use ipyparallel or mpi4py.")
 
     template = textwrap.dedent(
         f"""\
@@ -402,7 +415,7 @@ def _make_default_run_script(
     import dill
     from contextlib import suppress
     from adaptive_scheduler import client_support
-    from mpi4py.futures import MPIPoolExecutor
+    {import_line}
 
     # the file that defines the learners we created above
     from {learners_file.rstrip(".py")} import learners, fnames
@@ -421,9 +434,12 @@ def _make_default_run_script(
         # this is serialized by dill.dumps
         goal = dill.loads({serialized_goal})
 
+        # connect to the executor
+        executor = {executor_line}
+
         # run until `some_goal` is reached with an `MPIPoolExecutor`
         runner = adaptive.Runner(
-            learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=goal
+            learner, executor=executor, shutdown_executor=True, goal=goal
         )
 
         # periodically save the data (in case the job dies)
@@ -478,6 +494,9 @@ class RunManager:
         ``job_script(name, cores, run_script, python_executable)`` that returns
         a job script in string form. See ``adaptive_scheduler/slurm.py`` or
         ``adaptive_scheduler/pbs.py`` for an example.
+    executor_type : str, default: "mpi4py"
+        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        One can use ``"ipyparallel"`` too.
     cores_per_job : int, default: 1
         Number of cores per job (so per learner.)
     job_manager_interval : int, default: 60
@@ -529,6 +548,7 @@ class RunManager:
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
         job_script_function: callable = make_job_script,
+        executor_type: Union["mpi4py", "ipyparallel"] = "mpi4py",
         cores_per_job: int = 1,
         job_manager_interval: int = 60,
         kill_interval: int = 60,
@@ -547,6 +567,7 @@ class RunManager:
         self.log_interval = log_interval
         self.job_name = job_name
         self.job_script_function = job_script_function
+        self.executor_type = executor_type
         self.cores_per_job = cores_per_job
         self.job_manager_interval = job_manager_interval
         self.kill_interval = kill_interval
@@ -617,6 +638,7 @@ class RunManager:
                 self.log_interval,
                 self.goal,
                 self._default_run_script_name,
+                self.executor_type,
             )
 
         self.job_task = start_job_manager(
