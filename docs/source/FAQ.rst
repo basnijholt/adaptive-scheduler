@@ -69,6 +69,29 @@ For example modifying a job script for SLURM:
         mpiexec_executable="srun --mpi=pmi2",
     )  # pass this to `server_support.start_job_manager`
 
+Q: My code uses MPI so the `MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**A:** You just have to pass `executor_type="ipyparallel"` to the `job_script_function` and `RunManager`.
+
+For example:
+```python
+from functools import partial
+
+job_script_function = partial(
+    adaptive_scheduler.slurm.make_job_script,
+    executor_type="ipyparallel",
+)
+
+run_manager = adaptive_scheduler.server_support.RunManager(
+    learners_file="learners_file.py",
+    executor_type="ipyparallel",
+    cores_per_job=48,
+    job_script_function=job_script_function,
+
+)
+run_manager.start()
+```
+
 Q: Cool! What else should I check out?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **A:** There are a bunch of things that are not present in the example notebook, I recommend to take a look at:
