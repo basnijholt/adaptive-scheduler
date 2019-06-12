@@ -408,8 +408,11 @@ def _make_default_run_script(
         executor_line = (
             "connect_to_ipyparallel(profile=sys.argv[1], n=int(sys.argv[2]))"
         )
+    elif executor_type == "dask-mpi":
+        import_line = "from distributed import Client"
+        executor_line = "Client()"
     else:
-        raise NotImplementedError("Use ipyparallel or mpi4py.")
+        raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
     if os.path.dirname(learners_file):
         raise RuntimeError(
@@ -468,6 +471,9 @@ def _make_default_run_script(
         client_support.tell_done(url, fname)
     """
     )
+    if executor_type == "dask-mpi":
+        template = "from dask_mpi import initialize; initialize()\n" + template
+
     with open(run_script_fname, "w") as f:
         f.write(template)
     return run_script_fname
@@ -510,7 +516,7 @@ class RunManager:
         ``adaptive_scheduler/pbs.py`` for an example.
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"`` too.
+        One can use ``"ipyparallel"`` or ``"dask-mpi"`` too.
     cores_per_job : int, default: 1
         Number of cores per job (so per learner.)
     job_manager_interval : int, default: 60
@@ -583,7 +589,7 @@ class RunManager:
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
         job_script_function: callable = make_job_script,
-        executor_type: Union["mpi4py", "ipyparallel"] = "mpi4py",
+        executor_type: Union["mpi4py", "ipyparallel", "dask-mpi"] = "mpi4py",
         cores_per_job: int = 1,
         job_manager_interval: int = 60,
         kill_interval: int = 60,

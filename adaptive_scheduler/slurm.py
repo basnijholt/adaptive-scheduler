@@ -35,8 +35,8 @@ def make_job_script(
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
     mpiexec_executable : str, optional
-        ``mpiexec`` executable. By default `mpiexec` will be
-        used (so probably from ``conda``).
+        ``mpiexec`` executable. By default ``srun --mpi=pmi2`` will be
+        used, you can also use ``mpiexec`` (which is probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"`` too.
@@ -63,9 +63,13 @@ def make_job_script(
     extra_env_vars = extra_env_vars or []
     extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
 
+    mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
     if executor_type == "mpi4py":
-        mpiexec_executable = mpiexec_executable or "mpiexec"
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+    elif executor_type == "dask-mpi":
+        executor_specific = (
+            f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
+        )
     elif executor_type == "ipyparallel":
         job_id = "${SLURM_JOB_ID}"
         profile = "${profile}"
@@ -87,6 +91,8 @@ def make_job_script(
             srun --ntasks 1 {python_executable} {run_script} {profile} {cores-1}
             """
         )
+    else:
+        raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
     job_script = textwrap.dedent(
         f"""\
