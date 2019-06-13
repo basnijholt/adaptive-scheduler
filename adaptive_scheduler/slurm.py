@@ -28,11 +28,6 @@ def make_job_script(
         Name of the job.
     cores : int
         Number of cores per job (so per learner.)
-    job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script`
-        A function with the following signature:
-        ``job_script(name, cores, run_script, python_executable)`` that returns
-        a job script in string form. See ``adaptive_scheduler/slurm.py`` or
-        ``adaptive_scheduler/pbs.py`` for an example.
     run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
@@ -42,6 +37,9 @@ def make_job_script(
     mpiexec_executable : str, optional
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
+    executor_type : str, default: "mpi4py"
+        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        One can use ``"ipyparallel"`` too.
     extra_sbatch : list, optional
         Extra ``#SBATCH`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
