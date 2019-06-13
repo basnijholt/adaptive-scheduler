@@ -98,7 +98,8 @@ def make_job_script(
         #PBS -t 1-{cores}
         #PBS -V
         #PBS -N {name}
-        #PBS -o {name}.out
+        #PBS -o $PBS_O_WORKDIR/{name}.out
+        #PBS -e $PBS_O_WORKDIR/{name}.err
         {{extra_pbs}}
 
         export MKL_NUM_THREADS={num_threads}
