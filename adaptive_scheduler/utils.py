@@ -129,7 +129,7 @@ def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
 
 def cleanup_files(
     job_names: List[str],
-    extensions: List[str] = ("sbatch", "out", "batch"),
+    extensions: List[str] = ("sbatch", "out", "batch", "e*", "o*"),
     with_progress_bar: bool = True,
     move_to: Optional[str] = None,
 ) -> None:

@@ -17,6 +17,8 @@ def make_job_script(
     cores,
     run_script="run_learner.py",
     python_executable=None,
+    mpiexec_executable=None,
+    executor_type="mpi4py",
     *,
     extra_pbs=None,
     extra_env_vars=None,
@@ -30,17 +32,18 @@ def make_job_script(
         Name of the job.
     cores : int
         Number of cores per job (so per learner.)
-    job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script`
-        A function with the following signature:
-        ``job_script(name, cores, run_script, python_executable)`` that returns
-        a job script in string form. See ``adaptive_scheduler/slurm.py`` or
-        ``adaptive_scheduler/pbs.py`` for an example.
     run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
-    python_executable : str, default: `sys.executable`
+    python_executable : str, default: sys.executable
         The Python executable that should run the `run_script`. By default
         it uses the same Python as where this function is called.
+    mpiexec_executable : str, optional
+        ``mpiexec`` executable. By default `mpiexec` will be
+        used (so probably from ``conda``).
+    executor_type : str, default: "mpi4py"
+        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        One can use ``"ipyparallel"`` too.
     extra_pbs : list, optional
         Extra ``#PBS`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
@@ -58,12 +61,36 @@ def make_job_script(
     import sys
     import textwrap
 
-    if python_executable is None:
-        python_executable = sys.executable
-    if extra_pbs is None:
-        extra_pbs = []
-    if extra_env_vars is None:
-        extra_env_vars = []
+    python_executable = python_executable or sys.executable
+    extra_pbs = extra_pbs or []
+    extra_pbs = "\n".join(f"#PBS {arg}" for arg in extra_pbs)
+    extra_env_vars = extra_env_vars or []
+    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
+
+    if executor_type == "mpi4py":
+        mpiexec_executable = mpiexec_executable or "mpiexec"
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+    elif executor_type == "ipyparallel":
+        job_id = "${SLURM_JOB_ID}"
+        profile = "${profile}"
+        executor_specific = textwrap.dedent(
+            f"""\
+            profile=job_{job_id}_$(hostname)
+
+            echo "Creating profile {profile}"
+            ipython profile create {profile}
+
+            echo "Launching controller"
+            ipcontroller --ip="*" --profile={profile} --log-to-file &
+            sleep 10
+
+            echo "Launching engines"
+            {mpiexec_executable} -n {cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
+
+            echo "Starting the Python script"
+            {python_executable} {run_script} {profile} {cores-1}
+            """
+        )
 
     job_script = textwrap.dedent(
         f"""\
@@ -81,13 +108,15 @@ def make_job_script(
 
         cd $PBS_O_WORKDIR
 
-        mpiexec -n {cores} {python_executable} -m mpi4py.futures {run_script}
+        {{executor_specific}}
         """
     )
 
-    extra_pbs = "\n".join(f"#PBS {arg}" for arg in extra_pbs)
-    extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
-    job_script = job_script.format(extra_pbs=extra_pbs, extra_env_vars=extra_env_vars)
+    job_script = job_script.format(
+        extra_pbs=extra_pbs,
+        extra_env_vars=extra_env_vars,
+        executor_specific=executor_specific,
+    )
 
     return job_script
 
@@ -154,6 +183,7 @@ def queue(me_only=True):
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
         if info["job_state"] in ["R", "Q"]:
             info["name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
+            info["state"] = info["job_state"]  # used in `RunManager.live`
             running[jobid] = info
     return running
 
