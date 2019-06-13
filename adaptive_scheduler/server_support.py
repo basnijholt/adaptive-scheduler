@@ -544,6 +544,26 @@ class RunManager:
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
     ...     job_script_function=job_script_function, cores_per_job=12, overwrite_db=True
     ... ).start()
+
+    Or an example using `ipyparallel.Client`.
+
+    >>> from functools import partial
+    >>> import adaptive_scheduler
+    >>> job_script_function = partial(
+    ...     adaptive_scheduler.slurm.make_job_script, executor_type="ipyparallel"
+    ... )
+    >>> def goal(learner):
+    ...     return learner.npoints > 2000
+    >>> run_manager = adaptive_scheduler.server_support.RunManager(
+    ...     learners_file="learners_file.py",
+    ...     goal=goal,
+    ...     cores_per_job=12,
+    ...     log_interval=30,
+    ...     save_interval=30,
+    ...     job_script_function=job_script_function,
+    ...     executor_type="ipyparallel",
+    ... )
+    >>> run_manager.start()
     """
 
     def __init__(
