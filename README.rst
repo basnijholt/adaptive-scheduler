@@ -4,7 +4,7 @@ An asynchronous job scheduler for `Adaptive <https://github.com/python-adaptive/
 
 |PyPI|  |Conda|  |Downloads|  |Build Status| |Documentation Status|
 
-Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures` , `ipyparallel` , or `dask-mpi`.
+Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.
 
 What is this?
 -------------
