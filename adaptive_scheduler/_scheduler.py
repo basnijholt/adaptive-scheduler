@@ -15,13 +15,16 @@ By default it is "SLURM".
 """
 
 import os
+import warnings
+
 from distutils.spawn import find_executable
+
+DEFAULT = "SLURM"
 
 has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
 has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
-if (has_slurm and has_pbs) or (not has_slurm and not has_pbs):
-    DEFAULT = "SLURM"
+if has_slurm and has_pbs:
     scheduler_system = os.environ.get("SCHEDULER_SYSTEM", DEFAULT)
     if scheduler_system not in ("PBS", "SLURM"):
         raise NotImplementedError(
@@ -31,6 +34,11 @@ elif has_pbs:
     scheduler_system = "pbs"
 elif has_slurm:
     scheduler_system = "slurm"
+elif not has_slurm and not has_pbs:
+    scheduler_system = DEFAULT
+    msg = f"No scheduler system could be detected. We set it to '{scheduler_system}'."
+    warnings.warn(msg)
+
 
 names = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
 
