@@ -55,7 +55,7 @@ in case you want to really cancel the jobs or call `adaptive_scheduler.cancel_jo
 
 Q: How do I set extra SBATCH/PBS arguments or environment variables in my job script?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**A:** The job_manager expects a function, so you need to modify the ``make_job_script`` function using ``functools.partial``.
+**A:** The job_manager expects a function, so you need to modify the `~adaptive_scheduler.slurm.make_job_script` function using `functools.partial`.
 For example modifying a job script for SLURM:
 
 .. code-block:: python
