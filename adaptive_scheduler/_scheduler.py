@@ -17,8 +17,8 @@ By default it is "SLURM".
 import os
 from distutils.spawn import find_executable
 
-has_pbs = find_executable("qsub") and find_executable("qstat")
-has_slurm = find_executable("sbatch") and find_executable("squeue")
+has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
+has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
 if (has_slurm and has_pbs) or (not has_slurm and not has_pbs):
     DEFAULT = "SLURM"
