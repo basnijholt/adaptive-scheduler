@@ -90,6 +90,7 @@ if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
     learner.load(fname)
 
     # run until `some_goal` is reached with an `MPIPoolExecutor`
+    # you can also use a ipyparallel.Client, or dask.distributed.Client
     runner = adaptive.Runner(
         learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
     )
