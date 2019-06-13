@@ -701,7 +701,8 @@ class RunManager:
         from adaptive_scheduler.utils import cleanup_files
 
         with suppress(FileNotFoundError):
-            os.remove(self._default_run_script_name)
+            if self.status() != "running":
+                os.remove(self._default_run_script_name)
 
         return cleanup_files(self.job_names)
 
