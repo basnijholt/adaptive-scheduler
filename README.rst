@@ -4,7 +4,7 @@ An asynchronous job scheduler for `Adaptive <https://github.com/python-adaptive/
 
 |PyPI|  |Conda|  |Downloads|  |Build Status| |Documentation Status|
 
-Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.
+Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask.distributed`.
 
 What is this?
 -------------
@@ -60,7 +60,7 @@ Then you start a process that creates and submits as many job-scripts as there a
    run_manager.start()
 
 
-That's it! You can run ``run_manager.info()`` which will display an interactive ``ipywidget`` that shows the amount of running, pending, and finished jobs and buttons to cancel your job, and other information.
+That's it! You can run ``run_manager.info()`` which will display an interactive ``ipywidget`` that shows the amount of running, pending, and finished jobs, buttons to cancel your job, and other useful information.
 
 .. image:: http://files.nijho.lt/info.gif
    :target: http://files.nijho.lt/info.gif
