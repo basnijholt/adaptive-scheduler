@@ -409,6 +409,11 @@ def _make_default_run_script(
             "connect_to_ipyparallel(profile=sys.argv[1], n=int(sys.argv[2]))"
         )
     elif executor_type == "dask-mpi":
+        try:
+            import dask_mpi  # noqa: F401
+        except ModuleNotFoundError as e:
+            msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
+            raise Exception(msg) from e
         import_line = "from distributed import Client"
         executor_line = "Client()"
     else:
