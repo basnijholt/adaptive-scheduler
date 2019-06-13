@@ -45,7 +45,7 @@ setup(
     include_package_data=True,
     maintainer="Bas Nijholt",
     maintainer_email="bas@nijho.lt",
-    description="Run many adaptive.learners on many cores (>10k) using MPI.",
+    description="Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.",
     long_description=readme,
     long_description_content_type="text/markdown",
     license="BSD-3",
