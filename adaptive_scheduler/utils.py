@@ -68,7 +68,7 @@ def split_in_balancing_learners(
     return new_learners, new_fnames
 
 
-def _progress(seq: Sequence, with_progress_bar: bool, desc: str = ""):
+def _progress(seq: Sequence, with_progress_bar: bool = True, desc: str = ""):
     if not with_progress_bar:
         return seq
     else:
