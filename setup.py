@@ -33,7 +33,7 @@ version, cmdclass = get_version_and_cmdclass("adaptive_scheduler")
 with open("requirements.txt") as f:
     requirements = f.read().split()
 
-with open("README.md") as f:
+with open("README.rst") as f:
     readme = f.read()
 
 setup(
@@ -47,7 +47,7 @@ setup(
     maintainer_email="bas@nijho.lt",
     description="Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.",
     long_description=readme,
-    long_description_content_type="text/markdown",
+    long_description_content_type="text/x-rst",
     license="BSD-3",
     url="https://github.com/basnijholt/adaptive-scheduler",
     download_url="https://pypi.python.org/pypi/adaptive_scheduler",
