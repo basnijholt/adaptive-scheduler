@@ -69,9 +69,9 @@ For example modifying a job script for SLURM:
         mpiexec_executable="srun --mpi=pmi2",
     )  # pass this to `server_support.start_job_manager`
 
-Q: My code uses MPI so the `MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**A:** You just have to pass `executor_type="ipyparallel"` to the `job_script_function` and `RunManager`.
+Q: My code uses MPI so the `~mpi4py.futures.MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**A:** You just have to pass ``executor_type="ipyparallel"`` to ``make_job_script`` and the ``RunManager``.
 For example:
 
 .. code-block:: python
