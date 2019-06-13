@@ -52,6 +52,7 @@ setup(
     url="https://github.com/basnijholt/adaptive-scheduler",
     download_url="https://pypi.python.org/pypi/adaptive_scheduler",
     install_requires=requirements,
+    extras_require={"all": ["pandas", "dask_mpi"]},
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
