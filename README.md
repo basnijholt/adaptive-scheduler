@@ -1,4 +1,4 @@
-# An asynchronous scheduler using MPI for [Adaptive](https://github.com/python-adaptive/adaptive/)
+# An asynchronous job scheduler for [Adaptive](https://github.com/python-adaptive/adaptive/)
 
 [![PyPI](https://img.shields.io/pypi/v/adaptive-scheduler.svg)](https://pypi.python.org/pypi/adaptive-scheduler)
 [![Conda](https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg)](https://anaconda.org/conda-forge/adaptive-scheduler)
@@ -6,19 +6,18 @@
 [![Build Status](https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master)](https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=1&branchName=master)
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 
-Run many adaptive.learners on many cores (>10k) using MPI.
+Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.
 
 
 ## What is this?
 
 The Adaptive scheduler solves the following problem, you need to run a few 100 learners and can use >1k cores.
  
-You can't use a centrally managed place that is responsible for all the workers (like with `dask` or `ipyparallel`) because >1k cores is too many for them to handle.
- 
-You also don't want to use `dask` or `ipyparallel` inside a job script because they write job scripts on their own. Having a job script that runs code that creates job scripts...
+`ipyparallel` and `dask.distributed` provide very powerful engines for interactive sessions. However, when you want to connect to >1k cores it starts to struggle. Besides that, on a shared cluster there is often the problem of starting an interactive session with ample space available.
 
-With `adaptive_scheduler` you only need to define the learners and then it takes care of the running (and restarting) of the jobs on the cluster.
+Our approach is to schedule a different job for each `adaptive.Learner`. The creation and running of these jobs are managed by `adaptive-scheduler`. This means that your calculation will definitely run, even though the cluster might be fully occupied at the moment. Because of this approach, there is almost no limit to how many cores you want to use. You can either use 10 nodes for 1 job (`learner`) or 1 core for 1 job (`learner`) while scheduling hundreds of jobs.
 
+Everything is written such that the computation is maximally local. This means that is one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (because of Adaptive's periodic saving functionality). Even if the central "job manager" dies, the jobs will continue to run (although no new jobs will be scheduled.)
 
 # How does it work?
 
@@ -41,7 +40,7 @@ learners = [adaptive.Learner1D(partial(h, **combo),
 fnames = [f"data/{combo}" for combo in combos]
 ```
 
-Then you start a process that creates a job-script which runs the learners. Like:
+Then you start a process that creates and submits as many job-scripts as there are learners. Like:
 ```python
 import adaptive_scheduler
 
