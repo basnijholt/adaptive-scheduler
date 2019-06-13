@@ -4,6 +4,10 @@ FAQ
 
 Here is a list of questions we have either been asked by users or potential pitfalls we hope to help users avoid:
 
+Q: It doesn't work, what now?
+-----------------------------
+**A:** Check out what happens inside the log-files that are created for an error. If you suspect a bug in `adaptive_scheduler` check out `run_manager.task_status()` and if that doesn't reveil anything, open an issue on `GitHub <https://github.com/basnijholt/adaptive-scheduler/issues>`_.
+
 Q: What if I have more learners than cores?
 -------------------------------------------
 **A:** You can distribute all learners in a certain amount of `adaptive.BalancingLearner`\ s. Like so
