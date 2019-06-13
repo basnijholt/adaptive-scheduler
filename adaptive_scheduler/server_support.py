@@ -390,10 +390,14 @@ def _make_default_run_script(
     save_interval,
     log_interval,
     goal=None,
+    runner_kwargs=None,
     run_script_fname="run_learner.py",
     executor_type="mpi4py",
 ):
-    serialized_goal = dill.dumps(goal)
+    default_runner_kwargs = dict(shutdown_executor=True)
+    runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
+    serialized_runner_kwargs = dill.dumps(runner_kwargs)
+
     if executor_type == "mpi4py":
         import_line = "from mpi4py.futures import MPIPoolExecutor"
         executor_line = "MPIPoolExecutor()"
@@ -439,16 +443,14 @@ def _make_default_run_script(
         with suppress(Exception):
             learner.load(fname)
 
-        # this is serialized by dill.dumps
-        goal = dill.loads({serialized_goal})
-
         # connect to the executor
         executor = {executor_line}
 
+        # this is serialized by dill.dumps
+        runner_kwargs = dill.loads({serialized_runner_kwargs})
+
         # run until `some_goal` is reached with an `MPIPoolExecutor`
-        runner = adaptive.Runner(
-            learner, executor=executor, shutdown_executor=True, goal=goal
-        )
+        runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
 
         # periodically save the data (in case the job dies)
         runner.start_periodic_saving(dict(fname=fname), interval={save_interval})
@@ -482,8 +484,12 @@ class RunManager:
         will be created.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the job script. If using a custom ``run_script``.
-        the goal is ignored.
+        be serialized and pasted in the ``run_script``. If using a
+        custom ``run_script`` tihs is ignored.
+    runner_kwargs : dict, default: None
+        Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
+        will be serialized and pasted in the ``run_script``. If using a
+        custom ``run_script`` this is ignored.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -570,6 +576,7 @@ class RunManager:
         self,
         run_script: Optional[str] = None,
         goal: Optional[callable] = None,
+        runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
         learners_file: str = "learners_file.py",
         save_interval: int = 300,
@@ -590,6 +597,7 @@ class RunManager:
         # Set from arguments
         self.run_script = run_script
         self.goal = goal
+        self.runner_kwargs = runner_kwargs
         self.learners_file = learners_file
         self.save_interval = save_interval
         self.log_interval = log_interval
@@ -619,7 +627,7 @@ class RunManager:
         self._set_job_names()
         self.is_started = False
         self.ioloop = asyncio.get_event_loop()
-        self._default_run_script_name = f"{self.job_name}_run_script.py"
+        self._default_run_script_name = f"{self.job_name}-run_script.py"
 
         # Check incompatible arguments
         if goal is not None and run_script is not None:
@@ -665,6 +673,7 @@ class RunManager:
                 self.save_interval,
                 self.log_interval,
                 self.goal,
+                self.runner_kwargs,
                 self._default_run_script_name,
                 self.executor_type,
             )
