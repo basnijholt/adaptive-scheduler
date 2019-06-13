@@ -20,7 +20,7 @@ from distutils.spawn import find_executable
 has_pbs = find_executable("qsub") and find_executable("qstat")
 has_slurm = find_executable("sbatch") and find_executable("squeue")
 
-if has_slurm and has_pbs:
+if (has_slurm and has_pbs) or (not has_slurm and not has_pbs):
     DEFAULT = "SLURM"
     scheduler_system = os.environ.get("SCHEDULER_SYSTEM", DEFAULT)
     if scheduler_system not in ("PBS", "SLURM"):
