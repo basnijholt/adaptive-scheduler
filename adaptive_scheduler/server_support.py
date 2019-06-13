@@ -407,6 +407,14 @@ def _make_default_run_script(
     else:
         raise NotImplementedError("Use ipyparallel or mpi4py.")
 
+    if os.path.dirname(learners_file):
+        raise RuntimeError(
+            f"The {learners_file} needs to be in the same"
+            " directory as where this is run from."
+        )
+
+    learners_module = os.path.splitext(learners_file)[0]
+
     template = textwrap.dedent(
         f"""\
     # {run_script_fname}, automatically generated
@@ -418,7 +426,7 @@ def _make_default_run_script(
     {import_line}
 
     # the file that defines the learners we created above
-    from {learners_file.rstrip(".py")} import learners, fnames
+    from {learners_module} import learners, fnames
 
     if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
         # the address of the "database manager"
