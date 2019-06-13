@@ -94,6 +94,9 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "adaptive": ("https://adaptive.readthedocs.io/en/stable/", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    "mpi4py": ("https://mpi4py.readthedocs.io/en/stable/", None),
+    "ipyparallel": ("https://ipywidgets.readthedocs.io/en/stable/", None),
+    "dask-mpi": ("http://mpi.dask.org/en/latest/", None),
 }
 
 

@@ -71,7 +71,7 @@ For example modifying a job script for SLURM:
 
 Q: My code uses MPI so the `~mpi4py.futures.MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**A:** You just have to pass ``executor_type="ipyparallel"`` to ``make_job_script`` and the ``RunManager``.
+**A:** You just have to pass ``executor_type="ipyparallel"`` to `~adaptive_scheduler.slurm.make_job_script` and the `~adaptive_scheduler.server_support.RunManager`.
 For example:
 
 .. code-block:: python
