@@ -72,7 +72,7 @@ But how does *really* it work?
 ------------------------------
 
 The `~adaptive_scheduler.server_support.RunManager` basically does what is written below.
-So, you need to create a ``learners_file.py`` that defines ``learners`` and ``fnames``.
+So, you need to create a ``learners_file.py`` that defines ``learners`` and ``fnames`` (like in the section above).
 Then a "job manager" writes and submits as many jobs as there are learners but *doesn't know* which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of ``job_id <--> learner``.
 
