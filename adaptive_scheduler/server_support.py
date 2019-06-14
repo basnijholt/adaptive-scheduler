@@ -827,7 +827,7 @@ class RunManager:
     def _info_html(self):
         jobs = [job for job in queue().values() if job["name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
-        n_pending = sum(job["state"] in ("PENDING", "P") for job in jobs)
+        n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
         n_done = sum(job["is_done"] for job in self.get_database())
 
         status = self.status()
