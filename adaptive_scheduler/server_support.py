@@ -769,6 +769,8 @@ class RunManager:
         return end_time - self.start_time
 
     def status(self):
+        if self.job_task is None:
+            return "not yet started"
         try:
             self.job_task.result()
         except asyncio.InvalidStateError:
@@ -836,6 +838,7 @@ class RunManager:
         status = self.status()
         color = {
             "cancelled": "orange",
+            "not yet started": "orange",
             "running": "blue",
             "failed": "red",
             "finished": "green",
