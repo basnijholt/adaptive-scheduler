@@ -102,14 +102,11 @@ def make_job_script(
     mpiexec_executable = mpiexec_executable or "mpiexec"
     if executor_type == "mpi4py":
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
-    elif "dask-mpi":
+    elif executor_type == "dask-mpi":
         executor_specific = (
             f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
         )
     elif executor_type == "ipyparallel":
-        raise NotImplementedError(
-            "See https://github.com/ipython/ipyparallel/issues/370"
-        )
         # This does not really work yet.
         job_id = "${SLURM_JOB_ID}"
         profile = "${profile}"
@@ -125,7 +122,7 @@ def make_job_script(
             sleep 10
 
             echo "Launching engines"
-            {mpiexec_executable} -n {cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
+            {mpiexec_executable} -n {cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
             {python_executable} {run_script} {profile} {cores-1}
