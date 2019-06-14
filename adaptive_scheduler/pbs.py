@@ -102,7 +102,15 @@ def make_job_script(
     mpiexec_executable = mpiexec_executable or "mpiexec"
     if executor_type == "mpi4py":
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+    elif "dask-mpi":
+        executor_specific = (
+            f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
+        )
     elif executor_type == "ipyparallel":
+        raise NotImplementedError(
+            "See https://github.com/ipython/ipyparallel/issues/370"
+        )
+        # This does not really work yet.
         job_id = "${SLURM_JOB_ID}"
         profile = "${profile}"
         executor_specific = textwrap.dedent(
@@ -123,6 +131,8 @@ def make_job_script(
             {python_executable} {run_script} {profile} {cores-1}
             """
         )
+    else:
+        raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
     job_script = textwrap.dedent(
         f"""\
