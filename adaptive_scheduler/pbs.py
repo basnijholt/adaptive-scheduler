@@ -14,7 +14,8 @@ submit_cmd = "qsub -k oe"
 
 def make_job_script(
     name,
-    cores,
+    nnodes,
+    cores_per_node,
     run_script="run_learner.py",
     python_executable=None,
     mpiexec_executable=None,
@@ -30,8 +31,10 @@ def make_job_script(
     ----------
     name : str
         Name of the job.
-    cores : int
-        Number of cores per job (so per learner.)
+    nnodes : int
+        Number of nodes per job (so per learner.)
+    cores_per_node : int
+        Number of cores per node.
     run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
@@ -67,6 +70,7 @@ def make_job_script(
     extra_env_vars = extra_env_vars or []
     extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
 
+    cores = nnodes * cores_per_node
     if executor_type == "mpi4py":
         mpiexec_executable = mpiexec_executable or "mpiexec"
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
@@ -95,10 +99,11 @@ def make_job_script(
     job_script = textwrap.dedent(
         f"""\
         #!/bin/sh
-        #PBS -t 1-{cores}
+        #PBS -l nodes={nnodes}:ppn={cores_per_node}
         #PBS -V
         #PBS -N {name}
-        #PBS -o {name}.out
+        #PBS -o $PBS_O_WORKDIR/{name}.out
+        #PBS -e $PBS_O_WORKDIR/{name}.err
         {{extra_pbs}}
 
         export MKL_NUM_THREADS={num_threads}
