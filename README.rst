@@ -9,7 +9,7 @@ Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `i
 What is this?
 -------------
 
-The Adaptive scheduler solves the following problem, you need to run a few 100 learners and can use >1k cores.
+The Adaptive scheduler solves the following problem, you need to run more learners than you can run with a single runner and/or can use >1k cores.
  
 `ipyparallel` and `dask.distributed` provide very powerful engines for interactive sessions. However, when you want to connect to >1k cores it starts to struggle. Besides that, on a shared cluster there is often the problem of starting an interactive session with ample space available.
 
