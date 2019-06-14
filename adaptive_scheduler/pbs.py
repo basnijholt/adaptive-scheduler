@@ -1,6 +1,9 @@
+import collections
 import getpass
+import math
 import os
 import subprocess
+import warnings
 
 from adaptive_scheduler.utils import _cancel_function
 
@@ -14,13 +17,13 @@ submit_cmd = "qsub -k oe"
 
 def make_job_script(
     name,
-    nnodes,
-    cores_per_node,
+    cores,
     run_script="run_learner.py",
     python_executable=None,
+    *,
     mpiexec_executable=None,
     executor_type="mpi4py",
-    *,
+    cores_per_node=None,
     extra_pbs=None,
     extra_env_vars=None,
     num_threads=1,
@@ -31,10 +34,8 @@ def make_job_script(
     ----------
     name : str
         Name of the job.
-    nnodes : int
-        Number of nodes per job (so per learner.)
-    cores_per_node : int
-        Number of cores per node.
+    cores : int
+        Number of cores per job (so per learner.)
     run_script : str, default: "run_learner.py"
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
@@ -47,6 +48,9 @@ def make_job_script(
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"`` too.
+    cores_per_node : int, optional
+        Number of cores per node. By default the number will be guessed using the
+        ``qnodes`` command.
     extra_pbs : list, optional
         Extra ``#PBS`` arguments, e.g. ``["--exclusive=user", "--time=1"]``.
     extra_env_vars : list, optional
@@ -64,15 +68,39 @@ def make_job_script(
     import sys
     import textwrap
 
+    if cores_per_node is None:
+        partial_msg = (
+            " Use `functools.partial(make_job_script, cores_per_node=...)` before"
+            " passing `make_job_script` to the `job_script_function` argument."
+        )
+        try:
+            max_cores_per_node = _guess_cores_per_node()
+            nnodes = math.ceil(cores / max_cores_per_node)
+            cores_per_node = round(cores / nnodes)
+            msg = (
+                f"`#PBS -l nodes={nnodes}:ppn={cores_per_node}` is guessed"
+                f" using the `qnodes` command. You might want to change this. {partial_msg}"
+            )
+            warnings.warn(msg)
+            cores = nnodes * cores_per_node
+        except Exception as e:
+            msg = f"Couldn't guess `cores_per_node`, this argument is required for PBS. {partial_msg}"
+            raise Exception(msg) from e
+    else:
+        nnodes = cores / cores_per_node
+        if not float(nnodes).is_integer():
+            raise ValueError("cores / cores_per_node must be an integer!")
+        else:
+            nnodes = int(nnodes)
+
     python_executable = python_executable or sys.executable
     extra_pbs = extra_pbs or []
     extra_pbs = "\n".join(f"#PBS {arg}" for arg in extra_pbs)
     extra_env_vars = extra_env_vars or []
     extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    cores = nnodes * cores_per_node
+    mpiexec_executable = mpiexec_executable or "mpiexec"
     if executor_type == "mpi4py":
-        mpiexec_executable = mpiexec_executable or "mpiexec"
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
     elif executor_type == "ipyparallel":
         job_id = "${SLURM_JOB_ID}"
@@ -196,6 +224,29 @@ def queue(me_only=True):
 def get_job_id():
     """Get the job_id from the current job's environment."""
     return os.environ.get("PBS_JOBID", "UNKNOWN")
+
+
+def _qnodes():
+    proc = subprocess.run(["qnodes"], text=True, capture_output=True)
+    output = proc.stdout
+
+    if proc.returncode != 0:
+        raise RuntimeError("qnodes is not responding.")
+
+    jobs = _split_by_job(output.replace("\n\t", "").split("\n"))
+
+    nodes = {
+        node: dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
+        for node, *raw_info in jobs
+    }
+    return nodes
+
+
+def _guess_cores_per_node():
+    nodes = _qnodes()
+    cntr = collections.Counter([int(info["np"]) for info in nodes.values()])
+    ncores, freq = cntr.most_common(1)[0]
+    return ncores
 
 
 cancel = _cancel_function("qdel", queue)
