@@ -14,8 +14,8 @@ submit_cmd = "qsub -k oe"
 
 def make_job_script(
     name,
-    nnodes,
-    cores_per_node,
+    cores,
+    cores_per_node=None,
     run_script="run_learner.py",
     python_executable=None,
     mpiexec_executable=None,
@@ -31,8 +31,8 @@ def make_job_script(
     ----------
     name : str
         Name of the job.
-    nnodes : int
-        Number of nodes per job (so per learner.)
+    cores : int
+        Number of cores per job (so per learner.)
     cores_per_node : int
         Number of cores per node.
     run_script : str, default: "run_learner.py"
@@ -64,13 +64,21 @@ def make_job_script(
     import sys
     import textwrap
 
+    if cores_per_node is None:
+        msg = (
+            "`cores_per_node` is required for PBS."
+            " Use `functools.partial(make_job_script, cores_per_node=...)` before"
+            " passing this to the `job_script_function` argument.."
+        )
+        raise ValueError(msg)
+
     python_executable = python_executable or sys.executable
     extra_pbs = extra_pbs or []
     extra_pbs = "\n".join(f"#PBS {arg}" for arg in extra_pbs)
     extra_env_vars = extra_env_vars or []
     extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    cores = nnodes * cores_per_node
+    nnodes = cores // cores_per_node
     if executor_type == "mpi4py":
         mpiexec_executable = mpiexec_executable or "mpiexec"
         executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
