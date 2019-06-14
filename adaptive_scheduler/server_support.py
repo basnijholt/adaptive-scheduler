@@ -755,6 +755,9 @@ class RunManager:
     def elapsed_time(self):
         """Return the total time elapsed since the RunManager
         was started."""
+        if not self.is_started:
+            return 0
+
         if self.job_task.done():
             end_time = self.end_time
             if end_time is None:
