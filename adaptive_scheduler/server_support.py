@@ -336,7 +336,7 @@ def _get_n_jobs_done(db_fname: str):
         return db.count(Entry.is_done == True)  # noqa: E711
 
 
-async def kill_failed(
+async def manage_killer(
     job_names: List[str],
     error: str = "srun: error:",
     callable_condition: Optional[callable] = None,
@@ -344,7 +344,6 @@ async def kill_failed(
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
 ) -> Coroutine:
-    """XXX: IS NOT FULLY WORKING/TESTED YET"""
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
     from adaptive_scheduler.utils import (
@@ -377,6 +376,41 @@ async def kill_failed(
             log.exception("got exception in kill manager", exception=str(e))
 
 
+_KILL_MANAGER_DOC = """{first_line}
+
+Automatically cancel jobs that contain an error (or other condition)
+in the log files.
+
+Parameters
+----------
+job_names : list
+    List of unique names used for the jobs with the same length as
+    `learners`.
+error : str, default: "srun: error:"
+    If ``error`` is found in the log files, the job will be cancelled and
+    restarted. Needs to be None if ``callable_condition`` is passed.
+callable_condition : callable, optional
+    Apply this function to the log text.
+    Must take a single argument, a list of strings, and return
+    True if the job has to be killed, or False if not.
+interval : int, default: 600
+    Time in seconds between checking for the condition.
+max_cancel_tries : int, default: 5
+    Try maximum `max_cancel_tries` times to cancel a job.
+move_to : str, optional
+    If a job is cancelled the log is either removed (if ``move_to=None``)
+    or moved to a folder (e.g. if ``move_to='old_logs'``).
+
+Returns
+-------
+{returns}
+"""
+
+manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
+    first_line="Kill manager co-routine.", returns="coroutine"
+)
+
+
 def start_kill_manager(
     job_names: List[str],
     error: str = "srun: error:",
@@ -385,12 +419,16 @@ def start_kill_manager(
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
 ) -> asyncio.Task:
-    """XXX: IS NOT FULLY WORKING/TESTED YET"""
     ioloop = asyncio.get_event_loop()
-    coro = kill_failed(
+    coro = manage_killer(
         job_names, error, callable_condition, interval, max_cancel_tries, move_to
     )
     return ioloop.create_task(coro)
+
+
+start_kill_manager.__doc__ = _KILL_MANAGER_DOC.format(
+    first_line="Start the kill manager task.", returns="asyncio.Task"
+)
 
 
 def _make_default_run_script(
