@@ -1,5 +1,6 @@
 import ast
 import collections
+import functools
 import glob
 import math
 import os
@@ -355,27 +356,40 @@ def parse_log_files(
     return pd.DataFrame(infos) if with_pandas else infos
 
 
-def _is_string_inside_file(fname, string):
-    with open(fname) as f:
-        lines = f.readlines()
+def _is_string_inside(lines, string):
     return string in "".join(lines)
 
 
-def logs_with_string(job_names: List[str], string: str) -> Dict[str, list]:
-    """Get jobs that have `string` inside their log-file.
+def logs_with_string_or_condition(
+    job_names: List[str],
+    string: Optional[str] = None,
+    callable_condition: Optional[callable] = None,
+) -> Dict[str, list]:
+    """Get jobs that have `string` (or apply a callable) inside their log-file.
+
+    Either use `string` or `callable_condition`.
 
     Parameters
     ----------
     job_names : list
         List of job names.
-    string : str
+    string : str, optional
         String that is searched for.
+    callable_condition : callable, optional
+        Apply this function to the log text.
+        Must take a single argument, a list of strings, and return
+        True if the job has to be killed, or False if not.
 
     Returns
     -------
     has_string : list
         List with jobs that have the string inside their log-file.
     """
+    if string is not None:
+        func = functools.partial(_is_string_inside, string=string)
+    else:
+        func = callable_condition
+
     has_string = collections.defaultdict(list)
     for job in job_names:
         fnames = glob.glob(f"{job}-*.out")
@@ -383,7 +397,9 @@ def logs_with_string(job_names: List[str], string: str) -> Dict[str, list]:
             continue
         for fname in fnames:
             job_id = fname.split(f"{job}-")[1].split(".out")[0]
-            if _is_string_inside_file(fname, string):
+            with open(fname) as f:
+                lines = f.readlines()
+            if func(lines):
                 has_string[job].append(job_id)
     return dict(has_string)
 
