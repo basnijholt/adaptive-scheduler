@@ -339,6 +339,7 @@ def _get_n_jobs_done(db_fname: str):
 async def kill_failed(
     job_names: List[str],
     error: str = "srun: error:",
+    callable_condition: Optional[callable] = None,
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
@@ -346,11 +347,16 @@ async def kill_failed(
     """XXX: IS NOT FULLY WORKING/TESTED YET"""
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
-    from adaptive_scheduler.utils import _remove_or_move_files, logs_with_string
+    from adaptive_scheduler.utils import (
+        _remove_or_move_files,
+        logs_with_string_or_condition,
+    )
 
     while True:
         try:
-            failed_jobs = logs_with_string(job_names, error)
+            failed_jobs = logs_with_string_or_condition(
+                job_names, error, callable_condition
+            )
             to_cancel = []
             to_delete = []
 
@@ -374,13 +380,16 @@ async def kill_failed(
 def start_kill_manager(
     job_names: List[str],
     error: str = "srun: error:",
+    callable_condition: Optional[callable] = None,
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
 ) -> asyncio.Task:
     """XXX: IS NOT FULLY WORKING/TESTED YET"""
     ioloop = asyncio.get_event_loop()
-    coro = kill_failed(job_names, error, interval, max_cancel_tries, move_to)
+    coro = kill_failed(
+        job_names, error, callable_condition, interval, max_cancel_tries, move_to
+    )
     return ioloop.create_task(coro)
 
 
