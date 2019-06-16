@@ -651,8 +651,8 @@ class RunManager:
 
         self.write_db()
         self._start_database_manager()
-        self._start_job_manager(**self.start_job_manager_kwargs)
-        self._start_kill_manager(**self.start_kill_manager_kwargs)
+        self._start_job_manager()
+        self._start_kill_manager()
         self.is_started = True
         self.start_time = time.time()
         self.ioloop.create_task(_start())
@@ -696,6 +696,7 @@ class RunManager:
             interval=self.job_manager_interval,
             run_script=self.run_script,
             job_script_function=self.job_script_function,
+            **self.start_job_manager_kwargs,
         )
 
     def _start_database_manager(self) -> None:
