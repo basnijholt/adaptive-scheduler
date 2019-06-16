@@ -822,7 +822,7 @@ class RunManager:
         return end_time - self.start_time
 
     def status(self):
-        if not self.started:
+        if not self.is_started:
             return "not yet started"
         try:
             self.job_task.result()
