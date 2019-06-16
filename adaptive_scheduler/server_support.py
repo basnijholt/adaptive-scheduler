@@ -752,6 +752,11 @@ class RunManager:
     def get_database(self) -> List[Dict[str, Any]]:
         return get_database(self.db_fname)
 
+    def load_learners(self):
+        from adaptive_scheduler.utils import load_parallel
+
+        load_parallel(self.learners_module.learners, self.learners_module.fnames)
+
     def elapsed_time(self):
         """Return the total time elapsed since the RunManager
         was started."""
