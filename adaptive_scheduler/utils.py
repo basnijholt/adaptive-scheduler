@@ -1,6 +1,5 @@
 import ast
 import collections
-import functools
 import glob
 import math
 import os
@@ -12,7 +11,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable
+from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable, Union
 
 import adaptive
 import toolz
@@ -356,39 +355,32 @@ def parse_log_files(
     return pd.DataFrame(infos) if with_pandas else infos
 
 
-def _is_string_inside(lines, string):
-    return string in "".join(lines)
-
-
 def logs_with_string_or_condition(
-    job_names: List[str],
-    string: Optional[str] = None,
-    callable_condition: Optional[callable] = None,
+    job_names: List[str], error: Union[str, callable, None] = None
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
-    Either use `string` or `callable_condition`.
+    Either use `string` or `error`.
 
     Parameters
     ----------
     job_names : list
         List of job names.
-    string : str, optional
-        String that is searched for.
-    callable_condition : callable, optional
-        Apply this function to the log text.
-        Must take a single argument, a list of strings, and return
-        True if the job has to be killed, or False if not.
+    error : str, optional
+        String that is searched for or callable that is applied
+        to the log text. Must take a single argument, a list of
+        strings, and return True if the job has to be killed, or
+        False if not.
 
     Returns
     -------
     has_string : list
         List with jobs that have the string inside their log-file.
     """
-    if string is not None:
-        func = functools.partial(_is_string_inside, string=string)
-    else:
-        func = callable_condition
+    if isinstance(error, str):
+        func = lambda lines: error in "".join(lines)  # noqa: E731
+    elif isinstance(error, callable):
+        func = error
 
     has_string = collections.defaultdict(list)
     for job in job_names:

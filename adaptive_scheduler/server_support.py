@@ -338,8 +338,7 @@ def _get_n_jobs_done(db_fname: str):
 
 async def manage_killer(
     job_names: List[str],
-    error: str = "srun: error:",
-    callable_condition: Optional[callable] = None,
+    error: Union[str, callable, None] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
@@ -353,9 +352,7 @@ async def manage_killer(
 
     while True:
         try:
-            failed_jobs = logs_with_string_or_condition(
-                job_names, error, callable_condition
-            )
+            failed_jobs = logs_with_string_or_condition(job_names, error)
             to_cancel = []
             to_delete = []
 
@@ -386,13 +383,12 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
-error : str, default: "srun: error:"
-    If ``error`` is found in the log files, the job will be cancelled and
-    restarted. Needs to be None if ``callable_condition`` is passed.
-callable_condition : callable, optional
-    Apply this function to the log text.
-    Must take a single argument, a list of strings, and return
-    True if the job has to be killed, or False if not.
+error : str or callable, default: "srun: error:"
+    If ``error`` is a string and is found in the log files, the job will
+    be cancelled and restarted. If it is a callable, it is applied
+    to the log text. Must take a single argument, a list of
+    strings, and return True if the job has to be killed, or
+    False if not.
 interval : int, default: 600
     Time in seconds between checking for the condition.
 max_cancel_tries : int, default: 5
@@ -413,16 +409,13 @@ manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
 
 def start_kill_manager(
     job_names: List[str],
-    error: str = "srun: error:",
-    callable_condition: Optional[callable] = None,
+    error: Union[str, callable, None] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
-    coro = manage_killer(
-        job_names, error, callable_condition, interval, max_cancel_tries, move_to
-    )
+    coro = manage_killer(job_names, error, interval, max_cancel_tries, move_to)
     return ioloop.create_task(coro)
 
 
@@ -575,8 +568,12 @@ class RunManager:
         Time in seconds between checking and starting jobs.
     kill_interval : int, default: 60
         Check for `kill_on_error` string inside the log-files every `kill_interval` seconds.
-    kill_on_error : str, default: "srun: error:"
-        If this error is encountered in the log-files the job is killed.
+    kill_on_error : str or callable, default: "srun: error:"
+        If ``error`` is a string and is found in the log files, the job will
+        be cancelled and restarted. If it is a callable, it is applied
+        to the log text. Must take a single argument, a list of
+        strings, and return True if the job has to be killed, or
+        False if not.
     move_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
     db_fname : str, default: "running.json"
@@ -645,7 +642,7 @@ class RunManager:
         cores_per_job: int = 1,
         job_manager_interval: int = 60,
         kill_interval: int = 60,
-        kill_on_error: str = "srun: error:",
+        kill_on_error: Union[str, callable, None] = "srun: error:",
         move_logs_to: Optional[str] = "old_logs",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
@@ -699,7 +696,8 @@ class RunManager:
         self.write_db()
         self._start_database_manager()
         self._start_job_manager()
-        self._start_kill_manager()
+        if self.kill_on_error is not None:
+            self._start_kill_manager()
         self.is_started = True
         self.start_time = time.time()
         self.ioloop.create_task(_start())
@@ -750,6 +748,8 @@ class RunManager:
         self.database_task = start_database_manager(self.url, self.db_fname)
 
     def _start_kill_manager(self) -> None:
+        if self.kill_on_error is None:
+            return
         self.kill_task = start_kill_manager(
             self.job_names,
             error=self.kill_on_error,
@@ -762,6 +762,7 @@ class RunManager:
         if self.job_task is not None:
             self.job_task.cancel()
             self.database_task.cancel()
+        if self.kill_task is not None:
             self.kill_task.cancel()
         return cancel(self.job_names)
 
@@ -791,11 +792,12 @@ class RunManager:
         return parse_log_files(self.job_names, only_last, self.db_fname)
 
     def task_status(self):
-        return (
-            self.job_task.print_stack(),
-            self.database_task.print_stack(),
-            self.kill_task.print_stack(),
-        )
+        if self.job_task is not None:
+            self.job_task.print_stack()
+        if self.database_task is not None:
+            self.database_task.print_stack()
+        if self.kill_task is not None:
+            self.kill_task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
         return get_database(self.db_fname)
