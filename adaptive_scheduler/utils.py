@@ -356,7 +356,7 @@ def parse_log_files(
 
 
 def logs_with_string_or_condition(
-    job_names: List[str], error: Union[str, callable, None] = None
+    job_names: List[str], error: Union[str, callable]
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -366,7 +366,7 @@ def logs_with_string_or_condition(
     ----------
     job_names : list
         List of job names.
-    error : str, optional
+    error : str or callable
         String that is searched for or callable that is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
@@ -378,9 +378,9 @@ def logs_with_string_or_condition(
         List with jobs that have the string inside their log-file.
     """
     if isinstance(error, str):
-        func = lambda lines: error in "".join(lines)  # noqa: E731
+        has_error = lambda lines: error in "".join(lines)  # noqa: E731
     elif isinstance(error, callable):
-        func = error
+        has_error = error
 
     has_string = collections.defaultdict(list)
     for job in job_names:
@@ -391,7 +391,7 @@ def logs_with_string_or_condition(
             job_id = fname.split(f"{job}-")[1].split(".out")[0]
             with open(fname) as f:
                 lines = f.readlines()
-            if func(lines):
+            if has_error(lines):
                 has_string[job].append(job_id)
     return dict(has_string)
 
