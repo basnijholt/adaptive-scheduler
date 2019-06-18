@@ -625,6 +625,7 @@ class RunManager:
     ...     executor_type="ipyparallel",
     ... )
     >>> run_manager.start()
+
     """
 
     def __init__(
@@ -689,11 +690,13 @@ class RunManager:
             raise ValueError("Do not pass a goal if you are using a custom run_script.")
 
     def start(self):
+        """Start running the `RunManager`."""
+
         async def _start():
             await self.job_task
             self.end_time = time.time()
 
-        self.write_db()
+        self._write_db()
         self._start_database_manager()
         self._start_job_manager()
         if self.kill_on_error is not None:
@@ -711,7 +714,7 @@ class RunManager:
         spec.loader.exec_module(learners_file)
         return learners_file
 
-    def write_db(self) -> None:
+    def _write_db(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         create_empty_db(self.db_fname, self.learners_module.fnames)
@@ -759,6 +762,7 @@ class RunManager:
         )
 
     def cancel(self):
+        """Cancel the manager tasks and the jobs in the queue."""
         if self.job_task is not None:
             self.job_task.cancel()
             self.database_task.cancel()
@@ -767,6 +771,11 @@ class RunManager:
         return cancel(self.job_names)
 
     def cleanup(self):
+        """Cleanup the log and batch files.
+
+        If the `RunManager` is not running, the ``run_script.py`` file
+        will also be removed.
+        """
         from adaptive_scheduler.utils import cleanup_files
 
         with suppress(FileNotFoundError):
@@ -785,13 +794,15 @@ class RunManager:
 
         Returns
         -------
-        `~pandas.core.frame.DataFrame`
+        df : `~pandas.core.frame.DataFrame`
+
         """
         from adaptive_scheduler.utils import parse_log_files
 
         return parse_log_files(self.job_names, only_last, self.db_fname)
 
     def task_status(self):
+        r"""Print the stack of the `asyncio.Task`\s."""
         if self.job_task is not None:
             self.job_task.print_stack()
         if self.database_task is not None:
@@ -800,16 +811,17 @@ class RunManager:
             self.kill_task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
+        """Get the database as a list of dicts."""
         return get_database(self.db_fname)
 
     def load_learners(self):
+        """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
         from adaptive_scheduler.utils import load_parallel
 
         load_parallel(self.learners_module.learners, self.learners_module.fnames)
 
     def elapsed_time(self):
-        """Return the total time elapsed since the RunManager
-        was started."""
+        """Total time elapsed since the RunManager was started."""
         if not self.is_started:
             return 0
 
@@ -824,6 +836,7 @@ class RunManager:
         return end_time - self.start_time
 
     def status(self):
+        """Return the current status of the RunManager."""
         if not self.is_started:
             return "not yet started"
         try:
@@ -842,7 +855,8 @@ class RunManager:
         return status
 
     def info(self):
-        """Display information about the run_manager.
+        """Display information about the `RunManager`.
+
         Returns an interactive ipywidget that can be
         visualized in a Jupyter notebook.
         """
