@@ -19,6 +19,7 @@ def make_job_script(
     extra_sbatch=None,
     extra_env_vars=None,
     num_threads=1,
+    log_file_folder="",
 ):
     """Get a jobscript in string form.
 
@@ -48,6 +49,8 @@ def make_job_script(
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
+    log_file_folder : str, default: ''
+        The folder in which to put the log-files.
 
     Returns
     -------
@@ -94,12 +97,15 @@ def make_job_script(
     else:
         raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
+    os.makedirs(log_file_folder, exist_ok=True)
+    log_file = os.path.join(log_file_folder, name)
+
     job_script = textwrap.dedent(
         f"""\
         #!/bin/bash
         #SBATCH --job-name {name}
         #SBATCH --ntasks {cores}
-        #SBATCH --output {name}-%A.out
+        #SBATCH --output {log_file}-%A.out
         #SBATCH --no-requeue
         {{extra_sbatch}}
 
