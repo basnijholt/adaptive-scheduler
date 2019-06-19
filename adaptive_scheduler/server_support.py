@@ -582,6 +582,9 @@ class RunManager:
         False if not.
     move_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
+    log_file_folder : str, default: ""
+        The folder in which to put the log-files. Note that you also need
+        to change this argument inside of `adaptive.slurm.make_job_script`!
     db_fname : str, default: "running.json"
         Filename of the database, e.g. 'running.json'.
     overwrite_db : bool, default: True
@@ -651,6 +654,7 @@ class RunManager:
         kill_interval: int = 60,
         kill_on_error: Union[str, callable, None] = "srun: error:",
         move_logs_to: Optional[str] = "old_logs",
+        log_file_folder: str = "",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
         start_job_manager_kwargs: Optional[dict] = None,
@@ -671,6 +675,7 @@ class RunManager:
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_logs_to = move_logs_to
+        self.log_file_folder = log_file_folder
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
         self.start_job_manager_kwargs = start_job_manager_kwargs or {}

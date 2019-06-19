@@ -132,6 +132,7 @@ def cleanup_files(
     extensions: List[str] = ("sbatch", "out", "batch", "e*", "o*"),
     with_progress_bar: bool = True,
     move_to: Optional[str] = None,
+    log_file_folder: str = "",
 ) -> None:
     """Cleanup the scheduler log-files files.
 
@@ -143,15 +144,22 @@ def cleanup_files(
         List of file extensions to be removed.
     with_progress_bar : bool, default: True
         Display a progress bar using `tqdm`.
-    move_to : str, default None
+    move_to : str, default: None
         Move the file to a different directory.
         If None the file is removed.
+    log_file_folder : str, default: ''
+        The folder in which to delete the log-files.
     """
     # Finding the files
     fnames = []
     for job in job_names:
         for ext in extensions:
-            fnames += glob.glob(f"{job}*.{ext}")
+            pattern = f"{job}*.{ext}"
+            fnames += glob.glob(pattern)
+            if log_file_folder:
+                # The log-files might be in a different folder, but we're
+                # going to loop over every extension anyway.
+                fnames += glob.glob(os.path.join(log_file_folder, pattern))
 
     _remove_or_move_files(fnames, with_progress_bar, move_to)
 
@@ -261,7 +269,10 @@ def _get_status_prints(fname: str, only_last: bool = True):
 
 
 def parse_log_files(
-    job_names: List[str], only_last: bool = True, db_fname: Optional[str] = None
+    job_names: List[str],
+    only_last: bool = True,
+    db_fname: Optional[str] = None,
+    log_file_folder: str = "",
 ):
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
@@ -276,6 +287,8 @@ def parse_log_files(
         Only look use the last printed status message.
     db_fname : str, optional
         The database filename. If passed, ``fname`` will be populated.
+    log_file_folder : str, default: ""
+        The folder in which the log-files are.
 
     Returns
     -------
@@ -318,7 +331,7 @@ def parse_log_files(
 
     infos = []
     for job in job_names:
-        fnames = glob.glob(f"{job}-*.out")
+        fnames = glob.glob(os.path.join(log_file_folder, f"{job}-*.out"))
         if not fnames:
             continue
         fname = fnames[-1]  # take the last file
