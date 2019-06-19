@@ -537,6 +537,8 @@ class RunManager:
 
     Parameters
     ----------
+    cores_per_job : int
+        Number of cores per job (so per learner.)
     run_script : str, default: None
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner. If None, a standard script
@@ -570,8 +572,6 @@ class RunManager:
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"`` or ``"dask-mpi"`` too.
-    cores_per_job : int, default: 1
-        Number of cores per job (so per learner.)
     job_manager_interval : int, default: 60
         Time in seconds between checking and starting jobs.
     kill_interval : int, default: 60
@@ -641,6 +641,7 @@ class RunManager:
 
     def __init__(
         self,
+        cores_per_job: int,
         run_script: Optional[str] = None,
         goal: Optional[callable] = None,
         runner_kwargs: Optional[dict] = None,
@@ -651,7 +652,6 @@ class RunManager:
         job_name: str = "adaptive-scheduler",
         job_script_function: callable = make_job_script,
         executor_type: Union["mpi4py", "ipyparallel", "dask-mpi"] = "mpi4py",
-        cores_per_job: int = 1,
         job_manager_interval: int = 60,
         kill_interval: int = 60,
         kill_on_error: Union[str, callable, None] = "srun: error:",
