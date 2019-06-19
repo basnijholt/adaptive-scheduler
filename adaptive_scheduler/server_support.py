@@ -734,17 +734,19 @@ class RunManager:
         if with_partial or f is make_job_script:
             # The user used functools.partial on `_scheduler.make_job_script`
             warn = (
-                "`{k}` is different in `RunManager({k}='{v}')` and `functools.partial(make_job_script, {k}='{v}')`"
-                "the value from the `RunManager` is used."
+                "`{k}` is different in `RunManager({k}='{v}')` and `make_job_script`,"
+                " use `functools.partial(make_job_script, {k}='{v}')`."
+                " Now the value from the `RunManager` is automatically"
+                " passed to ``make_job_script``."
             )
             for arg in ("executor_type", "log_file_folder"):
                 if not with_partial or arg not in f.keywords:
                     # arg is not in the partial keywords but it might
                     # still be a default kwarg
-                    defaults = _get_default_args(f)
+                    default = _get_default_args(f)[arg]
                     kwargs = {arg: getattr(self, arg)}
-                    if defaults[arg] != kwargs[arg]:
-                        warnings.warn(warn.format(k=arg, v=kwargs[arg]))
+                    if default != kwargs[arg]:
+                        warnings.warn("\n" + warn.format(k=arg, v=kwargs[arg]))
                         f = functools.partial(f, **kwargs)
         return f
 
