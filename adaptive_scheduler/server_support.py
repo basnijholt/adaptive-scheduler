@@ -725,9 +725,12 @@ class RunManager:
         be passed to the `RunManager` and `make_job_script`.
 
         This function makes sure that you do it correctly."""
+        from adaptive_scheduler.utils import _get_default_args
+
         with_partial = (
             hasattr(f, "func") and hasattr(f, "keywords") and f.func is make_job_script
         )
+
         if with_partial or f is make_job_script:
             # The user used functools.partial on `_scheduler.make_job_script`
             warn = (
@@ -736,9 +739,13 @@ class RunManager:
             )
             for arg in ("executor_type", "log_file_folder"):
                 if not with_partial or arg not in f.keywords:
+                    # arg is not in the partial keywords but it might
+                    # still be a default kwarg
+                    defaults = _get_default_args(f)
                     kwargs = {arg: getattr(self, arg)}
-                    warnings.warn(warn.format(k=arg, v=kwargs[arg]))
-                    f = functools.partial(f, **kwargs)
+                    if defaults[arg] != kwargs[arg]:
+                        warnings.warn(warn.format(k=arg, v=kwargs[arg]))
+                        f = functools.partial(f, **kwargs)
         return f
 
     def _get_learners_file(self):

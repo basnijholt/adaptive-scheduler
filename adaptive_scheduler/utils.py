@@ -1,6 +1,7 @@
 import ast
 import collections
 import glob
+import inspect
 import math
 import os
 import random
@@ -471,3 +472,12 @@ def connect_to_ipyparallel(
         dview.execute(cmd).result()
 
     return client
+
+
+def _get_default_args(func):
+    signature = inspect.signature(func)
+    return {
+        k: v.default
+        for k, v in signature.parameters.items()
+        if v.default is not inspect.Parameter.empty
+    }
