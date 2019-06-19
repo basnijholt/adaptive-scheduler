@@ -171,7 +171,7 @@ async def manage_jobs(
                 if n_jobs_done == len(job_names):
                     return
                 to_start = len(job_names) - len(running_job_names) - n_jobs_done
-                to_start = min(max_simultaneous_jobs, to_start)
+                to_start = min(max_simultaneous_jobs - len(running_job_names), to_start)
                 for job_name in job_names:
                     if job_name not in running_job_names and to_start > 0:
                         await ioloop.run_in_executor(
