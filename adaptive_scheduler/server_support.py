@@ -734,7 +734,7 @@ class RunManager:
         if with_partial or f is make_job_script:
             # The user used functools.partial on `_scheduler.make_job_script`
             warn = (
-                "`{k}` is different in `RunManager({k}={v})` and `functools.partial(make_job_script, {k}={v})`"
+                "`{k}` is different in `RunManager({k}='{v}')` and `functools.partial(make_job_script, {k}='{v}')`"
                 "the value from the `RunManager` is used."
             )
             for arg in ("executor_type", "log_file_folder"):
@@ -824,7 +824,7 @@ class RunManager:
             if self.status() != "running":
                 os.remove(self._default_run_script_name)
 
-        return cleanup_files(self.job_names)
+        return cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
 
     def parse_log_files(self, only_last=True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
@@ -841,7 +841,9 @@ class RunManager:
         """
         from adaptive_scheduler.utils import parse_log_files
 
-        return parse_log_files(self.job_names, only_last, self.db_fname)
+        return parse_log_files(
+            self.job_names, only_last, self.db_fname, self.log_file_folder
+        )
 
     def task_status(self):
         r"""Print the stack of the `asyncio.Task`\s."""
