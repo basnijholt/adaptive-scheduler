@@ -725,15 +725,17 @@ class RunManager:
         be passed to the `RunManager` and `make_job_script`.
 
         This function makes sure that you do it correctly."""
-        with_partial = hasattr(f, "func") and hasattr(f, "keywords")
-        if with_partial and f.func is make_job_script:
+        with_partial = (
+            hasattr(f, "func") and hasattr(f, "keywords") and f.func is make_job_script
+        )
+        if with_partial or f is make_job_script:
             # The user used functools.partial on `_scheduler.make_job_script`
             warn = (
                 "`{k}` is different in `RunManager({k}={v})` and `functools.partial(make_job_script, {k}={v})`"
                 "the value from the `RunManager` is used."
             )
             for arg in ("executor_type", "log_file_folder"):
-                if arg not in f.keywords:
+                if not with_partial or arg not in f.keywords:
                     kwargs = {arg: getattr(self, arg)}
                     warnings.warn(warn.format(k=arg, v=kwargs[arg]))
                     f = functools.partial(f, **kwargs)
