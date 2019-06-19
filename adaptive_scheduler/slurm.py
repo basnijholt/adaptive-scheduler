@@ -102,7 +102,8 @@ def make_job_script(
     else:
         raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
-    os.makedirs(log_file_folder, exist_ok=True)
+    if log_file_folder:
+        os.makedirs(log_file_folder, exist_ok=True)
     log_file = os.path.join(log_file_folder, name)
 
     job_script = textwrap.dedent(
