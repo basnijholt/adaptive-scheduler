@@ -1,12 +1,14 @@
 import asyncio
 import concurrent.futures
 import datetime
+import functools
 import logging
 import os
 import socket
 import subprocess
 import textwrap
 import time
+import warnings
 from contextlib import suppress
 from typing import Any, Coroutine, Dict, List, Optional, Union
 
@@ -580,7 +582,7 @@ class RunManager:
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
-    move_logs_to : str, default: "old_logs"
+    move_old_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
     log_file_folder : str, default: ""
         The folder in which to put the log-files. Note that you also need
@@ -653,7 +655,7 @@ class RunManager:
         job_manager_interval: int = 60,
         kill_interval: int = 60,
         kill_on_error: Union[str, callable, None] = "srun: error:",
-        move_logs_to: Optional[str] = "old_logs",
+        move_old_logs_to: Optional[str] = "old_logs",
         log_file_folder: str = "",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
@@ -674,7 +676,7 @@ class RunManager:
         self.job_manager_interval = job_manager_interval
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
-        self.move_logs_to = move_logs_to
+        self.move_old_logs_to = move_old_logs_to
         self.log_file_folder = log_file_folder
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
@@ -695,6 +697,7 @@ class RunManager:
         self.is_started = False
         self.ioloop = asyncio.get_event_loop()
         self._default_run_script_name = f"{self.job_name}-run_script.py"
+        self.job_script_function = self._check_job_script_function(job_script_function)
 
         # Check incompatible arguments
         if goal is not None and run_script is not None:
@@ -716,6 +719,25 @@ class RunManager:
         self.start_time = time.time()
         self.ioloop.create_task(_start())
         return self
+
+    def _check_job_script_function(self, f):
+        """Some arguments like ``executor_type`` and ``log_file_folder`` need to
+        be passed to the `RunManager` and `make_job_script`.
+
+        This function makes sure that you do it correctly."""
+        with_partial = hasattr(f, "func") and hasattr(f, "keywords")
+        if with_partial and f.func is make_job_script:
+            # The user used functools.partial on `_scheduler.make_job_script`
+            warn = (
+                "`{k}` is different in `RunManager({k}={v})` and `functools.partial(make_job_script, {k}={v})`"
+                "the value from the `RunManager` is used."
+            )
+            for arg in ("executor_type", "log_file_folder"):
+                if arg not in f.keywords:
+                    kwargs = {arg: getattr(self, arg)}
+                    warnings.warn(warn.format(k=arg, v=kwargs[arg]))
+                    f = functools.partial(f, **kwargs)
+        return f
 
     def _get_learners_file(self):
         from importlib.util import module_from_spec, spec_from_file_location
@@ -768,7 +790,7 @@ class RunManager:
             self.job_names,
             error=self.kill_on_error,
             interval=self.kill_interval,
-            move_to=self.move_logs_to,
+            move_to=self.move_old_logs_to,
             **self.start_kill_manager_kwargs,
         )
 
