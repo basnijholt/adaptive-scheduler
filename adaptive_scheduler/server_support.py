@@ -164,16 +164,21 @@ async def manage_jobs(
             try:
                 running = queue()
                 _update_db(db_fname, running)  # in case some jobs died
-                running_job_names = {
-                    job["name"] for job in running.values() if job["name"] in job_names
-                }
-                n_jobs_done = _get_n_jobs_done(db_fname)
-                if n_jobs_done == len(job_names):
+                queued = {j["name"] for j in running.values() if j["name"] in job_names}
+                not_queued = set(job_names) - queued
+
+                for _ in range(_get_n_jobs_done(db_fname)):
+                    # remove jobs that are finished
+                    not_queued.pop()
+
+                if not queued and not not_queued:
+                    # we are finished!
                     return
-                to_start = len(job_names) - len(running_job_names) - n_jobs_done
-                to_start = min(max_simultaneous_jobs - len(running_job_names), to_start)
-                for job_name in job_names:
-                    if job_name not in running_job_names and to_start > 0:
+
+                while not_queued:
+                    if len(queued) < max_simultaneous_jobs:
+                        job_name = not_queued.pop()
+                        queued.add(job_name)
                         await ioloop.run_in_executor(
                             ex,
                             _start_job,
@@ -183,8 +188,9 @@ async def manage_jobs(
                             run_script,
                             python_executable,
                         )
-                        to_start -= 1
                         n_started += 1
+                    else:
+                        break
                 if n_started > max_job_starts:
                     raise MaxRestartsReached(
                         "Too many jobs failed, your Python code probably has a bug."
