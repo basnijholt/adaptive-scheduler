@@ -74,6 +74,11 @@ def make_job_script(
             f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
         )
     elif executor_type == "ipyparallel":
+        if cores <= 1:
+            raise ValueError(
+                "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
+                "the rest of the cores for the engines, so use more than 1 core."
+            )
         job_id = "${SLURM_JOB_ID}"
         profile = "${profile}"
         executor_specific = textwrap.dedent(
