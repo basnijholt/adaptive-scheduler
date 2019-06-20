@@ -169,7 +169,9 @@ async def manage_jobs(
                 queued = {j["name"] for j in running.values() if j["name"] in job_names}
                 not_queued = set(job_names) - queued
 
-                for _ in range(_get_n_jobs_done(db_fname)):
+                n_done = _get_n_jobs_done(db_fname)
+
+                for _ in range(n_done):
                     # remove jobs that are finished
                     if not_queued:
                         # A job might still be running but can at the same
@@ -177,7 +179,7 @@ async def manage_jobs(
                         # we added the `if not_queued` clause.
                         not_queued.pop()
 
-                if not queued and not not_queued:
+                if n_done == len(job_names):
                     # we are finished!
                     return
 
