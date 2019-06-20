@@ -171,7 +171,11 @@ async def manage_jobs(
 
                 for _ in range(_get_n_jobs_done(db_fname)):
                     # remove jobs that are finished
-                    not_queued.pop()
+                    if not_queued:
+                        # A job might still be running but can at the same
+                        # time be marked as finished in the db. Therefore
+                        # we added the `if not_queued` clause.
+                        not_queued.pop()
 
                 if not queued and not not_queued:
                     # we are finished!
