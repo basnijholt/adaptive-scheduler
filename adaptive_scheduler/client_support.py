@@ -123,7 +123,7 @@ def log_info(runner, interval=300):
                 Δnpoints = npoints - npoints_start
                 info["npoints/s"] = f"{Δnpoints / Δt.seconds:.3f}"
             with suppress(Exception):
-                info["latest loss"] = f'{learner._cache["loss"]:.3f}'
+                info["latest_loss"] = f'{learner._cache["loss"]:.3f}'
             with suppress(AttributeError):
                 info["nlearners"] = len(learner.learners)
                 if "npoints" in info:
