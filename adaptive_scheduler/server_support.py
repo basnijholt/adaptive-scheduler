@@ -922,7 +922,9 @@ class RunManager:
             Button(description="update info", layout=layout, button_color="lightgreen"),
             Button(description="cancel jobs", layout=layout, button_style="danger"),
             Button(
-                description="cleanup log files", layout=layout, button_style="danger"
+                description="cleanup log and batch files",
+                layout=layout,
+                button_style="danger",
             ),
         ]
         buttons = {b.description: b for b in buttons}
@@ -939,7 +941,7 @@ class RunManager:
             update(_)
 
         buttons["cancel jobs"].on_click(cancel)
-        buttons["cleanup log files"].on_click(cleanup)
+        buttons["cleanup log and batch files"].on_click(cleanup)
         buttons["update info"].on_click(update)
 
         buttons = VBox(list(buttons.values()))
