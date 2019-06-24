@@ -917,7 +917,7 @@ class RunManager:
 
         status = HTML(value=self._info_html())
 
-        layout = Layout(width="150px")
+        layout = Layout(width="200px")
         buttons = [
             Button(description="update info", layout=layout, button_color="lightgreen"),
             Button(description="cancel jobs", layout=layout, button_style="danger"),
