@@ -1,5 +1,6 @@
 from copy import copy
 import sys
+import warnings
 
 from adaptive.learner.base_learner import BaseLearner
 
@@ -11,9 +12,12 @@ def ensure_hashable(x):
         hash(x)
         return x
     except TypeError:
+        msg = "The items in `sequence` need to be hashable, {}. Make sure you reflect this in your function."
         if isinstance(x, dict):
+            warnings.warn(msg.format("we converted `dict` to `tuple(dict.items())`"))
             return tuple(x.items())
         else:
+            warnings.warn(msg.format("we tried to cast the items to a tuple"))
             return tuple(x)
 
 
@@ -29,13 +33,10 @@ class SequenceLearner(BaseLearner):
     def ask(self, n, tell_pending=True):
         points = []
         loss_improvements = []
-        i = 0
-        for point in self._to_do_seq:
-            if i >= n:
-                break
+        n = min(n, len(self._to_do_seq))
+        for point in self._to_do_seq[:n]:
             points.append(point)
             loss_improvements.append(inf / self._npoints)
-            i += 1
 
         if tell_pending:
             for p in points:
