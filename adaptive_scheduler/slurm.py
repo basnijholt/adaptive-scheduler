@@ -133,13 +133,15 @@ def make_job_script(
     return job_script
 
 
-def queue(me_only=True):
+def queue(me_only=True, remote=None):
     """Get the current running and pending jobs.
 
     Parameters
     ----------
     me_only : bool, default: True
         Only see your jobs.
+    remote : str, optional
+        Remote hostname, to run over ssh.
 
     Returns
     -------
@@ -164,6 +166,8 @@ def queue(me_only=True):
     if me_only:
         username = getpass.getuser()
         cmd.append(f"--user={username}")
+    if remote is not None:
+        cmd = ["ssh", remote] + cmd
     proc = subprocess.run(cmd, text=True, capture_output=True)
     output = proc.stdout
 
