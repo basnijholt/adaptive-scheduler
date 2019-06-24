@@ -33,8 +33,9 @@ class SequenceLearner(BaseLearner):
     def ask(self, n, tell_pending=True):
         points = []
         loss_improvements = []
-        n = min(n, len(self._to_do_seq))
-        for point in self._to_do_seq[:n]:
+        for point in self._to_do_seq:
+            if len(points) >= n:
+                break
             points.append(point)
             loss_improvements.append(inf / self._npoints)
 
