@@ -155,6 +155,7 @@ async def manage_jobs(
     run_script="run_learner.py",
     python_executable=None,
     interval=30,
+    remote=None,
     *,
     max_simultaneous_jobs=5000,
     max_fails_per_job=100,
@@ -164,7 +165,7 @@ async def manage_jobs(
     with concurrent.futures.ProcessPoolExecutor() as ex:
         while True:
             try:
-                running = queue()
+                running = queue(remote=remote)
                 _update_db(db_fname, running)  # in case some jobs died
                 queued = {j["name"] for j in running.values() if j["name"] in job_names}
                 not_queued = set(job_names) - queued
@@ -236,6 +237,7 @@ def start_job_manager(
     run_script="run_learner.py",
     python_executable=None,
     interval=30,
+    remote=None,
     *,
     max_simultaneous_jobs=5000,
     max_fails_per_job=40,
@@ -250,6 +252,7 @@ def start_job_manager(
         run_script,
         python_executable,
         interval,
+        remote,
         max_simultaneous_jobs=max_simultaneous_jobs,
         max_fails_per_job=max_fails_per_job,
     )
@@ -356,6 +359,7 @@ async def manage_killer(
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
+    remote: Optional[str] = None,
 ) -> Coroutine:
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
@@ -371,7 +375,7 @@ async def manage_killer(
             to_delete = []
 
             # get cancel/delete only the processes/logs that are running nowg
-            for job_id, info in queue().items():
+            for job_id, info in queue(remote=remote).items():
                 job_name = info["name"]
                 if job_id in failed_jobs.get(job_name, []):
                     to_cancel.append(job_name)
@@ -427,9 +431,10 @@ def start_kill_manager(
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
+    remote: Optional[str] = None,
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
-    coro = manage_killer(job_names, error, interval, max_cancel_tries, move_to)
+    coro = manage_killer(job_names, error, interval, max_cancel_tries, move_to, remote)
     return ioloop.create_task(coro)
 
 
@@ -667,6 +672,7 @@ class RunManager:
         overwrite_db: bool = True,
         start_job_manager_kwargs: Optional[dict] = None,
         start_kill_manager_kwargs: Optional[dict] = None,
+        remote: Optional[str] = None,
     ):
         # Set from arguments
         self.run_script = run_script
@@ -688,6 +694,7 @@ class RunManager:
         self.overwrite_db = overwrite_db
         self.start_job_manager_kwargs = start_job_manager_kwargs or {}
         self.start_kill_manager_kwargs = start_kill_manager_kwargs or {}
+        self.remote = remote
 
         # Set in methods
         self.job_task = None
@@ -794,6 +801,7 @@ class RunManager:
             interval=self.job_manager_interval,
             run_script=self.run_script,
             job_script_function=self.job_script_function,
+            remote=self.remote,
             **self.start_job_manager_kwargs,
         )
 
@@ -808,6 +816,7 @@ class RunManager:
             error=self.kill_on_error,
             interval=self.kill_interval,
             move_to=self.move_old_logs_to,
+            remote=self.remote,
             **self.start_kill_manager_kwargs,
         )
 
@@ -818,7 +827,7 @@ class RunManager:
             self.database_task.cancel()
         if self.kill_task is not None:
             self.kill_task.cancel()
-        return cancel(self.job_names)
+        return cancel(self.job_names, remote=self.remote)
 
     def cleanup(self):
         """Cleanup the log and batch files.
@@ -953,7 +962,11 @@ class RunManager:
         )
 
     def _info_html(self):
-        jobs = [job for job in queue().values() if job["name"] in self.job_names]
+        jobs = [
+            job
+            for job in queue(remote=self.remote).values()
+            if job["name"] in self.job_names
+        ]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
         n_done = sum(job["is_done"] for job in self.get_database())

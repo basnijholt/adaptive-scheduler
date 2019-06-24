@@ -81,7 +81,10 @@ def _progress(seq: Sequence, with_progress_bar: bool = True, desc: str = ""):
 
 def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
     def cancel(
-        job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
+        job_names: List[str],
+        with_progress_bar: bool = True,
+        max_tries: int = 5,
+        remote: Optional[str] = None,
     ) -> Callable:
         """Cancel all jobs in `job_names`.
 
@@ -98,7 +101,7 @@ def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
         def to_cancel(job_names):
             return [
                 job_id
-                for job_id, info in queue_function().items()
+                for job_id, info in queue_function(remote=remote).items()
                 if info["name"] in job_names
             ]
 
