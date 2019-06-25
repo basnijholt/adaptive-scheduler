@@ -826,12 +826,15 @@ class RunManager:
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        from adaptive_scheduler.utils import cleanup_files
+        from adaptive_scheduler.utils import cleanup_files, _delete_old_ipython_profiles
 
         with suppress(FileNotFoundError):
             if self.status() != "running":
                 os.remove(self._default_run_script_name)
 
+        running_job_ids = set(queue().keys())
+        if self.executor_type == "ipyparallel":
+            _delete_old_ipython_profiles(running_job_ids)
         return cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
 
     def parse_log_files(self, only_last=True):

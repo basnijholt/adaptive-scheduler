@@ -12,7 +12,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Dict, Tuple, Sequence, List, Optional, Callable, Union
+from typing import Any, Dict, Tuple, Sequence, Set, List, Optional, Callable, Union
 
 import adaptive
 import toolz
@@ -126,6 +126,21 @@ def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
     if folder is None:
         return fname
     return os.path.join(folder, fname)
+
+
+def _delete_old_ipython_profiles(running_job_ids: Set[str]):
+    # We need the job_ids because only job_names wouldn't be
+    # enough information. There might be other job_managers
+    # running.
+    pattern = "profile_adaptive_scheduler_"
+    profile_folders = glob.glob(os.path.expanduser(f"~/.ipython/{pattern}*"))
+    to_delete = [
+        folder
+        for folder in profile_folders
+        if not folder.split(pattern)[1] in running_job_ids
+    ]
+    for folder in _progress(to_delete, desc="Deleting old IPython profiles"):
+        shutil.rmtree(folder)
 
 
 def cleanup_files(
