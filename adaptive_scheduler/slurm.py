@@ -83,7 +83,7 @@ def make_job_script(
         profile = "${profile}"
         executor_specific = textwrap.dedent(
             f"""\
-            profile=job_{job_id}_$(hostname)
+            profile=adaptive_scheduler_{job_id}
 
             echo "Creating profile {profile}"
             ipython profile create {profile}
