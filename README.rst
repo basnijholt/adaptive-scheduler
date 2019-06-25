@@ -17,6 +17,23 @@ Our approach is to schedule a different job for each ``adaptive.Learner``. The c
 
 Everything is written such that the computation is maximally local. This means that is one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (because of Adaptive's periodic saving functionality). Even if the central "job manager" dies, the jobs will continue to run (although no new jobs will be scheduled.)
 
+
+Design goals
+------------
+
+#. Needs to be able to run on efficiently >30k cores
+#. Works seamlessly with `Adaptive <https://adaptive.readthedocs.io>`_
+#. Minimal load on the file system
+#. Removes all boiler plate of working with a scheduler
+
+   #. writes job script
+   #. (re)submits job scripts
+
+#. Handles random crashes (or node evictions) with minimal data loss
+#. Preserves Python kernel and variables inside a job (in contrast to submitting jobs for every parameter)
+#. Separates the simulation definition code from the code that runs the simulation
+#. Maximizes computation locality, jobs continue to run when the main process dies
+
 How does it work?
 -----------------
 
