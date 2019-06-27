@@ -145,7 +145,7 @@ def _delete_old_ipython_profiles(running_job_ids: Set[str]):
             to_delete, desc="Submitting deleting old IPython profiles tasks"
         )
         futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
-        for fut in _progress(futs, "Finishing deleting old IPython profiles"):
+        for fut in _progress(futs, desc="Finishing deleting old IPython profiles"):
             fut.result()
 
 
