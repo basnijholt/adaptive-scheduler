@@ -139,8 +139,14 @@ def _delete_old_ipython_profiles(running_job_ids: Set[str]):
         for folder in profile_folders
         if not folder.split(pattern)[1] in running_job_ids
     ]
-    for folder in _progress(to_delete, desc="Deleting old IPython profiles"):
-        shutil.rmtree(folder)
+
+    with ThreadPoolExecutor() as ex:
+        pbar = _progress(
+            to_delete, desc="Submitting deleting old IPython profiles tasks"
+        )
+        futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
+        for fut in _progress(futs, "Finishing deleting old IPython profiles"):
+            fut.result()
 
 
 def cleanup_files(
@@ -232,7 +238,6 @@ def load_parallel(
         learner.load(fname)
 
     with ThreadPoolExecutor() as ex:
-        futs = []
         iterator = zip(learners, fnames)
         pbar = _progress(iterator, with_progress_bar, "Submitting loading tasks")
         futs = [ex.submit(load, *args) for args in pbar]
@@ -262,7 +267,6 @@ def save_parallel(
         learner.save(fname)
 
     with ThreadPoolExecutor() as ex:
-        futs = []
         iterator = zip(learners, fnames)
         pbar = _progress(iterator, with_progress_bar, "Submitting saving tasks")
         futs = [ex.submit(save, *args) for args in pbar]
