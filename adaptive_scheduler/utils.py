@@ -183,11 +183,16 @@ def cleanup_files(
                 # going to loop over every extension anyway.
                 fnames += glob.glob(os.path.join(log_file_folder, pattern))
 
-    _remove_or_move_files(fnames, with_progress_bar, move_to)
+    _remove_or_move_files(
+        fnames, with_progress_bar, move_to, "Removing logs and batch files"
+    )
 
 
 def _remove_or_move_files(
-    fnames: List[str], with_progress_bar: bool = True, move_to: Optional[str] = None
+    fnames: List[str],
+    with_progress_bar: bool = True,
+    move_to: Optional[str] = None,
+    desc: Optional[str] = None,
 ) -> None:
     """Remove files by filename.
 
@@ -200,9 +205,11 @@ def _remove_or_move_files(
     move_to : str, default None
         Move the file to a different directory.
         If None the file is removed.
+    desc : str, default: None
+        Description of the progressbar.
     """
     n_failed = 0
-    for fname in _progress(fnames, with_progress_bar, "Removing files"):
+    for fname in _progress(fnames, with_progress_bar, desc or "Removing files"):
         try:
             if move_to is None:
                 os.remove(fname)
