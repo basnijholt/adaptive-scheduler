@@ -1,11 +1,12 @@
 import asyncio
 import datetime
 import socket
-import structlog
-import zmq
 from contextlib import suppress
 
 import psutil
+import structlog
+import zmq
+
 from adaptive_scheduler._scheduler import get_job_id
 
 ctx = zmq.Context()

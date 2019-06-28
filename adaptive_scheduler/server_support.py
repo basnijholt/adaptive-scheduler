@@ -20,11 +20,11 @@ import zmq.ssh
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler._scheduler import (
+    cancel,
     ext,
     make_job_script,
     queue,
     submit_cmd,
-    cancel,
 )
 
 ctx = zmq.asyncio.Context()

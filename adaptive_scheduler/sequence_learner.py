@@ -1,6 +1,6 @@
-from copy import copy
 import sys
 import warnings
+from copy import copy
 
 from adaptive.learner.base_learner import BaseLearner
 

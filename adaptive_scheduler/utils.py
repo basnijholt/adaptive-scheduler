@@ -12,7 +12,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Dict, Tuple, Sequence, Set, List, Optional, Callable, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import adaptive
 import toolz

@@ -16,7 +16,6 @@ By default it is "SLURM".
 
 import os
 import warnings
-
 from distutils.spawn import find_executable
 
 DEFAULT = "SLURM"
