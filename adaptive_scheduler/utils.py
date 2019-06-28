@@ -30,7 +30,24 @@ def shuffle_list(*lists, seed=0):
     return zip(*combined)
 
 
-def _split(seq, n_parts):
+def _split(seq: Sequence, n_parts: int):
+    s = "adaptive_scheduler.utils."
+    raise Exception(f"`{s}_split` is renamed to {s}split`.")
+
+
+def split(seq: Sequence, n_parts: int):
+    """Split up a sequence into ``n_parts``.
+
+    Parameters
+    ----------
+    seq : sequence
+        A list or other iterable that has to be split up.
+    n_parts : int
+        The sequence will be split up in this many parts.
+
+    Returns
+    -------
+    iterable of tuples"""
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
     return toolz.partition_all(n, lst)
@@ -61,7 +78,7 @@ def split_in_balancing_learners(
     """
     new_learners = []
     new_fnames = []
-    for x in _split(zip(learners, fnames), n_parts):
+    for x in split(zip(learners, fnames), n_parts):
         learners_part, fnames_part = zip(*x)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
