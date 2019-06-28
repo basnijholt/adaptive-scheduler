@@ -15,15 +15,10 @@ By default it is "SLURM".
 """
 
 import os
-import types
 import warnings
 from distutils.spawn import find_executable
 
-from adaptive_scheduler import pbs
-from adaptive_scheduler import slurm
-
 DEFAULT = "SLURM"
-DEFAULT_MODULE = slurm
 
 has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
 has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
@@ -36,23 +31,20 @@ if has_slurm and has_pbs:
         )
 elif has_pbs:
     scheduler_system = "pbs"
-    scheduler_module: types.ModuleType = pbs
 elif has_slurm:
     scheduler_system = "slurm"
-    scheduler_module: types.ModuleType = slurm
 elif not has_slurm and not has_pbs:
     scheduler_system = DEFAULT
-    scheduler_module: types.ModuleType = DEFAULT_MODULE
     msg = f"No scheduler system could be detected. We set it to '{scheduler_system}'."
     warnings.warn(msg)
 
-from scheduler_module import (
-    ext,
-    get_job_id,
-    make_job_script,
-    queue,
-    submit_cmd,
-    cancel,
-)  # noqa: E402
 
-__all__ = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
+names = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
+
+for name in names:
+    module = __import__(
+        f"adaptive_scheduler.{scheduler_system.lower()}", fromlist=[name]
+    )
+    globals()[name] = getattr(module, name)
+
+__all__ = names
