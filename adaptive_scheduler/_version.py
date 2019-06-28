@@ -5,13 +5,14 @@ import os
 import subprocess
 from collections import namedtuple
 from distutils.command.build_py import build_py as build_py_orig
+from typing import List
 
 from setuptools.command.sdist import sdist as sdist_orig
 
 Version = namedtuple("Version", ("release", "dev", "labels"))
 
 # No public API
-__all__ = []
+__all__: List[str] = []
 
 package_root = os.path.dirname(os.path.realpath(__file__))
 package_name = os.path.basename(package_root)
@@ -53,7 +54,7 @@ def pep440_format(version_info):
         if release.endswith("-dev") or release.endswith(".dev"):
             version_parts.append(dev)
         else:  # prefer PEP440 over strict adhesion to semver
-            version_parts.append(".dev{}".format(dev))
+            version_parts.append(f".dev{dev}")
 
     if labels:
         version_parts.append("+")
@@ -156,7 +157,7 @@ def get_version_from_git_archive(version_info):
         release, *_ = sorted(version_tags)  # prefer e.g. "2.0" over "2.0rc1"
         return Version(release, dev=None, labels=None)
     else:
-        return Version("unknown", dev=None, labels=["g{}".format(git_hash)])
+        return Version("unknown", dev=None, labels=[f"g{git_hash}"])
 
 
 __version__ = get_version()

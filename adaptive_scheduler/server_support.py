@@ -10,8 +10,9 @@ import textwrap
 import time
 import warnings
 from contextlib import suppress
-from typing import Any, Coroutine, Dict, List, Optional, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
 
+import adaptive
 import dill
 import structlog
 import zmq
@@ -352,7 +353,7 @@ def _get_n_jobs_done(db_fname: str):
 
 async def manage_killer(
     job_names: List[str],
-    error: Union[str, callable, None] = "srun: error:",
+    error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
@@ -423,7 +424,7 @@ manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
 
 def start_kill_manager(
     job_names: List[str],
-    error: Union[str, callable, None] = "srun: error:",
+    error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
@@ -649,18 +650,20 @@ class RunManager:
         self,
         cores_per_job: int,
         run_script: Optional[str] = None,
-        goal: Optional[callable] = None,
+        goal: Optional[Callable[[adaptive.BaseLearner], bool]] = None,
         runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
         learners_file: str = "learners_file.py",
         save_interval: int = 300,
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
-        job_script_function: callable = make_job_script,
+        job_script_function: Callable[
+            [str, int, str, Optional[str]], str
+        ] = make_job_script,
         executor_type: Union["mpi4py", "ipyparallel", "dask-mpi"] = "mpi4py",
         job_manager_interval: int = 60,
         kill_interval: int = 60,
-        kill_on_error: Union[str, callable, None] = "srun: error:",
+        kill_on_error: Union[str, Callable[[List[str]], bool], None] = "srun: error:",
         move_old_logs_to: Optional[str] = "old_logs",
         log_file_folder: str = "",
         db_fname: str = "running.json",

@@ -69,7 +69,7 @@ def split_in_balancing_learners(
     return new_learners, new_fnames
 
 
-def _progress(seq: Sequence, with_progress_bar: bool = True, desc: str = ""):
+def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""):
     if not with_progress_bar:
         return seq
     else:
@@ -82,7 +82,7 @@ def _progress(seq: Sequence, with_progress_bar: bool = True, desc: str = ""):
 def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
     def cancel(
         job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
-    ) -> Callable:
+    ) -> None:
         """Cancel all jobs in `job_names`.
 
         Parameters
@@ -151,7 +151,7 @@ def _delete_old_ipython_profiles(running_job_ids: Set[str]):
 
 def cleanup_files(
     job_names: List[str],
-    extensions: List[str] = ("sbatch", "out", "batch", "e*", "o*"),
+    extensions: List[str] = ["sbatch", "out", "batch", "e*", "o*"],
     with_progress_bar: bool = True,
     move_to: Optional[str] = None,
     log_file_folder: str = "",
@@ -173,7 +173,7 @@ def cleanup_files(
         The folder in which to delete the log-files.
     """
     # Finding the files
-    fnames = []
+    fnames: List[str] = []
     for job in job_names:
         for ext in extensions:
             pattern = f"{job}*.{ext}"
@@ -282,7 +282,7 @@ def save_parallel(
 
 
 def _get_status_prints(fname: str, only_last: bool = True):
-    status_lines = []
+    status_lines: List[str] = []
     with open(fname) as f:
         lines = f.readlines()
         if not lines:
@@ -332,7 +332,8 @@ def parse_log_files(
         warnings.warn("`pandas` is not installed, a list of dicts will be returned.")
 
     # import here to avoid circular imports
-    from adaptive_scheduler.server_support import queue, get_database
+    from adaptive_scheduler.server_support import get_database
+    from adaptive_scheduler._scheduler import queue
 
     def convert_type(k, v):
         if k == "elapsed_time":
@@ -396,7 +397,7 @@ def parse_log_files(
 
 
 def logs_with_string_or_condition(
-    job_names: List[str], error: Union[str, callable]
+    job_names: List[str], error: Union[str, Callable[[List[str]], bool]]
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -419,10 +420,10 @@ def logs_with_string_or_condition(
     """
     if isinstance(error, str):
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
-    elif isinstance(error, callable):
+    elif callable(error):
         has_error = error
 
-    has_string = collections.defaultdict(list)
+    has_string: Dict[str, List[str]] = collections.defaultdict(list)
     for job in job_names:
         fnames = glob.glob(f"{job}-*.out")
         if not fnames:
