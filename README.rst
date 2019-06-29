@@ -23,7 +23,7 @@ Design goals
 #. Needs to be able to run on efficiently >30k cores
 #. Works seamlessly with the Adaptive package
 #. Minimal load on the file system
-#. Removes all boiler plate of working with a scheduler
+#. Removes all boilerplate of working with a scheduler
 
    #. writes job script
    #. (re)submits job scripts
