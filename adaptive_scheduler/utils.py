@@ -454,7 +454,7 @@ def logs_with_string_or_condition(
     return dict(has_string)
 
 
-def _print_same_line(msg, new_line_end=False):
+def _print_same_line(msg: str, new_line_end: bool = False):
     msg = msg.strip()
     global MAX_LINE_LENGTH
     MAX_LINE_LENGTH = max(len(msg), MAX_LINE_LENGTH)
@@ -462,7 +462,7 @@ def _print_same_line(msg, new_line_end=False):
     print(msg + empty_space, end="\r" if not new_line_end else "\n")
 
 
-def _wait_for_successful_ipyparallel_client_start(client, n, timeout):
+def _wait_for_successful_ipyparallel_client_start(client, n: int, timeout: int):
     from ipyparallel.error import NoEnginesRegistered
 
     n_engines_old = 0
@@ -518,7 +518,7 @@ def connect_to_ipyparallel(
     return client
 
 
-def _get_default_args(func):
+def _get_default_args(func: Callable) -> Dict[str, str]:
     signature = inspect.signature(func)
     return {
         k: v.default

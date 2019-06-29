@@ -10,7 +10,7 @@ import textwrap
 import time
 import warnings
 from contextlib import suppress
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 
 import adaptive
 import dill
@@ -40,7 +40,7 @@ class MaxRestartsReached(Exception):
     your Python code which results jobs being started indefinitely."""
 
 
-def _dispatch(request, db_fname):
+def _dispatch(request: Tuple[str, str], db_fname: str):
     request_type, request_arg = request
     log.debug("got a request", request=request)
     try:
@@ -53,7 +53,7 @@ def _dispatch(request, db_fname):
         elif request_type == "stop":
             fname = request_arg  # workers send us the fname they were given
             log.debug("got a stop request", fname=fname)
-            return _done_with_learner(db_fname, fname)  # reset the job_id to None
+            _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
         return e
 
@@ -94,7 +94,7 @@ manage_database.__doc__ = _DATABASE_MANAGER_DOC.format(
 )
 
 
-def start_database_manager(url: str, db_fname: str):
+def start_database_manager(url: str, db_fname: str) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
     coro = manage_database(url, db_fname)
     return ioloop.create_task(coro)
@@ -148,17 +148,19 @@ Returns
 
 
 async def manage_jobs(
-    job_names,
-    db_fname,
+    job_names: List[str],
+    db_fname: str,
     ioloop,
     cores=8,
-    job_script_function=make_job_script,
-    run_script="run_learner.py",
-    python_executable=None,
-    interval=30,
+    job_script_function: Callable[
+        [str, int, str, Optional[str]], str
+    ] = make_job_script,
+    run_script: str = "run_learner.py",
+    python_executable: Optional[str] = None,
+    interval: int = 30,
     *,
-    max_simultaneous_jobs=5000,
-    max_fails_per_job=100,
+    max_simultaneous_jobs: int = 5000,
+    max_fails_per_job: int = 100,
 ) -> Coroutine:
     n_started = 0
     max_job_starts = max_fails_per_job * len(job_names)
@@ -230,16 +232,18 @@ manage_jobs.__doc__ = _JOB_MANAGER_DOC.format(
 
 
 def start_job_manager(
-    job_names,
-    db_fname,
-    cores=8,
-    job_script_function=make_job_script,
-    run_script="run_learner.py",
-    python_executable=None,
-    interval=30,
+    job_names: List[str],
+    db_fname: str,
+    cores: int = 8,
+    job_script_function: Callable[
+        [str, int, str, Optional[str]], str
+    ] = make_job_script,
+    run_script: str = "run_learner.py",
+    python_executable: Optional[str] = None,
+    interval: int = 30,
     *,
-    max_simultaneous_jobs=5000,
-    max_fails_per_job=40,
+    max_simultaneous_jobs: int = 5000,
+    max_fails_per_job: int = 40,
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
     coro = manage_jobs(
@@ -275,7 +279,7 @@ def _start_job(name, cores, job_script_function, run_script, python_executable):
         time.sleep(0.5)
 
 
-def get_allowed_url():
+def get_allowed_url() -> str:
     """Get an allowed url for the database manager.
 
     Returns
@@ -289,7 +293,7 @@ def get_allowed_url():
     return f"tcp://{ip}:{port}"
 
 
-def create_empty_db(db_fname: str, fnames: List[str]):
+def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     """Create an empty database that keeps track of fname -> (job_id, is_done).
 
     Parameters
@@ -312,14 +316,14 @@ def get_database(db_fname: str) -> List[Dict[str, Any]]:
         return db.all()
 
 
-def _update_db(db_fname: str, running: Dict[str, dict]):
+def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
         db.update({"job_id": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname: str, job_id: str):
+def _choose_fname(db_fname: str, job_id: str) -> str:
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -339,13 +343,13 @@ def _choose_fname(db_fname: str, job_id: str):
     return entry["fname"]
 
 
-def _done_with_learner(db_fname: str, fname: str):
+def _done_with_learner(db_fname: str, fname: str) -> None:
     Entry = Query()
     with TinyDB(db_fname) as db:
         db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
 
 
-def _get_n_jobs_done(db_fname: str):
+def _get_n_jobs_done(db_fname: str) -> int:
     Entry = Query()
     with TinyDB(db_fname) as db:
         return db.count(Entry.is_done == True)  # noqa: E711
@@ -440,14 +444,14 @@ start_kill_manager.__doc__ = _KILL_MANAGER_DOC.format(
 
 
 def _make_default_run_script(
-    url,
-    learners_file,
-    save_interval,
-    log_interval,
-    goal=None,
-    runner_kwargs=None,
-    run_script_fname="run_learner.py",
-    executor_type="mpi4py",
+    url: str,
+    learners_file: str,
+    save_interval: int,
+    log_interval: int,
+    goal: Optional[Callable[[adaptive.BaseLearner], bool]] = None,
+    runner_kwargs: Optional[Dict[str, Any]] = None,
+    run_script_fname: str = "run_learner.py",
+    executor_type: str = "mpi4py",
 ):
     default_runner_kwargs = dict(shutdown_executor=True)
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
@@ -668,8 +672,8 @@ class RunManager:
         log_file_folder: str = "",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
-        start_job_manager_kwargs: Optional[dict] = None,
-        start_kill_manager_kwargs: Optional[dict] = None,
+        start_job_manager_kwargs: Optional[Dict[str, Any]] = None,
+        start_kill_manager_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Set from arguments
         self.run_script = run_script
@@ -814,16 +818,16 @@ class RunManager:
             **self.start_kill_manager_kwargs,
         )
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
         if self.job_task is not None:
             self.job_task.cancel()
             self.database_task.cancel()
         if self.kill_task is not None:
             self.kill_task.cancel()
-        return cancel(self.job_names)
+        cancel(self.job_names)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup the log and batch files.
 
         If the `RunManager` is not running, the ``run_script.py`` file
@@ -838,9 +842,9 @@ class RunManager:
         running_job_ids = set(queue().keys())
         if self.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
-        return cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
+        cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
 
-    def parse_log_files(self, only_last=True):
+    def parse_log_files(self, only_last: bool = True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
         Parameters
@@ -859,7 +863,7 @@ class RunManager:
             self.job_names, only_last, self.db_fname, self.log_file_folder
         )
 
-    def task_status(self):
+    def task_status(self) -> None:
         r"""Print the stack of the `asyncio.Task`\s."""
         if self.job_task is not None:
             self.job_task.print_stack()
@@ -872,13 +876,13 @@ class RunManager:
         """Get the database as a list of dicts."""
         return get_database(self.db_fname)
 
-    def load_learners(self):
+    def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
         from adaptive_scheduler.utils import load_parallel
 
         load_parallel(self.learners_module.learners, self.learners_module.fnames)
 
-    def elapsed_time(self):
+    def elapsed_time(self) -> float:
         """Total time elapsed since the RunManager was started."""
         if not self.is_started:
             return 0
@@ -893,7 +897,7 @@ class RunManager:
             end_time = time.time()
         return end_time - self.start_time
 
-    def status(self):
+    def status(self) -> str:
         """Return the current status of the RunManager."""
         if not self.is_started:
             return "not yet started"
@@ -912,7 +916,7 @@ class RunManager:
             self.end_time = time.time()
         return status
 
-    def info(self):
+    def info(self) -> None:
         """Display information about the `RunManager`.
 
         Returns an interactive ipywidget that can be
@@ -958,7 +962,7 @@ class RunManager:
             )
         )
 
-    def _info_html(self):
+    def _info_html(self) -> str:
         jobs = [job for job in queue().values() if job["name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
@@ -1002,5 +1006,5 @@ class RunManager:
             </dl>
         """
 
-    def _repr_html_(self):
+    def _repr_html_(self) -> None:
         return self.info()

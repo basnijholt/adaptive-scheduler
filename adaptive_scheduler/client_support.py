@@ -2,10 +2,12 @@ import asyncio
 import datetime
 import socket
 from contextlib import suppress
+from typing import Any, Dict, List, Tuple, Union
 
 import psutil
 import structlog
 import zmq
+from adaptive import AsyncRunner, BaseLearner
 
 from adaptive_scheduler._scheduler import get_job_id
 
@@ -13,7 +15,7 @@ ctx = zmq.Context()
 log = structlog.get_logger("adaptive_scheduler.client")
 
 
-def get_learner(url, learners, fnames):
+def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> None:
     """Get a learner from the database running at `url`.
 
     Parameters
@@ -50,7 +52,7 @@ def get_learner(url, learners, fnames):
             fname = reply
             log.info(f"got fname")
 
-    def maybe_lst(fname):
+    def maybe_lst(fname: Union[Tuple[str], str]):
         if isinstance(fname, tuple):
             # TinyDB converts tuples to lists
             fname = list(fname)
@@ -67,7 +69,7 @@ def get_learner(url, learners, fnames):
     return learner, fname
 
 
-def tell_done(url, fname):
+def tell_done(url: str, fname: str) -> None:
     """Tell the database that the learner has reached it's goal.
 
     Parameters
@@ -86,7 +88,7 @@ def tell_done(url, fname):
         socket.recv_pyobj()  # Needed because of socket type
 
 
-def _get_npoints(learner):
+def _get_npoints(learner: BaseLearner) -> int:
     with suppress(AttributeError):
         return learner.npoints
     with suppress(AttributeError):
@@ -94,7 +96,7 @@ def _get_npoints(learner):
         return sum(l.npoints for l in learner.learners)
 
 
-def _get_log_entry(runner, npoints_start):
+def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
     learner = runner.learner
     info = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())
@@ -118,7 +120,7 @@ def _get_log_entry(runner, npoints_start):
     return info
 
 
-def log_info(runner, interval=300):
+def log_info(runner: AsyncRunner, interval=300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
