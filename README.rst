@@ -1,4 +1,3 @@
-
 An asynchronous job scheduler for `Adaptive <https://github.com/python-adaptive/adaptive/>`_
 ============================================================================================
 
@@ -22,7 +21,7 @@ Design goals
 ------------
 
 #. Needs to be able to run on efficiently >30k cores
-#. Works seamlessly with `Adaptive <https://adaptive.readthedocs.io>`_
+#. Works seamlessly with the Adaptive package
 #. Minimal load on the file system
 #. Removes all boiler plate of working with a scheduler
 
