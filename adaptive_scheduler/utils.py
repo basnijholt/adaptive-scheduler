@@ -145,7 +145,9 @@ def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
     return os.path.join(folder, fname)
 
 
-def _delete_old_ipython_profiles(running_job_ids: Set[str]):
+def _delete_old_ipython_profiles(
+    running_job_ids: Set[str], with_progress_bar: bool = True
+):
     # We need the job_ids because only job_names wouldn't be
     # enough information. There might be other job_managers
     # running.
@@ -162,7 +164,9 @@ def _delete_old_ipython_profiles(running_job_ids: Set[str]):
             to_delete, desc="Submitting deleting old IPython profiles tasks"
         )
         futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
-        for fut in _progress(futs, desc="Finishing deleting old IPython profiles"):
+        for fut in _progress(
+            futs, with_progress_bar, desc="Finishing deleting old IPython profiles"
+        ):
             fut.result()
 
 

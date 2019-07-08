@@ -1008,3 +1008,32 @@ class RunManager:
 
     def _repr_html_(self) -> None:
         return self.info()
+
+
+def periodically_clean_ipython_profiles(interval: int = 600):
+    """Periodically remove old IPython profiles.
+
+    In the `RunManager.cleanup` method the profiles will be removed. However,
+    one might want to remove them earlier.
+
+    Parameters
+    ----------
+    interval : int, default: 600
+        The interval at which to remove old profiles.
+
+    Returns
+    -------
+    asyncio.Task
+    """
+
+    async def clean(interval):
+        from adaptive_scheduler.utils import _delete_old_ipython_profiles
+
+        while True:
+            running_job_ids = set(queue().keys())
+            _delete_old_ipython_profiles(running_job_ids, with_progress_bar=False)
+            await asyncio.sleep(interval)
+
+    ioloop = asyncio.get_event_loop()
+    coro = clean(interval)
+    return ioloop.create_task(coro)
