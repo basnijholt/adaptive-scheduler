@@ -1030,8 +1030,9 @@ def periodically_clean_ipython_profiles(interval: int = 600):
         from adaptive_scheduler.utils import _delete_old_ipython_profiles
 
         while True:
-            running_job_ids = set(queue().keys())
-            _delete_old_ipython_profiles(running_job_ids, with_progress_bar=False)
+            with suppress(Exception):
+                running_job_ids = set(queue().keys())
+                _delete_old_ipython_profiles(running_job_ids, with_progress_bar=False)
             await asyncio.sleep(interval)
 
     ioloop = asyncio.get_event_loop()
