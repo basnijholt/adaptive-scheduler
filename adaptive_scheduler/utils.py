@@ -362,6 +362,9 @@ def parse_log_files(
             return pd.to_timedelta(v)
         elif k == "overhead":
             return float(v[:-1])
+        elif k == "latest_loss":
+            # because `ast.literal_eval('inf')` will fail
+            return float(v)
         else:
             return ast.literal_eval(v)
 
