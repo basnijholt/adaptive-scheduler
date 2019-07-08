@@ -31,6 +31,7 @@ def shuffle_list(*lists, seed=0):
 
 
 def _split(seq: Sequence, n_parts: int):
+    # TODO: remove this in v1.0.0
     s = "adaptive_scheduler.utils."
     raise Exception(f"`{s}_split` is renamed to {s}split`.")
 
