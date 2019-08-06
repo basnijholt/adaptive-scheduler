@@ -27,6 +27,7 @@ def make_job_script(
     extra_pbs=None,
     extra_env_vars=None,
     num_threads=1,
+    log_file_folder="~/",
 ):
     """Get a jobscript in string form.
 
@@ -59,6 +60,9 @@ def make_job_script(
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
+    log_file_folder : str, default: " ~/"
+        The folder in which to put the log-files. WARNING: you cannot change
+        this with PBS, see http://community.pbspro.org/t/stdout-and-stderr-in-submisson-directory/687/8
 
     Returns
     -------
@@ -67,6 +71,14 @@ def make_job_script(
     """
     import sys
     import textwrap
+
+    if os.path.expanduser(log_file_folder) != os.path.expanduser("~/"):
+        raise ValueError(
+            "PBS puts the log-files in the home folder when"
+            f" we use `{submit_cmd}`, which is needed to print to the logs"
+            " during the calculation instead of when the job is finished."
+            "  Therefore, you must use `log_file_folder='~/'`."
+        )
 
     if cores_per_node is None:
         partial_msg = (
@@ -79,7 +91,8 @@ def make_job_script(
             cores_per_node = round(cores / nnodes)
             msg = (
                 f"`#PBS -l nodes={nnodes}:ppn={cores_per_node}` is guessed"
-                f" using the `qnodes` command. You might want to change this. {partial_msg}"
+                f" using the `qnodes` command, we set `cores_per_node={cores}`."
+                f" You might want to change this. {partial_msg}"
             )
             warnings.warn(msg)
             cores = nnodes * cores_per_node

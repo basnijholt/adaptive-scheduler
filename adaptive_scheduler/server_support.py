@@ -690,7 +690,7 @@ class RunManager:
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = move_old_logs_to
-        self.log_file_folder = log_file_folder
+        self.log_file_folder = os.path.expanduser(log_file_folder)
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
         self.start_job_manager_kwargs = start_job_manager_kwargs or {}

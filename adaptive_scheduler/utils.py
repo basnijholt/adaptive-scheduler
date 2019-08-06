@@ -203,7 +203,8 @@ def cleanup_files(
             if log_file_folder:
                 # The log-files might be in a different folder, but we're
                 # going to loop over every extension anyway.
-                fnames += glob.glob(os.path.join(log_file_folder, pattern))
+                pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
+                fnames += glob.glob(pattern)
 
     _remove_or_move_files(
         fnames, with_progress_bar, move_to, "Removing logs and batch files"
@@ -355,7 +356,7 @@ def parse_log_files(
 
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue
+    from adaptive_scheduler._scheduler import queue, scheduler_system
 
     def convert_type(k, v):
         if k == "elapsed_time":
@@ -385,7 +386,9 @@ def parse_log_files(
 
     infos = []
     for job in job_names:
-        fnames = glob.glob(os.path.join(log_file_folder, f"{job}-*.out"))
+        pattern = {"slurm": f"{job}-*.out", "pbs": f"{job}*.o*"}[scheduler_system]
+        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
+        fnames = glob.glob(pattern)
         if not fnames:
             continue
         fname = fnames[-1]  # take the last file
