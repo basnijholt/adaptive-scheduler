@@ -39,7 +39,15 @@ elif not has_slurm and not has_pbs:
     warnings.warn(msg)
 
 
-names = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
+names = [
+    "ext",
+    "get_job_id",
+    "make_job_script",
+    "queue",
+    "submit_cmd",
+    "cancel",
+    "get_log_files",
+]
 
 for name in names:
     module = __import__(

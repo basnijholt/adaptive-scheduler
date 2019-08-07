@@ -1,8 +1,9 @@
+import functools
 import getpass
 import os
 import subprocess
 
-from adaptive_scheduler.utils import _cancel_function
+from adaptive_scheduler.utils import _cancel_function, _get_log_files
 
 ext = ".sbatch"
 submit_cmd = "sbatch"
@@ -194,3 +195,5 @@ def get_job_id():
 
 
 cancel = _cancel_function("scancel", queue)
+
+get_log_files = functools.partial(_get_log_files, templates=["{job_name}-{job_id}.out"])

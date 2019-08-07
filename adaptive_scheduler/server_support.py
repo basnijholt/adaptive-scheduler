@@ -361,6 +361,7 @@ async def manage_killer(
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
+    log_file_folder: str = "",
 ) -> Coroutine:
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
@@ -371,16 +372,19 @@ async def manage_killer(
 
     while True:
         try:
-            failed_jobs = logs_with_string_or_condition(job_names, error)
+            failed_jobs = logs_with_string_or_condition(
+                job_names, error, log_file_folder
+            )
             to_cancel = []
             to_delete = []
 
-            # get cancel/delete only the processes/logs that are running nowg
-            for job_id, info in queue().items():
-                job_name = info["name"]
-                if job_id in failed_jobs.get(job_name, []):
-                    to_cancel.append(job_name)
-                    to_delete.append(f"{job_name}-{job_id}.out")
+            # get cancel/delete only the processes/logs that are running now
+            for job_id in queue().keys():
+                if job_id in failed_jobs:
+                    info = failed_jobs[job_id]
+                    to_cancel.append(info["job_name"])
+                    for fname in info["fnames"]:
+                        to_delete.append(fname)
 
             cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
             _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
@@ -415,6 +419,9 @@ max_cancel_tries : int, default: 5
 move_to : str, optional
     If a job is cancelled the log is either removed (if ``move_to=None``)
     or moved to a folder (e.g. if ``move_to='old_logs'``).
+log_file_folder : str, default: ""
+    The folder in which to put the log-files. Note that you also need
+    to change this argument inside of `adaptive.slurm.make_job_script`!
 
 Returns
 -------
@@ -432,9 +439,12 @@ def start_kill_manager(
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
+    log_file_folder: str = "",
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
-    coro = manage_killer(job_names, error, interval, max_cancel_tries, move_to)
+    coro = manage_killer(
+        job_names, error, interval, max_cancel_tries, move_to, log_file_folder
+    )
     return ioloop.create_task(coro)
 
 
@@ -815,6 +825,7 @@ class RunManager:
             error=self.kill_on_error,
             interval=self.kill_interval,
             move_to=self.move_old_logs_to,
+            log_file_folder=self.log_file_folder,
             **self.start_kill_manager_kwargs,
         )
 

@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import adaptive
+import parse
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -136,6 +137,24 @@ def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
             cancel_jobs(job_ids)
 
     return cancel
+
+
+def _get_log_files(
+    job_names: List[str], templates: List[str], log_file_folder: str = ""
+):
+    info = collections.defaultdict(dict)
+    for job_name in job_names:
+        for template in templates:
+            pattern = template.format(job_name=job_name, job_id="*")
+            pattern = os.path.expanduser(pattern)
+            fnames = glob.glob(pattern)
+            for fname in fnames:
+                job_id = parse.parse(template, fname).named["job_id"]
+                if "fnames" not in info[job_id]:
+                    info[job_id]["fnames"] = []
+                info[job_id]["fnames"].append(fname)
+                info[job_id]["job_name"] = job_name
+    return dict(info)
 
 
 def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
@@ -426,7 +445,9 @@ def parse_log_files(
 
 
 def logs_with_string_or_condition(
-    job_names: List[str], error: Union[str, Callable[[List[str]], bool]]
+    job_names: List[str],
+    error: Union[str, Callable[[List[str]], bool]],
+    log_file_folder: str = "",
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -445,25 +466,32 @@ def logs_with_string_or_condition(
     Returns
     -------
     has_string : list
-        List with jobs that have the string inside their log-file.
+        A directory of ``job_id -> dict(fnames=[...], job_name=...)``,
+        which have the string inside their log-file.
     """
+    from adaptive_scheduler._scheduler import get_log_files
+
     if isinstance(error, str):
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
     elif callable(error):
         has_error = error
 
-    has_string: Dict[str, List[str]] = collections.defaultdict(list)
-    for job in job_names:
-        fnames = glob.glob(f"{job}-*.out")
-        if not fnames:
-            continue
-        for fname in fnames:
-            job_id = fname.split(f"{job}-")[1].split(".out")[0]
-            with open(fname) as f:
-                lines = f.readlines()
-            if has_error(lines):
-                has_string[job].append(job_id)
-    return dict(has_string)
+    def file_has_error(fname):
+        with open(fname) as f:
+            lines = f.readlines()
+        return has_error(lines)
+
+    log_files = get_log_files(job_names, log_file_folder=log_file_folder)
+
+    has_no_error = [
+        job_id
+        for job_id, info in log_files.items()
+        if not any(file_has_error(fn) for fn in info["fnames"])
+    ]
+    for job_id in has_no_error:
+        log_files.pop(job_id)
+
+    return log_files
 
 
 def _print_same_line(msg: str, new_line_end: bool = False):

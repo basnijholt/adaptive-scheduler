@@ -1,11 +1,12 @@
 import collections
+import functools
 import getpass
 import math
 import os
 import subprocess
 import warnings
 
-from adaptive_scheduler.utils import _cancel_function
+from adaptive_scheduler.utils import _cancel_function, _get_log_files
 
 ext = ".batch"
 
@@ -270,3 +271,7 @@ def _guess_cores_per_node():
 
 
 cancel = _cancel_function("qdel", queue)
+
+get_log_files = functools.partial(
+    _get_log_files, templates=["{job_name}.o{job_id}", "{job_name}.e{job_id}"]
+)
