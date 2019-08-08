@@ -381,9 +381,9 @@ async def manage_killer(
             # get cancel/delete only the processes/logs that are running now
             for job_id in queue().keys():
                 if job_id in failed_jobs:
-                    info = failed_jobs[job_id]
-                    to_cancel.append(info["job_name"])
-                    for fname in info["fnames"]:
+                    job_name, fnames = failed_jobs[job_id]
+                    to_cancel.append(job_name)
+                    for fname in fnames:
                         to_delete.append(fname)
 
             cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)

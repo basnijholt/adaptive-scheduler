@@ -139,21 +139,16 @@ def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
     return cancel
 
 
-def _get_log_files(
-    job_names: List[str], templates: List[str], log_file_folder: str = ""
-):
-    info = collections.defaultdict(dict)
-    for job_name in job_names:
-        for template in templates:
-            pattern = template.format(job_name=job_name, job_id="*")
-            pattern = os.path.expanduser(pattern)
-            fnames = glob.glob(pattern)
-            for fname in fnames:
-                job_id = parse.parse(template, fname).named["job_id"]
-                if "fnames" not in info[job_id]:
-                    info[job_id]["fnames"] = []
-                info[job_id]["fnames"].append(fname)
-                info[job_id]["job_name"] = job_name
+def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):
+    info = collections.defaultdict(list)
+    for template in templates:
+        pattern = os.path.expanduser(template.format(job_name=job_name, job_id="*"))
+        for fname in glob.glob(pattern):
+            parsed = parse.parse(template, fname)
+            if parsed is None:
+                continue
+            job_id = parsed.named["job_id"]
+            info[job_id].append(fname)
     return dict(info)
 
 
@@ -337,6 +332,11 @@ def _get_status_prints(fname: str, only_last: bool = True):
     return status_lines
 
 
+def _last_edited(kv):
+    job_id, fnames = kv
+    return max(os.stat(fname).st_mtime for fname in fnames)
+
+
 def parse_log_files(  # noqa: C901
     job_names: List[str],
     only_last: bool = True,
@@ -403,23 +403,12 @@ def parse_log_files(  # noqa: C901
                 _info[-1] += f" {x}"
         return _info
 
-    def last_edited(kv):
-        job_id, fnames = kv
-        return max(os.stat(fname).st_mtime for fname in fnames)
-
-    # Create a dict: {job_name: {job_id: fnames, ...}, ...}
-    log_files = collections.defaultdict(lambda: collections.defaultdict(list))
-    raw = get_log_files(job_names, log_file_folder=log_file_folder)
-    for job_id, info in raw.items():
-        job_name = info["job_name"]
-        log_files[job_name][job_id] += info["fnames"]
-    log_files = dict(log_files)
-
     infos = []
-    for job_name, d in log_files.items():
+    for job_name in job_names:
+        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
         # `d` might point to multiple logs of which one is still running
         # so we take the last edited logs.
-        job_id, fnames = max(d.items(), key=last_edited)
+        job_id, fnames = max(log_files.items(), key=_last_edited)
         # Loop over both stdout and stderr files
         # however the info is only in the stdout
         for fname in fnames:
@@ -480,7 +469,7 @@ def logs_with_string_or_condition(
     Returns
     -------
     has_string : list
-        A directory of ``job_id -> dict(fnames=[...], job_name=...)``,
+        A directory of ``job_id -> (job_name, fnames)``,
         which have the string inside their log-file.
     """
     from adaptive_scheduler._scheduler import get_log_files
@@ -489,22 +478,23 @@ def logs_with_string_or_condition(
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
     elif callable(error):
         has_error = error
+    else:
+        raise ValueError("`error` can only be a `str` or `callable`.")
 
     def file_has_error(fname):
         with open(fname) as f:
             lines = f.readlines()
         return has_error(lines)
 
-    log_files = get_log_files(job_names, log_file_folder=log_file_folder)
-
-    has_no_error = [
-        job_id
-        for job_id, info in log_files.items()
-        if not any(file_has_error(fn) for fn in info["fnames"])
-    ]
-    for job_id in has_no_error:
-        log_files.pop(job_id)
-
+    have_error = {}
+    for job_name in job_names:
+        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
+        # `d` might point to multiple logs of which one is still running
+        # so we take the last edited logs.
+        # This assumes that the last running job has the last edited log.
+        job_id, fnames = max(log_files.items(), key=_last_edited)
+        if any(file_has_error(fname) for fname in fnames):
+            have_error[job_id] = job_name, fnames
     return log_files
 
 
