@@ -38,6 +38,7 @@ elif not has_slurm and not has_pbs:
     msg = f"No scheduler system could be detected. We set it to '{scheduler_system}'."
     warnings.warn(msg)
 
+__all__ = ["scheduler_system"]
 
 names = [
     "ext",
@@ -54,6 +55,4 @@ for name in names:
         f"adaptive_scheduler.{scheduler_system.lower()}", fromlist=[name]
     )
     globals()[name] = getattr(module, name)
-
-__all__ = names
-__all__.append("scheduler_system")
+    __all__.append(name)

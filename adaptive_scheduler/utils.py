@@ -337,7 +337,7 @@ def _get_status_prints(fname: str, only_last: bool = True):
     return status_lines
 
 
-def parse_log_files(
+def parse_log_files(  # noqa: C901
     job_names: List[str],
     only_last: bool = True,
     db_fname: Optional[str] = None,
@@ -375,7 +375,7 @@ def parse_log_files(
 
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue, scheduler_system
+    from adaptive_scheduler._scheduler import queue, get_log_files
 
     def convert_type(k, v):
         if k == "elapsed_time":
@@ -403,26 +403,39 @@ def parse_log_files(
                 _info[-1] += f" {x}"
         return _info
 
+    def last_edited(kv):
+        job_id, fnames = kv
+        return max(os.stat(fname).st_mtime for fname in fnames)
+
+    # Create a dict: {job_name: {job_id: fnames, ...}, ...}
+    log_files = collections.defaultdict(lambda: collections.defaultdict(list))
+    raw = get_log_files(job_names, log_file_folder=log_file_folder)
+    for job_id, info in raw.items():
+        job_name = info["job_name"]
+        log_files[job_name][job_id] += info["fnames"]
+    log_files = dict(log_files)
+
     infos = []
-    for job in job_names:
-        pattern = {"slurm": f"{job}-*.out", "pbs": f"{job}*.o*"}[scheduler_system]
-        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
-        fnames = glob.glob(pattern)
-        if not fnames:
-            continue
-        fname = fnames[-1]  # take the last file
-        statuses = _get_status_prints(fname, only_last)
-        if statuses is None:
-            continue
-        for status in statuses:
-            time, info = status.split("current status")
-            info = join_str(info.strip().split(" "))
-            info = dict([x.split("=") for x in info])
-            info = {k: convert_type(k, v) for k, v in info.items()}
-            info["job"] = job
-            info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
-            info["log_file"] = fname
-            infos.append(info)
+    for job_name, d in log_files.items():
+        # `d` might point to multiple logs of which one is still running
+        # so we take the last edited logs.
+        job_id, fnames = max(d.items(), key=last_edited)
+        # Loop over both stdout and stderr files
+        # however the info is only in the stdout
+        for fname in fnames:
+            statuses = _get_status_prints(fname, only_last)
+            if statuses is None:
+                continue
+            for status in statuses:
+                time, info = status.split("current status")
+                info = join_str(info.strip().split(" "))
+                info = dict([x.split("=") for x in info])
+                info = {k: convert_type(k, v) for k, v in info.items()}
+                info["job_id"] = job_id
+                info["job_name"] = job_name
+                info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
+                info["log_file"] = fname
+                infos.append(info)
 
     # Polulate state and job_id from the queue
     mapping = {
@@ -430,10 +443,11 @@ def parse_log_files(
     }
 
     for info in infos:
-        info["job_id"], info["state"] = mapping.get(info["job"], (None, None))
+        job_id, info["state"] = mapping.get(info["job_name"], (None, None))
+        assert job_id == info["job_id"]
 
     if db_fname is not None:
-        # populate job_id
+        # populate "fname" and "is_done" from the database
         db = get_database(db_fname)
         fnames = {info["job_id"]: info["fname"] for info in db}
         id_done = {info["job_id"]: info["is_done"] for info in db}
