@@ -142,7 +142,8 @@ def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
 def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):
     info = collections.defaultdict(list)
     for template in templates:
-        pattern = os.path.expanduser(template.format(job_name=job_name, job_id="*"))
+        pattern = template.format(job_name=job_name, job_id="*")
+        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
         for fname in glob.glob(pattern):
             parsed = parse.parse(template, fname)
             if parsed is None:
@@ -406,6 +407,8 @@ def parse_log_files(  # noqa: C901
     infos = []
     for job_name in job_names:
         log_files = get_log_files(job_name, log_file_folder=log_file_folder)
+        if not log_files:
+            continue
         # `d` might point to multiple logs of which one is still running
         # so we take the last edited logs.
         job_id, fnames = max(log_files.items(), key=_last_edited)
@@ -432,8 +435,15 @@ def parse_log_files(  # noqa: C901
     }
 
     for info in infos:
-        job_id, info["state"] = mapping.get(info["job_name"], (None, None))
-        assert job_id == info["job_id"]
+        job_id, state = mapping.get(info["job_name"], (None, None))
+        if job_id is not None and info["job_id"] in job_id:
+            info["state"] = state
+            # `job_id` is from the log-file name and info["job_id"] from qstat/squeue
+            # and could have a slightly different format
+            info["job_id"] = job_id
+        # This could happen: `info["job_id"]='83024'` and `job_id='83038.hpc05.hpc'`
+        # which means 83024 has finished and a new job `83038` has started
+        # but there is no log file for that yet.
 
     if db_fname is not None:
         # populate "fname" and "is_done" from the database
@@ -489,6 +499,8 @@ def logs_with_string_or_condition(
     have_error = {}
     for job_name in job_names:
         log_files = get_log_files(job_name, log_file_folder=log_file_folder)
+        if not log_files:
+            continue
         # `d` might point to multiple logs of which one is still running
         # so we take the last edited logs.
         # This assumes that the last running job has the last edited log.
