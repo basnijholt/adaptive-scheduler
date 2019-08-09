@@ -78,12 +78,12 @@ def make_job_script(
             "PBS puts the log-files in the home folder when"
             f" we use `{submit_cmd}`, which is needed to print to the logs"
             " during the calculation instead of when the job is finished."
-            "  Therefore, you must use `log_file_folder='~/'`."
+            " Therefore, you *must* use `log_file_folder='~/'`."
         )
 
     if cores_per_node is None:
         partial_msg = (
-            " Use `functools.partial(make_job_script, cores_per_node=...)` before"
+            "Use `functools.partial(make_job_script, cores_per_node=...)` before"
             " passing `make_job_script` to the `job_script_function` argument."
         )
         try:

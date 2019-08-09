@@ -210,9 +210,9 @@ def cleanup_files(
     """
     # Finding the files
     fnames: List[str] = []
-    for job in job_names:
+    for job_name in job_names:
         for ext in extensions:
-            pattern = f"{job}*.{ext}"
+            pattern = f"{job_name}*.{ext}"
             fnames += glob.glob(pattern)
             if log_file_folder:
                 # The log-files might be in a different folder, but we're
@@ -334,7 +334,7 @@ def _get_status_prints(fname: str, only_last: bool = True):
 
 def _last_edited(kv):
     job_id, fnames = kv
-    return max(os.stat(fname).st_mtime for fname in fnames)
+    return max(os.path.getmtime(fname) for fname in fnames)
 
 
 def parse_log_files(  # noqa: C901
