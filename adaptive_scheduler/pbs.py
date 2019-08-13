@@ -215,9 +215,7 @@ def queue(me_only=True):
     used elsewhere in this package.
     """
     cmd = ["qstat", "-f"]
-    if me_only:
-        username = getpass.getuser()
-        cmd.extend(["-u", username])
+
     proc = subprocess.run(
         cmd,
         text=True,
@@ -233,12 +231,21 @@ def queue(me_only=True):
 
     running = {}
     for header, *raw_info in jobs:
-        jobid = header.split("Job Id: ")[1]
+        job_id = header.split("Job Id: ")[1]
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
         if info["job_state"] in ["R", "Q"]:
             info["name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
             info["state"] = info["job_state"]  # used in `RunManager.live`
-            running[jobid] = info
+            running[job_id] = info
+
+    if me_only:
+        username = getpass.getuser()
+        running = {
+            job_id: info
+            for job_id, info in running.items()
+            if username in info["Job_Owner"]
+        }
+
     return running
 
 
