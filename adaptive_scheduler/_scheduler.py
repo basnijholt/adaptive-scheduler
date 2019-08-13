@@ -23,12 +23,16 @@ DEFAULT = "SLURM"
 has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
 has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
-if has_slurm and has_pbs:
-    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", DEFAULT)
-    if scheduler_system.upper() not in ("PBS", "SLURM"):
-        raise NotImplementedError(
-            f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
-        )
+scheduler_system = os.environ.get("SCHEDULER_SYSTEM")
+if scheduler_system is not None and scheduler_system.upper() not in ("PBS", "SLURM"):
+    raise NotImplementedError(
+        f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
+    )
+
+if scheduler_system is not None:
+    pass  # We're done, don't continue with this clause.
+elif has_slurm and has_pbs:
+    scheduler_system = DEFAULT
 elif has_pbs:
     scheduler_system = "pbs"
 elif has_slurm:
