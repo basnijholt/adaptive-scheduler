@@ -239,6 +239,8 @@ def queue(me_only=True):
             running[job_id] = info
 
     if me_only:
+        # We do this because the "-u [username here]"  flag doesn't
+        # work with "-f" on some clusters.
         username = getpass.getuser()
         running = {
             job_id: info

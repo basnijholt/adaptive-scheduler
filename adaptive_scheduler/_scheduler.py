@@ -25,7 +25,7 @@ has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
 if has_slurm and has_pbs:
     scheduler_system = os.environ.get("SCHEDULER_SYSTEM", DEFAULT)
-    if scheduler_system not in ("PBS", "SLURM"):
+    if scheduler_system.upper() not in ("PBS", "SLURM"):
         raise NotImplementedError(
             f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
         )
