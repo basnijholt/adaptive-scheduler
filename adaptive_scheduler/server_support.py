@@ -336,7 +336,7 @@ def _choose_fname(db_fname: str, job_id: str) -> str:
                 "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
             )
         entry = db.get((Entry.job_id == None) & (Entry.is_done == False))  # noqa: E711
-        log.debug("chose fname", entry=entry)
+        log.debug("choose fname", entry=entry)
         if entry is None:
             return
         db.update({"job_id": job_id}, doc_ids=[entry.doc_id])
@@ -471,12 +471,8 @@ def _make_default_run_script(
         import_line = "from mpi4py.futures import MPIPoolExecutor"
         executor_line = "MPIPoolExecutor()"
     elif executor_type == "ipyparallel":
-        import_line = (
-            "from adaptive_scheduler.utils import connect_to_ipyparallel; import sys"
-        )
-        executor_line = (
-            "connect_to_ipyparallel(profile=sys.argv[1], n=int(sys.argv[2]))"
-        )
+        import_line = "from adaptive_scheduler.utils import connect_to_ipyparallel"
+        executor_line = "connect_to_ipyparallel(profile=args.profile, n=args.n)"
     elif executor_type == "dask-mpi":
         try:
             import dask_mpi  # noqa: F401
@@ -500,11 +496,20 @@ def _make_default_run_script(
         f"""\
     # {run_script_fname}, automatically generated
     # by `adaptive_scheduler.server_support._make_default_run_script()`.
+    import argparse
+    from contextlib import suppress
+
     import adaptive
     import dill
-    from contextlib import suppress
     from adaptive_scheduler import client_support
     {import_line}
+
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--profile', action="store", dest="profile", type=str)
+    parser.add_argument('--n', action="store", dest="n", type=int)
+    parser.add_argument('--log-file', action="store", dest="log_file", type=str)
+    args = parser.parse_args()
 
     # the file that defines the learners we created above
     from {learners_module} import learners, fnames
@@ -512,6 +517,9 @@ def _make_default_run_script(
     if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
         # the address of the "database manager"
         url = "{url}"
+
+        # set the log-file handler
+        client_support.add_log_file_handler(args.log_file)
 
         # ask the database for a learner that we can run
         learner, fname = client_support.get_learner(url, learners, fnames)

@@ -67,13 +67,15 @@ def make_job_script(
     extra_env_vars = extra_env_vars or []
     extra_env_vars = "\n".join(f"export {arg}" for arg in extra_env_vars)
 
+    if log_file_folder:
+        os.makedirs(log_file_folder, exist_ok=True)
+    log_file = os.path.join(log_file_folder, f"{name}-${{SLURM_JOB_ID}}.out")
+
     mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
     if executor_type == "mpi4py":
-        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}  --log-file {log_file}"
     elif executor_type == "dask-mpi":
-        executor_specific = (
-            f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
-        )
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} {run_script} --log-file {log_file}"
     elif executor_type == "ipyparallel":
         if cores <= 1:
             raise ValueError(
@@ -97,22 +99,17 @@ def make_job_script(
             srun --ntasks {cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {python_executable} {run_script} {profile} {cores-1}
+            srun --ntasks 1 {python_executable} {run_script} --profile {profile} --n {cores-1} --log-file {log_file}
             """
         )
     else:
         raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
-
-    if log_file_folder:
-        os.makedirs(log_file_folder, exist_ok=True)
-    log_file = os.path.join(log_file_folder, name)
 
     job_script = textwrap.dedent(
         f"""\
         #!/bin/bash
         #SBATCH --job-name {name}
         #SBATCH --ntasks {cores}
-        #SBATCH --output {log_file}-%A.out
         #SBATCH --no-requeue
         {{extra_sbatch}}
 

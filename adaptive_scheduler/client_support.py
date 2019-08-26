@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import logging
 import socket
 from contextlib import suppress
 from typing import Any, Dict, List, Tuple, Union
@@ -13,6 +14,12 @@ from adaptive_scheduler._scheduler import get_job_id
 
 ctx = zmq.Context()
 log = structlog.get_logger("adaptive_scheduler.client")
+
+
+def add_log_file_handler(log_file):
+    if log_file is not None and not log.handlers:
+        log.addHandler(logging.FileHandler(log_file))
+        log.addHandler(logging.StreamHandler())
 
 
 def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> None:
