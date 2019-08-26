@@ -1,11 +1,12 @@
 import collections
+import functools
 import getpass
 import math
 import os
 import subprocess
 import warnings
 
-from adaptive_scheduler.utils import _cancel_function
+from adaptive_scheduler.utils import _cancel_function, _get_log_files
 
 ext = ".batch"
 
@@ -27,6 +28,7 @@ def make_job_script(
     extra_pbs=None,
     extra_env_vars=None,
     num_threads=1,
+    log_file_folder="~/",
 ):
     """Get a jobscript in string form.
 
@@ -59,6 +61,9 @@ def make_job_script(
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
+    log_file_folder : str, default: " ~/"
+        The folder in which to put the log-files. WARNING: you cannot change
+        this with PBS, see http://community.pbspro.org/t/stdout-and-stderr-in-submisson-directory/687/8
 
     Returns
     -------
@@ -68,9 +73,17 @@ def make_job_script(
     import sys
     import textwrap
 
+    if os.path.expanduser(log_file_folder) != os.path.expanduser("~/"):
+        raise ValueError(
+            "PBS puts the log-files in the home folder when"
+            f" we use `{submit_cmd}`, which is needed to print to the logs"
+            " during the calculation instead of when the job is finished."
+            " Therefore, you *must* use `log_file_folder='~/'`."
+        )
+
     if cores_per_node is None:
         partial_msg = (
-            " Use `functools.partial(make_job_script, cores_per_node=...)` before"
+            "Use `functools.partial(make_job_script, cores_per_node=...)` before"
             " passing `make_job_script` to the `job_script_function` argument."
         )
         try:
@@ -79,7 +92,8 @@ def make_job_script(
             cores_per_node = round(cores / nnodes)
             msg = (
                 f"`#PBS -l nodes={nnodes}:ppn={cores_per_node}` is guessed"
-                f" using the `qnodes` command. You might want to change this. {partial_msg}"
+                f" using the `qnodes` command, we set `cores_per_node={cores}`."
+                f" You might want to change this. {partial_msg}"
             )
             warnings.warn(msg)
             cores = nnodes * cores_per_node
@@ -201,9 +215,7 @@ def queue(me_only=True):
     used elsewhere in this package.
     """
     cmd = ["qstat", "-f"]
-    if me_only:
-        username = getpass.getuser()
-        cmd.extend(["-u", username])
+
     proc = subprocess.run(
         cmd,
         text=True,
@@ -219,12 +231,23 @@ def queue(me_only=True):
 
     running = {}
     for header, *raw_info in jobs:
-        jobid = header.split("Job Id: ")[1]
+        job_id = header.split("Job Id: ")[1]
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
         if info["job_state"] in ["R", "Q"]:
             info["name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
             info["state"] = info["job_state"]  # used in `RunManager.live`
-            running[jobid] = info
+            running[job_id] = info
+
+    if me_only:
+        # We do this because the "-u [username here]"  flag doesn't
+        # work with "-f" on some clusters.
+        username = getpass.getuser()
+        running = {
+            job_id: info
+            for job_id, info in running.items()
+            if username in info["Job_Owner"]
+        }
+
     return running
 
 
@@ -257,3 +280,7 @@ def _guess_cores_per_node():
 
 
 cancel = _cancel_function("qdel", queue)
+
+get_log_files = functools.partial(
+    _get_log_files, templates=["{job_name}.o{job_id}", "{job_name}.e{job_id}"]
+)

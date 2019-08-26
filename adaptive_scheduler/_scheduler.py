@@ -23,12 +23,16 @@ DEFAULT = "SLURM"
 has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
 has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
-if has_slurm and has_pbs:
-    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", DEFAULT)
-    if scheduler_system not in ("PBS", "SLURM"):
-        raise NotImplementedError(
-            f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
-        )
+scheduler_system = os.environ.get("SCHEDULER_SYSTEM")
+if scheduler_system is not None and scheduler_system.upper() not in ("PBS", "SLURM"):
+    raise NotImplementedError(
+        f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
+    )
+
+if scheduler_system is not None:
+    pass  # We're done, don't continue with this clause.
+elif has_slurm and has_pbs:
+    scheduler_system = DEFAULT
 elif has_pbs:
     scheduler_system = "pbs"
 elif has_slurm:
@@ -38,13 +42,21 @@ elif not has_slurm and not has_pbs:
     msg = f"No scheduler system could be detected. We set it to '{scheduler_system}'."
     warnings.warn(msg)
 
+__all__ = ["scheduler_system"]
 
-names = ["ext", "get_job_id", "make_job_script", "queue", "submit_cmd", "cancel"]
+names = [
+    "ext",
+    "get_job_id",
+    "make_job_script",
+    "queue",
+    "submit_cmd",
+    "cancel",
+    "get_log_files",
+]
 
 for name in names:
     module = __import__(
         f"adaptive_scheduler.{scheduler_system.lower()}", fromlist=[name]
     )
     globals()[name] = getattr(module, name)
-
-__all__ = names
+    __all__.append(name)

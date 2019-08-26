@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import adaptive
+import parse
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -138,6 +139,20 @@ def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
     return cancel
 
 
+def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):
+    info = collections.defaultdict(list)
+    for template in templates:
+        pattern = template.format(job_name=job_name, job_id="*")
+        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
+        for fname in glob.glob(pattern):
+            parsed = parse.parse(template, fname)
+            if parsed is None:
+                continue
+            job_id = parsed.named["job_id"]
+            info[job_id].append(fname)
+    return dict(info)
+
+
 def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ".pickle"
@@ -196,14 +211,15 @@ def cleanup_files(
     """
     # Finding the files
     fnames: List[str] = []
-    for job in job_names:
+    for job_name in job_names:
         for ext in extensions:
-            pattern = f"{job}*.{ext}"
+            pattern = f"{job_name}*.{ext}"
             fnames += glob.glob(pattern)
             if log_file_folder:
                 # The log-files might be in a different folder, but we're
                 # going to loop over every extension anyway.
-                fnames += glob.glob(os.path.join(log_file_folder, pattern))
+                pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
+                fnames += glob.glob(pattern)
 
     _remove_or_move_files(
         fnames, with_progress_bar, move_to, "Removing logs and batch files"
@@ -317,7 +333,12 @@ def _get_status_prints(fname: str, only_last: bool = True):
     return status_lines
 
 
-def parse_log_files(
+def _last_edited(kv):
+    job_id, fnames = kv
+    return max(os.path.getmtime(fname) for fname in fnames)
+
+
+def parse_log_files(  # noqa: C901
     job_names: List[str],
     only_last: bool = True,
     db_fname: Optional[str] = None,
@@ -355,7 +376,7 @@ def parse_log_files(
 
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue
+    from adaptive_scheduler._scheduler import queue, get_log_files
 
     def convert_type(k, v):
         if k == "elapsed_time":
@@ -384,23 +405,29 @@ def parse_log_files(
         return _info
 
     infos = []
-    for job in job_names:
-        fnames = glob.glob(os.path.join(log_file_folder, f"{job}-*.out"))
-        if not fnames:
+    for job_name in job_names:
+        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
+        if not log_files:
             continue
-        fname = fnames[-1]  # take the last file
-        statuses = _get_status_prints(fname, only_last)
-        if statuses is None:
-            continue
-        for status in statuses:
-            time, info = status.split("current status")
-            info = join_str(info.strip().split(" "))
-            info = dict([x.split("=") for x in info])
-            info = {k: convert_type(k, v) for k, v in info.items()}
-            info["job"] = job
-            info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
-            info["log_file"] = fname
-            infos.append(info)
+        # `d` might point to multiple logs of which one is still running
+        # so we take the last edited logs.
+        job_id, fnames = max(log_files.items(), key=_last_edited)
+        # Loop over both stdout and stderr files
+        # however the info is only in the stdout
+        for fname in fnames:
+            statuses = _get_status_prints(fname, only_last)
+            if statuses is None:
+                continue
+            for status in statuses:
+                time, info = status.split("current status")
+                info = join_str(info.strip().split(" "))
+                info = dict([x.split("=") for x in info])
+                info = {k: convert_type(k, v) for k, v in info.items()}
+                info["job_id"] = job_id
+                info["job_name"] = job_name
+                info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
+                info["log_file"] = fname
+                infos.append(info)
 
     # Polulate state and job_id from the queue
     mapping = {
@@ -408,10 +435,18 @@ def parse_log_files(
     }
 
     for info in infos:
-        info["job_id"], info["state"] = mapping.get(info["job"], (None, None))
+        job_id, state = mapping.get(info["job_name"], (None, None))
+        if job_id is not None and info["job_id"] in job_id:
+            info["state"] = state
+            # `job_id` is from the log-file name and info["job_id"] from qstat/squeue
+            # and could have a slightly different format
+            info["job_id"] = job_id
+        # This could happen: `info["job_id"]='83024'` and `job_id='83038.hpc05.hpc'`
+        # which means 83024 has finished and a new job `83038` has started
+        # but there is no log file for that yet.
 
     if db_fname is not None:
-        # populate job_id
+        # populate "fname" and "is_done" from the database
         db = get_database(db_fname)
         fnames = {info["job_id"]: info["fname"] for info in db}
         id_done = {info["job_id"]: info["is_done"] for info in db}
@@ -423,7 +458,9 @@ def parse_log_files(
 
 
 def logs_with_string_or_condition(
-    job_names: List[str], error: Union[str, Callable[[List[str]], bool]]
+    job_names: List[str],
+    error: Union[str, Callable[[List[str]], bool]],
+    log_file_folder: str = "",
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -442,25 +479,35 @@ def logs_with_string_or_condition(
     Returns
     -------
     has_string : list
-        List with jobs that have the string inside their log-file.
+        A directory of ``job_id -> (job_name, fnames)``,
+        which have the string inside their log-file.
     """
+    from adaptive_scheduler._scheduler import get_log_files
+
     if isinstance(error, str):
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
     elif callable(error):
         has_error = error
+    else:
+        raise ValueError("`error` can only be a `str` or `callable`.")
 
-    has_string: Dict[str, List[str]] = collections.defaultdict(list)
-    for job in job_names:
-        fnames = glob.glob(f"{job}-*.out")
-        if not fnames:
+    def file_has_error(fname):
+        with open(fname) as f:
+            lines = f.readlines()
+        return has_error(lines)
+
+    have_error = {}
+    for job_name in job_names:
+        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
+        if not log_files:
             continue
-        for fname in fnames:
-            job_id = fname.split(f"{job}-")[1].split(".out")[0]
-            with open(fname) as f:
-                lines = f.readlines()
-            if has_error(lines):
-                has_string[job].append(job_id)
-    return dict(has_string)
+        # `d` might point to multiple logs of which one is still running
+        # so we take the last edited logs.
+        # This assumes that the last running job has the last edited log.
+        job_id, fnames = max(log_files.items(), key=_last_edited)
+        if any(file_has_error(fname) for fname in fnames):
+            have_error[job_id] = job_name, fnames
+    return log_files
 
 
 def _print_same_line(msg: str, new_line_end: bool = False):

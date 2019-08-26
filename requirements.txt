@@ -2,6 +2,7 @@ adaptive
 dill
 ipyparallel
 mpi4py
+parse
 psutil
 pyzmq
 structlog
