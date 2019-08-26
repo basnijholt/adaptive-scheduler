@@ -9,11 +9,7 @@ import warnings
 from adaptive_scheduler.utils import _cancel_function, _get_log_files
 
 ext = ".batch"
-
-# "-k oe" writes the log output to files directly instead of
-# at the end of the job. The downside is that the logfiles
-# are put in the homefolder.
-submit_cmd = "qsub -k oe"
+submit_cmd = "qsub"
 
 
 def make_job_script(
@@ -62,8 +58,7 @@ def make_job_script(
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
     log_file_folder : str, default: " ~/"
-        The folder in which to put the log-files. WARNING: you cannot change
-        this with PBS, see http://community.pbspro.org/t/stdout-and-stderr-in-submisson-directory/687/8
+        The folder in which to put the log-files.
 
     Returns
     -------
@@ -73,13 +68,7 @@ def make_job_script(
     import sys
     import textwrap
 
-    if os.path.expanduser(log_file_folder) != os.path.expanduser("~/"):
-        raise ValueError(
-            "PBS puts the log-files in the home folder when"
-            f" we use `{submit_cmd}`, which is needed to print to the logs"
-            " during the calculation instead of when the job is finished."
-            " Therefore, you *must* use `log_file_folder='~/'`."
-        )
+    log_file = os.path.join(log_file_folder, f"{name}-${{PBS_JOBID}}.out")
 
     if cores_per_node is None:
         partial_msg = (
@@ -115,11 +104,9 @@ def make_job_script(
 
     mpiexec_executable = mpiexec_executable or "mpiexec"
     if executor_type == "mpi4py":
-        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script}"
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} -m mpi4py.futures {run_script} --log-file {log_file}"
     elif executor_type == "dask-mpi":
-        executor_specific = (
-            f"{mpiexec_executable} -n {cores} {python_executable} {run_script}"
-        )
+        executor_specific = f"{mpiexec_executable} -n {cores} {python_executable} {run_script} --log-file {log_file}"
     elif executor_type == "ipyparallel":
         # This does not really work yet.
         job_id = "${SLURM_JOB_ID}"
@@ -139,7 +126,7 @@ def make_job_script(
             {mpiexec_executable} -n {cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            {python_executable} {run_script} {profile} {cores-1}
+            {python_executable} {run_script} --profile {profile} --n {cores-1} --log-file {log_file}
             """
         )
     else:
@@ -151,8 +138,6 @@ def make_job_script(
         #PBS -l nodes={nnodes}:ppn={cores_per_node}
         #PBS -V
         #PBS -N {name}
-        #PBS -o $PBS_O_WORKDIR/{name}.out
-        #PBS -e $PBS_O_WORKDIR/{name}.err
         {{extra_pbs}}
 
         export MKL_NUM_THREADS={num_threads}
@@ -281,6 +266,4 @@ def _guess_cores_per_node():
 
 cancel = _cancel_function("qdel", queue)
 
-get_log_files = functools.partial(
-    _get_log_files, templates=["{job_name}.o{job_id}", "{job_name}.e{job_id}"]
-)
+get_log_files = functools.partial(_get_log_files, templates=["{job_name}-{job_id}.out"])

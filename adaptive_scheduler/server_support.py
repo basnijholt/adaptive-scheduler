@@ -504,17 +504,19 @@ def _make_default_run_script(
     from adaptive_scheduler import client_support
     {import_line}
 
-    # Parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--profile', action="store", dest="profile", type=str)
-    parser.add_argument('--n', action="store", dest="n", type=int)
-    parser.add_argument('--log-file', action="store", dest="log_file", type=str)
-    args = parser.parse_args()
 
     # the file that defines the learners we created above
     from {learners_module} import learners, fnames
 
     if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
+
+        # parse arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--profile', action="store", dest="profile", type=str)
+        parser.add_argument('--n', action="store", dest="n", type=int)
+        parser.add_argument('--log-file', action="store", dest="log_file", type=str)
+        args = parser.parse_args()
+
         # the address of the "database manager"
         url = "{url}"
 

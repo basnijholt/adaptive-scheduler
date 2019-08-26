@@ -11,15 +11,26 @@ import zmq
 from adaptive import AsyncRunner, BaseLearner
 
 from adaptive_scheduler._scheduler import get_job_id
+from adaptive_scheduler.utils import log_exception
 
 ctx = zmq.Context()
-log = structlog.get_logger("adaptive_scheduler.client")
+logger = logging.getLogger("adaptive_scheduler.client")
+logger.setLevel(logging.INFO)
+log = structlog.wrap_logger(
+    logger,
+    processors=[
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
+        structlog.dev.ConsoleRenderer(colors=False),
+    ],
+)
 
 
 def add_log_file_handler(log_file):
-    if log_file is not None and not log.handlers:
-        log.addHandler(logging.FileHandler(log_file))
-        log.addHandler(logging.StreamHandler())
+    if log_file is not None:
+        fh = logging.FileHandler(log_file)
+        logger.addHandler(fh)
 
 
 def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> None:
@@ -50,10 +61,11 @@ def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> Non
         log.info("got reply", reply=str(reply))
         if reply is None:
             msg = f"No learners to be run for {job_id}."
-            log.exception(msg)
-            raise RuntimeError(msg)
+            exception = RuntimeError(msg)
+            log_exception(log, msg, exception)
+            raise exception
         elif isinstance(reply, Exception):
-            log.exception("got an exception")
+            log_exception(log, "got an exception", exception=reply)
             raise reply
         else:
             fname = reply
@@ -69,8 +81,9 @@ def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> Non
         learner = next(l for l, f in zip(learners, fnames) if maybe_lst(f) == fname)
     except StopIteration:
         msg = "Learner with this fname doesn't exist in the database."
-        log.exception(msg)
-        raise UserWarning(msg)
+        exception = UserWarning(msg)
+        log_exception(log, msg, exception)
+        raise exception
 
     log.info("picked a learner")
     return learner, fname

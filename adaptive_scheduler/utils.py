@@ -581,3 +581,10 @@ def _get_default_args(func: Callable) -> Dict[str, str]:
         for k, v in signature.parameters.items()
         if v.default is not inspect.Parameter.empty
     }
+
+
+def log_exception(log, msg, exception):
+    try:
+        raise exception
+    except Exception:
+        log.exception(msg, exc_info=True)
