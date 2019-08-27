@@ -219,6 +219,7 @@ def queue(me_only=True):
     running = {}
     for header, *raw_info in jobs:
         job_id = header.split("Job Id: ")[1]
+        job_id = job_id.split(".")[0]  # "85835.hpc05.hpc" -> "85835"
         info = dict([line.split(" = ") for line in _fix_line_cuts(raw_info)])
         if info["job_state"] in ["R", "Q"]:
             info["name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
@@ -240,7 +241,9 @@ def queue(me_only=True):
 
 def get_job_id():
     """Get the job_id from the current job's environment."""
-    return os.environ.get("PBS_JOBID", "UNKNOWN")
+    job_id = os.environ.get("PBS_JOBID", "UNKNOWN")
+    job_id = job_id.split(".")[0]  # "85835.hpc05.hpc" -> "85835"
+    return job_id
 
 
 def _qnodes():

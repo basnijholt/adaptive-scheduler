@@ -27,35 +27,40 @@ log = structlog.wrap_logger(
 )
 
 
-def add_log_file_handler(log_file):
-    if log_file is not None:
-        fh = logging.FileHandler(log_file)
-        logger.addHandler(fh)
+def _add_log_file_handler(log_file):
+    fh = logging.FileHandler(log_file)
+    logger.addHandler(fh)
 
 
-def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> None:
-    """Get a learner from the database running at `url`.
+def get_learner(
+    learners: List[BaseLearner], fnames: List[str], url: str, log_file: str
+) -> None:
+    """Get a learner from the database running at `url` and this learner's
+    process will be logged in `log_file`.
 
     Parameters
     ----------
-    url : str
-        The url of the database manager running via
-        (`adaptive_scheduler.server_support.manage_database`).
     learners : list of `adaptive.BaseLearner` isinstances
         List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
+    url : str
+        The url of the database manager running via
+        (`adaptive_scheduler.server_support.manage_database`).
+    log_file: str
+        The filename of the log-file. Should be passed in the job-script.
 
     Returns
     -------
     fname : str
         The filename of the learner that was chosen.
     """
+    _add_log_file_handler(log_file)
     job_id = get_job_id()
-    log.info(f"trying to get learner", job_id=job_id)
+    log.info("trying to get learner", job_id=job_id, log_file=log_file)
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("start", job_id))
+        socket.send_pyobj(("start", job_id, log_file))
         log.info(f"sent start signal")
         reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply))

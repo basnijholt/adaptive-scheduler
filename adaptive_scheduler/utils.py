@@ -340,10 +340,7 @@ def _last_edited(kv):
 
 
 def parse_log_files(  # noqa: C901
-    job_names: List[str],
-    only_last: bool = True,
-    db_fname: Optional[str] = None,
-    log_file_folder: str = "",
+    job_names: List[str], db_fname: str, only_last: bool = True
 ):
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
@@ -354,68 +351,41 @@ def parse_log_files(  # noqa: C901
     ----------
     job_names : list
         List of job names.
-    only_last : bool, default: True
-        Only look use the last printed status message.
     db_fname : str, optional
         The database filename. If passed, ``fname`` will be populated.
-    log_file_folder : str, default: ""
-        The folder in which the log-files are.
+    only_last : bool, default: True
+        Only look use the last printed status message.
 
     Returns
     -------
     `~pandas.core.frame.DataFrame`
     """
-    # XXX: it could be that the job_id and the logfile don't match up ATM! This
-    # probably happens when a job got canceled and is pending now.
-
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue, get_log_files
+    from adaptive_scheduler._scheduler import queue
 
     infos = []
-    for job_name in job_names:
-        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
-        if not log_files:
+    for entry in get_database(db_fname):
+        log_file = entry["log_file"]
+        if log_file is None:
             continue
-        # `d` might point to multiple logs of which one is still running
-        # so we take the last edited logs.
-        job_id, fnames = max(log_files.items(), key=_last_edited)
-        # Loop over both stdout and stderr files
-        # however the info is only in the stdout
-        for fname in fnames:
-            for info in _get_infos(fname, only_last):
-                info["timestamp"] = datetime.strptime(
-                    info["timestamp"], "%Y-%m-%d %H:%M.%S"
-                )
-                info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
-                extras = dict(job_id=job_id, log_file=fname, job_name=job_name)
-                info.update(extras)
-                infos.append(info)
+        for info in _get_infos(log_file, only_last):
+            info["timestamp"] = datetime.strptime(
+                info["timestamp"], "%Y-%m-%d %H:%M.%S"
+            )
+            info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
+            info.update(entry)
+            infos.append(info)
 
-    # Polulate state and job_id from the queue
-    mapping = {
-        info["name"]: (job_id, info["state"]) for job_id, info in queue().items()
-    }
+    # Polulate state and job_name from the queue
+    _queue = queue()
 
     for info in infos:
-        job_id, state = mapping.get(info["job_name"], (None, None))
-        if job_id is not None and info["job_id"] in job_id:
-            info["state"] = state
-            # `job_id` is from the log-file name and info["job_id"] from qstat/squeue
-            # and could have a slightly different format
-            info["job_id"] = job_id
-        # This could happen: `info["job_id"]='83024'` and `job_id='83038.hpc05.hpc'`
-        # which means 83024 has finished and a new job `83038` has started
-        # but there is no log file for that yet.
-
-    if db_fname is not None:
-        # populate "fname" and "is_done" from the database
-        db = get_database(db_fname)
-        fnames = {info["job_id"]: info["fname"] for info in db}
-        id_done = {info["job_id"]: info["is_done"] for info in db}
-        for info in infos:
-            info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
-            info["is_done"] = id_done.get(info["job_id"], "UNKNOWN")
+        info_from_queue = _queue.get(info["job_id"])
+        if info_from_queue is None:
+            continue
+        info["state"] = info_from_queue["state"]
+        info["job_name"] = info_from_queue["name"]
 
     return pd.DataFrame(infos)
 

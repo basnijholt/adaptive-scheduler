@@ -41,17 +41,19 @@ class MaxRestartsReached(Exception):
 
 
 def _dispatch(request: Tuple[str, str], db_fname: str):
-    request_type, request_arg = request
+    request_type, *request_arg = request
     log.debug("got a request", request=request)
     try:
         if request_type == "start":
-            job_id = request_arg  # workers send us their slurm ID for us to fill in
+            job_id, log_file = (
+                request_arg
+            )  # workers send us their slurm ID for us to fill in
             # give the worker a job and send back the fname to the worker
-            fname = _choose_fname(db_fname, job_id)
+            fname = _choose_fname(db_fname, job_id, log_file)
             log.debug("choose a fname", fname=fname, job_id=job_id)
             return fname
         elif request_type == "stop":
-            fname = request_arg  # workers send us the fname they were given
+            fname = request_arg[0]  # workers send us the fname they were given
             log.debug("got a stop request", fname=fname)
             _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
@@ -294,7 +296,7 @@ def get_allowed_url() -> str:
 
 
 def create_empty_db(db_fname: str, fnames: List[str]) -> None:
-    """Create an empty database that keeps track of fname -> (job_id, is_done).
+    """Create an empty database that keeps track of fname -> (job_id, is_done, log_file).
 
     Parameters
     ----------
@@ -303,7 +305,9 @@ def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     fnames : list
         List of `fnames` corresponding to `learners`.
     """
-    entries = [dict(fname=fname, job_id=None, is_done=False) for fname in fnames]
+    entries = [
+        dict(fname=fname, job_id=None, is_done=False, log_file=None) for fname in fnames
+    ]
     if os.path.exists(db_fname):
         os.remove(db_fname)
     with TinyDB(db_fname) as db:
@@ -323,7 +327,7 @@ def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
         db.update({"job_id": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname: str, job_id: str) -> str:
+def _choose_fname(db_fname: str, job_id: str, log_file: str) -> str:
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -339,7 +343,7 @@ def _choose_fname(db_fname: str, job_id: str) -> str:
         log.debug("choose fname", entry=entry)
         if entry is None:
             return
-        db.update({"job_id": job_id}, doc_ids=[entry.doc_id])
+        db.update({"job_id": job_id, "log_file": log_file}, doc_ids=[entry.doc_id])
     return entry["fname"]
 
 
@@ -520,11 +524,8 @@ def _make_default_run_script(
         # the address of the "database manager"
         url = "{url}"
 
-        # set the log-file handler
-        client_support.add_log_file_handler(args.log_file)
-
-        # ask the database for a learner that we can run
-        learner, fname = client_support.get_learner(url, learners, fnames)
+        # ask the database for a learner that we can run which we log in `args.log_file`
+        learner, fname = client_support.get_learner(learners, fnames, url, args.log_file)
 
         # load the data
         with suppress(Exception):
@@ -880,9 +881,7 @@ class RunManager:
         """
         from adaptive_scheduler.utils import parse_log_files
 
-        return parse_log_files(
-            self.job_names, only_last, self.db_fname, self.log_file_folder
-        )
+        return parse_log_files(self.job_names, self.db_fname, only_last)
 
     def task_status(self) -> None:
         r"""Print the stack of the `asyncio.Task`\s."""
