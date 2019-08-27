@@ -1,7 +1,7 @@
-import ast
 import collections
 import glob
 import inspect
+import json
 import math
 import os
 import random
@@ -319,18 +319,18 @@ def save_parallel(
             fut.result()
 
 
-def _get_status_prints(fname: str, only_last: bool = True):
+def _get_infos(fname: str, only_last: bool = True):
     status_lines: List[str] = []
     with open(fname) as f:
         lines = f.readlines()
-        if not lines:
-            return status_lines
         for line in reversed(lines):
-            if "current status" in line:
-                status_lines.append(line)
-                if only_last:
-                    return status_lines
-    return status_lines
+            with suppress(Exception):
+                info = json.loads(line)
+                if info["event"] == "current status":
+                    status_lines.append(info)
+                    if only_last:
+                        return status_lines
+        return status_lines
 
 
 def _last_edited(kv):
@@ -378,32 +378,6 @@ def parse_log_files(  # noqa: C901
     from adaptive_scheduler.server_support import get_database
     from adaptive_scheduler._scheduler import queue, get_log_files
 
-    def convert_type(k, v):
-        if k == "elapsed_time":
-            return pd.to_timedelta(v)
-        elif k == "overhead":
-            return float(v[:-1])
-        elif v in ("inf", "nan"):
-            # because `ast.literal_eval('inf')` will fail
-            # see https://bugs.python.org/issue15245
-            return float(v)
-        else:
-            return ast.literal_eval(v)
-
-    def join_str(info):
-        """Turns an incorrectly split string
-        ["elapsed_time=1", "day,", "0:20:57.330515", "nlearners=31"]
-        back the correct thing
-        ['elapsed_time=1 day, 0:20:57.330515', 'nlearners=31']
-        """
-        _info = []
-        for x in info:
-            if "=" in x:
-                _info.append(x)
-            else:
-                _info[-1] += f" {x}"
-        return _info
-
     infos = []
     for job_name in job_names:
         log_files = get_log_files(job_name, log_file_folder=log_file_folder)
@@ -415,18 +389,13 @@ def parse_log_files(  # noqa: C901
         # Loop over both stdout and stderr files
         # however the info is only in the stdout
         for fname in fnames:
-            statuses = _get_status_prints(fname, only_last)
-            if statuses is None:
-                continue
-            for status in statuses:
-                time, info = status.split("current status")
-                info = join_str(info.strip().split(" "))
-                info = dict([x.split("=") for x in info])
-                info = {k: convert_type(k, v) for k, v in info.items()}
-                info["job_id"] = job_id
-                info["job_name"] = job_name
-                info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
-                info["log_file"] = fname
+            for info in _get_infos(fname, only_last):
+                info["timestamp"] = datetime.strptime(
+                    info["timestamp"], "%Y-%m-%d %H:%M.%S"
+                )
+                info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
+                extras = dict(job_id=job_id, log_file=fname, job_name=job_name)
+                info.update(extras)
                 infos.append(info)
 
     # Polulate state and job_id from the queue

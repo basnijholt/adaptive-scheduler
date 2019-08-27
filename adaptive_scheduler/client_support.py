@@ -22,7 +22,7 @@ log = structlog.wrap_logger(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
-        structlog.dev.ConsoleRenderer(colors=False),
+        structlog.processors.JSONRenderer(),
     ],
 )
 
@@ -121,16 +121,16 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
     info = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())
     info["elapsed_time"] = str(Δt)
-    info["overhead"] = f"{runner.overhead():.2f}%"
+    info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)
     if npoints is not None:
         info["npoints"] = _get_npoints(learner)
         Δnpoints = npoints - npoints_start
         with suppress(ZeroDivisionError):
             # Δt.seconds could be zero if the job is done when starting
-            info["npoints/s"] = f"{Δnpoints / Δt.seconds:.3f}"
+            info["npoints/s"] = Δnpoints / Δt.seconds
     with suppress(Exception):
-        info["latest_loss"] = f'{learner._cache["loss"]:.3f}'
+        info["latest_loss"] = learner._cache["loss"]
     with suppress(AttributeError):
         info["nlearners"] = len(learner.learners)
         if "npoints" in info:
@@ -158,12 +158,12 @@ def log_info(runner: AsyncRunner, interval=300) -> asyncio.Task:
         log.info(f"started logger on hostname {socket.gethostname()}")
         learner = runner.learner
         npoints_start = _get_npoints(learner)
-        log.info(f"npoints at start {npoints_start}")
+        log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
             await asyncio.sleep(interval)
             info = _get_log_entry(runner, npoints_start)
-            log.info(f"current status", **info)
-        log.info(f"runner statues changed to {runner.status()}")
-        log.info(f"current status", **_get_log_entry(runner, npoints_start))
+            log.info("current status", **info)
+        log.info("runner status changed", status=runner.status())
+        log.info("current status", **_get_log_entry(runner, npoints_start))
 
     return runner.ioloop.create_task(coro(runner, interval))
