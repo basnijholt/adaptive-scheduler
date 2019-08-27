@@ -1015,6 +1015,9 @@ class RunManager:
                 ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
                 ("mean overhead", f"{df.overhead.mean().round(1)} %"),
             ]
+            for key in ["npoints/s", "latest_loss", "nlearners"]:
+                with suppress(Exception):
+                    from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
             msg = "this is extracted from the log files, so it might not be up-to-date"
             info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
 
