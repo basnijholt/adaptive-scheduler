@@ -311,6 +311,8 @@ class PBS(BaseScheduler):
             #PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}
             #PBS -V
             #PBS -N {name}
+            #PBS -o /tmp/{name}-{{job_id_variable}}.out
+            #PBS -e /tmp/{name}-{{job_id_variable}}.out
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
@@ -328,6 +330,7 @@ class PBS(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             executor_specific=self._executor_specific(name),
+            job_id_variable=self._JOB_ID_VARIABLE,
         )
 
         return job_script
@@ -500,6 +503,7 @@ class SLURM(BaseScheduler):
             #SBATCH --job-name {name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
+            #SBATCH --output /tmp/{name}-%A.out
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}

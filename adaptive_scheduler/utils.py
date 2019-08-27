@@ -10,7 +10,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import adaptive
 import pandas as pd
@@ -331,59 +331,6 @@ def parse_log_files(  # noqa: C901
         info["job_name"] = info_from_queue["job_name"]
 
     return pd.DataFrame(infos)
-
-
-def logs_with_string_or_condition(
-    job_names: List[str],
-    error: Union[str, Callable[[List[str]], bool]],
-    log_file_folder: str = "",
-) -> Dict[str, list]:
-    """Get jobs that have `string` (or apply a callable) inside their log-file.
-
-    Either use `string` or `error`.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    error : str or callable
-        String that is searched for or callable that is applied
-        to the log text. Must take a single argument, a list of
-        strings, and return True if the job has to be killed, or
-        False if not.
-
-    Returns
-    -------
-    has_string : list
-        A directory of ``job_id -> (job_name, fnames)``,
-        which have the string inside their log-file.
-    """
-    from adaptive_scheduler._scheduler import get_log_files
-
-    if isinstance(error, str):
-        has_error = lambda lines: error in "".join(lines)  # noqa: E731
-    elif callable(error):
-        has_error = error
-    else:
-        raise ValueError("`error` can only be a `str` or `callable`.")
-
-    def file_has_error(fname):
-        with open(fname) as f:
-            lines = f.readlines()
-        return has_error(lines)
-
-    have_error = {}
-    for job_name in job_names:
-        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
-        if not log_files:
-            continue
-        # `d` might point to multiple logs of which one is still running
-        # so we take the last edited logs.
-        # This assumes that the last running job has the last edited log.
-        job_id, fnames = max(log_files.items(), key=_last_edited)
-        if any(file_has_error(fname) for fname in fnames):
-            have_error[job_id] = job_name, fnames
-    return log_files
 
 
 def _print_same_line(msg: str, new_line_end: bool = False):

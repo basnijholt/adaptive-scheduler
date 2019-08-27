@@ -10,7 +10,6 @@ dependencies:
   - ipyparallel
   - mpi4py
   - pandas
-  - parse
   - psutil
   - pyzmq
   - structlog

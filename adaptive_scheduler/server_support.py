@@ -309,6 +309,56 @@ def _get_n_jobs_done(db_fname: str) -> int:
         return db.count(Entry.is_done == True)  # noqa: E711
 
 
+def logs_with_string_or_condition(
+    db_fname: List[str], error: Union[str, Callable[[List[str]], bool]]
+) -> Dict[str, list]:
+    """Get jobs that have `string` (or apply a callable) inside their log-file.
+
+    Either use `string` or `error`.
+
+    Parameters
+    ----------
+    db_fname : str, default: "running.json"
+        Filename of the database, e.g. 'running.json'.
+    error : str or callable
+        String that is searched for or callable that is applied
+        to the log text. Must take a single argument, a list of
+        strings, and return True if the job has to be killed, or
+        False if not.
+
+    Returns
+    -------
+    has_string : list
+        A directory of ``job_id -> (job_name, fnames)``,
+        which have the string inside their log-file.
+    """
+
+    if isinstance(error, str):
+        has_error = lambda lines: error in "".join(lines)  # noqa: E731
+    elif callable(error):
+        has_error = error
+    else:
+        raise ValueError("`error` can only be a `str` or `callable`.")
+
+    def file_has_error(fname):
+        if not os.path.exists(fname):
+            return False
+        with open(fname) as f:
+            lines = f.readlines()
+        return has_error(lines)
+
+    have_error = {}
+    for entry in get_database(db_fname):
+        log_file = entry["log_file"]
+        if log_file is None:
+            continue
+
+        log_file = os.path.join("/tmp", os.path.basename(log_file))
+        if file_has_error(log_file):
+            have_error[entry["job_id"]] = entry["job_name"], log_file
+    return have_error
+
+
 async def manage_killer(
     job_names: List[str],
     scheduler: BaseScheduler,
@@ -316,19 +366,15 @@ async def manage_killer(
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
+    db_fname: str = "running.json",
 ) -> Coroutine:
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
-    from adaptive_scheduler.utils import (
-        _remove_or_move_files,
-        logs_with_string_or_condition,
-    )
+    from adaptive_scheduler.utils import _remove_or_move_files
 
     while True:
         try:
-            failed_jobs = logs_with_string_or_condition(
-                job_names, error, scheduler.log_file_folder
-            )
+            failed_jobs = logs_with_string_or_condition(db_fname, error)
             to_cancel = []
             to_delete = []
 
@@ -362,6 +408,8 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
+scheduler : XXX
+
 error : str or callable, default: "srun: error:"
     If ``error`` is a string and is found in the log files, the job will
     be cancelled and restarted. If it is a callable, it is applied
@@ -375,9 +423,7 @@ max_cancel_tries : int, default: 5
 move_to : str, optional
     If a job is cancelled the log is either removed (if ``move_to=None``)
     or moved to a folder (e.g. if ``move_to='old_logs'``).
-log_file_folder : str, default: ""
-    The folder in which to put the log-files. Note that you also need
-    to change this argument inside of `adaptive.scheduler.DefaultScheduler`!
+db_fname : str XXX
 
 Returns
 -------
@@ -391,15 +437,16 @@ manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
 
 def start_kill_manager(
     job_names: List[str],
+    scheduler: BaseScheduler,
     error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
-    log_file_folder: str = "",
+    db_fname: str = "running.json",
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
     coro = manage_killer(
-        job_names, error, interval, max_cancel_tries, move_to, log_file_folder
+        job_names, scheduler, error, interval, max_cancel_tries, move_to, db_fname
     )
     return ioloop.create_task(coro)
 
@@ -716,10 +763,11 @@ class RunManager:
             return
         self.kill_task = start_kill_manager(
             self.job_names,
+            self.scheduler,
             error=self.kill_on_error,
             interval=self.kill_interval,
             move_to=self.move_old_logs_to,
-            log_file_folder=self.log_file_folder,
+            db_fname=self.db_fname,
             **self.start_kill_manager_kwargs,
         )
 
