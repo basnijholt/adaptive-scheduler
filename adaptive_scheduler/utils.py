@@ -370,6 +370,7 @@ def parse_log_files(  # noqa: C901
         if log_file is None:
             continue
         for info in _get_infos(log_file, only_last):
+            info.pop("event")  # this is always "current status"
             info["timestamp"] = datetime.strptime(
                 info["timestamp"], "%Y-%m-%d %H:%M.%S"
             )
