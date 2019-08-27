@@ -1,6 +1,5 @@
 import glob
 import inspect
-import json
 import math
 import os
 import random
@@ -9,11 +8,9 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import adaptive
-import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -261,76 +258,6 @@ def save_parallel(
         futs = [ex.submit(save, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing saving"):
             fut.result()
-
-
-def _get_infos(fname: str, only_last: bool = True):
-    status_lines: List[str] = []
-    with open(fname) as f:
-        lines = f.readlines()
-        for line in reversed(lines):
-            with suppress(Exception):
-                info = json.loads(line)
-                if info["event"] == "current status":
-                    status_lines.append(info)
-                    if only_last:
-                        return status_lines
-        return status_lines
-
-
-def _last_edited(kv):
-    job_id, fnames = kv
-    return max(os.path.getmtime(fname) for fname in fnames)
-
-
-def parse_log_files(  # noqa: C901
-    job_names: List[str], db_fname: str, scheduler, only_last: bool = True
-):
-    """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
-
-    This only works if you use `adaptive_scheduler.client_support.log_info`
-    inside your ``run_script``.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    db_fname : str, optional
-        The database filename. If passed, ``fname`` will be populated.
-    only_last : bool, default: True
-        Only look use the last printed status message.
-
-    Returns
-    -------
-    `~pandas.core.frame.DataFrame`
-    """
-    # import here to avoid circular imports
-    from adaptive_scheduler.server_support import get_database
-
-    infos = []
-    for entry in get_database(db_fname):
-        log_file = entry["log_file"]
-        if log_file is None:
-            continue
-        for info in _get_infos(log_file, only_last):
-            info.pop("event")  # this is always "current status"
-            info["timestamp"] = datetime.strptime(
-                info["timestamp"], "%Y-%m-%d %H:%M.%S"
-            )
-            info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
-            info.update(entry)
-            infos.append(info)
-
-    # Polulate state and job_name from the queue
-    _queue = scheduler.queue()
-
-    for info in infos:
-        info_from_queue = _queue.get(info["job_id"])
-        if info_from_queue is None:
-            continue
-        info["state"] = info_from_queue["state"]
-        info["job_name"] = info_from_queue["job_name"]
-
-    return pd.DataFrame(infos)
 
 
 def _print_same_line(msg: str, new_line_end: bool = False):

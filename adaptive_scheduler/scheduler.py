@@ -100,8 +100,8 @@ class BaseScheduler(metaclass=abc.ABCMeta):
 
         Notes
         -----
-        This function returns extra information about the job, however this is not
-        used elsewhere in this package.
+        This function might return extra information about the job, however
+        this is not used elsewhere in this package.
         """
         pass
 
@@ -302,7 +302,7 @@ class PBS(BaseScheduler):
         Returns
         -------
         job_script : str
-            A job script that can be submitted to the scheduler system.
+            A job script that can be submitted to PBS.
         """
 
         job_script = textwrap.dedent(
@@ -494,7 +494,7 @@ class SLURM(BaseScheduler):
         Returns
         -------
         job_script : str
-            A job script that can be submitted to the scheduler system.
+            A job script that can be submitted to SLURM.
         """
 
         job_script = textwrap.dedent(

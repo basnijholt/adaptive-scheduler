@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import json
 import logging
 import os
 import socket
@@ -11,6 +12,7 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 
 import adaptive
 import dill
+import pandas as pd
 import structlog
 import zmq
 import zmq.asyncio
@@ -108,7 +110,7 @@ job_names : list
 db_fname : str
     Filename of the database, e.g. 'running.json'
 {extra_args}
-scheduler : BaseScheduler, default: `adaptive_scheduler.scheduler.DefaultScheduler`
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
     A scheduler instance from `adaptive_scheduler.scheduler`.
 interval : int, default: 30
     Time in seconds between checking and starting jobs.
@@ -408,7 +410,7 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
-scheduler : BaseScheduler, default: `adaptive_scheduler.scheduler.DefaultScheduler`
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
     A scheduler instance from `adaptive_scheduler.scheduler`.
 error : str or callable, default: "srun: error:"
     If ``error`` is a string and is found in the log files, the job will
@@ -565,6 +567,71 @@ def _make_default_run_script(
     return run_script_fname
 
 
+def _get_infos(fname: str, only_last: bool = True):
+    status_lines: List[str] = []
+    with open(fname) as f:
+        lines = f.readlines()
+        for line in reversed(lines):
+            with suppress(Exception):
+                info = json.loads(line)
+                if info["event"] == "current status":
+                    status_lines.append(info)
+                    if only_last:
+                        return status_lines
+        return status_lines
+
+
+def parse_log_files(  # noqa: C901
+    job_names: List[str], db_fname: str, scheduler, only_last: bool = True
+):
+    """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
+
+    This only works if you use `adaptive_scheduler.client_support.log_info`
+    inside your ``run_script``.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    db_fname : str, optional
+        The database filename. If passed, ``fname`` will be populated.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    only_last : bool, default: True
+        Only look use the last printed status message.
+
+    Returns
+    -------
+    `~pandas.core.frame.DataFrame`
+    """
+
+    infos = []
+    for entry in get_database(db_fname):
+        log_file = entry["log_file"]
+        if log_file is None:
+            continue
+        for info in _get_infos(log_file, only_last):
+            info.pop("event")  # this is always "current status"
+            info["timestamp"] = datetime.datetime.strptime(
+                info["timestamp"], "%Y-%m-%d %H:%M.%S"
+            )
+            info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
+            info.update(entry)
+            infos.append(info)
+
+    # Polulate state and job_name from the queue
+    _queue = scheduler.queue()
+
+    for info in infos:
+        info_from_queue = _queue.get(info["job_id"])
+        if info_from_queue is None:
+            continue
+        info["state"] = info_from_queue["state"]
+        info["job_name"] = info_from_queue["job_name"]
+
+    return pd.DataFrame(infos)
+
+
 class RunManager:
     """A convenience tool that starts the job, database, and kill manager.
 
@@ -574,15 +641,13 @@ class RunManager:
         A scheduler instance from `adaptive_scheduler.scheduler`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the ``run_script``. If using a
-        custom ``run_script`` tihs is ignored.
+        be serialized and pasted in the ``run_script``.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``run_script``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
-        You only **need** to specify this when using a custom ``run_script``.
     learners_file : str, default: "learners_file.py"
         The module that defined the variables ``learners`` and ``fnames``.
     save_interval : int, default: 300
@@ -803,8 +868,6 @@ class RunManager:
         df : `~pandas.core.frame.DataFrame`
 
         """
-        from adaptive_scheduler.utils import parse_log_files
-
         return parse_log_files(self.job_names, self.db_fname, self.scheduler, only_last)
 
     def task_status(self) -> None:
