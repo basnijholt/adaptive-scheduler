@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import time
 import warnings
 from distutils.spawn import find_executable
 from typing import List
@@ -104,9 +105,11 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         """
         pass
 
+    @property
     def ext(self):
         return self._ext
 
+    @property
     def submit_cmd(self):
         return self._submit_cmd
 
@@ -150,21 +153,13 @@ class BaseScheduler(metaclass=abc.ABCMeta):
                 # no more running jobs
                 break
             cancel_jobs(job_ids)
-
-    def get_job_id(self):
-        """Get the job_id from the current job's environment."""
-        job_id = os.environ.get(self.JOD_ID_VARIABLE, "UNKNOWN")
-        return self._parse_job_id(job_id)
-
-    @staticmethod
-    def _parse_job_id(job_id):
-        return job_id
+            time.sleep(0.5)
 
     def _mpi4py(self, log_file):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file}"
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE}"
 
     def _dask_mpi(self, log_file):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file}"
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE}"
 
     @abc.abstractmethod
     def _ipyparallel(self, log_file):
@@ -200,6 +195,18 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def extra_env_vars(self):
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
+
+    def start_job(self, name):
+        with open(name + self.ext, "w") as f:
+            job_script = self.job_script(name)
+            f.write(job_script)
+
+        returncode = None
+        while returncode != 0:
+            returncode = subprocess.run(
+                f"{self.submit_cmd} {name}{self.ext}".split(), stderr=subprocess.PIPE
+            ).returncode
+            time.sleep(0.5)
 
 
 class PBS(BaseScheduler):
@@ -238,10 +245,6 @@ class PBS(BaseScheduler):
         self._calculate_nnodes()
         if cores != self.cores:
             warnings.warn(f"`self.cores` changed from {cores} to {self.cores}")
-
-    @staticmethod
-    def _parse_job_id(job_id):
-        return job_id.split(".")  # "85835.hpc05.hpc" -> "85835"
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
@@ -289,7 +292,7 @@ class PBS(BaseScheduler):
             {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file}
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id}
             """
         )
 
@@ -386,7 +389,6 @@ class PBS(BaseScheduler):
         running = {}
         for header, *raw_info in jobs:
             job_id = header.split("Job Id: ")[1]
-            job_id = job_id.split(".")[0]  # "85835.hpc05.hpc" -> "85835"
             info = dict([line.split(" = ") for line in self._fix_line_cuts(raw_info)])
             if info["job_state"] in ["R", "Q"]:
                 info["job_name"] = info[
@@ -479,7 +481,7 @@ class SLURM(BaseScheduler):
             srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id}
             """
         )
 

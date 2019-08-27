@@ -1,4 +1,3 @@
-import collections
 import glob
 import inspect
 import json
@@ -15,7 +14,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 import adaptive
 import pandas as pd
-import parse
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -97,20 +95,6 @@ def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""
             return tqdm_notebook(list(seq), desc=desc)
         else:
             return tqdm(list(seq), desc=desc)
-
-
-def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):
-    info = collections.defaultdict(list)
-    for template in templates:
-        pattern = template.format(job_name=job_name, job_id="*")
-        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
-        for fname in glob.glob(pattern):
-            parsed = parse.parse(template, fname)
-            if parsed is None:
-                continue
-            job_id = parsed.named["job_id"]
-            info[job_id].append(fname)
-    return dict(info)
 
 
 def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
@@ -299,7 +283,7 @@ def _last_edited(kv):
 
 
 def parse_log_files(  # noqa: C901
-    job_names: List[str], db_fname: str, only_last: bool = True
+    job_names: List[str], db_fname: str, scheduler, only_last: bool = True
 ):
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
@@ -321,7 +305,6 @@ def parse_log_files(  # noqa: C901
     """
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue
 
     infos = []
     for entry in get_database(db_fname):
@@ -338,14 +321,14 @@ def parse_log_files(  # noqa: C901
             infos.append(info)
 
     # Polulate state and job_name from the queue
-    _queue = queue()
+    _queue = scheduler.queue()
 
     for info in infos:
         info_from_queue = _queue.get(info["job_id"])
         if info_from_queue is None:
             continue
         info["state"] = info_from_queue["state"]
-        info["job_name"] = info_from_queue["name"]
+        info["job_name"] = info_from_queue["job_name"]
 
     return pd.DataFrame(infos)
 
