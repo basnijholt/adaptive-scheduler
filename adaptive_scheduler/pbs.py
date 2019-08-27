@@ -68,6 +68,8 @@ def make_job_script(
     import sys
     import textwrap
 
+    if log_file_folder:
+        os.makedirs(log_file_folder, exist_ok=True)
     log_file = os.path.join(log_file_folder, f"{name}-${{PBS_JOBID}}.out")
 
     if cores_per_node is None:

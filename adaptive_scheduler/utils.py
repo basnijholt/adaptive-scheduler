@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import adaptive
+import pandas as pd
 import parse
 import toolz
 from adaptive.notebook_integration import in_ipynb
@@ -366,13 +367,6 @@ def parse_log_files(  # noqa: C901
     """
     # XXX: it could be that the job_id and the logfile don't match up ATM! This
     # probably happens when a job got canceled and is pending now.
-    try:
-        import pandas as pd
-
-        with_pandas = True
-    except ImportError:
-        with_pandas = False
-        warnings.warn("`pandas` is not installed, a list of dicts will be returned.")
 
     # import here to avoid circular imports
     from adaptive_scheduler.server_support import get_database
@@ -423,7 +417,7 @@ def parse_log_files(  # noqa: C901
             info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
             info["is_done"] = id_done.get(info["job_id"], "UNKNOWN")
 
-    return pd.DataFrame(infos) if with_pandas else infos
+    return pd.DataFrame(infos)
 
 
 def logs_with_string_or_condition(
