@@ -6,7 +6,6 @@ import math
 import os
 import random
 import shutil
-import subprocess
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +20,7 @@ import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
+
 
 MAX_LINE_LENGTH = 100
 
@@ -97,47 +97,6 @@ def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""
             return tqdm_notebook(list(seq), desc=desc)
         else:
             return tqdm(list(seq), desc=desc)
-
-
-def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
-    def cancel(
-        job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
-    ) -> None:
-        """Cancel all jobs in `job_names`.
-
-        Parameters
-        ----------
-        job_names : list
-            List of job names.
-        with_progress_bar : bool, default: True
-            Display a progress bar using `tqdm`.
-        max_tries : int, default: 5
-            Maximum number of attempts to cancel a job.
-        """
-
-        def to_cancel(job_names):
-            return [
-                job_id
-                for job_id, info in queue_function().items()
-                if info["name"] in job_names
-            ]
-
-        def cancel_jobs(job_ids):
-            for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
-                cmd = f"{cancel_cmd} {job_id}".split()
-                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
-                if returncode != 0:
-                    warnings.warn(f"Couldn't cancel '{job_id}'.", UserWarning)
-
-        job_names = set(job_names)
-        for _ in range(max_tries):
-            job_ids = to_cancel(job_names)
-            if not job_ids:
-                # no more running jobs
-                break
-            cancel_jobs(job_ids)
-
-    return cancel
 
 
 def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):

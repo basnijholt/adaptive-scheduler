@@ -4,13 +4,60 @@ import getpass
 import math
 import os
 import subprocess
-import warnings
 import sys
 import textwrap
-
+import warnings
+from distutils.spawn import find_executable
 from typing import List
 
-# from adaptive_scheduler.utils import _cancel_function
+from adaptive_scheduler.utils import _progress
+
+
+def _get_default_scheduler():
+    """Determine which scheduler system is being used.
+
+    It tries to determine it by running both PBS and SLURM commands.
+
+    If both are available then one needs to set an environment variable
+    called 'SCHEDULER_SYSTEM' which is either 'PBS' or 'SLURM'.
+
+    For example add the following to your `.bashrc`
+
+    ```bash
+    export SCHEDULER_SYSTEM="PBS"
+    ```
+
+    By default it is "SLURM".
+    """
+
+    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
+    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
+
+    scheduler_system = os.environ.get("SCHEDULER_SYSTEM")
+    if scheduler_system is not None and scheduler_system.upper() not in (
+        "PBS",
+        "SLURM",
+    ):
+        raise NotImplementedError(
+            f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
+        )
+
+    DEFAULT = SLURM
+    if scheduler_system is not None:
+        return globals()[scheduler_system.upper()]
+    elif has_slurm and has_pbs:
+        msg = f"Both SLURM and PBS are detected. We set it to '{DEFAULT}'."
+        warnings.warn(msg)
+        return DEFAULT
+    elif has_pbs:
+        return PBS
+    elif has_slurm:
+        return SLURM
+    elif not has_slurm and not has_pbs:
+        scheduler_system = DEFAULT
+        msg = f"No scheduler system could be detected. We set it to '{DEFAULT}'."
+        warnings.warn(msg)
+        return DEFAULT
 
 
 class BaseScheduler(metaclass=abc.ABCMeta):
@@ -50,7 +97,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         Returns
         -------
         dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
         Notes
         -----
@@ -69,11 +116,42 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def job_script(self):
         pass
 
-    @abc.abstractmethod
     def cancel(
         self, job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
-    ):
-        pass
+    ) -> None:
+        """Cancel all jobs in `job_names`.
+
+        Parameters
+        ----------
+        job_names : list
+            List of job names.
+        with_progress_bar : bool, default: True
+            Display a progress bar using `tqdm`.
+        max_tries : int, default: 5
+            Maximum number of attempts to cancel a job.
+        """
+
+        def to_cancel(job_names):
+            return [
+                job_id
+                for job_id, info in self.queue().items()
+                if info["job_name"] in job_names
+            ]
+
+        def cancel_jobs(job_ids):
+            for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
+                cmd = f"{self._cancel_cmd} {job_id}".split()
+                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
+                if returncode != 0:
+                    warnings.warn(f"Couldn't cancel '{job_id}'.", UserWarning)
+
+        job_names = set(job_names)
+        for _ in range(max_tries):
+            job_ids = to_cancel(job_names)
+            if not job_ids:
+                # no more running jobs
+                break
+            cancel_jobs(job_ids)
 
     def get_job_id(self):
         """Get the job_id from the current job's environment."""
@@ -90,17 +168,25 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def _dask_mpi(self):
         return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {self.log_file}"
 
-    def _ipyparallel(self):
-        if self.cores <= 1:
-            raise ValueError(
-                "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
-                "the rest of the cores for the engines, so use more than 1 core."
-            )
-        return self.__ipyparallel()
-
     @abc.abstractmethod
-    def __ipyparallel(self):
+    def _ipyparallel(self):
         pass
+
+    @property
+    def executor_specific(self):
+        if self.executor_type == "mpi4py":
+            return self._mpi4py()
+        elif self.executor_type == "dask-mpi":
+            return self._dask_mpi()
+        elif self.executor_type == "ipyparallel":
+            if self.cores <= 1:
+                raise ValueError(
+                    "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
+                    "the rest of the cores for the engines, so use more than 1 core."
+                )
+            return self._ipyparallel()
+        else:
+            raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
     @property
     def log_file(self):
@@ -119,17 +205,6 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    @property
-    def executor_specific(self):
-        if self.executor_type == "mpi4py":
-            return self._mpi4py()
-        elif self.executor_type == "dask-mpi":
-            return self._dask_mpi()
-        elif self.executor_type == "ipyparallel":
-            return self._ipyparallel()
-        else:
-            raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
-
 
 class PBS(BaseScheduler):
     def __init__(
@@ -138,7 +213,7 @@ class PBS(BaseScheduler):
         cores,
         run_script="run_learner.py",
         python_executable=None,
-        log_file_folder="~/",
+        log_file_folder="",
         mpiexec_executable=None,
         executor_type="mpi4py",
         num_threads=1,
@@ -163,13 +238,16 @@ class PBS(BaseScheduler):
         self._submit_cmd = "qsub"
         self._JOB_ID_VARIABLE = "${PBS_JOBID}"
         self._scheduler = "PBS"
+        self._cancel_cmd = "qdel"
 
         self.cores_per_node = cores_per_node
         self._calculate_nnodes()
+        if cores != self.cores:
+            warnings.warn(f"`self.cores` changed from {cores} to {self.cores}")
 
     @staticmethod
     def _parse_job_id(job_id):
-        return job_id.split(".")
+        return job_id.split(".")  # "85835.hpc05.hpc" -> "85835"
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
@@ -198,7 +276,7 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def __ipyparallel(self):
+    def _ipyparallel(self):
         # This does not really work yet.
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
@@ -289,7 +367,7 @@ class PBS(BaseScheduler):
         Returns
         -------
         dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
         Notes
         -----
@@ -317,7 +395,9 @@ class PBS(BaseScheduler):
             job_id = job_id.split(".")[0]  # "85835.hpc05.hpc" -> "85835"
             info = dict([line.split(" = ") for line in self._fix_line_cuts(raw_info)])
             if info["job_state"] in ["R", "Q"]:
-                info["name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
+                info["job_name"] = info[
+                    "Job_Name"
+                ]  # used in `server_support.manage_jobs`
                 info["state"] = info["job_state"]  # used in `RunManager.live`
                 running[job_id] = info
 
@@ -354,9 +434,6 @@ class PBS(BaseScheduler):
         ncores, freq = cntr.most_common(1)[0]
         return ncores
 
-    def cancel(self):
-        pass
-
 
 class SLURM(BaseScheduler):
     def __init__(
@@ -365,14 +442,12 @@ class SLURM(BaseScheduler):
         cores,
         run_script="run_learner.py",
         python_executable=None,
-        log_file_folder="~/",
+        log_file_folder="",
         mpiexec_executable=None,
         executor_type="mpi4py",
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
-        *,
-        cores_per_node=None,
     ):
         super().__init__(
             name,
@@ -392,8 +467,9 @@ class SLURM(BaseScheduler):
         self._submit_cmd = "sbatch"
         self._JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
         self._scheduler = "SLURM"
+        self._cancel_cmd = "scancel"
 
-    def __ipyparallel(self):
+    def _ipyparallel(self):
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -430,7 +506,7 @@ class SLURM(BaseScheduler):
             #SBATCH --job-name {self.name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
-            {{extra_sbatch}}
+            {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
             export OPENBLAS_NUM_THREADS={self.num_threads}
@@ -442,7 +518,7 @@ class SLURM(BaseScheduler):
         )
 
         job_script = job_script.format(
-            extra_sbatch=self.extra_sbatch,
+            extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             executor_specific=self.executor_specific,
         )
@@ -459,7 +535,7 @@ class SLURM(BaseScheduler):
         Returns
         -------
         dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
+        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
 
         Notes
         -----
@@ -505,4 +581,9 @@ class SLURM(BaseScheduler):
         squeue = [line_to_dict(line) for line in output.split("\n")]
         squeue = [info for info in squeue if info["state"] in ("PENDING", "RUNNING")]
         running = {info.pop("jobid"): info for info in squeue}
+        for info in running.values():
+            info["job_name"] = info.pop("name")
         return running
+
+
+DefaultScheduler = _get_default_scheduler()
