@@ -408,8 +408,8 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
-scheduler : XXX
-
+scheduler : BaseScheduler, default: `adaptive_scheduler.scheduler.DefaultScheduler`
+    A scheduler instance from `adaptive_scheduler.scheduler`.
 error : str or callable, default: "srun: error:"
     If ``error`` is a string and is found in the log files, the job will
     be cancelled and restarted. If it is a callable, it is applied
@@ -423,7 +423,8 @@ max_cancel_tries : int, default: 5
 move_to : str, optional
     If a job is cancelled the log is either removed (if ``move_to=None``)
     or moved to a folder (e.g. if ``move_to='old_logs'``).
-db_fname : str XXX
+db_fname : str, default: "running.json"
+    Filename of the database, e.g. 'running.json'.
 
 Returns
 -------
@@ -569,18 +570,15 @@ class RunManager:
 
     Parameters
     ----------
-    run_script : str, default: None
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner. If None, a standard script
-        will be created.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``run_script``. If using a
         custom ``run_script`` tihs is ignored.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
-        will be serialized and pasted in the ``run_script``. If using a
-        custom ``run_script`` this is ignored.
+        will be serialized and pasted in the ``run_script``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -606,9 +604,6 @@ class RunManager:
         False if not.
     move_old_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
-    log_file_folder : str, default: ""
-        The folder in which to put the log-files. Note that you also need
-        to change this argument inside of `adaptive.scheduler.DefaultScheduler`!
     db_fname : str, default: "running.json"
         Filename of the database, e.g. 'running.json'.
     overwrite_db : bool, default: True
@@ -662,7 +657,6 @@ class RunManager:
         kill_interval: int = 60,
         kill_on_error: Union[str, Callable[[List[str]], bool], None] = "srun: error:",
         move_old_logs_to: Optional[str] = "old_logs",
-        log_file_folder: str = "",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
         start_job_manager_kwargs: Optional[Dict[str, Any]] = None,
@@ -680,7 +674,6 @@ class RunManager:
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = move_old_logs_to
-        self.log_file_folder = os.path.expanduser(log_file_folder)
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
         self.start_job_manager_kwargs = start_job_manager_kwargs or {}
@@ -795,7 +788,7 @@ class RunManager:
         running_job_ids = set(self.scheduler.queue().keys())
         if self.scheduler.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
-        cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
+        cleanup_files(self.job_names, log_file_folder=self.scheduler.log_file_folder)
 
     def parse_log_files(self, only_last: bool = True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
