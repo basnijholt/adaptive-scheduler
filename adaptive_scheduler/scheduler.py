@@ -63,7 +63,6 @@ def _get_default_scheduler():
 class BaseScheduler(metaclass=abc.ABCMeta):
     def __init__(
         self,
-        name,
         cores,
         run_script,
         python_executable,
@@ -74,7 +73,6 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         extra_scheduler,
         extra_env_vars,
     ):
-        self.name = name
         self.cores = cores
         self.run_script = run_script
         self.python_executable = python_executable or sys.executable
@@ -162,38 +160,36 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def _parse_job_id(job_id):
         return job_id
 
-    def _mpi4py(self):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {self.log_file}"
+    def _mpi4py(self, log_file):
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file}"
 
-    def _dask_mpi(self):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {self.log_file}"
+    def _dask_mpi(self, log_file):
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file}"
 
     @abc.abstractmethod
-    def _ipyparallel(self):
+    def _ipyparallel(self, log_file):
         pass
 
-    @property
-    def executor_specific(self):
+    def _executor_specific(self, name):
+        log_file = self.log_file(name)
         if self.executor_type == "mpi4py":
-            return self._mpi4py()
+            return self._mpi4py(log_file)
         elif self.executor_type == "dask-mpi":
-            return self._dask_mpi()
+            return self._dask_mpi(log_file)
         elif self.executor_type == "ipyparallel":
             if self.cores <= 1:
                 raise ValueError(
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     "the rest of the cores for the engines, so use more than 1 core."
                 )
-            return self._ipyparallel()
+            return self._ipyparallel(log_file)
         else:
             raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
-    @property
-    def log_file(self):
-        os.makedirs(self.log_file_folder, exist_ok=True)
-        return os.path.join(
-            self.log_file_folder, f"{self.name}-{self._JOB_ID_VARIABLE}.out"
-        )
+    def log_file(self, name):
+        if self.log_file_folder:
+            os.makedirs(self.log_file_folder, exist_ok=True)
+        return os.path.join(self.log_file_folder, f"{name}-{self._JOB_ID_VARIABLE}.out")
 
     @property
     def extra_scheduler(self):
@@ -209,7 +205,6 @@ class BaseScheduler(metaclass=abc.ABCMeta):
 class PBS(BaseScheduler):
     def __init__(
         self,
-        name,
         cores,
         run_script="run_learner.py",
         python_executable=None,
@@ -223,7 +218,6 @@ class PBS(BaseScheduler):
         cores_per_node=None,
     ):
         super().__init__(
-            name,
             cores,
             run_script,
             python_executable,
@@ -276,7 +270,7 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def _ipyparallel(self):
+    def _ipyparallel(self, log_file):
         # This does not really work yet.
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
@@ -295,11 +289,11 @@ class PBS(BaseScheduler):
             {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {self.log_file}
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file}
             """
         )
 
-    def job_script(self):
+    def job_script(self, name):
         """Get a jobscript in string form.
 
         Returns
@@ -313,7 +307,7 @@ class PBS(BaseScheduler):
             #!/bin/sh
             #PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}
             #PBS -V
-            #PBS -N {self.name}
+            #PBS -N {name}
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
@@ -330,7 +324,7 @@ class PBS(BaseScheduler):
         job_script = job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self.executor_specific,
+            executor_specific=self._executor_specific(name),
         )
 
         return job_script
@@ -438,7 +432,6 @@ class PBS(BaseScheduler):
 class SLURM(BaseScheduler):
     def __init__(
         self,
-        name,
         cores,
         run_script="run_learner.py",
         python_executable=None,
@@ -450,7 +443,6 @@ class SLURM(BaseScheduler):
         extra_env_vars=None,
     ):
         super().__init__(
-            name,
             cores,
             run_script,
             python_executable,
@@ -469,7 +461,7 @@ class SLURM(BaseScheduler):
         self._scheduler = "SLURM"
         self._cancel_cmd = "scancel"
 
-    def _ipyparallel(self):
+    def _ipyparallel(self, log_file):
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -487,11 +479,11 @@ class SLURM(BaseScheduler):
             srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {self.log_file}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file}
             """
         )
 
-    def job_script(self):
+    def job_script(self, name):
         """Get a jobscript in string form.
 
         Returns
@@ -503,7 +495,7 @@ class SLURM(BaseScheduler):
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
-            #SBATCH --job-name {self.name}
+            #SBATCH --job-name {name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
             {{extra_scheduler}}
@@ -520,7 +512,7 @@ class SLURM(BaseScheduler):
         job_script = job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self.executor_specific,
+            executor_specific=self._executor_specific(name),
         )
         return job_script
 
