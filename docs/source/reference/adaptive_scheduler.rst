@@ -15,5 +15,4 @@ Scheduler specific
 ------------------
 
 .. toctree::
-    adaptive_scheduler.pbs
-    adaptive_scheduler.slurm
+    adaptive_scheduler.scheduler
