@@ -327,8 +327,9 @@ def _get_output_fnames(job_name, db_fname, scheduler):
     entry = _get_entry(job_name, db_fname)
     if entry is None or entry["job_id"] is None:
         return
+    job_id = entry["job_id"].split(".")[0]  # for PBS
     output_fnames = [
-        f.replace(scheduler._JOB_ID_VARIABLE, entry["job_id"])
+        f.replace(scheduler._JOB_ID_VARIABLE, job_id)
         for f in scheduler.output_fnames(job_name)
     ]
     return output_fnames
@@ -382,8 +383,7 @@ def logs_with_string_or_condition(
             continue
         output_fnames = _get_output_fnames(entry["job_name"], db_fname, scheduler)
         if any(file_has_error(f) for f in output_fnames):
-            for output_fname in output_fnames:
-                have_error[entry["job_id"]] = entry["job_name"], output_fname
+            have_error[entry["job_id"]] = entry["job_name"], output_fnames
     return have_error
 
 
@@ -411,8 +411,7 @@ async def manage_killer(
                 if job_id in failed_jobs:
                     job_name, fnames = failed_jobs[job_id]
                     to_cancel.append(job_name)
-                    for fname in fnames:
-                        to_delete.append(fname)
+                    to_delete += fnames
 
             scheduler.cancel(
                 to_cancel, with_progress_bar=False, max_tries=max_cancel_tries
