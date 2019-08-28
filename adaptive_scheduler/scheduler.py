@@ -14,52 +14,6 @@ from typing import List
 from adaptive_scheduler.utils import _progress
 
 
-def _get_default_scheduler():
-    """Determine which scheduler system is being used.
-
-    It tries to determine it by running both PBS and SLURM commands.
-
-    If both are available then one needs to set an environment variable
-    called 'SCHEDULER_SYSTEM' which is either 'PBS' or 'SLURM'.
-
-    For example add the following to your `.bashrc`
-
-    ```bash
-    export SCHEDULER_SYSTEM="PBS"
-    ```
-
-    By default it is "SLURM".
-    """
-
-    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
-    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
-
-    DEFAULT = SLURM
-    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
-    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
-    if scheduler_system:
-        if scheduler_system not in ("PBS", "SLURM"):
-            warnings.warn(
-                f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
-                f"Use SLURM or PBS. {default_msg}"
-            )
-            return DEFAULT
-        else:
-            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
-    elif has_slurm and has_pbs:
-        msg = f"Both SLURM and PBS are detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
-    elif has_pbs:
-        return PBS
-    elif has_slurm:
-        return SLURM
-    else:
-        msg = f"No scheduler system could be detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
-
-
 class BaseScheduler(metaclass=abc.ABCMeta):
     def __init__(
         self,
@@ -610,6 +564,52 @@ class SLURM(BaseScheduler):
         for info in running.values():
             info["job_name"] = info.pop("name")
         return running
+
+
+def _get_default_scheduler():
+    """Determine which scheduler system is being used.
+
+    It tries to determine it by running both PBS and SLURM commands.
+
+    If both are available then one needs to set an environment variable
+    called 'SCHEDULER_SYSTEM' which is either 'PBS' or 'SLURM'.
+
+    For example add the following to your `.bashrc`
+
+    ```bash
+    export SCHEDULER_SYSTEM="PBS"
+    ```
+
+    By default it is "SLURM".
+    """
+
+    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
+    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
+
+    DEFAULT = SLURM
+    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
+    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
+    if scheduler_system:
+        if scheduler_system not in ("PBS", "SLURM"):
+            warnings.warn(
+                f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
+                f"Use SLURM or PBS. {default_msg}"
+            )
+            return DEFAULT
+        else:
+            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
+    elif has_slurm and has_pbs:
+        msg = f"Both SLURM and PBS are detected. {default_msg}"
+        warnings.warn(msg)
+        return DEFAULT
+    elif has_pbs:
+        return PBS
+    elif has_slurm:
+        return SLURM
+    else:
+        msg = f"No scheduler system could be detected. {default_msg}"
+        warnings.warn(msg)
+        return DEFAULT
 
 
 DefaultScheduler = _get_default_scheduler()
