@@ -34,18 +34,18 @@ def _get_default_scheduler():
     has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
     has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
-    scheduler_system = os.environ.get("SCHEDULER_SYSTEM")
-    if scheduler_system is not None and scheduler_system.upper() not in (
-        "PBS",
-        "SLURM",
-    ):
-        raise NotImplementedError(
-            f"SCHEDULER_SYSTEM={scheduler_system} is not implemented. Use SLURM or PBS."
-        )
-
     DEFAULT = SLURM
-    if scheduler_system is not None:
-        return globals()[scheduler_system.upper()]
+    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
+
+    if scheduler_system:
+        if scheduler_system not in ("PBS", "SLURM"):
+            warnings.warn(
+                f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
+                f"Use SLURM or PBS. We set it to '{DEFAULT}'."
+            )
+            return DEFAULT
+        else:
+            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
     elif has_slurm and has_pbs:
         msg = f"Both SLURM and PBS are detected. We set it to '{DEFAULT}'."
         warnings.warn(msg)
@@ -54,8 +54,7 @@ def _get_default_scheduler():
         return PBS
     elif has_slurm:
         return SLURM
-    elif not has_slurm and not has_pbs:
-        scheduler_system = DEFAULT
+    else:
         msg = f"No scheduler system could be detected. We set it to '{DEFAULT}'."
         warnings.warn(msg)
         return DEFAULT
