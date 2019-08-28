@@ -186,7 +186,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def log_file(self, name):
         if self.log_file_folder:
             os.makedirs(self.log_file_folder, exist_ok=True)
-        return os.path.join(self.log_file_folder, f"{name}-{self._JOB_ID_VARIABLE}.out")
+        return os.path.join(self.log_file_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
 
     @property
     def extra_scheduler(self):
@@ -494,6 +494,10 @@ class SLURM(BaseScheduler):
             """
         )
 
+    def output_file(self, name):
+        log_file = self.log_file(name)
+        return log_file.replace(self._JOB_ID_VARIABLE, "%A").replace(".log", ".out")
+
     def job_script(self, name):
         """Get a jobscript in string form.
 
@@ -502,14 +506,14 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-
+        output_file = self.output_file(name)
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
             #SBATCH --job-name {name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
-            #SBATCH --output /tmp/{name}-%A.out
+            #SBATCH --output {output_file}
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
