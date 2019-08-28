@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import logging
 import socket
 from contextlib import suppress
 from typing import Any, Dict, List, Tuple, Union
@@ -9,44 +10,76 @@ import structlog
 import zmq
 from adaptive import AsyncRunner, BaseLearner
 
-from adaptive_scheduler._scheduler import get_job_id
+from adaptive_scheduler.utils import log_exception
 
 ctx = zmq.Context()
-log = structlog.get_logger("adaptive_scheduler.client")
+logger = logging.getLogger("adaptive_scheduler.client")
+logger.setLevel(logging.INFO)
+log = structlog.wrap_logger(
+    logger,
+    processors=[
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
+        structlog.processors.JSONRenderer(),
+    ],
+)
 
 
-def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> None:
-    """Get a learner from the database running at `url`.
+def _add_log_file_handler(log_fname):
+    fh = logging.FileHandler(log_fname)
+    logger.addHandler(fh)
+
+
+def get_learner(
+    learners: List[BaseLearner],
+    fnames: List[str],
+    url: str,
+    log_fname: str,
+    job_id: str,
+    job_name: str,
+) -> None:
+    """Get a learner from the database running at `url` and this learner's
+    process will be logged in `log_fname` and running under `job_id`.
 
     Parameters
     ----------
-    url : str
-        The url of the database manager running via
-        (`adaptive_scheduler.server_support.manage_database`).
     learners : list of `adaptive.BaseLearner` isinstances
         List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
+    url : str
+        The url of the database manager running via
+        (`adaptive_scheduler.server_support.manage_database`).
+    log_fname : str
+        The filename of the log-file. Should be passed in the job-script.
+    job_id : str
+        The job_id of the process the job. Should be passed in the job-script.
+    job_name : str
+        The name of the job. Should be passed in the job-script.
 
     Returns
     -------
     fname : str
         The filename of the learner that was chosen.
     """
-    job_id = get_job_id()
-    log.info(f"trying to get learner", job_id=job_id)
+    _add_log_file_handler(log_fname)
+    log.info(
+        "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
+    )
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("start", job_id))
+        socket.send_pyobj(("start", job_id, log_fname, job_name))
         log.info(f"sent start signal")
         reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply))
         if reply is None:
-            msg = f"No learners to be run for {job_id}."
-            log.exception(msg)
-            raise RuntimeError(msg)
+            msg = f"No learners to be run."
+            exception = RuntimeError(msg)
+            log_exception(log, msg, exception)
+            raise exception
         elif isinstance(reply, Exception):
-            log.exception("got an exception")
+            log_exception(log, "got an exception", exception=reply)
             raise reply
         else:
             fname = reply
@@ -62,8 +95,9 @@ def get_learner(url: str, learners: List[BaseLearner], fnames: List[str]) -> Non
         learner = next(l for l, f in zip(learners, fnames) if maybe_lst(f) == fname)
     except StopIteration:
         msg = "Learner with this fname doesn't exist in the database."
-        log.exception(msg)
-        raise UserWarning(msg)
+        exception = UserWarning(msg)
+        log_exception(log, msg, exception)
+        raise exception
 
     log.info("picked a learner")
     return learner, fname
@@ -101,16 +135,16 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
     info = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())
     info["elapsed_time"] = str(Δt)
-    info["overhead"] = f"{runner.overhead():.2f}%"
+    info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)
     if npoints is not None:
         info["npoints"] = _get_npoints(learner)
         Δnpoints = npoints - npoints_start
         with suppress(ZeroDivisionError):
             # Δt.seconds could be zero if the job is done when starting
-            info["npoints/s"] = f"{Δnpoints / Δt.seconds:.3f}"
+            info["npoints/s"] = Δnpoints / Δt.seconds
     with suppress(Exception):
-        info["latest_loss"] = f'{learner._cache["loss"]:.3f}'
+        info["latest_loss"] = learner._cache["loss"]
     with suppress(AttributeError):
         info["nlearners"] = len(learner.learners)
         if "npoints" in info:
@@ -138,12 +172,12 @@ def log_info(runner: AsyncRunner, interval=300) -> asyncio.Task:
         log.info(f"started logger on hostname {socket.gethostname()}")
         learner = runner.learner
         npoints_start = _get_npoints(learner)
-        log.info(f"npoints at start {npoints_start}")
+        log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
             await asyncio.sleep(interval)
             info = _get_log_entry(runner, npoints_start)
-            log.info(f"current status", **info)
-        log.info(f"runner statues changed to {runner.status()}")
-        log.info(f"current status", **_get_log_entry(runner, npoints_start))
+            log.info("current status", **info)
+        log.info("runner status changed", status=runner.status())
+        log.info("current status", **_get_log_entry(runner, npoints_start))
 
     return runner.ioloop.create_task(coro(runner, interval))

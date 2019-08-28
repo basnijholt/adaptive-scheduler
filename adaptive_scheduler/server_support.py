@@ -1,32 +1,27 @@
 import asyncio
 import concurrent.futures
 import datetime
-import functools
+import glob
+import json
 import logging
 import os
 import socket
-import subprocess
 import textwrap
 import time
-import warnings
 from contextlib import suppress
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 
 import adaptive
 import dill
+import pandas as pd
 import structlog
 import zmq
 import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler._scheduler import (
-    cancel,
-    ext,
-    make_job_script,
-    queue,
-    submit_cmd,
-)
+from adaptive_scheduler.scheduler import BaseScheduler
+
 
 ctx = zmq.asyncio.Context()
 
@@ -41,17 +36,19 @@ class MaxRestartsReached(Exception):
 
 
 def _dispatch(request: Tuple[str, str], db_fname: str):
-    request_type, request_arg = request
+    request_type, *request_arg = request
     log.debug("got a request", request=request)
     try:
         if request_type == "start":
-            job_id = request_arg  # workers send us their slurm ID for us to fill in
+            # workers send us their slurm ID for us to fill in
+            job_id, log_fname, job_name = request_arg
+            kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
             # give the worker a job and send back the fname to the worker
-            fname = _choose_fname(db_fname, job_id)
-            log.debug("choose a fname", fname=fname, job_id=job_id)
+            fname = _choose_fname(db_fname, **kwargs)
+            log.debug("choose a fname", fname=fname, **kwargs)
             return fname
         elif request_type == "stop":
-            fname = request_arg  # workers send us the fname they were given
+            fname = request_arg[0]  # workers send us the fname they were given
             log.debug("got a stop request", fname=fname)
             _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
@@ -115,19 +112,8 @@ job_names : list
 db_fname : str
     Filename of the database, e.g. 'running.json'
 {extra_args}
-cores : int
-    Number of cores per job (so per learner.)
-job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script` depending on the scheduler.
-    A function with the following signature:
-    ``job_script(name, cores, run_script, python_executable)`` that returns
-    a job script in string form. See ``adaptive_scheduler/slurm.py`` or
-    ``adaptive_scheduler/pbs.py`` for an example.
-run_script : str
-    Filename of the script that is run on the nodes. Inside this script we
-    query the database and run the learner.
-python_executable : str, default: `sys.executable`
-    The Python executable that should run the `run_script`. By default
-    it uses the same Python as where this function is called.
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    A scheduler instance from `adaptive_scheduler.scheduler`.
 interval : int, default: 30
     Time in seconds between checking and starting jobs.
 max_simultaneous_jobs : int, default: 5000
@@ -151,12 +137,7 @@ async def manage_jobs(
     job_names: List[str],
     db_fname: str,
     ioloop,
-    cores=8,
-    job_script_function: Callable[
-        [str, int, str, Optional[str]], str
-    ] = make_job_script,
-    run_script: str = "run_learner.py",
-    python_executable: Optional[str] = None,
+    scheduler: BaseScheduler,
     interval: int = 30,
     *,
     max_simultaneous_jobs: int = 5000,
@@ -167,9 +148,13 @@ async def manage_jobs(
     with concurrent.futures.ProcessPoolExecutor() as ex:
         while True:
             try:
-                running = queue()
+                running = scheduler.queue()
                 _update_db(db_fname, running)  # in case some jobs died
-                queued = {j["name"] for j in running.values() if j["name"] in job_names}
+                queued = {
+                    j["job_name"]
+                    for j in running.values()
+                    if j["job_name"] in job_names
+                }
                 not_queued = set(job_names) - queued
 
                 n_done = _get_n_jobs_done(db_fname)
@@ -190,15 +175,7 @@ async def manage_jobs(
                     if len(queued) < max_simultaneous_jobs:
                         job_name = not_queued.pop()
                         queued.add(job_name)
-                        await ioloop.run_in_executor(
-                            ex,
-                            _start_job,
-                            job_name,
-                            cores,
-                            job_script_function,
-                            run_script,
-                            python_executable,
-                        )
+                        await ioloop.run_in_executor(ex, scheduler.start_job, job_name)
                         n_started += 1
                     else:
                         break
@@ -234,12 +211,7 @@ manage_jobs.__doc__ = _JOB_MANAGER_DOC.format(
 def start_job_manager(
     job_names: List[str],
     db_fname: str,
-    cores: int = 8,
-    job_script_function: Callable[
-        [str, int, str, Optional[str]], str
-    ] = make_job_script,
-    run_script: str = "run_learner.py",
-    python_executable: Optional[str] = None,
+    scheduler: BaseScheduler,
     interval: int = 30,
     *,
     max_simultaneous_jobs: int = 5000,
@@ -250,10 +222,7 @@ def start_job_manager(
         job_names,
         db_fname,
         ioloop,
-        cores,
-        job_script_function,
-        run_script,
-        python_executable,
+        scheduler,
         interval,
         max_simultaneous_jobs=max_simultaneous_jobs,
         max_fails_per_job=max_fails_per_job,
@@ -264,19 +233,6 @@ def start_job_manager(
 start_job_manager.__doc__ = _JOB_MANAGER_DOC.format(
     first_line="Start the job manager task.", returns="asyncio.Task", extra_args=""
 )
-
-
-def _start_job(name, cores, job_script_function, run_script, python_executable):
-    with open(name + ext, "w") as f:
-        job_script = job_script_function(name, cores, run_script, python_executable)
-        f.write(job_script)
-
-    returncode = None
-    while returncode != 0:
-        returncode = subprocess.run(
-            f"{submit_cmd} {name}{ext}".split(), stderr=subprocess.PIPE
-        ).returncode
-        time.sleep(0.5)
 
 
 def get_allowed_url() -> str:
@@ -294,7 +250,8 @@ def get_allowed_url() -> str:
 
 
 def create_empty_db(db_fname: str, fnames: List[str]) -> None:
-    """Create an empty database that keeps track of fname -> (job_id, is_done).
+    """Create an empty database that keeps track of
+    fname -> (job_id, is_done, log_fname, job_name).
 
     Parameters
     ----------
@@ -303,7 +260,8 @@ def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     fnames : list
         List of `fnames` corresponding to `learners`.
     """
-    entries = [dict(fname=fname, job_id=None, is_done=False) for fname in fnames]
+    defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
+    entries = [dict(fname=fname, **defaults) for fname in fnames]
     if os.path.exists(db_fname):
         os.remove(db_fname)
     with TinyDB(db_fname) as db:
@@ -316,14 +274,14 @@ def get_database(db_fname: str) -> List[Dict[str, Any]]:
         return db.all()
 
 
-def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
+def _update_db(db_fname: str, running: [str, dict]) -> None:
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
-        db.update({"job_id": None}, doc_ids=doc_ids)
+        db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname: str, job_id: str) -> str:
+def _choose_fname(db_fname: str, job_id: str, log_fname: str, job_name: str) -> str:
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -336,17 +294,21 @@ def _choose_fname(db_fname: str, job_id: str) -> str:
                 "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
             )
         entry = db.get((Entry.job_id == None) & (Entry.is_done == False))  # noqa: E711
-        log.debug("chose fname", entry=entry)
+        log.debug("choose fname", entry=entry)
         if entry is None:
             return
-        db.update({"job_id": job_id}, doc_ids=[entry.doc_id])
+        db.update(
+            {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
+            doc_ids=[entry.doc_id],
+        )
     return entry["fname"]
 
 
 def _done_with_learner(db_fname: str, fname: str) -> None:
     Entry = Query()
     with TinyDB(db_fname) as db:
-        db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
+        reset = dict(job_id=None, is_done=True, job_name=None)
+        db.update(reset, Entry.fname == fname)
 
 
 def _get_n_jobs_done(db_fname: str) -> int:
@@ -355,38 +317,105 @@ def _get_n_jobs_done(db_fname: str) -> int:
         return db.count(Entry.is_done == True)  # noqa: E711
 
 
+def _get_entry(job_name, db_fname):
+    Entry = Query()
+    with TinyDB(db_fname) as db:
+        return db.get(Entry.job_name == job_name)
+
+
+def _get_output_fnames(job_name, db_fname, scheduler):
+    entry = _get_entry(job_name, db_fname)
+    if entry is None or entry["job_id"] is None:
+        return
+    job_id = entry["job_id"].split(".")[0]  # for PBS
+    output_fnames = [
+        f.replace(scheduler._JOB_ID_VARIABLE, job_id)
+        for f in scheduler.output_fnames(job_name)
+    ]
+    return output_fnames
+
+
+def logs_with_string_or_condition(
+    error: Union[str, Callable[[List[str]], bool]],
+    db_fname: List[str],
+    scheduler: BaseScheduler,
+) -> Dict[str, list]:
+    """Get jobs that have `string` (or apply a callable) inside their log-file.
+
+    Either use `string` or `error`.
+
+    Parameters
+    ----------
+    error : str or callable
+        String that is searched for or callable that is applied
+        to the log text. Must take a single argument, a list of
+        strings, and return True if the job has to be killed, or
+        False if not.
+    db_fname : str, default: "running.json"
+        Filename of the database, e.g. 'running.json'.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+
+    Returns
+    -------
+    has_string : dict
+        A dictionary of ``job_id -> (job_name, fnames)``,
+        which have the string inside their log-file.
+    """
+
+    if isinstance(error, str):
+        has_error = lambda lines: error in "".join(lines)  # noqa: E731
+    elif callable(error):
+        has_error = error
+    else:
+        raise ValueError("`error` can only be a `str` or `callable`.")
+
+    def file_has_error(fname):
+        if not os.path.exists(fname):
+            return False
+        with open(fname) as f:
+            lines = f.readlines()
+        return has_error(lines)
+
+    have_error = {}
+    for entry in get_database(db_fname):
+        if entry["job_id"] is None:
+            continue
+        output_fnames = _get_output_fnames(entry["job_name"], db_fname, scheduler)
+        if any(file_has_error(f) for f in output_fnames):
+            have_error[entry["job_id"]] = entry["job_name"], output_fnames
+    return have_error
+
+
 async def manage_killer(
     job_names: List[str],
+    scheduler: BaseScheduler,
     error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
-    log_file_folder: str = "",
+    db_fname: str = "running.json",
 ) -> Coroutine:
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
-    from adaptive_scheduler.utils import (
-        _remove_or_move_files,
-        logs_with_string_or_condition,
-    )
+    from adaptive_scheduler.utils import _remove_or_move_files
 
     while True:
         try:
-            failed_jobs = logs_with_string_or_condition(
-                job_names, error, log_file_folder
-            )
+            failed_jobs = logs_with_string_or_condition(error, db_fname, scheduler)
             to_cancel = []
             to_delete = []
 
             # get cancel/delete only the processes/logs that are running now
-            for job_id in queue().keys():
+            for job_id in scheduler.queue().keys():
                 if job_id in failed_jobs:
                     job_name, fnames = failed_jobs[job_id]
                     to_cancel.append(job_name)
-                    for fname in fnames:
-                        to_delete.append(fname)
+                    to_delete += fnames
 
-            cancel(to_cancel, with_progress_bar=False, max_tries=max_cancel_tries)
+            scheduler.cancel(
+                to_cancel, with_progress_bar=False, max_tries=max_cancel_tries
+            )
             _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
             await asyncio.sleep(interval)
         except concurrent.futures.CancelledError:
@@ -406,6 +435,8 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    A scheduler instance from `adaptive_scheduler.scheduler`.
 error : str or callable, default: "srun: error:"
     If ``error`` is a string and is found in the log files, the job will
     be cancelled and restarted. If it is a callable, it is applied
@@ -419,9 +450,8 @@ max_cancel_tries : int, default: 5
 move_to : str, optional
     If a job is cancelled the log is either removed (if ``move_to=None``)
     or moved to a folder (e.g. if ``move_to='old_logs'``).
-log_file_folder : str, default: ""
-    The folder in which to put the log-files. Note that you also need
-    to change this argument inside of `adaptive.slurm.make_job_script`!
+db_fname : str, default: "running.json"
+    Filename of the database, e.g. 'running.json'.
 
 Returns
 -------
@@ -435,15 +465,16 @@ manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
 
 def start_kill_manager(
     job_names: List[str],
+    scheduler: BaseScheduler,
     error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
     interval: int = 600,
     max_cancel_tries: int = 5,
     move_to: Optional[str] = None,
-    log_file_folder: str = "",
+    db_fname: str = "running.json",
 ) -> asyncio.Task:
     ioloop = asyncio.get_event_loop()
     coro = manage_killer(
-        job_names, error, interval, max_cancel_tries, move_to, log_file_folder
+        job_names, scheduler, error, interval, max_cancel_tries, move_to, db_fname
     )
     return ioloop.create_task(coro)
 
@@ -471,12 +502,8 @@ def _make_default_run_script(
         import_line = "from mpi4py.futures import MPIPoolExecutor"
         executor_line = "MPIPoolExecutor()"
     elif executor_type == "ipyparallel":
-        import_line = (
-            "from adaptive_scheduler.utils import connect_to_ipyparallel; import sys"
-        )
-        executor_line = (
-            "connect_to_ipyparallel(profile=sys.argv[1], n=int(sys.argv[2]))"
-        )
+        import_line = "from adaptive_scheduler.utils import connect_to_ipyparallel"
+        executor_line = "connect_to_ipyparallel(profile=args.profile, n=args.n)"
     elif executor_type == "dask-mpi":
         try:
             import dask_mpi  # noqa: F401
@@ -500,21 +527,34 @@ def _make_default_run_script(
         f"""\
     # {run_script_fname}, automatically generated
     # by `adaptive_scheduler.server_support._make_default_run_script()`.
+    import argparse
+    from contextlib import suppress
+
     import adaptive
     import dill
-    from contextlib import suppress
     from adaptive_scheduler import client_support
     {import_line}
+
 
     # the file that defines the learners we created above
     from {learners_module} import learners, fnames
 
     if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
+
+        # parse arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--profile', action="store", dest="profile", type=str)
+        parser.add_argument('--n', action="store", dest="n", type=int)
+        parser.add_argument('--log-fname', action="store", dest="log_fname", type=str)
+        parser.add_argument('--job-id', action="store", dest="job_id", type=str)
+        parser.add_argument('--name', action="store", dest="name", type=str)
+        args = parser.parse_args()
+
         # the address of the "database manager"
         url = "{url}"
 
-        # ask the database for a learner that we can run
-        learner, fname = client_support.get_learner(url, learners, fnames)
+        # ask the database for a learner that we can run which we log in `args.log_fname`
+        learner, fname = client_support.get_learner(learners, fnames, url, args.log_fname, args.job_id, args.name)
 
         # load the data
         with suppress(Exception):
@@ -553,29 +593,87 @@ def _make_default_run_script(
     return run_script_fname
 
 
+def _get_infos(fname: str, only_last: bool = True):
+    status_lines: List[str] = []
+    with open(fname) as f:
+        lines = f.readlines()
+        for line in reversed(lines):
+            with suppress(Exception):
+                info = json.loads(line)
+                if info["event"] == "current status":
+                    status_lines.append(info)
+                    if only_last:
+                        return status_lines
+        return status_lines
+
+
+def parse_log_files(  # noqa: C901
+    job_names: List[str], db_fname: str, scheduler, only_last: bool = True
+):
+    """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
+
+    This only works if you use `adaptive_scheduler.client_support.log_info`
+    inside your ``run_script``.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    db_fname : str, optional
+        The database filename. If passed, ``fname`` will be populated.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    only_last : bool, default: True
+        Only look use the last printed status message.
+
+    Returns
+    -------
+    `~pandas.core.frame.DataFrame`
+    """
+
+    infos = []
+    for entry in get_database(db_fname):
+        log_fname = entry["log_fname"]
+        if log_fname is None:
+            continue
+        for info in _get_infos(log_fname, only_last):
+            info.pop("event")  # this is always "current status"
+            info["timestamp"] = datetime.datetime.strptime(
+                info["timestamp"], "%Y-%m-%d %H:%M.%S"
+            )
+            info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
+            info.update(entry)
+            infos.append(info)
+
+    # Polulate state and job_name from the queue
+    _queue = scheduler.queue()
+
+    for info in infos:
+        info_from_queue = _queue.get(info["job_id"])
+        if info_from_queue is None:
+            continue
+        info["state"] = info_from_queue["state"]
+        info["job_name"] = info_from_queue["job_name"]
+
+    return pd.DataFrame(infos)
+
+
 class RunManager:
     """A convenience tool that starts the job, database, and kill manager.
 
     Parameters
     ----------
-    cores_per_job : int
-        Number of cores per job (so per learner.)
-    run_script : str, default: None
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner. If None, a standard script
-        will be created.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the ``run_script``. If using a
-        custom ``run_script`` tihs is ignored.
+        be serialized and pasted in the ``run_script``.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
-        will be serialized and pasted in the ``run_script``. If using a
-        custom ``run_script`` this is ignored.
+        will be serialized and pasted in the ``run_script``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
-        You only **need** to specify this when using a custom ``run_script``.
     learners_file : str, default: "learners_file.py"
         The module that defined the variables ``learners`` and ``fnames``.
     save_interval : int, default: 300
@@ -585,14 +683,6 @@ class RunManager:
     job_name : str, default: "adaptive-scheduler"
         From this string the job names will be created, e.g.
         ``["adaptive-scheduler-1", "adaptive-scheduler-2", ...]``.
-    job_script_function : callable, default: `adaptive_scheduler.slurm.make_job_script` or `adaptive_scheduler.pbs.make_job_script` depending on the scheduler.
-        A function with the following signature:
-        ``job_script(name, cores, run_script, python_executable)`` that returns
-        a job script in string form. See ``adaptive_scheduler/slurm.py`` or
-        ``adaptive_scheduler/pbs.py`` for an example.
-    executor_type : str, default: "mpi4py"
-        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"`` or ``"dask-mpi"`` too.
     job_manager_interval : int, default: 60
         Time in seconds between checking and starting jobs.
     kill_interval : int, default: 60
@@ -605,9 +695,6 @@ class RunManager:
         False if not.
     move_old_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
-    log_file_folder : str, default: ""
-        The folder in which to put the log-files. Note that you also need
-        to change this argument inside of `adaptive.slurm.make_job_script`!
     db_fname : str, default: "running.json"
         Filename of the database, e.g. 'running.json'.
     overwrite_db : bool, default: True
@@ -622,39 +709,26 @@ class RunManager:
     Here is an example of using the `RunManager` with a modified ``job_script_function``.
 
     >>> import adaptive_scheduler
-    >>> from functools import partial
-    >>> from adaptive_scheduler.slurm import make_job_script
-    >>> job_script_function = partial(
-    ...     make_job_script,
-    ...     extra_sbatch=[
-    ...         "--ntasks-per-node=12",
-    ...         "--cpus-per-task=2",
-    ...         "--time=5:00:35",
-    ...         "--exclusive",
-    ...     ],
-    ...     mpiexec_executable="srun --mpi=pmi2",
-    ... )
+    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(cores=10)
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
-    ...     job_script_function=job_script_function, cores_per_job=12, overwrite_db=True
+    ...     scheduler=scheduler
     ... ).start()
 
     Or an example using `ipyparallel.Client`.
 
     >>> from functools import partial
     >>> import adaptive_scheduler
-    >>> job_script_function = partial(
-    ...     adaptive_scheduler.slurm.make_job_script, executor_type="ipyparallel"
+    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(
+    ...     cores=10, executor_type="ipyparallel",
     ... )
     >>> def goal(learner):
     ...     return learner.npoints > 2000
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
+    ...     scheduler=scheduler,
     ...     learners_file="learners_file.py",
     ...     goal=goal,
-    ...     cores_per_job=12,
     ...     log_interval=30,
     ...     save_interval=30,
-    ...     job_script_function=job_script_function,
-    ...     executor_type="ipyparallel",
     ... )
     >>> run_manager.start()
 
@@ -662,8 +736,7 @@ class RunManager:
 
     def __init__(
         self,
-        cores_per_job: int,
-        run_script: Optional[str] = None,
+        scheduler: BaseScheduler,
         goal: Optional[Callable[[adaptive.BaseLearner], bool]] = None,
         runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
@@ -671,36 +744,27 @@ class RunManager:
         save_interval: int = 300,
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
-        job_script_function: Callable[
-            [str, int, str, Optional[str]], str
-        ] = make_job_script,
-        executor_type: Union["mpi4py", "ipyparallel", "dask-mpi"] = "mpi4py",
         job_manager_interval: int = 60,
         kill_interval: int = 60,
         kill_on_error: Union[str, Callable[[List[str]], bool], None] = "srun: error:",
         move_old_logs_to: Optional[str] = "old_logs",
-        log_file_folder: str = "",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
         start_job_manager_kwargs: Optional[Dict[str, Any]] = None,
         start_kill_manager_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Set from arguments
-        self.run_script = run_script
+        self.scheduler = scheduler
         self.goal = goal
         self.runner_kwargs = runner_kwargs
         self.learners_file = learners_file
         self.save_interval = save_interval
         self.log_interval = log_interval
         self.job_name = job_name
-        self.job_script_function = job_script_function
-        self.executor_type = executor_type
-        self.cores_per_job = cores_per_job
         self.job_manager_interval = job_manager_interval
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = move_old_logs_to
-        self.log_file_folder = os.path.expanduser(log_file_folder)
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
         self.start_job_manager_kwargs = start_job_manager_kwargs or {}
@@ -719,12 +783,6 @@ class RunManager:
         self._set_job_names()
         self.is_started = False
         self.ioloop = asyncio.get_event_loop()
-        self._default_run_script_name = f"{self.job_name}-run_script.py"
-        self.job_script_function = self._check_job_script_function(job_script_function)
-
-        # Check incompatible arguments
-        if goal is not None and run_script is not None:
-            raise ValueError("Do not pass a goal if you are using a custom run_script.")
 
     def start(self):
         """Start running the `RunManager`."""
@@ -742,36 +800,6 @@ class RunManager:
         self.start_time = time.time()
         self.ioloop.create_task(_start())
         return self
-
-    def _check_job_script_function(self, f):
-        """Some arguments like ``executor_type`` and ``log_file_folder`` need to
-        be passed to the `RunManager` and `make_job_script`.
-
-        This function makes sure that you do it correctly."""
-        from adaptive_scheduler.utils import _get_default_args
-
-        with_partial = (
-            hasattr(f, "func") and hasattr(f, "keywords") and f.func is make_job_script
-        )
-
-        if with_partial or f is make_job_script:
-            # The user used functools.partial on `_scheduler.make_job_script`
-            warn = (
-                "`{k}` is different in `RunManager({k}='{v}')` and `make_job_script`,"
-                " use `functools.partial(make_job_script, {k}='{v}')`."
-                " Now the value from the `RunManager` is automatically"
-                " passed to ``make_job_script``."
-            )
-            for arg in ("executor_type", "log_file_folder"):
-                if not with_partial or arg not in f.keywords:
-                    # arg is not in the partial keywords but it might
-                    # still be a default kwarg
-                    default = _get_default_args(f)[arg]
-                    kwargs = {arg: getattr(self, arg)}
-                    if default != kwargs[arg]:
-                        warnings.warn("\n" + warn.format(k=arg, v=kwargs[arg]))
-                        f = functools.partial(f, **kwargs)
-        return f
 
     def _get_learners_file(self):
         from importlib.util import module_from_spec, spec_from_file_location
@@ -792,25 +820,22 @@ class RunManager:
 
     def _start_job_manager(self) -> None:
 
-        if self.run_script is None:
-            self.run_script = _make_default_run_script(
-                self.url,
-                self.learners_file,
-                self.save_interval,
-                self.log_interval,
-                self.goal,
-                self.runner_kwargs,
-                self._default_run_script_name,
-                self.executor_type,
-            )
+        self.run_script = _make_default_run_script(
+            self.url,
+            self.learners_file,
+            self.save_interval,
+            self.log_interval,
+            self.goal,
+            self.runner_kwargs,
+            self.scheduler.run_script,
+            self.scheduler.executor_type,
+        )
 
         self.job_task = start_job_manager(
             self.job_names,
             self.db_fname,
-            cores=self.cores_per_job,
+            scheduler=self.scheduler,
             interval=self.job_manager_interval,
-            run_script=self.run_script,
-            job_script_function=self.job_script_function,
             **self.start_job_manager_kwargs,
         )
 
@@ -822,10 +847,11 @@ class RunManager:
             return
         self.kill_task = start_kill_manager(
             self.job_names,
+            self.scheduler,
             error=self.kill_on_error,
             interval=self.kill_interval,
             move_to=self.move_old_logs_to,
-            log_file_folder=self.log_file_folder,
+            db_fname=self.db_fname,
             **self.start_kill_manager_kwargs,
         )
 
@@ -836,7 +862,7 @@ class RunManager:
             self.database_task.cancel()
         if self.kill_task is not None:
             self.kill_task.cancel()
-        cancel(self.job_names)
+        self.scheduler.cancel(self.job_names)
 
     def cleanup(self) -> None:
         """Cleanup the log and batch files.
@@ -844,16 +870,30 @@ class RunManager:
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        from adaptive_scheduler.utils import cleanup_files, _delete_old_ipython_profiles
+        from adaptive_scheduler.utils import (
+            _delete_old_ipython_profiles,
+            _remove_or_move_files,
+        )
 
+        scheduler = self.scheduler
         with suppress(FileNotFoundError):
             if self.status() != "running":
-                os.remove(self._default_run_script_name)
+                os.remove(scheduler.run_script)
 
-        running_job_ids = set(queue().keys())
-        if self.executor_type == "ipyparallel":
+        running_job_ids = set(scheduler.queue().keys())
+        if scheduler.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
-        cleanup_files(self.job_names, log_file_folder=self.log_file_folder)
+
+        log_fnames = [scheduler.log_fname(name) for name in self.job_names]
+        output_fnames = [scheduler.output_fnames(name) for name in self.job_names]
+        output_fnames = sum(output_fnames, [])
+        batch_fnames = [scheduler.batch_fname(name) for name in self.job_names]
+        fnames = log_fnames + output_fnames + batch_fnames
+        to_rm = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
+        to_rm = sum(to_rm, [])
+        _remove_or_move_files(
+            to_rm, True, self.move_old_logs_to, "Removing logs and batch files"
+        )
 
     def parse_log_files(self, only_last: bool = True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
@@ -868,11 +908,7 @@ class RunManager:
         df : `~pandas.core.frame.DataFrame`
 
         """
-        from adaptive_scheduler.utils import parse_log_files
-
-        return parse_log_files(
-            self.job_names, only_last, self.db_fname, self.log_file_folder
-        )
+        return parse_log_files(self.job_names, self.db_fname, self.scheduler, only_last)
 
     def task_status(self) -> None:
         r"""Print the stack of the `asyncio.Task`\s."""
@@ -974,7 +1010,11 @@ class RunManager:
         )
 
     def _info_html(self) -> str:
-        jobs = [job for job in queue().values() if job["name"] in self.job_names]
+        jobs = [
+            job
+            for job in self.scheduler.queue().values()
+            if job["job_name"] in self.job_names
+        ]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
         n_done = sum(job["is_done"] for job in self.get_database())
@@ -1005,6 +1045,9 @@ class RunManager:
                 ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
                 ("mean overhead", f"{df.overhead.mean().round(1)} %"),
             ]
+            for key in ["npoints/s", "latest_loss", "nlearners"]:
+                with suppress(Exception):
+                    from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
             msg = "this is extracted from the log files, so it might not be up-to-date"
             info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
 
@@ -1021,7 +1064,7 @@ class RunManager:
         return self.info()
 
 
-def periodically_clean_ipython_profiles(interval: int = 600):
+def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
     """Periodically remove old IPython profiles.
 
     In the `RunManager.cleanup` method the profiles will be removed. However,
@@ -1042,7 +1085,7 @@ def periodically_clean_ipython_profiles(interval: int = 600):
 
         while True:
             with suppress(Exception):
-                running_job_ids = set(queue().keys())
+                running_job_ids = set(scheduler.queue().keys())
                 _delete_old_ipython_profiles(running_job_ids, with_progress_bar=False)
             await asyncio.sleep(interval)
 

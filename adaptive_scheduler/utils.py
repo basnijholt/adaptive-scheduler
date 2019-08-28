@@ -1,25 +1,21 @@
-import ast
-import collections
 import glob
 import inspect
 import math
 import os
 import random
 import shutil
-import subprocess
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import adaptive
-import parse
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
+
 
 MAX_LINE_LENGTH = 100
 
@@ -98,61 +94,6 @@ def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""
             return tqdm(list(seq), desc=desc)
 
 
-def _cancel_function(cancel_cmd: str, queue_function: Callable) -> Callable:
-    def cancel(
-        job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
-    ) -> None:
-        """Cancel all jobs in `job_names`.
-
-        Parameters
-        ----------
-        job_names : list
-            List of job names.
-        with_progress_bar : bool, default: True
-            Display a progress bar using `tqdm`.
-        max_tries : int, default: 5
-            Maximum number of attempts to cancel a job.
-        """
-
-        def to_cancel(job_names):
-            return [
-                job_id
-                for job_id, info in queue_function().items()
-                if info["name"] in job_names
-            ]
-
-        def cancel_jobs(job_ids):
-            for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
-                cmd = f"{cancel_cmd} {job_id}".split()
-                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
-                if returncode != 0:
-                    warnings.warn(f"Couldn't cancel '{job_id}'.", UserWarning)
-
-        job_names = set(job_names)
-        for _ in range(max_tries):
-            job_ids = to_cancel(job_names)
-            if not job_ids:
-                # no more running jobs
-                break
-            cancel_jobs(job_ids)
-
-    return cancel
-
-
-def _get_log_files(job_name: str, templates: List[str], log_file_folder: str = ""):
-    info = collections.defaultdict(list)
-    for template in templates:
-        pattern = template.format(job_name=job_name, job_id="*")
-        pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
-        for fname in glob.glob(pattern):
-            parsed = parse.parse(template, fname)
-            if parsed is None:
-                continue
-            job_id = parsed.named["job_id"]
-            info[job_id].append(fname)
-    return dict(info)
-
-
 def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ".pickle"
@@ -176,54 +117,12 @@ def _delete_old_ipython_profiles(
     ]
 
     with ThreadPoolExecutor() as ex:
-        pbar = _progress(
-            to_delete, desc="Submitting deleting old IPython profiles tasks"
-        )
+        desc = "Submitting deleting old IPython profiles tasks"
+        pbar = _progress(to_delete, desc=desc)
         futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
-        for fut in _progress(
-            futs, with_progress_bar, desc="Finishing deleting old IPython profiles"
-        ):
+        desc = "Finishing deleting old IPython profiles"
+        for fut in _progress(futs, with_progress_bar, desc=desc):
             fut.result()
-
-
-def cleanup_files(
-    job_names: List[str],
-    extensions: List[str] = ["sbatch", "out", "batch", "e*", "o*"],
-    with_progress_bar: bool = True,
-    move_to: Optional[str] = None,
-    log_file_folder: str = "",
-) -> None:
-    """Cleanup the scheduler log-files files.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    extensions : list
-        List of file extensions to be removed.
-    with_progress_bar : bool, default: True
-        Display a progress bar using `tqdm`.
-    move_to : str, default: None
-        Move the file to a different directory.
-        If None the file is removed.
-    log_file_folder : str, default: ''
-        The folder in which to delete the log-files.
-    """
-    # Finding the files
-    fnames: List[str] = []
-    for job_name in job_names:
-        for ext in extensions:
-            pattern = f"{job_name}*.{ext}"
-            fnames += glob.glob(pattern)
-            if log_file_folder:
-                # The log-files might be in a different folder, but we're
-                # going to loop over every extension anyway.
-                pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
-                fnames += glob.glob(pattern)
-
-    _remove_or_move_files(
-        fnames, with_progress_bar, move_to, "Removing logs and batch files"
-    )
 
 
 def _remove_or_move_files(
@@ -319,197 +218,6 @@ def save_parallel(
             fut.result()
 
 
-def _get_status_prints(fname: str, only_last: bool = True):
-    status_lines: List[str] = []
-    with open(fname) as f:
-        lines = f.readlines()
-        if not lines:
-            return status_lines
-        for line in reversed(lines):
-            if "current status" in line:
-                status_lines.append(line)
-                if only_last:
-                    return status_lines
-    return status_lines
-
-
-def _last_edited(kv):
-    job_id, fnames = kv
-    return max(os.path.getmtime(fname) for fname in fnames)
-
-
-def parse_log_files(  # noqa: C901
-    job_names: List[str],
-    only_last: bool = True,
-    db_fname: Optional[str] = None,
-    log_file_folder: str = "",
-):
-    """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
-
-    This only works if you use `adaptive_scheduler.client_support.log_info`
-    inside your ``run_script``.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    only_last : bool, default: True
-        Only look use the last printed status message.
-    db_fname : str, optional
-        The database filename. If passed, ``fname`` will be populated.
-    log_file_folder : str, default: ""
-        The folder in which the log-files are.
-
-    Returns
-    -------
-    `~pandas.core.frame.DataFrame`
-    """
-    # XXX: it could be that the job_id and the logfile don't match up ATM! This
-    # probably happens when a job got canceled and is pending now.
-    try:
-        import pandas as pd
-
-        with_pandas = True
-    except ImportError:
-        with_pandas = False
-        warnings.warn("`pandas` is not installed, a list of dicts will be returned.")
-
-    # import here to avoid circular imports
-    from adaptive_scheduler.server_support import get_database
-    from adaptive_scheduler._scheduler import queue, get_log_files
-
-    def convert_type(k, v):
-        if k == "elapsed_time":
-            return pd.to_timedelta(v)
-        elif k == "overhead":
-            return float(v[:-1])
-        elif v in ("inf", "nan"):
-            # because `ast.literal_eval('inf')` will fail
-            # see https://bugs.python.org/issue15245
-            return float(v)
-        else:
-            return ast.literal_eval(v)
-
-    def join_str(info):
-        """Turns an incorrectly split string
-        ["elapsed_time=1", "day,", "0:20:57.330515", "nlearners=31"]
-        back the correct thing
-        ['elapsed_time=1 day, 0:20:57.330515', 'nlearners=31']
-        """
-        _info = []
-        for x in info:
-            if "=" in x:
-                _info.append(x)
-            else:
-                _info[-1] += f" {x}"
-        return _info
-
-    infos = []
-    for job_name in job_names:
-        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
-        if not log_files:
-            continue
-        # `d` might point to multiple logs of which one is still running
-        # so we take the last edited logs.
-        job_id, fnames = max(log_files.items(), key=_last_edited)
-        # Loop over both stdout and stderr files
-        # however the info is only in the stdout
-        for fname in fnames:
-            statuses = _get_status_prints(fname, only_last)
-            if statuses is None:
-                continue
-            for status in statuses:
-                time, info = status.split("current status")
-                info = join_str(info.strip().split(" "))
-                info = dict([x.split("=") for x in info])
-                info = {k: convert_type(k, v) for k, v in info.items()}
-                info["job_id"] = job_id
-                info["job_name"] = job_name
-                info["time"] = datetime.strptime(time.strip(), "%Y-%m-%d %H:%M.%S")
-                info["log_file"] = fname
-                infos.append(info)
-
-    # Polulate state and job_id from the queue
-    mapping = {
-        info["name"]: (job_id, info["state"]) for job_id, info in queue().items()
-    }
-
-    for info in infos:
-        job_id, state = mapping.get(info["job_name"], (None, None))
-        if job_id is not None and info["job_id"] in job_id:
-            info["state"] = state
-            # `job_id` is from the log-file name and info["job_id"] from qstat/squeue
-            # and could have a slightly different format
-            info["job_id"] = job_id
-        # This could happen: `info["job_id"]='83024'` and `job_id='83038.hpc05.hpc'`
-        # which means 83024 has finished and a new job `83038` has started
-        # but there is no log file for that yet.
-
-    if db_fname is not None:
-        # populate "fname" and "is_done" from the database
-        db = get_database(db_fname)
-        fnames = {info["job_id"]: info["fname"] for info in db}
-        id_done = {info["job_id"]: info["is_done"] for info in db}
-        for info in infos:
-            info["fname"] = fnames.get(info["job_id"], "UNKNOWN")
-            info["is_done"] = id_done.get(info["job_id"], "UNKNOWN")
-
-    return pd.DataFrame(infos) if with_pandas else infos
-
-
-def logs_with_string_or_condition(
-    job_names: List[str],
-    error: Union[str, Callable[[List[str]], bool]],
-    log_file_folder: str = "",
-) -> Dict[str, list]:
-    """Get jobs that have `string` (or apply a callable) inside their log-file.
-
-    Either use `string` or `error`.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    error : str or callable
-        String that is searched for or callable that is applied
-        to the log text. Must take a single argument, a list of
-        strings, and return True if the job has to be killed, or
-        False if not.
-
-    Returns
-    -------
-    has_string : list
-        A directory of ``job_id -> (job_name, fnames)``,
-        which have the string inside their log-file.
-    """
-    from adaptive_scheduler._scheduler import get_log_files
-
-    if isinstance(error, str):
-        has_error = lambda lines: error in "".join(lines)  # noqa: E731
-    elif callable(error):
-        has_error = error
-    else:
-        raise ValueError("`error` can only be a `str` or `callable`.")
-
-    def file_has_error(fname):
-        with open(fname) as f:
-            lines = f.readlines()
-        return has_error(lines)
-
-    have_error = {}
-    for job_name in job_names:
-        log_files = get_log_files(job_name, log_file_folder=log_file_folder)
-        if not log_files:
-            continue
-        # `d` might point to multiple logs of which one is still running
-        # so we take the last edited logs.
-        # This assumes that the last running job has the last edited log.
-        job_id, fnames = max(log_files.items(), key=_last_edited)
-        if any(file_has_error(fname) for fname in fnames):
-            have_error[job_id] = job_name, fnames
-    return log_files
-
-
 def _print_same_line(msg: str, new_line_end: bool = False):
     msg = msg.strip()
     global MAX_LINE_LENGTH
@@ -581,3 +289,10 @@ def _get_default_args(func: Callable) -> Dict[str, str]:
         for k, v in signature.parameters.items()
         if v.default is not inspect.Parameter.empty
     }
+
+
+def log_exception(log, msg, exception):
+    try:
+        raise exception
+    except Exception:
+        log.exception(msg, exc_info=True)
