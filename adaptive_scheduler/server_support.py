@@ -683,26 +683,26 @@ class RunManager:
     Here is an example of using the `RunManager` with a modified ``job_script_function``.
 
     >>> import adaptive_scheduler
-    >>> from functools import partial
-    XXX: TODO!
+    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(cores=10)
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
-    ...     job_script_function=job_script_function, cores_per_job=12, overwrite_db=True
+    ...     scheduler=scheduler
     ... ).start()
 
     Or an example using `ipyparallel.Client`.
 
     >>> from functools import partial
     >>> import adaptive_scheduler
-    >>> XXX: TODO!
+    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(
+    ...     cores=10, executor_type="ipyparallel",
+    ... )
     >>> def goal(learner):
     ...     return learner.npoints > 2000
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
+    ...     scheduler=scheduler,
     ...     learners_file="learners_file.py",
     ...     goal=goal,
     ...     log_interval=30,
     ...     save_interval=30,
-    ...     job_script_function=job_script_function,
-    ...     executor_type="ipyparallel",
     ... )
     >>> run_manager.start()
 
