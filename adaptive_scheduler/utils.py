@@ -117,54 +117,12 @@ def _delete_old_ipython_profiles(
     ]
 
     with ThreadPoolExecutor() as ex:
-        pbar = _progress(
-            to_delete, desc="Submitting deleting old IPython profiles tasks"
-        )
+        desc = "Submitting deleting old IPython profiles tasks"
+        pbar = _progress(to_delete, desc=desc)
         futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
-        for fut in _progress(
-            futs, with_progress_bar, desc="Finishing deleting old IPython profiles"
-        ):
+        desc = "Finishing deleting old IPython profiles"
+        for fut in _progress(futs, with_progress_bar, desc=desc):
             fut.result()
-
-
-def cleanup_files(
-    job_names: List[str],
-    extensions: List[str] = ["sbatch", "out", "batch", "e*", "o*"],
-    with_progress_bar: bool = True,
-    move_to: Optional[str] = None,
-    log_file_folder: str = "",
-) -> None:
-    """Cleanup the scheduler log-files files.
-
-    Parameters
-    ----------
-    job_names : list
-        List of job names.
-    extensions : list
-        List of file extensions to be removed.
-    with_progress_bar : bool, default: True
-        Display a progress bar using `tqdm`.
-    move_to : str, default: None
-        Move the file to a different directory.
-        If None the file is removed.
-    log_file_folder : str, default: ''
-        The folder in which to delete the log-files.
-    """
-    # Finding the files
-    fnames: List[str] = []
-    for job_name in job_names:
-        for ext in extensions:
-            pattern = f"{job_name}*.{ext}"
-            fnames += glob.glob(pattern)
-            if log_file_folder:
-                # The log-files might be in a different folder, but we're
-                # going to loop over every extension anyway.
-                pattern = os.path.expanduser(os.path.join(log_file_folder, pattern))
-                fnames += glob.glob(pattern)
-
-    _remove_or_move_files(
-        fnames, with_progress_bar, move_to, "Removing logs and batch files"
-    )
 
 
 def _remove_or_move_files(

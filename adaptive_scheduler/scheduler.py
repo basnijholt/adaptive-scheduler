@@ -116,6 +116,9 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def job_script(self):
         pass
 
+    def batch_fname(self, name):
+        return name + self.ext
+
     def cancel(
         self, job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
     ) -> None:
@@ -197,7 +200,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
     def start_job(self, name):
-        with open(name + self.ext, "w") as f:
+        with open(self.batch_fname(name), "w") as f:
             job_script = self.job_script(name)
             f.write(job_script)
 
@@ -305,7 +308,7 @@ class PBS(BaseScheduler):
             """
         )
 
-    def output_file(self, name):
+    def output_files(self, name):
         """The "-k oe" flags with "qsub" writes the log output to
         files directly instead of at the end of the job. The downside
         is that the logfiles are put in the homefolder."""
@@ -313,7 +316,7 @@ class PBS(BaseScheduler):
         stdout, stderr = [
             os.path.join(home, f"{name}.{x}{self._JOB_ID_VARIABLE}") for x in "oe"
         ]
-        return stdout, stderr
+        return [stdout, stderr]
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -510,9 +513,9 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def output_file(self, name):
+    def output_files(self, name):
         log_file = self.log_file(name)
-        return log_file.replace(".log", ".out")
+        return [log_file.replace(".log", ".out")]
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -522,7 +525,7 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-        output_file = self.output_file(name).replace(self._JOB_ID_VARIABLE, "%A")
+        output_file = self.output_files(name).replace(self._JOB_ID_VARIABLE, "%A")
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash

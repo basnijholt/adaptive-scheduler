@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import glob
 import json
 import logging
 import os
@@ -322,16 +323,13 @@ def _get_entry(job_name, db_fname):
         return db.get(Entry.job_name == job_name)
 
 
-def _get_output_file(job_name, db_fname, scheduler):
+def _get_output_files(job_name, db_fname, scheduler):
     entry = _get_entry(job_name, db_fname)
     if entry is None or entry["job_id"] is None:
         return
-    output_file = scheduler.output_file(job_name)
-    if isinstance(output_file, str):
-        # SLURM has one file but PBS has two files
-        output_files = [output_file]
     output_files = [
-        f.replace(scheduler._JOB_ID_VARIABLE, entry["job_id"]) for f in output_files
+        f.replace(scheduler._JOB_ID_VARIABLE, entry["job_id"])
+        for f in scheduler.output_files(job_name)
     ]
     return output_files
 
@@ -382,7 +380,7 @@ def logs_with_string_or_condition(
     for entry in get_database(db_fname):
         if entry["job_id"] is None:
             continue
-        output_files = _get_output_file(entry["job_name"], db_fname, scheduler)
+        output_files = _get_output_files(entry["job_name"], db_fname, scheduler)
         if any(file_has_error(f) for f in output_files):
             for output_file in output_files:
                 have_error[entry["job_id"]] = entry["job_name"], output_file
@@ -873,16 +871,30 @@ class RunManager:
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        from adaptive_scheduler.utils import cleanup_files, _delete_old_ipython_profiles
+        from adaptive_scheduler.utils import (
+            _delete_old_ipython_profiles,
+            _remove_or_move_files,
+        )
 
+        scheduler = self.scheduler
         with suppress(FileNotFoundError):
             if self.status() != "running":
-                os.remove(self.scheduler.run_script)
+                os.remove(scheduler.run_script)
 
-        running_job_ids = set(self.scheduler.queue().keys())
-        if self.scheduler.executor_type == "ipyparallel":
+        running_job_ids = set(scheduler.queue().keys())
+        if scheduler.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
-        cleanup_files(self.job_names, log_file_folder=self.scheduler.log_file_folder)
+
+        log_fnames = [scheduler.log_file(name) for name in self.job_names]
+        output_fnames = [scheduler.output_files(name) for name in self.job_names]
+        output_fnames = sum(output_fnames, [])
+        batch_fnames = [scheduler.batch_fname(name) for name in self.job_names]
+        fnames = log_fnames + output_fnames + batch_fnames
+        to_rm = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
+        to_rm = sum(to_rm, [])
+        _remove_or_move_files(
+            to_rm, True, self.move_old_logs_to, "Removing logs and batch files"
+        )
 
     def parse_log_files(self, only_last: bool = True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
