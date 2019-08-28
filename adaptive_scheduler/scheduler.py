@@ -237,12 +237,14 @@ class PBS(BaseScheduler):
             extra_scheduler,
             extra_env_vars,
         )
+        # Attributes that all schedulers need to have
         self._ext = ".batch"
         self._submit_cmd = "qsub"
         self._JOB_ID_VARIABLE = "${PBS_JOBID}"
         self._scheduler = "PBS"
         self._cancel_cmd = "qdel"
 
+        # PBS specific
         self.cores_per_node = cores_per_node
         self._calculate_nnodes()
         if cores != self.cores:
@@ -460,13 +462,15 @@ class SLURM(BaseScheduler):
             extra_scheduler,
             extra_env_vars,
         )
-
-        self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
+        # Attributes that all schedulers need to have
         self._ext = ".sbatch"
         self._submit_cmd = "sbatch"
         self._JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
         self._scheduler = "SLURM"
         self._cancel_cmd = "scancel"
+
+        # SLURM specific
+        self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
     def _ipyparallel(self, log_file):
         job_id = self._JOB_ID_VARIABLE
