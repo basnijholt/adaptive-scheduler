@@ -55,7 +55,10 @@ def _get_default_scheduler():
     elif has_slurm:
         return SLURM
     else:
-        msg = f"No scheduler system could be detected. We set it to '{DEFAULT}'."
+        msg = (
+            "No scheduler system could be detected."
+            f" We set DefaultScheduler to '{DEFAULT}'."
+        )
         warnings.warn(msg)
         return DEFAULT
 
