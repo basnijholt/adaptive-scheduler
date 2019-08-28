@@ -285,7 +285,6 @@ class PBS(BaseScheduler):
                 self.nnodes = int(self.nnodes)
 
     def _ipyparallel(self, name):
-        # This does not really work yet.
         log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
