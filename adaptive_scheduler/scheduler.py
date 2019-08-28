@@ -66,7 +66,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         cores,
         run_script,
         python_executable,
-        log_file_folder,
+        log_folder,
         mpiexec_executable,
         executor_type,
         num_threads,
@@ -76,7 +76,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         self.cores = cores
         self.run_script = run_script
         self.python_executable = python_executable or sys.executable
-        self.log_file_folder = log_file_folder
+        self.log_folder = log_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"
         self.executor_type = executor_type
         self.num_threads = num_threads
@@ -158,12 +158,12 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             time.sleep(0.5)
 
     def _mpi4py(self, name):
-        log_file = self.log_file(name)
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+        log_fname = self.log_fname(name)
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
     def _dask_mpi(self, name):
-        log_file = self.log_file(name)
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+        log_fname = self.log_fname(name)
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
     @abc.abstractmethod
     def _ipyparallel(self, name):
@@ -184,10 +184,10 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         else:
             raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
-    def log_file(self, name):
-        if self.log_file_folder:
-            os.makedirs(self.log_file_folder, exist_ok=True)
-        return os.path.join(self.log_file_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
+    def log_fname(self, name):
+        if self.log_folder:
+            os.makedirs(self.log_folder, exist_ok=True)
+        return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
 
     @property
     def extra_scheduler(self):
@@ -218,7 +218,7 @@ class PBS(BaseScheduler):
         cores,
         run_script="run_learner.py",
         python_executable=None,
-        log_file_folder="",
+        log_folder="",
         mpiexec_executable=None,
         executor_type="mpi4py",
         num_threads=1,
@@ -231,7 +231,7 @@ class PBS(BaseScheduler):
             cores,
             run_script,
             python_executable,
-            log_file_folder,
+            log_folder,
             mpiexec_executable,
             executor_type,
             num_threads,
@@ -286,7 +286,7 @@ class PBS(BaseScheduler):
 
     def _ipyparallel(self, name):
         # This does not really work yet.
-        log_file = self.log_file(name)
+        log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -304,11 +304,11 @@ class PBS(BaseScheduler):
             {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id} --name {name}
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
             """
         )
 
-    def output_files(self, name):
+    def output_fnames(self, name):
         """The "-k oe" flags with "qsub" writes the log output to
         files directly instead of at the end of the job. The downside
         is that the logfiles are put in the homefolder."""
@@ -462,7 +462,7 @@ class SLURM(BaseScheduler):
         cores,
         run_script="run_learner.py",
         python_executable=None,
-        log_file_folder="",
+        log_folder="",
         mpiexec_executable=None,
         executor_type="mpi4py",
         num_threads=1,
@@ -473,7 +473,7 @@ class SLURM(BaseScheduler):
             cores,
             run_script,
             python_executable,
-            log_file_folder,
+            log_folder,
             mpiexec_executable,
             executor_type,
             num_threads,
@@ -491,7 +491,7 @@ class SLURM(BaseScheduler):
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
     def _ipyparallel(self, name):
-        log_file = self.log_file(name)
+        log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -509,13 +509,13 @@ class SLURM(BaseScheduler):
             srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id} --name {name}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
             """
         )
 
-    def output_files(self, name):
-        log_file = self.log_file(name)
-        return [log_file.replace(".log", ".out")]
+    def output_fnames(self, name):
+        log_fname = self.log_fname(name)
+        return [log_fname.replace(".log", ".out")]
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -525,14 +525,14 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-        output_file = self.output_files(name).replace(self._JOB_ID_VARIABLE, "%A")
+        output_fname = self.output_fnames(name).replace(self._JOB_ID_VARIABLE, "%A")
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
             #SBATCH --job-name {name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
-            #SBATCH --output {output_file}
+            #SBATCH --output {output_fname}
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}

@@ -41,8 +41,8 @@ def _dispatch(request: Tuple[str, str], db_fname: str):
     try:
         if request_type == "start":
             # workers send us their slurm ID for us to fill in
-            job_id, log_file, job_name = request_arg
-            kwargs = dict(job_id=job_id, log_file=log_file, job_name=job_name)
+            job_id, log_fname, job_name = request_arg
+            kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
             # give the worker a job and send back the fname to the worker
             fname = _choose_fname(db_fname, **kwargs)
             log.debug("choose a fname", fname=fname, **kwargs)
@@ -251,7 +251,7 @@ def get_allowed_url() -> str:
 
 def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     """Create an empty database that keeps track of
-    fname -> (job_id, is_done, log_file, job_name).
+    fname -> (job_id, is_done, log_fname, job_name).
 
     Parameters
     ----------
@@ -260,7 +260,7 @@ def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     fnames : list
         List of `fnames` corresponding to `learners`.
     """
-    defaults = dict(job_id=None, is_done=False, log_file=None, job_name=None)
+    defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
     entries = [dict(fname=fname, **defaults) for fname in fnames]
     if os.path.exists(db_fname):
         os.remove(db_fname)
@@ -281,7 +281,7 @@ def _update_db(db_fname: str, running: [str, dict]) -> None:
         db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname: str, job_id: str, log_file: str, job_name: str) -> str:
+def _choose_fname(db_fname: str, job_id: str, log_fname: str, job_name: str) -> str:
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -298,7 +298,7 @@ def _choose_fname(db_fname: str, job_id: str, log_file: str, job_name: str) -> s
         if entry is None:
             return
         db.update(
-            {"job_id": job_id, "log_file": log_file, "job_name": job_name},
+            {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
             doc_ids=[entry.doc_id],
         )
     return entry["fname"]
@@ -323,15 +323,15 @@ def _get_entry(job_name, db_fname):
         return db.get(Entry.job_name == job_name)
 
 
-def _get_output_files(job_name, db_fname, scheduler):
+def _get_output_fnames(job_name, db_fname, scheduler):
     entry = _get_entry(job_name, db_fname)
     if entry is None or entry["job_id"] is None:
         return
-    output_files = [
+    output_fnames = [
         f.replace(scheduler._JOB_ID_VARIABLE, entry["job_id"])
-        for f in scheduler.output_files(job_name)
+        for f in scheduler.output_fnames(job_name)
     ]
-    return output_files
+    return output_fnames
 
 
 def logs_with_string_or_condition(
@@ -380,10 +380,10 @@ def logs_with_string_or_condition(
     for entry in get_database(db_fname):
         if entry["job_id"] is None:
             continue
-        output_files = _get_output_files(entry["job_name"], db_fname, scheduler)
-        if any(file_has_error(f) for f in output_files):
-            for output_file in output_files:
-                have_error[entry["job_id"]] = entry["job_name"], output_file
+        output_fnames = _get_output_fnames(entry["job_name"], db_fname, scheduler)
+        if any(file_has_error(f) for f in output_fnames):
+            for output_fname in output_fnames:
+                have_error[entry["job_id"]] = entry["job_name"], output_fname
     return have_error
 
 
@@ -546,7 +546,7 @@ def _make_default_run_script(
         parser = argparse.ArgumentParser()
         parser.add_argument('--profile', action="store", dest="profile", type=str)
         parser.add_argument('--n', action="store", dest="n", type=int)
-        parser.add_argument('--log-file', action="store", dest="log_file", type=str)
+        parser.add_argument('--log-fname', action="store", dest="log_fname", type=str)
         parser.add_argument('--job-id', action="store", dest="job_id", type=str)
         parser.add_argument('--name', action="store", dest="name", type=str)
         args = parser.parse_args()
@@ -554,8 +554,8 @@ def _make_default_run_script(
         # the address of the "database manager"
         url = "{url}"
 
-        # ask the database for a learner that we can run which we log in `args.log_file`
-        learner, fname = client_support.get_learner(learners, fnames, url, args.log_file, args.job_id, args.name)
+        # ask the database for a learner that we can run which we log in `args.log_fname`
+        learner, fname = client_support.get_learner(learners, fnames, url, args.log_fname, args.job_id, args.name)
 
         # load the data
         with suppress(Exception):
@@ -634,10 +634,10 @@ def parse_log_files(  # noqa: C901
 
     infos = []
     for entry in get_database(db_fname):
-        log_file = entry["log_file"]
-        if log_file is None:
+        log_fname = entry["log_fname"]
+        if log_fname is None:
             continue
-        for info in _get_infos(log_file, only_last):
+        for info in _get_infos(log_fname, only_last):
             info.pop("event")  # this is always "current status"
             info["timestamp"] = datetime.datetime.strptime(
                 info["timestamp"], "%Y-%m-%d %H:%M.%S"
@@ -885,8 +885,8 @@ class RunManager:
         if scheduler.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
 
-        log_fnames = [scheduler.log_file(name) for name in self.job_names]
-        output_fnames = [scheduler.output_files(name) for name in self.job_names]
+        log_fnames = [scheduler.log_fname(name) for name in self.job_names]
+        output_fnames = [scheduler.output_fnames(name) for name in self.job_names]
         output_fnames = sum(output_fnames, [])
         batch_fnames = [scheduler.batch_fname(name) for name in self.job_names]
         fnames = log_fnames + output_fnames + batch_fnames

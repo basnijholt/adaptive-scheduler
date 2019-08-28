@@ -26,8 +26,8 @@ log = structlog.wrap_logger(
 )
 
 
-def _add_log_file_handler(log_file):
-    fh = logging.FileHandler(log_file)
+def _add_log_file_handler(log_fname):
+    fh = logging.FileHandler(log_fname)
     logger.addHandler(fh)
 
 
@@ -35,12 +35,12 @@ def get_learner(
     learners: List[BaseLearner],
     fnames: List[str],
     url: str,
-    log_file: str,
+    log_fname: str,
     job_id: str,
     job_name: str,
 ) -> None:
     """Get a learner from the database running at `url` and this learner's
-    process will be logged in `log_file` and running under `job_id`.
+    process will be logged in `log_fname` and running under `job_id`.
 
     Parameters
     ----------
@@ -51,7 +51,7 @@ def get_learner(
     url : str
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    log_file : str
+    log_fname : str
         The filename of the log-file. Should be passed in the job-script.
     job_id : str
         The job_id of the process the job. Should be passed in the job-script.
@@ -63,13 +63,13 @@ def get_learner(
     fname : str
         The filename of the learner that was chosen.
     """
-    _add_log_file_handler(log_file)
+    _add_log_file_handler(log_fname)
     log.info(
-        "trying to get learner", job_id=job_id, log_file=log_file, job_name=job_name
+        "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
     )
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("start", job_id, log_file, job_name))
+        socket.send_pyobj(("start", job_id, log_fname, job_name))
         log.info(f"sent start signal")
         reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply))
