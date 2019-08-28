@@ -49,7 +49,7 @@ def _dispatch(request: Tuple[str, str], db_fname: str):
             return fname
         elif request_type == "stop":
             fname = request_arg[0]  # workers send us the fname they were given
-            log.debug("got a stop request", fname=fname, **kwargs)
+            log.debug("got a stop request", fname=fname)
             _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
         return e
