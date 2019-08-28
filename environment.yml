@@ -9,6 +9,7 @@ dependencies:
   - dill
   - ipyparallel
   - mpi4py
+  - pandas
   - psutil
   - pyzmq
   - structlog
