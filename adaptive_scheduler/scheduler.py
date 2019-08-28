@@ -35,19 +35,19 @@ def _get_default_scheduler():
     has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
     DEFAULT = SLURM
+    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
     scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
-
     if scheduler_system:
         if scheduler_system not in ("PBS", "SLURM"):
             warnings.warn(
                 f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
-                f"Use SLURM or PBS. We set it to '{DEFAULT}'."
+                f"Use SLURM or PBS. {default_msg}"
             )
             return DEFAULT
         else:
             return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
     elif has_slurm and has_pbs:
-        msg = f"Both SLURM and PBS are detected. We set it to '{DEFAULT}'."
+        msg = f"Both SLURM and PBS are detected. {default_msg}"
         warnings.warn(msg)
         return DEFAULT
     elif has_pbs:
@@ -55,10 +55,7 @@ def _get_default_scheduler():
     elif has_slurm:
         return SLURM
     else:
-        msg = (
-            "No scheduler system could be detected."
-            f" We set DefaultScheduler to '{DEFAULT}'."
-        )
+        msg = f"No scheduler system could be detected. {default_msg}"
         warnings.warn(msg)
         return DEFAULT
 
@@ -157,29 +154,30 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             cancel_jobs(job_ids)
             time.sleep(0.5)
 
-    def _mpi4py(self, log_file):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE}"
+    def _mpi4py(self, name):
+        log_file = self.log_file(name)
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
-    def _dask_mpi(self, log_file):
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE}"
+    def _dask_mpi(self, name):
+        log_file = self.log_file(name)
+        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-file {log_file} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
     @abc.abstractmethod
-    def _ipyparallel(self, log_file):
+    def _ipyparallel(self, name):
         pass
 
     def _executor_specific(self, name):
-        log_file = self.log_file(name)
         if self.executor_type == "mpi4py":
-            return self._mpi4py(log_file)
+            return self._mpi4py(name)
         elif self.executor_type == "dask-mpi":
-            return self._dask_mpi(log_file)
+            return self._dask_mpi(name)
         elif self.executor_type == "ipyparallel":
             if self.cores <= 1:
                 raise ValueError(
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     "the rest of the cores for the engines, so use more than 1 core."
                 )
-            return self._ipyparallel(log_file)
+            return self._ipyparallel(name)
         else:
             raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
@@ -239,7 +237,10 @@ class PBS(BaseScheduler):
         )
         # Attributes that all schedulers need to have
         self._ext = ".batch"
-        self._submit_cmd = "qsub"
+        # the "-k oe" flags with "qsub" writes the log output to
+        # files directly instead of at the end of the job. The downside
+        # is that the logfiles are put in the homefolder.
+        self._submit_cmd = "qsub -k oe"
         self._JOB_ID_VARIABLE = "${PBS_JOBID}"
         self._scheduler = "PBS"
         self._cancel_cmd = "qdel"
@@ -252,10 +253,7 @@ class PBS(BaseScheduler):
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
-            partial_msg = (
-                "Use `functools.partial(job_script, cores_per_node=...)` before"
-                " passing `job_script` to the `job_script_function` argument."
-            )
+            partial_msg = "Use set `cores_per_node=...` before passing the scheduler."
             try:
                 max_cores_per_node = self._guess_cores_per_node()
                 self.nnodes = math.ceil(self.cores / max_cores_per_node)
@@ -268,8 +266,14 @@ class PBS(BaseScheduler):
                 warnings.warn(msg)
                 self.cores = self.nnodes * self.cores_per_node
             except Exception as e:
-                msg = f"Couldn't guess `cores_per_node`, this argument is required for PBS. {partial_msg}"
-                raise Exception(msg) from e
+                msg = (
+                    f"Got an error: {e}."
+                    f" Couldn't guess `cores_per_node`, this argument is required for PBS. {partial_msg}"
+                    " We set `cores_per_node=1`!"
+                )
+                warnings.warn(msg)
+                self.nnodes = self.cores
+                self.cores_per_nodes = 1
         else:
             self.nnodes = self.cores / self.cores_per_node
             if not float(self.nnodes).is_integer():
@@ -277,8 +281,9 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def _ipyparallel(self, log_file):
+    def _ipyparallel(self, name):
         # This does not really work yet.
+        log_file = self.log_file(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -296,9 +301,19 @@ class PBS(BaseScheduler):
             {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id}
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id} --name {name}
             """
         )
+
+    def output_file(self, name):
+        """The "-k oe" flags with "qsub" writes the log output to
+        files directly instead of at the end of the job. The downside
+        is that the logfiles are put in the homefolder."""
+        home = os.path.expanduser("~/")
+        stdout, stderr = [
+            os.path.join(home, f"{name}.{x}{self._JOB_ID_VARIABLE}") for x in "oe"
+        ]
+        return stdout, stderr
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -315,8 +330,8 @@ class PBS(BaseScheduler):
             #PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}
             #PBS -V
             #PBS -N {name}
-            #PBS -o /tmp/{name}-{{job_id_variable}}.out
-            #PBS -e /tmp/{name}-{{job_id_variable}}.out
+            #PBS -o /tmp/placeholder
+            #PBS -e /tmp/placeholder
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
@@ -472,7 +487,8 @@ class SLURM(BaseScheduler):
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
-    def _ipyparallel(self, log_file):
+    def _ipyparallel(self, name):
+        log_file = self.log_file(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         return textwrap.dedent(
@@ -490,13 +506,13 @@ class SLURM(BaseScheduler):
             srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-file {log_file} --job-id {job_id} --name {name}
             """
         )
 
     def output_file(self, name):
         log_file = self.log_file(name)
-        return log_file.replace(self._JOB_ID_VARIABLE, "%A").replace(".log", ".out")
+        return log_file.replace(".log", ".out")
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -506,7 +522,7 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-        output_file = self.output_file(name)
+        output_file = self.output_file(name).replace(self._JOB_ID_VARIABLE, "%A")
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash

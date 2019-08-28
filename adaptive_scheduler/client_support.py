@@ -32,7 +32,12 @@ def _add_log_file_handler(log_file):
 
 
 def get_learner(
-    learners: List[BaseLearner], fnames: List[str], url: str, log_file: str, job_id: str
+    learners: List[BaseLearner],
+    fnames: List[str],
+    url: str,
+    log_file: str,
+    job_id: str,
+    job_name: str,
 ) -> None:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_file` and running under `job_id`.
@@ -49,7 +54,9 @@ def get_learner(
     log_file : str
         The filename of the log-file. Should be passed in the job-script.
     job_id : str
-        The job_id of the process the job.
+        The job_id of the process the job. Should be passed in the job-script.
+    job_name : str
+        The name of the job. Should be passed in the job-script.
 
     Returns
     -------
@@ -57,10 +64,12 @@ def get_learner(
         The filename of the learner that was chosen.
     """
     _add_log_file_handler(log_file)
-    log.info("trying to get learner", job_id=job_id, log_file=log_file)
+    log.info(
+        "trying to get learner", job_id=job_id, log_file=log_file, job_name=job_name
+    )
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("start", job_id, log_file))
+        socket.send_pyobj(("start", job_id, log_file, job_name))
         log.info(f"sent start signal")
         reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply))

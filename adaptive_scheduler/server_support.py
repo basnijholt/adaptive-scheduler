@@ -40,14 +40,15 @@ def _dispatch(request: Tuple[str, str], db_fname: str):
     try:
         if request_type == "start":
             # workers send us their slurm ID for us to fill in
-            job_id, log_file = request_arg
+            job_id, log_file, job_name = request_arg
+            kwargs = dict(job_id=job_id, log_file=log_file, job_name=job_name)
             # give the worker a job and send back the fname to the worker
-            fname = _choose_fname(db_fname, job_id, log_file)
-            log.debug("choose a fname", fname=fname, job_id=job_id)
+            fname = _choose_fname(db_fname, **kwargs)
+            log.debug("choose a fname", fname=fname, **kwargs)
             return fname
         elif request_type == "stop":
             fname = request_arg[0]  # workers send us the fname they were given
-            log.debug("got a stop request", fname=fname)
+            log.debug("got a stop request", fname=fname, **kwargs)
             _done_with_learner(db_fname, fname)  # reset the job_id to None
     except Exception as e:
         return e
@@ -110,7 +111,7 @@ job_names : list
 db_fname : str
     Filename of the database, e.g. 'running.json'
 {extra_args}
-scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
     A scheduler instance from `adaptive_scheduler.scheduler`.
 interval : int, default: 30
     Time in seconds between checking and starting jobs.
@@ -248,7 +249,8 @@ def get_allowed_url() -> str:
 
 
 def create_empty_db(db_fname: str, fnames: List[str]) -> None:
-    """Create an empty database that keeps track of fname -> (job_id, is_done, log_file).
+    """Create an empty database that keeps track of
+    fname -> (job_id, is_done, log_file, job_name).
 
     Parameters
     ----------
@@ -257,9 +259,8 @@ def create_empty_db(db_fname: str, fnames: List[str]) -> None:
     fnames : list
         List of `fnames` corresponding to `learners`.
     """
-    entries = [
-        dict(fname=fname, job_id=None, is_done=False, log_file=None) for fname in fnames
-    ]
+    defaults = dict(job_id=None, is_done=False, log_file=None, job_name=None)
+    entries = [dict(fname=fname, **defaults) for fname in fnames]
     if os.path.exists(db_fname):
         os.remove(db_fname)
     with TinyDB(db_fname) as db:
@@ -272,14 +273,14 @@ def get_database(db_fname: str) -> List[Dict[str, Any]]:
         return db.all()
 
 
-def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
+def _update_db(db_fname: str, running: [str, dict]) -> None:
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
-        db.update({"job_id": None}, doc_ids=doc_ids)
+        db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
 
-def _choose_fname(db_fname: str, job_id: str, log_file: str) -> str:
+def _choose_fname(db_fname: str, job_id: str, log_file: str, job_name: str) -> str:
     Entry = Query()
     with TinyDB(db_fname) as db:
         if db.contains(Entry.job_id == job_id):
@@ -295,14 +296,18 @@ def _choose_fname(db_fname: str, job_id: str, log_file: str) -> str:
         log.debug("choose fname", entry=entry)
         if entry is None:
             return
-        db.update({"job_id": job_id, "log_file": log_file}, doc_ids=[entry.doc_id])
+        db.update(
+            {"job_id": job_id, "log_file": log_file, "job_name": job_name},
+            doc_ids=[entry.doc_id],
+        )
     return entry["fname"]
 
 
 def _done_with_learner(db_fname: str, fname: str) -> None:
     Entry = Query()
     with TinyDB(db_fname) as db:
-        db.update({"job_id": None, "is_done": True}, Entry.fname == fname)
+        reset = dict(job_id=None, is_done=True, job_name=None)
+        db.update(reset, Entry.fname == fname)
 
 
 def _get_n_jobs_done(db_fname: str) -> int:
@@ -311,8 +316,30 @@ def _get_n_jobs_done(db_fname: str) -> int:
         return db.count(Entry.is_done == True)  # noqa: E711
 
 
+def _get_entry(job_name, db_fname):
+    Entry = Query()
+    with TinyDB(db_fname) as db:
+        return db.get(Entry.job_name == job_name)
+
+
+def _get_output_file(job_name, db_fname, scheduler):
+    entry = _get_entry(job_name, db_fname)
+    if entry is None or entry["job_id"] is None:
+        return
+    output_file = scheduler.output_file(job_name)
+    if isinstance(output_file, str):
+        # SLURM has one file but PBS has two files
+        output_files = [output_file]
+    output_files = [
+        f.replace(scheduler._JOB_ID_VARIABLE, entry["job_id"]) for f in output_files
+    ]
+    return output_files
+
+
 def logs_with_string_or_condition(
-    db_fname: List[str], error: Union[str, Callable[[List[str]], bool]]
+    error: Union[str, Callable[[List[str]], bool]],
+    db_fname: List[str],
+    scheduler: BaseScheduler,
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -320,18 +347,20 @@ def logs_with_string_or_condition(
 
     Parameters
     ----------
-    db_fname : str, default: "running.json"
-        Filename of the database, e.g. 'running.json'.
     error : str or callable
         String that is searched for or callable that is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
+    db_fname : str, default: "running.json"
+        Filename of the database, e.g. 'running.json'.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
 
     Returns
     -------
-    has_string : list
-        A directory of ``job_id -> (job_name, fnames)``,
+    has_string : dict
+        A dictionary of ``job_id -> (job_name, fnames)``,
         which have the string inside their log-file.
     """
 
@@ -351,13 +380,12 @@ def logs_with_string_or_condition(
 
     have_error = {}
     for entry in get_database(db_fname):
-        log_file = entry["log_file"]
-        if log_file is None:
+        if entry["job_id"] is None:
             continue
-
-        log_file = os.path.join("/tmp", os.path.basename(log_file))
-        if file_has_error(log_file):
-            have_error[entry["job_id"]] = entry["job_name"], log_file
+        output_files = _get_output_file(entry["job_name"], db_fname, scheduler)
+        if any(file_has_error(f) for f in output_files):
+            for output_file in output_files:
+                have_error[entry["job_id"]] = entry["job_name"], output_file
     return have_error
 
 
@@ -376,7 +404,7 @@ async def manage_killer(
 
     while True:
         try:
-            failed_jobs = logs_with_string_or_condition(db_fname, error)
+            failed_jobs = logs_with_string_or_condition(error, db_fname, scheduler)
             to_cancel = []
             to_delete = []
 
@@ -410,7 +438,7 @@ Parameters
 job_names : list
     List of unique names used for the jobs with the same length as
     `learners`.
-scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
     A scheduler instance from `adaptive_scheduler.scheduler`.
 error : str or callable, default: "srun: error:"
     If ``error`` is a string and is found in the log files, the job will
@@ -522,13 +550,14 @@ def _make_default_run_script(
         parser.add_argument('--n', action="store", dest="n", type=int)
         parser.add_argument('--log-file', action="store", dest="log_file", type=str)
         parser.add_argument('--job-id', action="store", dest="job_id", type=str)
+        parser.add_argument('--name', action="store", dest="name", type=str)
         args = parser.parse_args()
 
         # the address of the "database manager"
         url = "{url}"
 
         # ask the database for a learner that we can run which we log in `args.log_file`
-        learner, fname = client_support.get_learner(learners, fnames, url, args.log_file, args.job_id)
+        learner, fname = client_support.get_learner(learners, fnames, url, args.log_file, args.job_id, args.name)
 
         # load the data
         with suppress(Exception):
@@ -595,7 +624,7 @@ def parse_log_files(  # noqa: C901
         List of job names.
     db_fname : str, optional
         The database filename. If passed, ``fname`` will be populated.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
     only_last : bool, default: True
         Only look use the last printed status message.
@@ -637,7 +666,7 @@ class RunManager:
 
     Parameters
     ----------
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`, default: `~adaptive_scheduler.scheduler.DefaultScheduler`
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
