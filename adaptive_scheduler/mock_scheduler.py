@@ -8,6 +8,9 @@ from typing import Coroutine, Tuple
 import structlog
 import zmq
 import zmq.asyncio
+from toolz.dicttoolz import dissoc
+
+ctx = zmq.asyncio.Context()
 
 logger = logging.getLogger("adaptive_scheduler.mock_scheduler")
 logger.setLevel(logging.INFO)
@@ -100,7 +103,6 @@ class MockScheduler:
 
     async def _command_listener(self) -> Coroutine:
         log.debug("started _command_listener")
-        ctx = zmq.asyncio.Context()
         socket = ctx.socket(zmq.REP)
         socket.bind(self.url)
         try:
@@ -127,7 +129,11 @@ class MockScheduler:
                 return None
             elif request_type == "queue":
                 log.debug("got a queue request")
-                return self.queue()
+                # remove the "proc" entries because they aren't pickable
+                return {
+                    job_id: dissoc(info, "proc")
+                    for job_id, info in self.queue().items()
+                }
             else:
                 log.debug("got unknown request")
         except Exception as e:
@@ -135,7 +141,8 @@ class MockScheduler:
 
 
 def submit(job_name: str, fname: str, url: str) -> None:
-    with zmq.Context().socket(zmq.REQ) as socket:
+    ctx = zmq.Context()
+    with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("submit", job_name, fname))
         job_id = socket.recv_pyobj()
@@ -143,7 +150,8 @@ def submit(job_name: str, fname: str, url: str) -> None:
 
 
 def cancel(job_id: str, url: str) -> None:
-    with zmq.Context().socket(zmq.REQ) as socket:
+    ctx = zmq.Context()
+    with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("cancel", job_id))
         socket.recv_pyobj()
@@ -151,7 +159,9 @@ def cancel(job_id: str, url: str) -> None:
 
 
 def queue(url: str) -> None:
-    with zmq.Context().socket(zmq.REQ) as socket:
+    ctx = zmq.Context()
+    with ctx.socket(zmq.REQ) as socket:
+        socket.setsockopt(zmq.RCVTIMEO, 2000)
         socket.connect(url)
         socket.send_pyobj(("queue",))
         queue = socket.recv_pyobj()
