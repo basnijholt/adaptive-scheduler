@@ -16,5 +16,6 @@ dependencies:
   - tinydb
   - toolz
   - tqdm
+  - zmq
   - pip:
     - m2r

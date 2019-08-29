@@ -16,3 +16,4 @@ dependencies:
   - tinydb
   - toolz
   - tqdm
+  - zmq
