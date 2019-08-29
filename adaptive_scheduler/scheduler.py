@@ -12,6 +12,7 @@ import warnings
 from distutils.spawn import find_executable
 from typing import List
 
+import adaptive_scheduler.mock_scheduler
 from adaptive_scheduler.utils import _progress
 
 
@@ -177,11 +178,13 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    def start_job(self, name):
+    def write_job_script(self, name):
         with open(self.batch_fname(name), "w") as f:
             job_script = self.job_script(name)
             f.write(job_script)
 
+    def start_job(self, name):
+        self.write_job_script(name)
         returncode = None
         while returncode != 0:
             returncode = subprocess.run(
@@ -240,8 +243,9 @@ class PBS(BaseScheduler):
                 self.nnodes = math.ceil(self.cores / max_cores_per_node)
                 self.cores_per_node = round(self.cores / self.nnodes)
                 msg = (
-                    f"`#PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}` is guessed"
-                    f" using the `qnodes` command, we set `cores_per_node={self.cores_per_node}`."
+                    f"`#PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}` is"
+                    f" guessed using the `qnodes` command, we set"
+                    f" `cores_per_node={self.cores_per_node}`."
                     f" You might want to change this. {partial_msg}"
                 )
                 warnings.warn(msg)
@@ -249,7 +253,8 @@ class PBS(BaseScheduler):
             except Exception as e:
                 msg = (
                     f"Got an error: {e}."
-                    f" Couldn't guess `cores_per_node`, this argument is required for PBS. {partial_msg}"
+                    " Couldn't guess `cores_per_node`, this argument is required"
+                    f" for PBS. {partial_msg}"
                     " We set `cores_per_node=1`!"
                 )
                 warnings.warn(msg)
@@ -589,13 +594,15 @@ class LocalMockScheduler(BaseScheduler):
             extra_scheduler,
             extra_env_vars,
         )
+        # LocalMockScheduler specific
+        self.mock_scheduler = adaptive_scheduler.mock_scheduler.MockScheduler()
+        mock_scheduler_file = adaptive_scheduler.mock_scheduler.__file__
+        self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
+
         # Attributes that all schedulers need to have
         self._ext = ".batch"
-        mock_scheduler = os.path.join(os.path.dirname(__file__), "mock_scheduler.py")
-        self.base_cmd = f"{self.python_executable} {mock_scheduler}"
         self._submit_cmd = f"{self.base_cmd} --submit"
         self._JOB_ID_VARIABLE = "${JOB_ID}"
-        self._scheduler = "MOCK"
         self._cancel_cmd = f"{self.base_cmd} --cancel"
 
     def job_script(self, name):
@@ -648,17 +655,38 @@ class LocalMockScheduler(BaseScheduler):
         This function returns extra information about the job, however this is not
         used elsewhere in this package.
         """
-        cmd = [self.base_cmd, "--queue"]
+        cmd = f"{self.base_cmd} --queue"
 
-        proc = subprocess.run(cmd, text=True, capture_output=True, env=os.environ)
+        proc = subprocess.run(
+            cmd,
+            shell=True,
+            text=True,
+            capture_output=True,
+            env=os.environ,
+            encoding="utf-8",
+        )
         output = proc.stdout
 
         if proc.returncode != 0:
             raise RuntimeError("--queue is not responding.")
 
-        running = ast.literal_eval(output)
+        running = ast.literal_eval(output.strip("\n"))
 
         return running
+
+    def start_job(self, name):
+        self.write_job_script(name)
+        returncode = None
+        while returncode != 0:
+            returncode = subprocess.run(
+                f"{self.submit_cmd} {name} {name}{self.ext}".split(),
+                stderr=subprocess.PIPE,
+            ).returncode
+            time.sleep(0.5)
+
+    @property
+    def extra_scheduler(self):
+        raise NotImplementedError("extra_scheduler is not implemented.")
 
 
 def _get_default_scheduler():
