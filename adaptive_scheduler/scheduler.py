@@ -1,4 +1,5 @@
 import abc
+import ast
 import collections
 import getpass
 import math
@@ -119,9 +120,28 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         log_fname = self.log_fname(name)
         return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
-    @abc.abstractmethod
     def _ipyparallel(self, name):
-        pass
+        log_fname = self.log_fname(name)
+        job_id = self._JOB_ID_VARIABLE
+        profile = "${profile}"
+        return textwrap.dedent(
+            f"""\
+            profile=adaptive_scheduler_{job_id}
+
+            echo "Creating profile {profile}"
+            ipython profile create {profile}
+
+            echo "Launching controller"
+            ipcontroller --ip="*" --profile={profile} --log-to-file &
+            sleep 10
+
+            echo "Launching engines"
+            {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
+
+            echo "Starting the Python script"
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
+            """
+        )
 
     def _executor_specific(self, name):
         if self.executor_type == "mpi4py":
@@ -142,6 +162,10 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         if self.log_folder:
             os.makedirs(self.log_folder, exist_ok=True)
         return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
+
+    def output_fnames(self, name):
+        log_fname = self.log_fname(name)
+        return [log_fname.replace(".log", ".out")]
 
     @property
     def extra_scheduler(self):
@@ -237,29 +261,6 @@ class PBS(BaseScheduler):
                 raise ValueError("cores / cores_per_node must be an integer!")
             else:
                 self.nnodes = int(self.nnodes)
-
-    def _ipyparallel(self, name):
-        log_fname = self.log_fname(name)
-        job_id = self._JOB_ID_VARIABLE
-        profile = "${profile}"
-        return textwrap.dedent(
-            f"""\
-            profile=adaptive_scheduler_{job_id}
-
-            echo "Creating profile {profile}"
-            ipython profile create {profile}
-
-            echo "Launching controller"
-            ipcontroller --ip="*" --profile={profile} --log-to-file &
-            sleep 10
-
-            echo "Launching engines"
-            {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
-
-            echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """
-        )
 
     def output_fnames(self, name):
         """The "-k oe" flags with "qsub" writes the log output to
@@ -466,10 +467,6 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def output_fnames(self, name):
-        log_fname = self.log_fname(name)
-        return [log_fname.replace(".log", ".out")]
-
     def job_script(self, name):
         """Get a jobscript in string form.
 
@@ -563,6 +560,104 @@ class SLURM(BaseScheduler):
         running = {info.pop("jobid"): info for info in squeue}
         for info in running.values():
             info["job_name"] = info.pop("name")
+        return running
+
+
+class LocalMockScheduler(BaseScheduler):
+    def __init__(
+        self,
+        cores,
+        run_script="run_learner.py",
+        python_executable=None,
+        log_folder="",
+        mpiexec_executable=None,
+        executor_type="mpi4py",
+        num_threads=1,
+        extra_scheduler=None,
+        extra_env_vars=None,
+        *,
+        cores_per_node=None,
+    ):
+        super().__init__(
+            cores,
+            run_script,
+            python_executable,
+            log_folder,
+            mpiexec_executable,
+            executor_type,
+            num_threads,
+            extra_scheduler,
+            extra_env_vars,
+        )
+        # Attributes that all schedulers need to have
+        self._ext = ".batch"
+        mock_scheduler = os.path.join(os.path.dirname(__file__), "mock_scheduler.py")
+        self.base_cmd = f"{self.python_executable} {mock_scheduler}"
+        self._submit_cmd = f"{self.base_cmd} --submit"
+        self._JOB_ID_VARIABLE = "${JOB_ID}"
+        self._scheduler = "MOCK"
+        self._cancel_cmd = f"{self.base_cmd} --cancel"
+
+    def job_script(self, name):
+        """Get a jobscript in string form.
+
+        Returns
+        -------
+        job_script : str
+            A job script that can be submitted to PBS.
+        """
+
+        job_script = textwrap.dedent(
+            f"""\
+            #!/bin/sh
+
+            export MKL_NUM_THREADS={self.num_threads}
+            export OPENBLAS_NUM_THREADS={self.num_threads}
+            export OMP_NUM_THREADS={self.num_threads}
+            {{extra_env_vars}}
+
+            cd $PBS_O_WORKDIR
+
+            {{executor_specific}}
+            """
+        )
+
+        job_script = job_script.format(
+            extra_env_vars=self.extra_env_vars,
+            executor_specific=self._executor_specific(name),
+            job_id_variable=self._JOB_ID_VARIABLE,
+        )
+
+        return job_script
+
+    def queue(self, me_only=True):
+        """Get the current running and pending jobs.
+
+        Parameters
+        ----------
+        me_only : bool, default: True
+            Only see your jobs.
+
+        Returns
+        -------
+        dictionary of `job_id` -> dict with `name` and `state`, for
+        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+
+        Notes
+        -----
+        This function returns extra information about the job, however this is not
+        used elsewhere in this package.
+        """
+        cmd = [self.base_cmd, "--queue"]
+
+        proc = subprocess.run(cmd, text=True, capture_output=True, env=os.environ)
+        output = proc.stdout
+
+        if proc.returncode != 0:
+            raise RuntimeError("--queue is not responding.")
+
+        running = ast.literal_eval(output)
+
         return running
 
 
