@@ -91,10 +91,56 @@ But how does *really* it work?
 
 The `~adaptive_scheduler.server_support.RunManager` basically does the following.
 So, *you* need to create a ``learners_file.py`` that defines ``N`` ``learners`` and ``fnames`` (like in the section above).
-Then the ``RunManager`` will create ``max(N, max_simultaneous_jobs)`` batch files that will be submitted to the scheduler, but *doesn't know* which learner it is going to run!
-In these batch files several parameters are passed to a Python script that runs a learner.
-In that Python script there is a process that requests a learner from the ``RunManager``.
-This is then registered in a database that keeps track of ``job_id <--> learner``.
+Then a "job manager" writes and submits ``max(N, max_simultaneous_jobs)`` job scripts but *doesn't know* which learner it is going to run!
+This is the responsibility of the "database manager", which keeps a database of ``job_id <--> learner``.
+The job script starts a Python file ``run_learner.py`` in which the learner is run.
+
+
+In a Jupyter notebook we can start the "job manager" and the "database manager", and create the ``run_learner.py`` like:
+
+.. code-block:: python
+
+   import adaptive_scheduler
+   from adaptive_scheduler import server_support
+   from learners_file import learners, fnames
+
+   # create a new database
+   db_fname = "running.json"
+   server_support.create_empty_db(db_fname, fnames)
+
+   # get a url where we can run the database manager
+   url = server_support.get_allowed_url()
+
+   # start the "database manager"
+   database_task = server_support.start_database_manager(url, db_fname)
+
+   # create a scheduler
+   scheduler = adaptive_scheduler.scheduler.PBS(
+       cores=10,
+       run_script="run_learner.py",
+   )
+
+   # create the Python script that runs a learner (run_learner.py)
+   server_support._make_default_run_script(
+       url=url,
+       learners_file="learners_file.py",
+       save_interval=300,
+       log_interval=30,
+       goal=None,
+       run_script_fname=scheduler.run_script,
+   )
+
+   # create unique names for the jobs
+   n_jobs = len(learners)
+   job_names = [f"test-job-{i}" for i in range(n_jobs)]
+
+   # start the "database manager"
+   job_task = server_support.start_job_manager(
+       job_names,
+       db_fname,
+       scheduler,
+   )
+
 
 You don't actually ever have to leave the Jupter notebook, take a look at the `example notebook <https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb>`_.
 
