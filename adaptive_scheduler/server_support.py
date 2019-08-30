@@ -274,7 +274,7 @@ def get_database(db_fname: str) -> List[Dict[str, Any]]:
         return db.all()
 
 
-def _update_db(db_fname: str, running: [str, dict]) -> None:
+def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
     """If the job_id isn't running anymore, replace it with None."""
     with TinyDB(db_fname) as db:
         doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
