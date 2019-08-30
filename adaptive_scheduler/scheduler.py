@@ -188,7 +188,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         returncode = None
         while returncode != 0:
             returncode = subprocess.run(
-                f"{self.submit_cmd} {name}{self.ext}".split(), stderr=subprocess.PIPE
+                [self.submit_cmd, self.batch_fname(name)], stderr=subprocess.PIPE
             ).returncode
             time.sleep(0.5)
 
