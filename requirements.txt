@@ -9,4 +9,4 @@ structlog
 tinydb
 toolz
 tqdm
-zmq
+pyzmq

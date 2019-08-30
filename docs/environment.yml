@@ -5,17 +5,5 @@ channels:
 
 dependencies:
   - python
-  - adaptive
-  - dill
-  - ipyparallel
-  - mpi4py
-  - pandas
-  - psutil
-  - pyzmq
-  - structlog
-  - tinydb
-  - toolz
-  - tqdm
-  - zmq
   - pip:
     - m2r
