@@ -64,14 +64,13 @@ For example modifying a job script for SLURM:
 
 .. code-block:: python
 
-    from functools import partial
-    from adaptive_scheduler.slurm import make_job_script
-    job_script_function = partial(
-        make_job_script,
-        extra_sbatch=["--exclusive=user", "--time=1"],
+    from adaptive_scheduler.scheduler import SLURM
+    scheduler = SLURM(
+        cores=10,
+        extra_scheduler=["--exclusive=user", "--time=1"],
         extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
         mpiexec_executable="srun --mpi=pmi2",
-    )  # pass this to `server_support.start_job_manager`
+    )  # pass this to `server_support.start_job_manager` or `RunManager`
 
 Q: My code uses MPI so the `~mpi4py.futures.MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
 -----------------------------------------------------------------------------------------------------------------
@@ -80,18 +79,16 @@ For example:
 
 .. code-block:: python
 
-    from functools import partial
+    from adaptive_scheduler.scheduler import SLURM
 
-    job_script_function = partial(
-        adaptive_scheduler.slurm.make_job_script,
+    scheduler = SLURM(
+        cores=48,
         executor_type="ipyparallel",
     )
 
     run_manager = adaptive_scheduler.server_support.RunManager(
         learners_file="learners_file.py",
-        executor_type="ipyparallel",
-        cores_per_job=48,
-        job_script_function=job_script_function,
+        scheduler=scheduler,
 
     )
     run_manager.start()
