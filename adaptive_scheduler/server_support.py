@@ -543,18 +543,20 @@ def _make_default_run_script(
 
         # parse arguments
         parser = argparse.ArgumentParser()
-        parser.add_argument('--profile', action="store", dest="profile", type=str)
-        parser.add_argument('--n', action="store", dest="n", type=int)
-        parser.add_argument('--log-fname', action="store", dest="log_fname", type=str)
-        parser.add_argument('--job-id', action="store", dest="job_id", type=str)
-        parser.add_argument('--name', action="store", dest="name", type=str)
+        parser.add_argument("--profile", action="store", dest="profile", type=str)
+        parser.add_argument("--n", action="store", dest="n", type=int)
+        parser.add_argument("--log-fname", action="store", dest="log_fname", type=str)
+        parser.add_argument("--job-id", action="store", dest="job_id", type=str)
+        parser.add_argument("--name", action="store", dest="name", type=str)
         args = parser.parse_args()
 
         # the address of the "database manager"
         url = "{url}"
 
         # ask the database for a learner that we can run which we log in `args.log_fname`
-        learner, fname = client_support.get_learner(learners, fnames, url, args.log_fname, args.job_id, args.name)
+        learner, fname = client_support.get_learner(
+            learners, fnames, url, args.log_fname, args.job_id, args.name
+        )
 
         # load the data
         with suppress(Exception):
