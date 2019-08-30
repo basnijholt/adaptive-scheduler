@@ -52,7 +52,11 @@ class MockScheduler:
     def queue(self, only_me: bool = True):
         # only_me doesn't do anything, but the argument is there
         # because it is in the other schedulers.
-        return self._current_queue
+
+        # remove the "proc" entries because they aren't pickable
+        return {
+            job_id: dissoc(info, "proc") for job_id, info in self._current_queue.items()
+        }
 
     def _queue_is_full(self):
         n_running = sum(info["status"] == "R" for info in self._current_queue.values())
@@ -73,7 +77,7 @@ class MockScheduler:
         if job_id in self._current_queue:
             # job_id could be cancelled before it started
             proc = subprocess.Popen(
-                [self.python_executable, fname],
+                f"{self.python_executable} {fname}".split(),
                 stdout=subprocess.PIPE,
                 env=dict(os.environ, JOB_ID=job_id),
             )
@@ -139,11 +143,7 @@ class MockScheduler:
                 return None
             elif request_type == "queue":
                 log.debug("got a queue request")
-                # remove the "proc" entries because they aren't pickable
-                return {
-                    job_id: dissoc(info, "proc")
-                    for job_id, info in self.queue().items()
-                }
+                return self._current_queue
             else:
                 log.debug("got unknown request")
         except Exception as e:
