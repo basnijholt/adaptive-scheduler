@@ -150,32 +150,29 @@ class MockScheduler:
             return e
 
 
-def submit(job_name: str, fname: str, url: str) -> None:
-    ctx = zmq.Context()
+async def submit(job_name: str, fname: str, url: str) -> None:
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("submit", job_name, fname))
-        job_id = socket.recv_pyobj()
-        print(job_id)
+        await socket.send_pyobj(("submit", job_name, fname))
+        job_id = await socket.recv_pyobj()
+        return job_id
 
 
-def cancel(job_id: str, url: str) -> None:
-    ctx = zmq.Context()
+async def cancel(job_id: str, url: str) -> None:
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("cancel", job_id))
-        socket.recv_pyobj()
-        print("Cancelled")
+        await socket.send_pyobj(("cancel", job_id))
+        await socket.recv_pyobj()
+        return "Cancelled"
 
 
-def queue(url: str) -> None:
-    ctx = zmq.Context()
+async def queue(url: str) -> None:
     with ctx.socket(zmq.REQ) as socket:
         socket.setsockopt(zmq.RCVTIMEO, 2000)
         socket.connect(url)
-        socket.send_pyobj(("queue",))
-        queue = socket.recv_pyobj()
-        print(queue)
+        await socket.send_pyobj(("queue",))
+        queue = await socket.recv_pyobj()
+        return queue
 
 
 if __name__ == "__main__":
@@ -189,10 +186,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.queue:
-        queue(args.url)
+        coro = queue(args.url)
     elif args.submit:
-        job_name, fname = args.submit
-        submit(job_name, fname, args.url)
+        job_name, fname = args.su
+        coro = submit(job_name, fname, args.url)
     elif args.cancel:
         job_id = args.cancel
-        cancel(job_id, args.url)
+        coro = cancel(job_id, args.url)
+    ioloop = asyncio.get_event_loop()
+    task = ioloop.create_task(coro)
+    result = ioloop.run_until_complete(task)
+    print(result)
