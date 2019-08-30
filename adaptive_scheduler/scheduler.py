@@ -568,6 +568,11 @@ class SLURM(BaseScheduler):
 
 
 class LocalMockScheduler(BaseScheduler):
+    """A scheduler that can be used for testing and runs locally.
+
+    DOESN'T WORK ATM!!!
+    """
+
     def __init__(
         self,
         cores,
@@ -579,9 +584,8 @@ class LocalMockScheduler(BaseScheduler):
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
-        *,
-        cores_per_node=None,
     ):
+        warnings.warn("The LocalMockScheduler currently doesn't work!")
         super().__init__(
             cores,
             run_script,
