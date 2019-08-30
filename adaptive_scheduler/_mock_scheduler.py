@@ -12,7 +12,7 @@ from toolz.dicttoolz import dissoc
 
 ctx = zmq.asyncio.Context()
 
-logger = logging.getLogger("adaptive_scheduler.mock_scheduler")
+logger = logging.getLogger("adaptive_scheduler._mock_scheduler")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
@@ -22,7 +22,7 @@ DEFAULT_URL = "tcp://127.0.0.1:60547"
 class MockScheduler:
     """Emulates a HPC-like scheduler.
 
-    Start an instance of MockScheduler() and then you are able to do:
+    Start an instance of `MockScheduler` and then you are able to do
     ```
     python _mock_scheduler.py --queue
     python _mock_scheduler.py --submit JOB_NAME_HERE script_here.sh  # returns JOB_ID
