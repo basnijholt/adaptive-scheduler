@@ -525,6 +525,7 @@ def _make_default_run_script(
 
     template = textwrap.dedent(
         f"""\
+    #!/usr/bin/env python3
     # {run_script_fname}, automatically generated
     # by `adaptive_scheduler.server_support._make_default_run_script()`.
     import argparse

@@ -35,7 +35,7 @@ class MockScheduler:
         startup_delay=3,
         max_running_jobs=4,
         refresh_interval=0.1,
-        python_executable="python",
+        bash="bash",
         url=None,
     ):
         self._current_queue = {}
@@ -43,7 +43,7 @@ class MockScheduler:
         self.max_running_jobs = max_running_jobs
         self.startup_delay = startup_delay
         self.refresh_interval = refresh_interval
-        self.python_executable = python_executable
+        self.bash = bash
         self.ioloop = asyncio.get_event_loop()
         self.refresh_task = self.ioloop.create_task(self._refresh_coro())
         self.url = url or DEFAULT_URL
@@ -76,10 +76,9 @@ class MockScheduler:
     def _submit(self, job_id: str, fname: str):
         if job_id in self._current_queue:
             # job_id could be cancelled before it started
+            cmd = f"{self.bash} {fname}"
             proc = subprocess.Popen(
-                f"{self.python_executable} {fname}".split(),
-                stdout=subprocess.PIPE,
-                env=dict(os.environ, JOB_ID=job_id),
+                cmd.split(), stdout=subprocess.PIPE, env=dict(os.environ, JOB_ID=job_id)
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
