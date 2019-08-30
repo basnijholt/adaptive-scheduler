@@ -11,7 +11,7 @@ import warnings
 from distutils.spawn import find_executable
 from typing import List
 
-import adaptive_scheduler.mock_scheduler
+import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress
 
 
@@ -598,8 +598,8 @@ class LocalMockScheduler(BaseScheduler):
             extra_env_vars,
         )
         # LocalMockScheduler specific
-        self.mock_scheduler = adaptive_scheduler.mock_scheduler.MockScheduler()
-        mock_scheduler_file = adaptive_scheduler.mock_scheduler.__file__
+        self.mock_scheduler = adaptive_scheduler._mock_scheduler.MockScheduler()
+        mock_scheduler_file = adaptive_scheduler._mock_scheduler.__file__
         self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
 
         # Attributes that all schedulers need to have
