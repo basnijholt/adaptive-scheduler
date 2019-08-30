@@ -66,10 +66,12 @@ Then you start a process that creates and submits as many job-scripts as there a
    def goal(learner):
        return learner.npoints > 200
 
+   scheduler = adaptive_scheduler.scheduler.SLURM(cores=10)  # every learner get this many cores
+
    run_manager = adaptive_scheduler.server_support.RunManager(
+       scheduler=scheduler,
        learners_file="learners_file.py",
        goal=goal,
-       cores_per_job=12,  # every learner is one job
        log_interval=30,  #  write info such as npoints, cpu_usage, time, etc. to the job log file
        save_interval=300,  # save the data every 300 seconds
    )
@@ -87,57 +89,18 @@ That's it! You can run ``run_manager.info()`` which will display an interactive 
 But how does *really* it work?
 ------------------------------
 
-The `~adaptive_scheduler.server_support.RunManager` basically does what is written below.
-So, you need to create a ``learners_file.py`` that defines ``learners`` and ``fnames`` (like in the section above).
-Then a "job manager" writes and submits as many jobs as there are learners but *doesn't know* which learner it is going to run!
+The `~adaptive_scheduler.server_support.RunManager` basically does the following.
+So, *you* need to create a ``learners_file.py`` that defines ``N`` ``learners`` and ``fnames`` (like in the section above).
+Then a "job manager" writes and submits ``max(N, max_simultaneous_jobs)`` job scripts but *doesn't know* which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of ``job_id <--> learner``.
-
-In another Python file (the file that is run on the nodes) we do something like:
-
-.. code-block:: python
-
-   # run_learner.py
-   import adaptive
-   from adaptive_scheduler import client_support
-   from mpi4py.futures import MPIPoolExecutor
-
-   # the file that defines the learners we created above
-   from learners_file import learners, fnames
+The job script starts a Python file ``run_learner.py`` in which the learner is run.
 
 
-   if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
-       # the address of the "database manager"
-       url = "tcp://10.75.0.5:37371"
-
-       # ask the database for a learner that we can run
-       learner, fname = client_support.get_learner(url, learners, fnames)
-
-       # load the data
-       learner.load(fname)
-
-       # run until `some_goal` is reached with an `MPIPoolExecutor`
-       # you can also use a ipyparallel.Client, or dask.distributed.Client
-       runner = adaptive.Runner(
-           learner, executor=MPIPoolExecutor(), shutdown_executor=True, goal=some_goal
-       )
-
-       # periodically save the data (in case the job dies)
-       runner.start_periodic_saving(dict(fname=fname), interval=600)
-
-       # log progress info in the job output script, optional
-       client_support.log_info(runner, interval=600)
-
-       # block until runner goal reached
-       runner.ioloop.run_until_complete(runner.task)
-
-       # tell the database that this learner has reached its goal
-       client_support.tell_done(url, fname)
-
-
-In a Jupyter notebook we can start the "job manager" and the "database manager" like:
+In a Jupyter notebook we can start the "job manager" and the "database manager", and create the ``run_learner.py`` like:
 
 .. code-block:: python
 
+   import adaptive_scheduler
    from adaptive_scheduler import server_support
    from learners_file import learners, fnames
 
@@ -145,26 +108,39 @@ In a Jupyter notebook we can start the "job manager" and the "database manager" 
    db_fname = "running.json"
    server_support.create_empty_db(db_fname, fnames)
 
+   # get a url where we can run the database manager
+   url = server_support.get_allowed_url()
+
+   # start the "database manager"
+   database_task = server_support.start_database_manager(url, db_fname)
+
+   # create a scheduler
+   scheduler = adaptive_scheduler.scheduler.PBS(
+       cores=10,
+       run_script="run_learner.py",
+   )
+
+   # create the Python script that runs a learner (run_learner.py)
+   server_support._make_default_run_script(
+       url=url,
+       learners_file="learners_file.py",
+       save_interval=300,
+       log_interval=30,
+       goal=None,
+       run_script_fname=scheduler.run_script,
+   )
+
    # create unique names for the jobs
    n_jobs = len(learners)
    job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
-   # start the "job manager" and the "database manager"
-   database_task = server_support.start_database_manager("tcp://10.75.0.5:37371", db_fname)
-
+   # start the "database manager"
    job_task = server_support.start_job_manager(
        job_names,
        db_fname,
-       cores=200,  # number of cores per job
-       run_script="run_learner.py",
+       scheduler,
    )
 
-
-So in summary, you have three files:
-
-- ``learners_file.py`` which defines the learners and its filenames
-- ``run_learner.py`` which picks a learner and runs it
-- a Jupyter notebook where you run the "database manager" and the "job manager"
 
 You don't actually ever have to leave the Jupter notebook, take a look at the `example notebook <https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb>`_.
 

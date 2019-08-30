@@ -11,53 +11,8 @@ import warnings
 from distutils.spawn import find_executable
 from typing import List
 
+import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress
-
-
-def _get_default_scheduler():
-    """Determine which scheduler system is being used.
-
-    It tries to determine it by running both PBS and SLURM commands.
-
-    If both are available then one needs to set an environment variable
-    called 'SCHEDULER_SYSTEM' which is either 'PBS' or 'SLURM'.
-
-    For example add the following to your `.bashrc`
-
-    ```bash
-    export SCHEDULER_SYSTEM="PBS"
-    ```
-
-    By default it is "SLURM".
-    """
-
-    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
-    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
-
-    DEFAULT = SLURM
-    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
-    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
-    if scheduler_system:
-        if scheduler_system not in ("PBS", "SLURM"):
-            warnings.warn(
-                f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
-                f"Use SLURM or PBS. {default_msg}"
-            )
-            return DEFAULT
-        else:
-            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
-    elif has_slurm and has_pbs:
-        msg = f"Both SLURM and PBS are detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
-    elif has_pbs:
-        return PBS
-    elif has_slurm:
-        return SLURM
-    else:
-        msg = f"No scheduler system could be detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
 
 
 class BaseScheduler(metaclass=abc.ABCMeta):
@@ -165,9 +120,28 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         log_fname = self.log_fname(name)
         return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
-    @abc.abstractmethod
     def _ipyparallel(self, name):
-        pass
+        log_fname = self.log_fname(name)
+        job_id = self._JOB_ID_VARIABLE
+        profile = "${profile}"
+        return textwrap.dedent(
+            f"""\
+            profile=adaptive_scheduler_{job_id}
+
+            echo "Creating profile {profile}"
+            ipython profile create {profile}
+
+            echo "Launching controller"
+            ipcontroller --ip="*" --profile={profile} --log-to-file &
+            sleep 10
+
+            echo "Launching engines"
+            {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
+
+            echo "Starting the Python script"
+            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
+            """
+        )
 
     def _executor_specific(self, name):
         if self.executor_type == "mpi4py":
@@ -189,6 +163,10 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             os.makedirs(self.log_folder, exist_ok=True)
         return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
 
+    def output_fnames(self, name):
+        log_fname = self.log_fname(name)
+        return [log_fname.replace(".log", ".out")]
+
     @property
     def extra_scheduler(self):
         extra_scheduler = self._extra_scheduler or []
@@ -199,11 +177,13 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    def start_job(self, name):
+    def write_job_script(self, name):
         with open(self.batch_fname(name), "w") as f:
             job_script = self.job_script(name)
             f.write(job_script)
 
+    def start_job(self, name):
+        self.write_job_script(name)
         returncode = None
         while returncode != 0:
             returncode = subprocess.run(
@@ -262,8 +242,9 @@ class PBS(BaseScheduler):
                 self.nnodes = math.ceil(self.cores / max_cores_per_node)
                 self.cores_per_node = round(self.cores / self.nnodes)
                 msg = (
-                    f"`#PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}` is guessed"
-                    f" using the `qnodes` command, we set `cores_per_node={self.cores_per_node}`."
+                    f"`#PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}` is"
+                    f" guessed using the `qnodes` command, we set"
+                    f" `cores_per_node={self.cores_per_node}`."
                     f" You might want to change this. {partial_msg}"
                 )
                 warnings.warn(msg)
@@ -271,7 +252,8 @@ class PBS(BaseScheduler):
             except Exception as e:
                 msg = (
                     f"Got an error: {e}."
-                    f" Couldn't guess `cores_per_node`, this argument is required for PBS. {partial_msg}"
+                    " Couldn't guess `cores_per_node`, this argument is required"
+                    f" for PBS. {partial_msg}"
                     " We set `cores_per_node=1`!"
                 )
                 warnings.warn(msg)
@@ -283,29 +265,6 @@ class PBS(BaseScheduler):
                 raise ValueError("cores / cores_per_node must be an integer!")
             else:
                 self.nnodes = int(self.nnodes)
-
-    def _ipyparallel(self, name):
-        log_fname = self.log_fname(name)
-        job_id = self._JOB_ID_VARIABLE
-        profile = "${profile}"
-        return textwrap.dedent(
-            f"""\
-            profile=adaptive_scheduler_{job_id}
-
-            echo "Creating profile {profile}"
-            ipython profile create {profile}
-
-            echo "Launching controller"
-            ipcontroller --ip="*" --profile={profile} --log-to-file &
-            sleep 10
-
-            echo "Launching engines"
-            {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
-
-            echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """
-        )
 
     def output_fnames(self, name):
         """The "-k oe" flags with "qsub" writes the log output to
@@ -512,10 +471,6 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def output_fnames(self, name):
-        log_fname = self.log_fname(name)
-        return [log_fname.replace(".log", ".out")]
-
     def job_script(self, name):
         """Get a jobscript in string form.
 
@@ -610,6 +565,154 @@ class SLURM(BaseScheduler):
         for info in running.values():
             info["job_name"] = info.pop("name")
         return running
+
+
+class LocalMockScheduler(BaseScheduler):
+    """A scheduler that can be used for testing and runs locally.
+
+    DOESN'T WORK ATM!!!
+    """
+
+    def __init__(
+        self,
+        cores,
+        run_script="run_learner.py",
+        python_executable=None,
+        log_folder="",
+        mpiexec_executable=None,
+        executor_type="mpi4py",
+        num_threads=1,
+        extra_scheduler=None,
+        extra_env_vars=None,
+    ):
+        warnings.warn("The LocalMockScheduler currently doesn't work!")
+        super().__init__(
+            cores,
+            run_script,
+            python_executable,
+            log_folder,
+            mpiexec_executable,
+            executor_type,
+            num_threads,
+            extra_scheduler,
+            extra_env_vars,
+        )
+        # LocalMockScheduler specific
+        self.mock_scheduler = adaptive_scheduler._mock_scheduler.MockScheduler()
+        mock_scheduler_file = adaptive_scheduler._mock_scheduler.__file__
+        self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
+
+        # Attributes that all schedulers need to have
+        self._ext = ".batch"
+        self._submit_cmd = f"{self.base_cmd} --submit"
+        self._JOB_ID_VARIABLE = "${JOB_ID}"
+        self._cancel_cmd = f"{self.base_cmd} --cancel"
+
+    def job_script(self, name):
+        """Get a jobscript in string form.
+
+        Returns
+        -------
+        job_script : str
+            A job script that can be submitted to PBS.
+        """
+
+        job_script = textwrap.dedent(
+            f"""\
+            #!/bin/sh
+
+            export MKL_NUM_THREADS={self.num_threads}
+            export OPENBLAS_NUM_THREADS={self.num_threads}
+            export OMP_NUM_THREADS={self.num_threads}
+            {{extra_env_vars}}
+
+            cd $PBS_O_WORKDIR
+
+            {{executor_specific}}
+            """
+        )
+
+        job_script = job_script.format(
+            extra_env_vars=self.extra_env_vars,
+            executor_specific=self._executor_specific(name),
+            job_id_variable=self._JOB_ID_VARIABLE,
+        )
+
+        return job_script
+
+    def queue(self, me_only=True):
+        """Get the current running and pending jobs.
+
+        Parameters
+        ----------
+        me_only : bool, default: True
+            Only see your jobs.
+
+        Returns
+        -------
+        dictionary of `job_id` -> dict with `name` and `state`, for
+        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+
+        Notes
+        -----
+        This function returns extra information about the job, however this is not
+        used elsewhere in this package.
+        """
+        return self.mock_scheduler.queue()
+
+    def start_job(self, name):
+        self.write_job_script(name)
+        self.mock_scheduler.submit(name, self.batch_fname(name))
+
+    @property
+    def extra_scheduler(self):
+        raise NotImplementedError("extra_scheduler is not implemented.")
+
+
+def _get_default_scheduler():
+    """Determine which scheduler system is being used.
+
+    It tries to determine it by running both PBS and SLURM commands.
+
+    If both are available then one needs to set an environment variable
+    called 'SCHEDULER_SYSTEM' which is either 'PBS' or 'SLURM'.
+
+    For example add the following to your `.bashrc`
+
+    ```bash
+    export SCHEDULER_SYSTEM="PBS"
+    ```
+
+    By default it is "SLURM".
+    """
+
+    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
+    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
+
+    DEFAULT = SLURM
+    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
+    scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
+    if scheduler_system:
+        if scheduler_system not in ("PBS", "SLURM"):
+            warnings.warn(
+                f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
+                f"Use SLURM or PBS. {default_msg}"
+            )
+            return DEFAULT
+        else:
+            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
+    elif has_slurm and has_pbs:
+        msg = f"Both SLURM and PBS are detected. {default_msg}"
+        warnings.warn(msg)
+        return DEFAULT
+    elif has_pbs:
+        return PBS
+    elif has_slurm:
+        return SLURM
+    else:
+        msg = f"No scheduler system could be detected. {default_msg}"
+        warnings.warn(msg)
+        return DEFAULT
 
 
 DefaultScheduler = _get_default_scheduler()

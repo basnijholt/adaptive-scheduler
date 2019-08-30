@@ -35,7 +35,7 @@ class MaxRestartsReached(Exception):
     your Python code which results jobs being started indefinitely."""
 
 
-def _dispatch(request: Tuple[str, str], db_fname: str):
+def _dispatch(request: Tuple[str, ...], db_fname: str):
     request_type, *request_arg = request
     log.debug("got a request", request=request)
     try:
