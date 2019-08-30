@@ -20,6 +20,16 @@ DEFAULT_URL = "tcp://127.0.0.1:60547"
 
 
 class MockScheduler:
+    """Emulates a HPC-like scheduler.
+
+    Start an instance of MockScheduler() and then you are able to do:
+    ```
+    python _mock_scheduler.py --queue
+    python _mock_scheduler.py --submit JOB_NAME_HERE script_here.sh  # returns JOB_ID
+    python _mock_scheduler.py --cancel JOB_ID
+    ```
+    """
+
     def __init__(
         self,
         startup_delay=3,
