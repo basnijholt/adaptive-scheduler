@@ -1,5 +1,4 @@
 import abc
-import ast
 import collections
 import getpass
 import math
@@ -655,34 +654,11 @@ class LocalMockScheduler(BaseScheduler):
         This function returns extra information about the job, however this is not
         used elsewhere in this package.
         """
-        cmd = f"{self.base_cmd} --queue"
-
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            text=True,
-            capture_output=True,
-            env=os.environ,
-            encoding="utf-8",
-        )
-        output = proc.stdout
-
-        if proc.returncode != 0:
-            raise RuntimeError("--queue is not responding.")
-
-        running = ast.literal_eval(output.strip("\n"))
-
-        return running
+        return self.mock_scheduler.queue()
 
     def start_job(self, name):
         self.write_job_script(name)
-        returncode = None
-        while returncode != 0:
-            returncode = subprocess.run(
-                f"{self.submit_cmd} {name} {name}{self.ext}".split(),
-                stderr=subprocess.PIPE,
-            ).returncode
-            time.sleep(0.5)
+        self.mock_scheduler.submit(name, self.batch_fname(name))
 
     @property
     def extra_scheduler(self):
