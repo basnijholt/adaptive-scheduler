@@ -150,29 +150,31 @@ class MockScheduler:
             return e
 
 
-async def submit(job_name: str, fname: str, url: str) -> None:
-    with ctx.socket(zmq.REQ) as socket:
-        socket.connect(url)
-        await socket.send_pyobj(("submit", job_name, fname))
-        job_id = await socket.recv_pyobj()
-        return job_id
+def _external_command(command: Tuple[str, ...], url: str):
+    async def _coro(command, url) -> None:
+        with ctx.socket(zmq.REQ) as socket:
+            socket.setsockopt(zmq.RCVTIMEO, 2000)
+            socket.connect(url)
+            await socket.send_pyobj(command)
+            reply = await socket.recv_pyobj()
+            return reply
+
+    coro = _coro(command, url)
+    ioloop = asyncio.get_event_loop()
+    task = ioloop.create_task(coro)
+    return ioloop.run_until_complete(task)
 
 
-async def cancel(job_id: str, url: str) -> None:
-    with ctx.socket(zmq.REQ) as socket:
-        socket.connect(url)
-        await socket.send_pyobj(("cancel", job_id))
-        await socket.recv_pyobj()
-        return "Cancelled"
+def queue(url: str):
+    return _external_command(("queue",), url)
 
 
-async def queue(url: str) -> None:
-    with ctx.socket(zmq.REQ) as socket:
-        socket.setsockopt(zmq.RCVTIMEO, 2000)
-        socket.connect(url)
-        await socket.send_pyobj(("queue",))
-        queue = await socket.recv_pyobj()
-        return queue
+def submit(job_name: str, fname: str, url: str) -> None:
+    return _external_command(("submit", job_name, fname), url)
+
+
+def cancel(job_id: str, url: str) -> None:
+    return _external_command(("cancel", job_id), url)
 
 
 if __name__ == "__main__":
@@ -186,14 +188,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.queue:
-        coro = queue(args.url)
+        print(queue(args.url))
     elif args.submit:
-        job_name, fname = args.su
-        coro = submit(job_name, fname, args.url)
+        job_name, fname = args.submit
+        print(submit(job_name, fname, args.url))
     elif args.cancel:
         job_id = args.cancel
-        coro = cancel(job_id, args.url)
-    ioloop = asyncio.get_event_loop()
-    task = ioloop.create_task(coro)
-    result = ioloop.run_until_complete(task)
-    print(result)
+        cancel(job_id, args.url)
+        print("Cancelled")
