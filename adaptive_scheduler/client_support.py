@@ -70,8 +70,8 @@ def get_learner(
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("start", job_id, log_fname, job_name))
+        log.info(f"sent start signal, timeout after 10s.")
         socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
-        log.info(f"sent start signal")
         reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply))
         if reply is None:
