@@ -626,8 +626,6 @@ class LocalMockScheduler(BaseScheduler):
             export OMP_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
-            cd $PBS_O_WORKDIR
-
             {{executor_specific}}
             """
         )
