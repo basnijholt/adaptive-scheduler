@@ -127,6 +127,7 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
        save_interval=300,
        log_interval=30,
        goal=None,
+       executor_type=scheduler.executor_type,
        run_script_fname=scheduler.run_script,
    )
 
