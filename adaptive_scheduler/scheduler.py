@@ -188,7 +188,8 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         returncode = None
         while returncode != 0:
             returncode = subprocess.run(
-                f"{self.submit_cmd} {name}{self.ext}".split(), stderr=subprocess.PIPE
+                f"{self.submit_cmd} {self.batch_fname(name)}".split(),
+                stderr=subprocess.PIPE,
             ).returncode
             time.sleep(0.5)
 
@@ -660,8 +661,7 @@ class LocalMockScheduler(BaseScheduler):
         cmd = f"{self.base_cmd} --queue"
 
         proc = subprocess.run(
-            cmd,
-            shell=True,
+            cmd.split(),
             text=True,
             capture_output=True,
             env=os.environ,
@@ -681,7 +681,7 @@ class LocalMockScheduler(BaseScheduler):
         returncode = None
         while returncode != 0:
             returncode = subprocess.run(
-                f"{self.submit_cmd} {name} {name}{self.ext}".split(),
+                f"{self.submit_cmd} {name} {self.batch_fname(name)}".split(),
                 stderr=subprocess.PIPE,
             ).returncode
             time.sleep(0.5)
