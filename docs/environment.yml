@@ -8,6 +8,7 @@ dependencies:
   - adaptive
   - dill
   - ipyparallel
+  - mpich
   - mpi4py
   - pandas
   - psutil
