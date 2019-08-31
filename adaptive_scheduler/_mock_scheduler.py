@@ -164,15 +164,15 @@ def _external_command(command: Tuple[str, ...], url: str):
     return ioloop.run_until_complete(task)
 
 
-def queue(url: str):
+def queue(url: str = DEFAULT_URL):
     return _external_command(("queue",), url)
 
 
-def submit(job_name: str, fname: str, url: str) -> None:
+def submit(job_name: str, fname: str, url: str = DEFAULT_URL) -> None:
     return _external_command(("submit", job_name, fname), url)
 
 
-def cancel(job_id: str, url: str) -> None:
+def cancel(job_id: str, url: str = DEFAULT_URL) -> None:
     return _external_command(("cancel", job_id), url)
 
 
