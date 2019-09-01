@@ -59,7 +59,7 @@ class MockScheduler:
         }
 
     def _queue_is_full(self):
-        n_running = sum(info["status"] == "R" for info in self._current_queue.values())
+        n_running = sum(info["state"] == "R" for info in self._current_queue.values())
         return n_running >= self.max_running_jobs
 
     def _get_new_job_id(self):
@@ -82,14 +82,14 @@ class MockScheduler:
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
-            info["status"] = "R"
+            info["state"] = "R"
 
     def submit(self, job_name: str, fname: str):
         job_id = self._get_new_job_id()
         self._current_queue[job_id] = {
             "job_name": job_name,
             "proc": None,
-            "status": "P",
+            "state": "P",
             "timestamp": str(datetime.datetime.now()),
         }
         self.ioloop.create_task(self._submit_coro(job_id, fname))
@@ -111,8 +111,8 @@ class MockScheduler:
 
     def refresh(self):
         for job_id, info in self._current_queue.items():
-            if info["status"] == "R" and info["proc"].poll() is not None:
-                info["status"] = "F"
+            if info["state"] == "R" and info["proc"].poll() is not None:
+                info["state"] = "F"
 
     async def _command_listener(self) -> Coroutine:
         log.debug("started _command_listener")
