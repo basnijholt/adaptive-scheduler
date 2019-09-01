@@ -1,5 +1,4 @@
 import abc
-import ast
 import collections
 import getpass
 import math
@@ -194,20 +193,20 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             time.sleep(0.5)
 
     def __getstate__(self):
-        return (
-            self.cores,
-            self.run_script,
-            self.python_executable,
-            self.log_folder,
-            self.mpiexec_executable,
-            self.executor_type,
-            self.num_threads,
-            self._extra_scheduler,
-            self._extra_env_vars,
+        return dict(
+            cores=self.cores,
+            run_script=self.run_script,
+            python_executable=self.python_executable,
+            log_folder=self.log_folder,
+            mpiexec_executable=self.mpiexec_executable,
+            executor_type=self.executor_type,
+            num_threads=self.num_threads,
+            extra_scheduler=self._extra_scheduler,
+            extra_env_vars=self._extra_env_vars,
         )
 
     def __setstate__(self, state):
-        self.__init__(*state)
+        self.__init__(**state)
 
 
 class PBS(BaseScheduler):
@@ -254,7 +253,7 @@ class PBS(BaseScheduler):
 
     def __getstate__(self):
         # PBS has one different argument from the BaseScheduler
-        return (*super().__getstate__(), self.cores_per_node)
+        return dict(**super().__getstate__(), cores_per_node=self.cores_per_node)
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
@@ -637,7 +636,9 @@ class LocalMockScheduler(BaseScheduler):
 
     def __getstate__(self):
         # LocalMockScheduler has one different argument from the BaseScheduler
-        return (*super().__getstate__(), self.mock_scheduler_kwargs)
+        return dict(
+            **super().__getstate__(), mock_scheduler_kwargs=self.mock_scheduler_kwargs
+        )
 
     def job_script(self, name):
         """Get a jobscript in string form.
@@ -687,23 +688,7 @@ class LocalMockScheduler(BaseScheduler):
         This function returns extra information about the job, however this is not
         used elsewhere in this package.
         """
-        cmd = f"{self.base_cmd} --queue"
-
-        proc = subprocess.run(
-            cmd.split(),
-            text=True,
-            capture_output=True,
-            env=os.environ,
-            encoding="utf-8",
-        )
-        output = proc.stdout
-
-        if proc.returncode != 0:
-            raise RuntimeError("--queue is not responding.")
-
-        running = ast.literal_eval(output.strip("\n"))
-
-        return running
+        return self.mock_scheduler.queue()
 
     def start_job(self, name):
         self.write_job_script(name)
