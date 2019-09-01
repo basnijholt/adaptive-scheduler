@@ -647,6 +647,12 @@ class LocalMockScheduler(BaseScheduler):
         -------
         job_script : str
             A job script that can be submitted to PBS.
+
+        Notes
+        -----
+        Currenty there is a problem that this will not properly cleanup.
+        for example `ipengine ... &` will be detached and go on,
+        normally a scheduler will take care of this.
         """
 
         job_script = textwrap.dedent(
