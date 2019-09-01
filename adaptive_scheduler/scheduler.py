@@ -193,6 +193,22 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             ).returncode
             time.sleep(0.5)
 
+    def __getstate__(self):
+        return (
+            self.cores,
+            self.run_script,
+            self.python_executable,
+            self.log_folder,
+            self.mpiexec_executable,
+            self.executor_type,
+            self.num_threads,
+            self._extra_scheduler,
+            self._extra_env_vars,
+        )
+
+    def __setstate__(self, state):
+        self.__init__(*state)
+
 
 class PBS(BaseScheduler):
     def __init__(
@@ -235,6 +251,10 @@ class PBS(BaseScheduler):
         self._calculate_nnodes()
         if cores != self.cores:
             warnings.warn(f"`self.cores` changed from {cores} to {self.cores}")
+
+    def __getstate__(self):
+        # PBS has one different argument from the BaseScheduler
+        return (*self.super().__getstate__(), self.cores_per_node)
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
