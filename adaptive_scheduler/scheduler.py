@@ -254,7 +254,7 @@ class PBS(BaseScheduler):
 
     def __getstate__(self):
         # PBS has one different argument from the BaseScheduler
-        return (*self.super().__getstate__(), self.cores_per_node)
+        return (*super().__getstate__(), self.cores_per_node)
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:
@@ -606,6 +606,8 @@ class LocalMockScheduler(BaseScheduler):
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
+        *,
+        mock_scheduler_kwargs=None,
     ):
         warnings.warn("The LocalMockScheduler currently doesn't work!")
         super().__init__(
@@ -620,7 +622,10 @@ class LocalMockScheduler(BaseScheduler):
             extra_env_vars,
         )
         # LocalMockScheduler specific
-        self.mock_scheduler = adaptive_scheduler._mock_scheduler.MockScheduler()
+        self.mock_scheduler_kwargs = mock_scheduler_kwargs or {}
+        self.mock_scheduler = adaptive_scheduler._mock_scheduler.MockScheduler(
+            **self.mock_scheduler_kwargs
+        )
         mock_scheduler_file = adaptive_scheduler._mock_scheduler.__file__
         self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
 
@@ -629,6 +634,10 @@ class LocalMockScheduler(BaseScheduler):
         self._submit_cmd = f"{self.base_cmd} --submit"
         self._JOB_ID_VARIABLE = "${JOB_ID}"
         self._cancel_cmd = f"{self.base_cmd} --cancel"
+
+    def __getstate__(self):
+        # LocalMockScheduler has one different argument from the BaseScheduler
+        return (*super().__getstate__(), self.mock_scheduler_kwargs)
 
     def job_script(self, name):
         """Get a jobscript in string form.
