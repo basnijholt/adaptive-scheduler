@@ -22,8 +22,3 @@ jobs:
       pre-commit install
       pre-commit run --all-files
     displayName: 'Run pre-commit'
-
-  - script: |
-      python conda-environment.py
-      if [[ `git status --porcelain --untracked-files=no` ]]; then exit 1; fi
-    displayName: Check if environment.yml is in sync with requirements.txt
