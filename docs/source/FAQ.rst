@@ -101,6 +101,6 @@ Q: Cool! What else should I check out?
 **A:** There are a bunch of things that are not present in the example notebook, I recommend to take a look at:
 
 * `adaptive_scheduler.utils.combo_to_fname`
-* `adaptive_scheduler.utils.cleanup_files`
+* `adaptive_scheduler.server_support.cleanup`
+* `adaptive_scheduler.server_support.parse_log_files`
 * `adaptive_scheduler.utils.load_parallel` and `adaptive_scheduler.utils.save_parallel`
-* `adaptive_scheduler.utils.parse_log_files`
