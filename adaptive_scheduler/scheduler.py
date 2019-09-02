@@ -16,6 +16,41 @@ from adaptive_scheduler.utils import _progress
 
 
 class BaseScheduler(metaclass=abc.ABCMeta):
+    """Base object for a Scheduler.
+
+    Parameters
+    ----------
+    cores : int
+        Number of cores per job (so per learner.)
+    run_script : str
+        Filename of the script that is run on the nodes. Inside this script we
+        query the database and run the learner.
+    python_executable : str, default: `sys.executable`
+        The Python executable that should run the `run_script`. By default
+        it uses the same Python as where this function is called.
+    log_folder : str, default: ""
+        The folder in which to put the log-files.
+    mpiexec_executable : str, optional
+        ``mpiexec`` executable. By default `mpiexec` will be
+        used (so probably from ``conda``).
+    executor_type : str, default: "mpi4py"
+        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        One can use ``"ipyparallel"`` too.
+    num_threads : int, default 1
+        ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
+        will be set to this number.
+    extra_scheduler : list, optional
+        Extra ``#SLURM`` (depending on scheduler type)
+        arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+    extra_env_vars : list, optional
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
+
+    Returns
+    -------
+    `BaseScheduler` object.
+    """
+
     def __init__(
         self,
         cores,
@@ -358,23 +393,6 @@ class PBS(BaseScheduler):
         return info
 
     def queue(self, me_only=True):
-        """Get the current running and pending jobs.
-
-        Parameters
-        ----------
-        me_only : bool, default: True
-            Only see your jobs.
-
-        Returns
-        -------
-        dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
-
-        Notes
-        -----
-        This function returns extra information about the job, however this is not
-        used elsewhere in this package.
-        """
         cmd = ["qstat", "-f"]
 
         proc = subprocess.run(
@@ -527,23 +545,6 @@ class SLURM(BaseScheduler):
         return job_script
 
     def queue(self, me_only=True):
-        """Get the current running and pending jobs.
-
-        Parameters
-        ----------
-        me_only : bool, default: True
-            Only see your jobs.
-
-        Returns
-        -------
-        dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "RUNNING" or "PENDING"}}``.
-
-        Notes
-        -----
-        This function returns extra information about the job, however this is not
-        used elsewhere in this package.
-        """
         python_format = {
             "jobid": 100,
             "name": 100,
@@ -677,23 +678,6 @@ class LocalMockScheduler(BaseScheduler):
         return job_script
 
     def queue(self, me_only=True):
-        """Get the current running and pending jobs.
-
-        Parameters
-        ----------
-        me_only : bool, default: True
-            Only see your jobs.
-
-        Returns
-        -------
-        dictionary of `job_id` -> dict with `name` and `state`, for
-        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
-
-        Notes
-        -----
-        This function returns extra information about the job, however this is not
-        used elsewhere in this package.
-        """
         return self.mock_scheduler.queue()
 
     def start_job(self, name):
