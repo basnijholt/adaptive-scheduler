@@ -35,7 +35,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         used (so probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"`` too.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, or ``"mpi4py"``.
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
