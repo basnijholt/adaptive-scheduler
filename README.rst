@@ -178,7 +178,7 @@ or install **master** with
 
 or clone the repository and do a dev install (recommended for dev)
 
-.. code-block::
+.. code-block:: bash
 
    git clone git@github.com:basnijholt/adaptive-scheduler.git
    cd adaptive-scheduler
