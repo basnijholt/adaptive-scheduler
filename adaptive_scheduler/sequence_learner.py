@@ -1,8 +1,11 @@
 import sys
+import time
 import warnings
 from copy import copy
 
 from adaptive.learner.base_learner import BaseLearner
+
+from adaptive_scheduler.utils import _print_same_line
 
 inf = sys.float_info.max
 
@@ -23,6 +26,13 @@ def ensure_hashable(x):
 
 class SequenceLearner(BaseLearner):
     def __init__(self, function, sequence):
+        warnings.warn("Use `adaptive.SequenceLearner` from adaptive>=0.9!")
+        print(
+            "I am going to sleep for 10 seconds to annoy you into updating your code!"
+        )
+        for i in range(10, -1, -1):
+            _print_same_line(f"Sleeping for {i} seconds more.", new_line_end=(i == 0))
+            time.sleep(1)
         self.function = function
         self._to_do_seq = {ensure_hashable(x) for x in sequence}
         self._npoints = len(sequence)
