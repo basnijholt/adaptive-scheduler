@@ -667,7 +667,8 @@ def _get_all_files(job_names: List[str], scheduler: BaseScheduler) -> List[str]:
     output_fnames = sum(output_fnames, [])
     batch_fnames = [scheduler.batch_fname(name) for name in job_names]
     fnames = log_fnames + output_fnames + batch_fnames
-    return [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
+    all_files = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
+    return sum(all_files, [])
 
 
 def cleanup(
@@ -695,7 +696,7 @@ def cleanup(
     from adaptive_scheduler.utils import _remove_or_move_files
 
     to_rm = _get_all_files(job_names, scheduler)
-    to_rm = sum(to_rm, [])
+
     _remove_or_move_files(
         to_rm, with_progress_bar, move_to, "Removing logs and batch files"
     )
