@@ -661,6 +661,42 @@ def parse_log_files(  # noqa: C901
     return pd.DataFrame(infos)
 
 
+def cleanup(
+    job_names: List[str],
+    scheduler: BaseScheduler,
+    with_progress_bar: bool = True,
+    move_to: Optional[str] = None,
+):
+    """Cleanup the scheduler log-files files.
+
+    Parameters
+    ----------
+    job_names : list
+        List of job names.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    with_progress_bar : bool, default: True
+        Display a progress bar using `tqdm`.
+    move_to : str, default: None
+        Move the file to a different directory.
+        If None the file is removed.
+    log_file_folder : str, default: ''
+        The folder in which to delete the log-files.
+    """
+    from adaptive_scheduler.utils import _remove_or_move_files
+
+    log_fnames = [scheduler.log_fname(name) for name in job_names]
+    output_fnames = [scheduler.output_fnames(name) for name in job_names]
+    output_fnames = sum(output_fnames, [])
+    batch_fnames = [scheduler.batch_fname(name) for name in job_names]
+    fnames = log_fnames + output_fnames + batch_fnames
+    to_rm = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
+    to_rm = sum(to_rm, [])
+    _remove_or_move_files(
+        to_rm, with_progress_bar, move_to, "Removing logs and batch files"
+    )
+
+
 class RunManager:
     """A convenience tool that starts the job, database, and kill manager.
 
@@ -873,10 +909,7 @@ class RunManager:
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        from adaptive_scheduler.utils import (
-            _delete_old_ipython_profiles,
-            _remove_or_move_files,
-        )
+        from adaptive_scheduler.utils import _delete_old_ipython_profiles
 
         scheduler = self.scheduler
         with suppress(FileNotFoundError):
@@ -887,16 +920,7 @@ class RunManager:
         if scheduler.executor_type == "ipyparallel":
             _delete_old_ipython_profiles(running_job_ids)
 
-        log_fnames = [scheduler.log_fname(name) for name in self.job_names]
-        output_fnames = [scheduler.output_fnames(name) for name in self.job_names]
-        output_fnames = sum(output_fnames, [])
-        batch_fnames = [scheduler.batch_fname(name) for name in self.job_names]
-        fnames = log_fnames + output_fnames + batch_fnames
-        to_rm = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
-        to_rm = sum(to_rm, [])
-        _remove_or_move_files(
-            to_rm, True, self.move_old_logs_to, "Removing logs and batch files"
-        )
+        cleanup(self.job_names, self.scheduler, True, self.move_old_logs_to)
 
     def parse_log_files(self, only_last: bool = True):
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
