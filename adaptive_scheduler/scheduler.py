@@ -9,7 +9,7 @@ import textwrap
 import time
 import warnings
 from distutils.spawn import find_executable
-from typing import List
+from typing import Dict, List
 
 import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress
@@ -74,7 +74,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         self._extra_env_vars = extra_env_vars
 
     @abc.abstractmethod
-    def queue(self, me_only):
+    def queue(self, me_only: bool) -> Dict[str, dict]:
         """Get the current running and pending jobs.
 
         Parameters
@@ -84,7 +84,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        dictionary of `job_id` -> dict with `name` and `state`, for
+        dictionary of ``job_id`` -> `dict` with ``name`` and ``state``, for
         example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
         Notes
@@ -95,18 +95,28 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         pass
 
     @property
-    def ext(self):
+    def ext(self) -> str:
+        """The extension of the job script."""
         return self._ext
 
     @property
-    def submit_cmd(self):
+    def submit_cmd(self) -> str:
+        """Command to start a job, e.g. ``qsub fname.batch`` or ``sbatch fname.sbatch``."""
         return self._submit_cmd
 
     @abc.abstractmethod
-    def job_script(self):
+    def job_script(self, name: str) -> str:
+        """Get a jobscript in string form.
+
+        Returns
+        -------
+        job_script : str
+            A job script that can be submitted to the scheduler.
+        """
         pass
 
-    def batch_fname(self, name):
+    def batch_fname(self, name: str) -> str:
+        """The filename of the job script."""
         return name + self.ext
 
     def cancel(
@@ -147,15 +157,15 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             cancel_jobs(job_ids)
             time.sleep(0.5)
 
-    def _mpi4py(self, name):
+    def _mpi4py(self, name: str) -> str:
         log_fname = self.log_fname(name)
         return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
-    def _dask_mpi(self, name):
+    def _dask_mpi(self, name: str) -> str:
         log_fname = self.log_fname(name)
         return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
 
-    def _ipyparallel(self, name):
+    def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
@@ -178,7 +188,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             """
         )
 
-    def _executor_specific(self, name):
+    def _executor_specific(self, name: str) -> str:
         if self.executor_type == "mpi4py":
             return self._mpi4py(name)
         elif self.executor_type == "dask-mpi":
@@ -193,31 +203,35 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         else:
             raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
-    def log_fname(self, name):
+    def log_fname(self, name: str) -> str:
+        """The filename of the log."""
         if self.log_folder:
             os.makedirs(self.log_folder, exist_ok=True)
         return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
 
-    def output_fnames(self, name):
+    def output_fnames(self, name: str) -> List[str]:
         log_fname = self.log_fname(name)
         return [log_fname.replace(".log", ".out")]
 
     @property
     def extra_scheduler(self):
+        """Scheduler options that go in the job script."""
         extra_scheduler = self._extra_scheduler or []
         return "\n".join(f"#{self._scheduler} {arg}" for arg in extra_scheduler)
 
     @property
     def extra_env_vars(self):
+        """Environment variables that need to exist in the job script."""
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    def write_job_script(self, name):
+    def write_job_script(self, name: str) -> None:
         with open(self.batch_fname(name), "w") as f:
             job_script = self.job_script(name)
             f.write(job_script)
 
-    def start_job(self, name):
+    def start_job(self, name: str) -> None:
+        """Writes a job script and submits it to the scheduler."""
         self.write_job_script(name)
         returncode = None
         while returncode != 0:
@@ -227,7 +241,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
             ).returncode
             time.sleep(0.5)
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict:
         return dict(
             cores=self.cores,
             run_script=self.run_script,
@@ -322,17 +336,17 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def output_fnames(self, name):
-        """The "-k oe" flags with "qsub" writes the log output to
-        files directly instead of at the end of the job. The downside
-        is that the logfiles are put in the homefolder."""
+    def output_fnames(self, name: str) -> List[str]:
+        # The "-k oe" flags with "qsub" writes the log output to
+        # files directly instead of at the end of the job. The downside
+        # is that the logfiles are put in the homefolder.
         home = os.path.expanduser("~/")
         stdout, stderr = [
             os.path.join(home, f"{name}.{x}{self._JOB_ID_VARIABLE}") for x in "oe"
         ]
         return [stdout, stderr]
 
-    def job_script(self, name):
+    def job_script(self, name: str) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -392,7 +406,7 @@ class PBS(BaseScheduler):
                 info[-1] += line
         return info
 
-    def queue(self, me_only=True):
+    def queue(self, me_only: bool = True) -> Dict[str, dict]:
         cmd = ["qstat", "-f"]
 
         proc = subprocess.run(
@@ -487,7 +501,7 @@ class SLURM(BaseScheduler):
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
-    def _ipyparallel(self, name):
+    def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
@@ -510,7 +524,7 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def job_script(self, name):
+    def job_script(self, name: str) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -544,7 +558,7 @@ class SLURM(BaseScheduler):
         )
         return job_script
 
-    def queue(self, me_only=True):
+    def queue(self, me_only: bool = True) -> Dict[str, dict]:
         python_format = {
             "jobid": 100,
             "name": 100,
@@ -635,13 +649,13 @@ class LocalMockScheduler(BaseScheduler):
         self._JOB_ID_VARIABLE = "${JOB_ID}"
         self._cancel_cmd = f"{self.base_cmd} --cancel"
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict:
         # LocalMockScheduler has one different argument from the BaseScheduler
         return dict(
             **super().__getstate__(), mock_scheduler_kwargs=self.mock_scheduler_kwargs
         )
 
-    def job_script(self, name):
+    def job_script(self, name: str) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -677,10 +691,10 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script
 
-    def queue(self, me_only=True):
+    def queue(self, me_only: bool = True) -> Dict[str, dict]:
         return self.mock_scheduler.queue()
 
-    def start_job(self, name):
+    def start_job(self, name: str) -> str:
         self.write_job_script(name)
         returncode = None
         while returncode != 0:
