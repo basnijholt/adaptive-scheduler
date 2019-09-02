@@ -84,8 +84,9 @@ class BaseScheduler(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        dictionary of ``job_id`` -> `dict` with ``name`` and ``state``, for
-        example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
+        queue : dict
+            Mapping of ``job_id`` -> `dict` with ``name`` and ``state``, for
+            example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
         Notes
         -----
