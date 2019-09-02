@@ -500,7 +500,7 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-        output_fname = self.output_fnames(name).replace(self._JOB_ID_VARIABLE, "%A")
+        output_fname = self.output_fnames(name)[0].replace(self._JOB_ID_VARIABLE, "%A")
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
