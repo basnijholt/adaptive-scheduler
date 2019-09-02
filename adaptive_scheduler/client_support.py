@@ -38,7 +38,7 @@ def get_learner(
     log_fname: str,
     job_id: str,
     job_name: str,
-) -> None:
+) -> Tuple[str, str]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
 
