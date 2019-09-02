@@ -119,7 +119,8 @@ def tell_done(url: str, fname: str) -> None:
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         socket.send_pyobj(("stop", fname))
-        log.info("sent stop signal", fname=fname)
+        socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
+        log.info("sent stop signal, timeout after 10s", fname=fname)
         socket.recv_pyobj()  # Needed because of socket type
 
 
