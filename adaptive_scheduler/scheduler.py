@@ -606,7 +606,7 @@ class SLURM(BaseScheduler):
 class LocalMockScheduler(BaseScheduler):
     """A scheduler that can be used for testing and runs locally.
 
-    CANCELLING DOESN'T WORK ATM!
+    CANCELLING DOESN'T WORK ATM, ALSO LEAVES ZOMBIE PROCESSES!
     """
 
     def __init__(
