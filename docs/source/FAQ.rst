@@ -59,7 +59,7 @@ in case you want to really cancel the jobs or call `adaptive_scheduler.cancel_jo
 
 Q: How do I set extra SBATCH/PBS arguments or environment variables in my job script?
 -------------------------------------------------------------------------------------
-**A:** The job_manager expects a function, so you need to modify the `~adaptive_scheduler.slurm.make_job_script` function using `functools.partial`.
+**A:** You can change this in the `scheduler` object.
 For example modifying a job script for SLURM:
 
 .. code-block:: python
@@ -72,9 +72,12 @@ For example modifying a job script for SLURM:
         mpiexec_executable="srun --mpi=pmi2",
     )  # pass this to `server_support.start_job_manager` or `RunManager`
 
+    # see the job script with
+    print(scheduler.job_script('this_will_be_the_job_name'))
+
 Q: My code uses MPI so the `~mpi4py.futures.MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?
 -----------------------------------------------------------------------------------------------------------------
-**A:** You just have to pass ``executor_type="ipyparallel"`` to `~adaptive_scheduler.slurm.make_job_script` and the `~adaptive_scheduler.server_support.RunManager`.
+**A:** You just have to pass ``executor_type="ipyparallel"`` to `~adaptive_scheduler.scheduler.SLURM` or `~adaptive_scheduler.scheduler.PBS`.
 For example:
 
 .. code-block:: python
