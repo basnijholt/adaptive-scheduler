@@ -429,7 +429,9 @@ class KillManager(BaseManager):
                 to_delete = []
 
                 # get cancel/delete only the processes/logs that are running now
-                for job_id in self.scheduler.queue().keys():
+                queue = self.scheduler.queue()
+                self.database_manager.update(queue)
+                for job_id in queue.keys():
                     if job_id in failed_jobs:
                         job_name, fnames = failed_jobs[job_id]
                         to_cancel.append(job_name)
@@ -634,6 +636,7 @@ def parse_log_files(  # noqa: C901
 
     # Polulate state and job_name from the queue
     _queue = scheduler.queue()
+    database_manager.update(_queue)
 
     for info in infos:
         info_from_queue = _queue.get(info["job_id"])
@@ -949,6 +952,8 @@ class RunManager(BaseManager):
             self.database_manager.task.print_stack()
         if self.kill_manager.task is not None:
             self.kill_manager.task.print_stack()
+        if self.time_task is not None:
+            self.time_task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
         """Get the database as a list of dicts."""
@@ -1039,11 +1044,9 @@ class RunManager(BaseManager):
         )
 
     def _info_html(self) -> str:
-        jobs = [
-            job
-            for job in self.scheduler.queue().values()
-            if job["job_name"] in self.job_names
-        ]
+        queue = self.scheduler.queue()
+        self.database_manager.update(queue)
+        jobs = [job for job in queue.values() if job["job_name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
         n_done = sum(job["is_done"] for job in self.get_database())
