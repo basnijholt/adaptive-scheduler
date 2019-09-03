@@ -10,7 +10,7 @@ import structlog
 import zmq
 from adaptive import AsyncRunner, BaseLearner
 
-from adaptive_scheduler.utils import log_exception
+from adaptive_scheduler.utils import _get_npoints, log_exception
 
 ctx = zmq.Context()
 logger = logging.getLogger("adaptive_scheduler.client")
@@ -122,14 +122,6 @@ def tell_done(url: str, fname: str) -> None:
         socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
         log.info("sent stop signal, timeout after 10s", fname=fname)
         socket.recv_pyobj()  # Needed because of socket type
-
-
-def _get_npoints(learner: BaseLearner) -> int:
-    with suppress(AttributeError):
-        return learner.npoints
-    with suppress(AttributeError):
-        # If the Learner is a BalancingLearner
-        return sum(l.npoints for l in learner.learners)
 
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:

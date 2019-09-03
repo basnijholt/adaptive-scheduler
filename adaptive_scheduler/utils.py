@@ -82,6 +82,14 @@ def split_in_balancing_learners(
     return new_learners, new_fnames
 
 
+def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
+    with suppress(AttributeError):
+        return learner.npoints
+    with suppress(AttributeError):
+        # If the Learner is a BalancingLearner
+        return sum(l.npoints for l in learner.learners)
+
+
 def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""):
     if not with_progress_bar:
         return seq
