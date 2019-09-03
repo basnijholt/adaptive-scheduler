@@ -808,6 +808,7 @@ class RunManager(BaseManager):
         job_manager_kwargs: Optional[Dict[str, Any]] = None,
         kill_manager_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        super().__init__()
         # Set from arguments
         self.scheduler = scheduler
         self.goal = goal
@@ -828,8 +829,6 @@ class RunManager(BaseManager):
         # Set in methods
         self.start_time = None
         self.end_time = None
-        self.ioloop = None
-        self.time_task = None
 
         # Set on init
         self.learners_module = self._get_learners_file()
@@ -886,12 +885,13 @@ class RunManager(BaseManager):
             self.end_time = time.time()
 
         self.ioloop = asyncio.get_event_loop()
-        self.time_task = self.ioloop.create_task(_start())
+        self._coro = _start()
+        self.task = self.ioloop.create_task(self._coro)
         self.start_time = time.time()
 
     @property
     def is_started(self):
-        return self.time_task is not None
+        return self.task is not None
 
     def _get_learners_file(self):
         from importlib.util import module_from_spec, spec_from_file_location
@@ -907,7 +907,7 @@ class RunManager(BaseManager):
         self.job_manager.cancel()
         self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
-        self.time_task.cancel()
+        self.task.cancel()
         self.end_time = time.time()
 
     def cleanup(self) -> None:
@@ -949,8 +949,8 @@ class RunManager(BaseManager):
             self.database_manager.task.print_stack()
         if self.kill_manager.task is not None:
             self.kill_manager.task.print_stack()
-        if self.time_task is not None:
-            self.time_task.print_stack()
+        if self.task is not None:
+            self.task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
         """Get the database as a `pandas.DataFrame`."""
