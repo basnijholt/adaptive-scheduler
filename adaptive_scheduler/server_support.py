@@ -859,8 +859,7 @@ class RunManager(BaseManager):
         else:
             self.kill_manager = None
 
-    def start(self):
-        """Start running the `RunManager`."""
+    def setup(self):
         _make_default_run_script(
             self.url,
             self.learners_file,
@@ -871,23 +870,15 @@ class RunManager(BaseManager):
             self.scheduler.run_script,
             self.scheduler.executor_type,
         )
-        self._start()
         self.database_manager.start()
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
-
-        return self
-
-    def _start(self):
-        async def _start():
-            await self.job_manager.task
-            self.end_time = time.time()
-
-        self.ioloop = asyncio.get_event_loop()
-        self._coro = _start()
-        self.task = self.ioloop.create_task(self._coro)
         self.start_time = time.time()
+
+    async def _manage(self):
+        await self.job_manager.task
+        self.end_time = time.time()
 
     @property
     def is_started(self):
