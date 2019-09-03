@@ -84,13 +84,15 @@ class DatabaseManager(BaseManager):
         self.fnames = fnames
         self.overwrite_db = overwrite_db
 
+        self.defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
+
         self._last_reply = None
         self._last_request = None
 
     def setup(self):
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
-        create_empty_db(self.db_fname, self.fnames)
+        self.create_empty_db()
 
     @staticmethod
     def _dispatch(request: Tuple[str, ...], db_fname: str):
@@ -130,6 +132,29 @@ class DatabaseManager(BaseManager):
         finally:
             socket.close()
 
+    def update(self, queue):
+        """If the job_id isn't running anymore, replace it with None."""
+        with TinyDB(self.db_fname) as db:
+            doc_ids = [
+                entry.doc_id for entry in db.all() if entry["job_id"] not in queue
+            ]
+            db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
+
+    def n_done(self) -> int:
+        Entry = Query()
+        with TinyDB(self.db_fname) as db:
+            return db.count(Entry.is_done == True)  # noqa: E711
+
+    def create_empty_db(self) -> None:
+        """Create an empty database that keeps track of
+        fname -> (job_id, is_done, log_fname, job_name).
+        """
+        entries = [dict(fname=fname, **self.defaults) for fname in self.fnames]
+        if os.path.exists(self.db_fname):
+            os.remove(self.db_fname)
+        with TinyDB(self.db_fname) as db:
+            db.insert_multiple(entries)
+
 
 class JobManager(BaseManager):
     """Job manager.
@@ -140,8 +165,8 @@ class JobManager(BaseManager):
         List of unique names used for the jobs with the same length as
         `learners`. Note that a job name does not correspond to a certain
         specific learner.
-    db_fname : str
-        Filename of the database, e.g. 'running.json'
+    database_manager : `DatabaseManager`
+        A `DatabaseManager` instance.
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
     interval : int, default: 30
@@ -161,7 +186,7 @@ class JobManager(BaseManager):
     def __init__(
         self,
         job_names: List[str],
-        db_fname: str,
+        database_manager: DatabaseManager,
         scheduler: BaseScheduler,
         interval: int = 30,
         *,
@@ -170,7 +195,7 @@ class JobManager(BaseManager):
     ):
         super().__init__()
         self.job_names = job_names
-        self.db_fname = db_fname
+        self.database_manager = database_manager
         self.scheduler = scheduler
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
@@ -184,7 +209,7 @@ class JobManager(BaseManager):
             while True:
                 try:
                     running = self.scheduler.queue()
-                    _update_db(self.db_fname, running)  # in case some jobs died
+                    self.database_manager.update(running)  # in case some jobs died
                     queued = {
                         j["job_name"]
                         for j in running.values()
@@ -192,7 +217,7 @@ class JobManager(BaseManager):
                     }
                     not_queued = set(self.job_names) - queued
 
-                    n_done = _get_n_jobs_done(self.db_fname)
+                    n_done = self.database_manager.n_done()
 
                     for _ in range(n_done):
                         # remove jobs that are finished
@@ -252,36 +277,10 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
-def create_empty_db(db_fname: str, fnames: List[str]) -> None:
-    """Create an empty database that keeps track of
-    fname -> (job_id, is_done, log_fname, job_name).
-
-    Parameters
-    ----------
-    db_fname : str
-        Filename of the database, e.g. 'running.json'
-    fnames : list
-        List of `fnames` corresponding to `learners`.
-    """
-    defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
-    entries = [dict(fname=fname, **defaults) for fname in fnames]
-    if os.path.exists(db_fname):
-        os.remove(db_fname)
-    with TinyDB(db_fname) as db:
-        db.insert_multiple(entries)
-
-
 def get_database(db_fname: str) -> List[Dict[str, Any]]:
     """Get the database as a list of dicts."""
     with TinyDB(db_fname) as db:
         return db.all()
-
-
-def _update_db(db_fname: str, running: Dict[str, dict]) -> None:
-    """If the job_id isn't running anymore, replace it with None."""
-    with TinyDB(db_fname) as db:
-        doc_ids = [entry.doc_id for entry in db.all() if entry["job_id"] not in running]
-        db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
 
 def _choose_fname(db_fname: str, job_id: str, log_fname: str, job_name: str) -> str:
@@ -312,12 +311,6 @@ def _done_with_learner(db_fname: str, fname: str) -> None:
     with TinyDB(db_fname) as db:
         reset = dict(job_id=None, is_done=True, job_name=None)
         db.update(reset, Entry.fname == fname)
-
-
-def _get_n_jobs_done(db_fname: str) -> int:
-    Entry = Query()
-    with TinyDB(db_fname) as db:
-        return db.count(Entry.is_done == True)  # noqa: E711
 
 
 def _get_entry(job_name, db_fname):
@@ -844,7 +837,7 @@ class RunManager(BaseManager):
         )
         self.job_manager = JobManager(
             self.job_names,
-            self.db_fname,
+            self.database_manager,
             scheduler=self.scheduler,
             interval=self.job_manager_interval,
             **self.job_manager_kwargs,
