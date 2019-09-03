@@ -297,20 +297,6 @@ class JobManager(BaseManager):
                     await asyncio.sleep(5)
 
 
-def get_allowed_url() -> str:
-    """Get an allowed url for the database manager.
-
-    Returns
-    -------
-    url : str
-        An url that can be used for the database manager, with the format
-        ``tcp://ip_of_this_machine:allowed_port.``.
-    """
-    ip = socket.gethostbyname(socket.gethostname())
-    port = zmq.ssh.tunnel.select_random_ports(1)[0]
-    return f"tcp://{ip}:{port}"
-
-
 def _get_entry(job_name, db_fname):
     Entry = Query()
     with TinyDB(db_fname) as db:
@@ -463,6 +449,20 @@ class KillManager(BaseManager):
                 raise
             except Exception as e:
                 log.exception("got exception in kill manager", exception=str(e))
+
+
+def get_allowed_url() -> str:
+    """Get an allowed url for the database manager.
+
+    Returns
+    -------
+    url : str
+        An url that can be used for the database manager, with the format
+        ``tcp://ip_of_this_machine:allowed_port.``.
+    """
+    ip = socket.gethostbyname(socket.gethostname())
+    port = zmq.ssh.tunnel.select_random_ports(1)[0]
+    return f"tcp://{ip}:{port}"
 
 
 def _make_default_run_script(
@@ -829,9 +829,9 @@ class RunManager(BaseManager):
         self.start_time = None
         self.end_time = None
         self.ioloop = None
+        self.time_task = None
 
         # Set on init
-        self.is_started = False  # XXX: make into a property
         self.learners_module = self._get_learners_file()
         self._set_job_names()
         self.url = url or get_allowed_url()
@@ -870,22 +870,26 @@ class RunManager(BaseManager):
             self.scheduler.run_script,
             self.scheduler.executor_type,
         )
-
+        self._start()
         self.database_manager.start()
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
 
+        return self
+
+    def _start(self):
         async def _start():
             await self.job_manager.task
             self.end_time = time.time()
 
-        self.is_started = True
-        self.start_time = time.time()
         self.ioloop = asyncio.get_event_loop()
-        coro = _start()
-        self.ioloop.create_task(coro)
-        return self
+        self.time_task = self.ioloop.create_task(_start())
+        self.start_time = time.time()
+
+    @property
+    def is_started(self):
+        return self.time_task is not None
 
     def _get_learners_file(self):
         from importlib.util import module_from_spec, spec_from_file_location
