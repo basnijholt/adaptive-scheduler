@@ -12,7 +12,7 @@ import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 
 import adaptive
 import dill
@@ -45,11 +45,17 @@ class BaseManager(metaclass=abc.ABCMeta):
         self.task = None
 
     def start(self):
+        if self.is_started:
+            raise Exception(f"{self.__class__} is already started!")
         self._setup()
         self.ioloop = asyncio.get_event_loop()
         self._coro = self._manage()
         self.task = self.ioloop.create_task(self._coro)
         return self
+
+    @property
+    def is_started(self):
+        return self.task is not None
 
     def cancel(self):
         if self.task is not None:
@@ -251,19 +257,23 @@ class JobManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
 
         self.n_started = 0
+        self.max_job_starts = self.max_fails_per_job * len(self.job_names)
+
+    def _queued(self, queue) -> Set[str]:
+        return {
+            job["job_name"]
+            for job in queue.values()
+            if job["job_name"] in self.job_names
+        }
 
     async def _manage(self) -> Coroutine:
-        max_job_starts = self.max_fails_per_job * len(self.job_names)
         with concurrent.futures.ProcessPoolExecutor() as ex:
             while True:
                 try:
                     running = self.scheduler.queue()
                     self.database_manager.update(running)  # in case some jobs died
-                    queued = {
-                        j["job_name"]
-                        for j in running.values()
-                        if j["job_name"] in self.job_names
-                    }
+
+                    queued = self._queued(running)  # running `job_name`s
                     not_queued = set(self.job_names) - queued
 
                     n_done = self.database_manager.n_done()
@@ -281,6 +291,7 @@ class JobManager(BaseManager):
                         return
 
                     while not_queued:
+                        # start new jobs
                         if len(queued) < self.max_simultaneous_jobs:
                             job_name = not_queued.pop()
                             queued.add(job_name)
@@ -290,7 +301,7 @@ class JobManager(BaseManager):
                             self.n_started += 1
                         else:
                             break
-                    if self.n_started > max_job_starts:
+                    if self.n_started > self.max_job_starts:
                         raise MaxRestartsReached(
                             "Too many jobs failed, your Python code probably has a bug."
                         )
@@ -303,7 +314,7 @@ class JobManager(BaseManager):
                         "too many jobs have failed, cancelling the job manager",
                         n_started=self.n_started,
                         max_fails_per_job=self.max_fails_per_job,
-                        max_job_starts=max_job_starts,
+                        max_job_starts=self.max_job_starts,
                         exception=str(e),
                     )
                     raise
@@ -879,10 +890,6 @@ class RunManager(BaseManager):
     async def _manage(self):
         await self.job_manager.task
         self.end_time = time.time()
-
-    @property
-    def is_started(self):
-        return self.task is not None
 
     def _get_learners_file(self):
         from importlib.util import module_from_spec, spec_from_file_location
