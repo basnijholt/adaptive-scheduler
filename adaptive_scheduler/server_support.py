@@ -94,44 +94,6 @@ class DatabaseManager(BaseManager):
             return
         self.create_empty_db()
 
-    @staticmethod
-    def _dispatch(request: Tuple[str, ...], db_fname: str):
-        request_type, *request_arg = request
-        log.debug("got a request", request=request)
-        try:
-            if request_type == "start":
-                # workers send us their slurm ID for us to fill in
-                job_id, log_fname, job_name = request_arg
-                kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
-                # give the worker a job and send back the fname to the worker
-                fname = _choose_fname(db_fname, **kwargs)
-                log.debug("choose a fname", fname=fname, **kwargs)
-                return fname
-            elif request_type == "stop":
-                fname = request_arg[0]  # workers send us the fname they were given
-                log.debug("got a stop request", fname=fname)
-                _done_with_learner(db_fname, fname)  # reset the job_id to None
-        except Exception as e:
-            return e
-
-    async def _manage(self) -> Coroutine:
-        """Database manager co-routine.
-
-        Returns
-        -------
-        coroutine
-        """
-        log.debug("started database")
-        socket = ctx.socket(zmq.REP)
-        socket.bind(self.url)
-        try:
-            while True:
-                self._last_request = await socket.recv_pyobj()
-                self._last_reply = self._dispatch(self._last_request, self.db_fname)
-                await socket.send_pyobj(self._last_reply)
-        finally:
-            socket.close()
-
     def update(self, queue):
         """If the job_id isn't running anymore, replace it with None."""
         with TinyDB(self.db_fname) as db:
@@ -158,6 +120,74 @@ class DatabaseManager(BaseManager):
     def as_dict(self):
         with TinyDB(self.db_fname) as db:
             return db.all()
+
+    def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str:
+        Entry = Query()
+        with TinyDB(self.db_fname) as db:
+            if db.contains(Entry.job_id == job_id):
+                entry = db.get(Entry.job_id == job_id)
+                fname = entry["fname"]  # already running
+                raise Exception(
+                    f"The job_id {job_id} already exists in the database and "
+                    f"runs {fname}. You might have forgotten to use the "
+                    "`if __name__ == '__main__': ...` idom in your code. Read the "
+                    "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
+                )
+            entry = db.get(
+                (Entry.job_id == None) & (Entry.is_done == False)
+            )  # noqa: E711
+            log.debug("choose fname", entry=entry)
+            if entry is None:
+                return
+            db.update(
+                {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
+                doc_ids=[entry.doc_id],
+            )
+        return entry["fname"]
+
+    def _stop_request(self, fname: str) -> None:
+        Entry = Query()
+        with TinyDB(self.db_fname) as db:
+            reset = dict(job_id=None, is_done=True, job_name=None)
+            db.update(reset, Entry.fname == fname)
+
+    def _dispatch(self, request: Tuple[str, ...], db_fname: str):
+        request_type, *request_arg = request
+        log.debug("got a request", request=request)
+        try:
+            if request_type == "start":
+                # workers send us their slurm ID for us to fill in
+                job_id, log_fname, job_name = request_arg
+                kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
+                # give the worker a job and send back the fname to the worker
+                fname = self._start_request(**kwargs)
+                log.debug("choose a fname", fname=fname, **kwargs)
+                return fname
+            elif request_type == "stop":
+                fname = request_arg[0]  # workers send us the fname they were given
+                log.debug("got a stop request", fname=fname)
+                self._stop_request(fname)  # reset the job_id to None
+                return
+        except Exception as e:
+            return e
+
+    async def _manage(self) -> Coroutine:
+        """Database manager co-routine.
+
+        Returns
+        -------
+        coroutine
+        """
+        log.debug("started database")
+        socket = ctx.socket(zmq.REP)
+        socket.bind(self.url)
+        try:
+            while True:
+                self._last_request = await socket.recv_pyobj()
+                self._last_reply = self._dispatch(self._last_request, self.db_fname)
+                await socket.send_pyobj(self._last_reply)
+        finally:
+            socket.close()
 
 
 class JobManager(BaseManager):
@@ -279,42 +309,6 @@ def get_allowed_url() -> str:
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
     return f"tcp://{ip}:{port}"
-
-
-def get_database(db_fname: str) -> List[Dict[str, Any]]:
-    """Get the database as a list of dicts."""
-    with TinyDB(db_fname) as db:
-        return db.all()
-
-
-def _choose_fname(db_fname: str, job_id: str, log_fname: str, job_name: str) -> str:
-    Entry = Query()
-    with TinyDB(db_fname) as db:
-        if db.contains(Entry.job_id == job_id):
-            entry = db.get(Entry.job_id == job_id)
-            fname = entry["fname"]  # already running
-            raise Exception(
-                f"The job_id {job_id} already exists in the database and "
-                f"runs {fname}. You might have forgotten to use the "
-                "`if __name__ == '__main__': ...` idom in your code. Read the "
-                "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
-            )
-        entry = db.get((Entry.job_id == None) & (Entry.is_done == False))  # noqa: E711
-        log.debug("choose fname", entry=entry)
-        if entry is None:
-            return
-        db.update(
-            {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
-            doc_ids=[entry.doc_id],
-        )
-    return entry["fname"]
-
-
-def _done_with_learner(db_fname: str, fname: str) -> None:
-    Entry = Query()
-    with TinyDB(db_fname) as db:
-        reset = dict(job_id=None, is_done=True, job_name=None)
-        db.update(reset, Entry.fname == fname)
 
 
 def _get_entry(job_name, db_fname):
@@ -598,7 +592,10 @@ def _get_infos(fname: str, only_last: bool = True):
 
 
 def parse_log_files(  # noqa: C901
-    job_names: List[str], db_fname: str, scheduler, only_last: bool = True
+    job_names: List[str],
+    database_manager: DatabaseManager,
+    scheduler,
+    only_last: bool = True,
 ):
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
@@ -609,8 +606,8 @@ def parse_log_files(  # noqa: C901
     ----------
     job_names : list
         List of job names.
-    db_fname : str, optional
-        The database filename. If passed, ``fname`` will be populated.
+    database_manager : `DatabaseManager`
+        A `DatabaseManager` instance.
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
     only_last : bool, default: True
@@ -622,7 +619,7 @@ def parse_log_files(  # noqa: C901
     """
 
     infos = []
-    for entry in get_database(db_fname):
+    for entry in database_manager.as_dict():
         log_fname = entry["log_fname"]
         if log_fname is None:
             continue
@@ -936,7 +933,9 @@ class RunManager(BaseManager):
         df : `~pandas.core.frame.DataFrame`
 
         """
-        return parse_log_files(self.job_names, self.db_fname, self.scheduler, only_last)
+        return parse_log_files(
+            self.job_names, self.database_manager, self.scheduler, only_last
+        )
 
     def task_status(self) -> None:
         r"""Print the stack of the `asyncio.Task`\s."""
