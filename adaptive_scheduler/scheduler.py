@@ -120,6 +120,10 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         """The filename of the job script."""
         return name + self.ext
 
+    @staticmethod
+    def sanatize_job_id(job_id):
+        return job_id
+
     def cancel(
         self, job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
     ) -> None:
@@ -304,6 +308,11 @@ class PBS(BaseScheduler):
     def __getstate__(self):
         # PBS has one different argument from the BaseScheduler
         return dict(**super().__getstate__(), cores_per_node=self.cores_per_node)
+
+    @staticmethod
+    def sanatize_job_id(job_id):
+        """Changes '91722.hpc05.hpc' into '91722'."""
+        return job_id.split(".")[0]
 
     def _calculate_nnodes(self):
         if self.cores_per_node is None:

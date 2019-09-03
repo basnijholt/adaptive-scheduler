@@ -118,9 +118,22 @@ class DatabaseManager(BaseManager):
         with TinyDB(self.db_fname) as db:
             db.insert_multiple(entries)
 
-    def as_dict(self):
+    def as_dicts(self):
         with TinyDB(self.db_fname) as db:
             return db.all()
+
+    def output_fnames(self, scheduler: BaseScheduler) -> Dict[str, List[str]]:
+        """The output log filenames as a dictionary."""
+        output_fnames = {}
+        for entry in self.as_dicts():
+            if entry["job_id"] is None:
+                continue
+            job_id = scheduler.sanatize_job_id(entry["job_id"])
+            output_fnames[entry["job_id"]] = [
+                f.replace(scheduler._JOB_ID_VARIABLE, job_id)
+                for f in scheduler.output_fnames(entry["job_name"])
+            ]
+        return output_fnames
 
     def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str:
         Entry = Query()
@@ -298,24 +311,6 @@ class JobManager(BaseManager):
                     await asyncio.sleep(5)
 
 
-def _get_entry(job_name, db_fname):
-    Entry = Query()
-    with TinyDB(db_fname) as db:
-        return db.get(Entry.job_name == job_name)
-
-
-def _get_output_fnames(job_name, db_fname, scheduler):
-    entry = _get_entry(job_name, db_fname)
-    if entry is None or entry["job_id"] is None:
-        return
-    job_id = entry["job_id"].split(".")[0]  # for PBS
-    output_fnames = [
-        f.replace(scheduler._JOB_ID_VARIABLE, job_id)
-        for f in scheduler.output_fnames(job_name)
-    ]
-    return output_fnames
-
-
 def logs_with_string_or_condition(
     error: Union[str, Callable[[List[str]], bool]],
     database_manager: DatabaseManager,
@@ -358,15 +353,16 @@ def logs_with_string_or_condition(
             lines = f.readlines()
         return has_error(lines)
 
+    output_fnames: Dict[str, List[str]] = database_manager.output_fnames(scheduler)
+
     have_error = {}
-    for entry in database_manager.as_dict():
-        if entry["job_id"] is None:
+    for entry in database_manager.as_dicts():
+        job_id = entry["job_id"]
+        if job_id is None:
             continue
-        output_fnames = _get_output_fnames(
-            entry["job_name"], database_manager.db_fname, scheduler
-        )
-        if any(file_has_error(f) for f in output_fnames):
-            have_error[entry["job_id"]] = entry["job_name"], output_fnames
+        fnames = output_fnames[job_id]
+        if any(file_has_error(f) for f in fnames):
+            have_error[entry["job_id"]] = entry["job_name"], fnames
     return have_error
 
 
@@ -423,6 +419,9 @@ class KillManager(BaseManager):
 
         while True:
             try:
+                queue = self.scheduler.queue()
+                self.database_manager.update(queue)
+
                 failed_jobs = logs_with_string_or_condition(
                     self.error, self.database_manager, self.scheduler
                 )
@@ -430,8 +429,6 @@ class KillManager(BaseManager):
                 to_delete = []
 
                 # get cancel/delete only the processes/logs that are running now
-                queue = self.scheduler.queue()
-                self.database_manager.update(queue)
                 for job_id in queue.keys():
                     if job_id in failed_jobs:
                         job_name, fnames = failed_jobs[job_id]
@@ -625,7 +622,7 @@ def parse_log_files(  # noqa: C901
     database_manager.update(_queue)
 
     infos = []
-    for entry in database_manager.as_dict():
+    for entry in database_manager.as_dicts():
         log_fname = entry["log_fname"]
         if log_fname is None:
             continue
@@ -955,7 +952,7 @@ class RunManager(BaseManager):
 
     def get_database(self) -> List[Dict[str, Any]]:
         """Get the database as a `pandas.DataFrame`."""
-        return pd.DataFrame(self.database_manager.as_dict())
+        return pd.DataFrame(self.database_manager.as_dicts())
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
@@ -1047,7 +1044,7 @@ class RunManager(BaseManager):
         jobs = [job for job in queue.values() if job["job_name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
-        n_done = sum(job["is_done"] for job in self.database_manager.as_dict())
+        n_done = sum(job["is_done"] for job in self.database_manager.as_dicts())
 
         status = self.status()
         color = {
