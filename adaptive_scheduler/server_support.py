@@ -49,6 +49,7 @@ class BaseManager(metaclass=abc.ABCMeta):
         self.ioloop = asyncio.get_event_loop()
         self._coro = self._manage()
         self.task = self.ioloop.create_task(self._coro)
+        return self
 
     def cancel(self):
         if self.task is not None:
@@ -620,6 +621,9 @@ def parse_log_files(  # noqa: C901
     `~pandas.core.frame.DataFrame`
     """
 
+    _queue = scheduler.queue()
+    database_manager.update(_queue)
+
     infos = []
     for entry in database_manager.as_dict():
         log_fname = entry["log_fname"]
@@ -633,10 +637,6 @@ def parse_log_files(  # noqa: C901
             info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
             info.update(entry)
             infos.append(info)
-
-    # Polulate state and job_name from the queue
-    _queue = scheduler.queue()
-    database_manager.update(_queue)
 
     for info in infos:
         info_from_queue = _queue.get(info["job_id"])
