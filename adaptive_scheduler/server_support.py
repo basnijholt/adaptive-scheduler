@@ -45,7 +45,7 @@ class BaseManager(metaclass=abc.ABCMeta):
         self.task = None
 
     def start(self):
-        self.setup()
+        self._setup()
         self.ioloop = asyncio.get_event_loop()
         self._coro = self._manage()
         self.task = self.ioloop.create_task(self._coro)
@@ -55,7 +55,8 @@ class BaseManager(metaclass=abc.ABCMeta):
         if self.task is not None:
             return self.task.cancel()
 
-    def setup(self):
+    def _setup(self):
+        """Is run in the beginning of `self.start`."""
         pass
 
 
@@ -90,7 +91,7 @@ class DatabaseManager(BaseManager):
         self._last_reply = None
         self._last_request = None
 
-    def setup(self):
+    def _setup(self):
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
@@ -859,7 +860,7 @@ class RunManager(BaseManager):
         else:
             self.kill_manager = None
 
-    def setup(self):
+    def _setup(self):
         _make_default_run_script(
             self.url,
             self.learners_file,
