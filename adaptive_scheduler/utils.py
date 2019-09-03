@@ -15,7 +15,6 @@ from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
 
-
 MAX_LINE_LENGTH = 100
 
 
