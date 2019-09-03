@@ -277,22 +277,16 @@ class JobManager(BaseManager):
                     not_queued = set(self.job_names) - queued
 
                     n_done = self.database_manager.n_done()
-
-                    for _ in range(n_done):
-                        # remove jobs that are finished
-                        if not_queued:
-                            # A job might still be running but can at the same
-                            # time be marked as finished in the db. Therefore
-                            # we added the `if not_queued` clause.
-                            not_queued.pop()
-
                     if n_done == len(self.job_names):
                         # we are finished!
                         return
+                    else:
+                        n_to_schedule = max(0, len(not_queued) - n_done)
+                        not_queued = set(list(not_queued)[:n_to_schedule])
 
                     while not_queued:
                         # start new jobs
-                        if len(queued) < self.max_simultaneous_jobs:
+                        if len(queued) <= self.max_simultaneous_jobs:
                             job_name = not_queued.pop()
                             queued.add(job_name)
                             await self.ioloop.run_in_executor(
