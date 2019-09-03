@@ -750,7 +750,7 @@ class RunManager(BaseManager):
         be cancelled and restarted. If it is a callable, it is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
-        False if not.
+        False if not. Set to None if no `KillManager` is needed.
     move_old_logs_to : str, default: "old_logs"
         Move logs of killed jobs to this directory. If None the logs will be deleted.
     db_fname : str, default: "running.json"
@@ -836,7 +836,9 @@ class RunManager(BaseManager):
 
         # Set on init
         self.learners_module = self._get_learners_file()
-        self._set_job_names()
+        self.job_names = [
+            f"{self.job_name}-{i}" for i in range(len(self.learners_module.learners))
+        ]
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
             self.url, self.db_fname, self.learners_module.fnames, self.overwrite_db
@@ -901,10 +903,6 @@ class RunManager(BaseManager):
         learners_file = module_from_spec(spec)
         spec.loader.exec_module(learners_file)
         return learners_file
-
-    def _set_job_names(self) -> None:
-        learners = self.learners_module.learners
-        self.job_names = [f"{self.job_name}-{i}" for i in range(len(learners))]
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
