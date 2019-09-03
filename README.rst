@@ -104,15 +104,11 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
    from adaptive_scheduler import server_support
    from learners_file import learners, fnames
 
-   # create a new database
+   # create a new database that keeps track of job <-> learner
    db_fname = "running.json"
-   server_support.create_empty_db(db_fname, fnames)
-
-   # get a url where we can run the database manager
-   url = server_support.get_allowed_url()
-
-   # start the "database manager"
-   database_task = server_support.start_database_manager(url, db_fname)
+   url = server_support.get_allowed_url()  # get a url where we can run the database_manager
+   database_manager = server_support.DatabaseManager(url, db_fname, fnames)
+   database_manager.start()
 
    # create a scheduler
    scheduler = adaptive_scheduler.scheduler.PBS(
@@ -135,13 +131,15 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
    n_jobs = len(learners)
    job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
-   # start the "database manager"
-   job_task = server_support.start_job_manager(
+   job_manager = server_support.JobManager(
        job_names,
-       db_fname,
+       database_manager,
        scheduler,
    )
+   job_manager.start()
 
+
+Then when the job have been running for a while you can check ``server_support.parse_log_files(job_names, database_manager, scheduler)``.
 
 You don't actually ever have to leave the Jupter notebook, take a look at the `example notebook <https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb>`_.
 
