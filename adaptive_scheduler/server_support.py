@@ -1058,11 +1058,13 @@ class RunManager(BaseManager):
 
         with suppress(Exception):
             df = self.parse_log_files()
+            t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
             from_logs = [
                 ("# of points", df.npoints.sum()),
                 ("mean CPU usage", f"{df.cpu_usage.mean().round(1)} %"),
                 ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
                 ("mean overhead", f"{df.overhead.mean().round(1)} %"),
+                ("last log-entry", f"{t_last}s ago"),
             ]
             for key in ["npoints/s", "latest_loss", "nlearners"]:
                 with suppress(Exception):
