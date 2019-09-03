@@ -591,7 +591,7 @@ def _get_infos(fname: str, only_last: bool = True):
         return status_lines
 
 
-def parse_log_files(  # noqa: C901
+def parse_log_files(
     job_names: List[str],
     database_manager: DatabaseManager,
     scheduler,
@@ -907,6 +907,8 @@ class RunManager(BaseManager):
         self.job_manager.cancel()
         self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
+        self.time_task.cancel()
+        self.end_time = time.time()
 
     def cleanup(self) -> None:
         """Cleanup the log and batch files.
