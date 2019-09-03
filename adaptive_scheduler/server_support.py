@@ -971,6 +971,7 @@ class RunManager(BaseManager):
         """Return the current status of the RunManager."""
         if not self.is_started:
             return "not yet started"
+
         try:
             self.job_manager.task.result()
         except asyncio.InvalidStateError:
