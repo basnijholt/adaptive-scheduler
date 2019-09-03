@@ -76,7 +76,7 @@ class DatabaseManager(BaseManager):
         ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
         to get a `url` that will work.
     db_fname : str
-        Filename of the database, e.g. 'running.json'
+        Filename of the database, e.g. 'running.json'.
     fnames : list
         List of `fnames` corresponding to `learners`.
     overwrite_db : bool, default: True
