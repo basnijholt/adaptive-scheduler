@@ -118,11 +118,11 @@ class MockScheduler:
         while True:
             try:
                 await asyncio.sleep(self.refresh_interval)
-                self.refresh()
+                self._refresh()
             except Exception as e:
                 print(e)
 
-    def refresh(self):
+    def _refresh(self):
         for job_id, info in self._current_queue.items():
             if info["state"] == "R" and info["proc"].poll() is not None:
                 info["state"] = "F"
