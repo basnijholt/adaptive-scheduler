@@ -23,7 +23,7 @@ import zmq.ssh
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import BaseScheduler
-
+from adaptive_scheduler.utils import _progress, _remove_or_move_files, load_parallel
 
 ctx = zmq.asyncio.Context()
 
@@ -400,7 +400,6 @@ async def manage_killer(
 ) -> Coroutine:
     # It seems like tasks that print the error message do not always stop working
     # I think it only stops working when the error happens on a node where the logger runs.
-    from adaptive_scheduler.utils import _remove_or_move_files
 
     while True:
         try:
@@ -695,7 +694,6 @@ def cleanup(
     log_file_folder : str, default: ''
         The folder in which to delete the log-files.
     """
-    from adaptive_scheduler.utils import _remove_or_move_files
 
     to_rm = _get_all_files(job_names, scheduler)
 
@@ -707,8 +705,6 @@ def cleanup(
 def _delete_old_ipython_profiles(
     scheduler: BaseScheduler, with_progress_bar: bool = True
 ):
-
-    from adaptive_scheduler.utils import _progress
 
     if scheduler.executor_type != "ipyparallel":
         return
@@ -984,8 +980,6 @@ class RunManager:
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
-        from adaptive_scheduler.utils import load_parallel
-
         load_parallel(self.learners_module.learners, self.learners_module.fnames)
 
     def elapsed_time(self) -> float:
