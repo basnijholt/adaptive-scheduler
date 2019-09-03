@@ -956,8 +956,8 @@ class RunManager(BaseManager):
             self.time_task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
-        """Get the database as a list of dicts."""
-        return self.database_manager.as_dict()
+        """Get the database as a `pandas.DataFrame`."""
+        return pd.DataFrame(self.database_manager.as_dict())
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
