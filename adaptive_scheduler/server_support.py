@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import concurrent.futures
 import datetime
@@ -57,51 +58,67 @@ def _dispatch(request: Tuple[str, ...], db_fname: str):
         return e
 
 
-_DATABASE_MANAGER_DOC = """\
-{first_line}
+class BaseManager(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def start(self):
+        pass
 
-Parameters
-----------
-url : str
-    The url of the database manager, with the format
-    ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
-    to get a `url` that will work.
-db_fname : str
-    Filename of the database, e.g. 'running.json'
-
-Returns
--------
-{returns}
-"""
+    @abc.abstractmethod
+    def cancel(self):
+        pass
 
 
-async def manage_database(url: str, db_fname: str) -> Coroutine:
-    log.debug("started database")
-    socket = ctx.socket(zmq.REP)
-    socket.bind(url)
-    try:
-        while True:
-            request = await socket.recv_pyobj()
-            reply = _dispatch(request, db_fname)
-            await socket.send_pyobj(reply)
-    finally:
-        socket.close()
+class DatabaseManager(BaseManager):
+    """Database manager.
 
+    Parameters
+    ----------
+    url : str
+        The url of the database manager, with the format
+        ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
+        to get a `url` that will work.
+    db_fname : str
+        Filename of the database, e.g. 'running.json'
+    """
 
-manage_database.__doc__ = _DATABASE_MANAGER_DOC.format(
-    first_line="Database manager co-routine.", returns="coroutine"
-)
+    def __init__(self, url: str, db_fname: str):
+        self.url = url
+        self.db_fname = db_fname
 
+        self.ioloop = None
+        self._coro = None
+        self.task = None
 
-def start_database_manager(url: str, db_fname: str) -> asyncio.Task:
-    ioloop = asyncio.get_event_loop()
-    coro = manage_database(url, db_fname)
-    return ioloop.create_task(coro)
+        self._last_reply = None
+        self._last_request = None
 
+    def start(self):
+        self.ioloop = asyncio.get_event_loop()
+        self._coro = self._manage()
+        self.task = self.ioloop.create_task(self._coro)
 
-start_database_manager.__doc__ = _DATABASE_MANAGER_DOC.format(
-    first_line="Start database manager task.", returns="asyncio.Task"
-)
+    def cancel(self):
+        if self.task is not None:
+            return self.task.cancel()
+
+    async def _manage(self) -> Coroutine:
+        """Database manager co-routine.
+
+        Returns
+        -------
+        coroutine
+        """
+        log.debug("started database")
+        socket = ctx.socket(zmq.REP)
+        socket.bind(self.url)
+        try:
+            while True:
+                self._last_request = await socket.recv_pyobj()
+                self._last_reply = _dispatch(self._last_request, self.db_fname)
+                await socket.send_pyobj(self._last_reply)
+        finally:
+            socket.close()
+
 
 _JOB_MANAGER_DOC = """{first_line}
 
@@ -730,7 +747,7 @@ def _delete_old_ipython_profiles(
             fut.result()
 
 
-class RunManager:
+class RunManager(BaseManager):
     """A convenience tool that starts the job, database, and kill manager.
 
     Parameters
@@ -844,13 +861,13 @@ class RunManager:
 
         # Set in methods
         self.job_task = None
-        self.database_task = None
         self.kill_task = None
         self.start_time = None
         self.end_time = None
 
         # Set on init
         self.url = url or get_allowed_url()
+        self.database_manager = DatabaseManager(self.url, self.db_fname)
         self.learners_module = self._get_learners_file()
         self._set_job_names()
         self.is_started = False
@@ -864,7 +881,7 @@ class RunManager:
             self.end_time = time.time()
 
         self._write_db()
-        self._start_database_manager()
+        self.database_manager.start()
         self._start_job_manager()
         if self.kill_on_error is not None:
             self._start_kill_manager()
@@ -911,9 +928,6 @@ class RunManager:
             **self.start_job_manager_kwargs,
         )
 
-    def _start_database_manager(self) -> None:
-        self.database_task = start_database_manager(self.url, self.db_fname)
-
     def _start_kill_manager(self) -> None:
         if self.kill_on_error is None:
             return
@@ -929,9 +943,9 @@ class RunManager:
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
+        self.database_manager.cancel()
         if self.job_task is not None:
             self.job_task.cancel()
-            self.database_task.cancel()
         if self.kill_task is not None:
             self.kill_task.cancel()
         self.scheduler.cancel(self.job_names)
@@ -969,8 +983,8 @@ class RunManager:
         r"""Print the stack of the `asyncio.Task`\s."""
         if self.job_task is not None:
             self.job_task.print_stack()
-        if self.database_task is not None:
-            self.database_task.print_stack()
+        if self.database_manager is not None:
+            self.database_manager.task.print_stack()
         if self.kill_task is not None:
             self.kill_task.print_stack()
 
