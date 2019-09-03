@@ -578,20 +578,6 @@ def _make_default_run_script(
     return run_script_fname
 
 
-def _get_infos(fname: str, only_last: bool = True):
-    status_lines: List[str] = []
-    with open(fname) as f:
-        lines = f.readlines()
-        for line in reversed(lines):
-            with suppress(Exception):
-                info = json.loads(line)
-                if info["event"] == "current status":
-                    status_lines.append(info)
-                    if only_last:
-                        return status_lines
-        return status_lines
-
-
 def parse_log_files(
     job_names: List[str],
     database_manager: DatabaseManager,
@@ -621,6 +607,19 @@ def parse_log_files(
 
     _queue = scheduler.queue()
     database_manager.update(_queue)
+
+    def _get_infos(fname: str, only_last: bool = True):
+        status_lines: List[str] = []
+        with open(fname) as f:
+            lines = f.readlines()
+            for line in reversed(lines):
+                with suppress(Exception):
+                    info = json.loads(line)
+                    if info["event"] == "current status":
+                        status_lines.append(info)
+                        if only_last:
+                            return status_lines
+            return status_lines
 
     infos = []
     for entry in database_manager.as_dicts():
