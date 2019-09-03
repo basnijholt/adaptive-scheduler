@@ -5,9 +5,11 @@ import glob
 import json
 import logging
 import os
+import shutil
 import socket
 import textwrap
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 
@@ -702,6 +704,36 @@ def cleanup(
     )
 
 
+def _delete_old_ipython_profiles(
+    scheduler: BaseScheduler, with_progress_bar: bool = True
+):
+
+    from adaptive_scheduler.utils import _progress
+
+    if scheduler.executor_type != "ipyparallel":
+        return
+    # We need the job_ids because only job_names wouldn't be
+    # enough information. There might be other job_managers
+    # running.
+    pattern = "profile_adaptive_scheduler_"
+    profile_folders = glob.glob(os.path.expanduser(f"~/.ipython/{pattern}*"))
+
+    running_job_ids = set(scheduler.queue().keys())
+    to_delete = [
+        folder
+        for folder in profile_folders
+        if not folder.split(pattern)[1] in running_job_ids
+    ]
+
+    with ThreadPoolExecutor() as ex:
+        desc = "Submitting deleting old IPython profiles tasks"
+        pbar = _progress(to_delete, desc=desc)
+        futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
+        desc = "Finishing deleting old IPython profiles"
+        for fut in _progress(futs, with_progress_bar, desc=desc):
+            fut.result()
+
+
 class RunManager:
     """A convenience tool that starts the job, database, and kill manager.
 
@@ -914,16 +946,11 @@ class RunManager:
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        from adaptive_scheduler.utils import _delete_old_ipython_profiles
-
-        scheduler = self.scheduler
         with suppress(FileNotFoundError):
             if self.status() != "running":
-                os.remove(scheduler.run_script)
+                os.remove(self.scheduler.run_script)
 
-        running_job_ids = set(scheduler.queue().keys())
-        if scheduler.executor_type == "ipyparallel":
-            _delete_old_ipython_profiles(running_job_ids)
+        _delete_old_ipython_profiles(self.scheduler)
 
         cleanup(self.job_names, self.scheduler, True, self.move_old_logs_to)
 
@@ -1113,12 +1140,9 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
     """
 
     async def clean(interval):
-        from adaptive_scheduler.utils import _delete_old_ipython_profiles
-
         while True:
             with suppress(Exception):
-                running_job_ids = set(scheduler.queue().keys())
-                _delete_old_ipython_profiles(running_job_ids, with_progress_bar=False)
+                _delete_old_ipython_profiles(scheduler, with_progress_bar=False)
             await asyncio.sleep(interval)
 
     ioloop = asyncio.get_event_loop()
