@@ -1091,7 +1091,6 @@ class RunManager:
 
         with suppress(Exception):
             df = self.parse_log_files()
-            abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
             from_logs = [
                 ("# of points", df.npoints.sum()),
                 ("mean CPU usage", f"{df.cpu_usage.mean().round(1)} %"),
@@ -1102,6 +1101,7 @@ class RunManager:
                 with suppress(Exception):
                     from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
             msg = "this is extracted from the log files, so it might not be up-to-date"
+            abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
             info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
 
         template = '<dt class="ignore-css">{}</dt><dd>{}</dd>'
@@ -1125,6 +1125,8 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
 
     Parameters
     ----------
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
     interval : int, default: 600
         The interval at which to remove old profiles.
 
