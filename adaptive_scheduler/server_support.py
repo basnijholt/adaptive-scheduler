@@ -38,33 +38,23 @@ class MaxRestartsReached(Exception):
     your Python code which results jobs being started indefinitely."""
 
 
-def _dispatch(request: Tuple[str, ...], db_fname: str):
-    request_type, *request_arg = request
-    log.debug("got a request", request=request)
-    try:
-        if request_type == "start":
-            # workers send us their slurm ID for us to fill in
-            job_id, log_fname, job_name = request_arg
-            kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
-            # give the worker a job and send back the fname to the worker
-            fname = _choose_fname(db_fname, **kwargs)
-            log.debug("choose a fname", fname=fname, **kwargs)
-            return fname
-        elif request_type == "stop":
-            fname = request_arg[0]  # workers send us the fname they were given
-            log.debug("got a stop request", fname=fname)
-            _done_with_learner(db_fname, fname)  # reset the job_id to None
-    except Exception as e:
-        return e
-
-
 class BaseManager(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def start(self):
-        pass
+    def __init__(self):
+        self.ioloop = None
+        self._coro = None
+        self.task = None
 
-    @abc.abstractmethod
+    def start(self):
+        self.setup()
+        self.ioloop = asyncio.get_event_loop()
+        self._coro = self._manage()
+        self.task = self.ioloop.create_task(self._coro)
+
     def cancel(self):
+        if self.task is not None:
+            return self.task.cancel()
+
+    def setup(self):
         pass
 
 
@@ -79,27 +69,48 @@ class DatabaseManager(BaseManager):
         to get a `url` that will work.
     db_fname : str
         Filename of the database, e.g. 'running.json'
+    fnames : list
+        List of `fnames` corresponding to `learners`.
+    overwrite_db : bool, default: True
+        Overwrite the existing database upon starting.
     """
 
-    def __init__(self, url: str, db_fname: str):
+    def __init__(
+        self, url: str, db_fname: str, fnames: List[str], overwrite_db: bool = True
+    ):
+        super().__init__()
         self.url = url
         self.db_fname = db_fname
-
-        self.ioloop = None
-        self._coro = None
-        self.task = None
+        self.fnames = fnames
+        self.overwrite_db = overwrite_db
 
         self._last_reply = None
         self._last_request = None
 
-    def start(self):
-        self.ioloop = asyncio.get_event_loop()
-        self._coro = self._manage()
-        self.task = self.ioloop.create_task(self._coro)
+    def setup(self):
+        if os.path.exists(self.db_fname) and not self.overwrite_db:
+            return
+        create_empty_db(self.db_fname, self.fnames)
 
-    def cancel(self):
-        if self.task is not None:
-            return self.task.cancel()
+    @staticmethod
+    def _dispatch(request: Tuple[str, ...], db_fname: str):
+        request_type, *request_arg = request
+        log.debug("got a request", request=request)
+        try:
+            if request_type == "start":
+                # workers send us their slurm ID for us to fill in
+                job_id, log_fname, job_name = request_arg
+                kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
+                # give the worker a job and send back the fname to the worker
+                fname = _choose_fname(db_fname, **kwargs)
+                log.debug("choose a fname", fname=fname, **kwargs)
+                return fname
+            elif request_type == "stop":
+                fname = request_arg[0]  # workers send us the fname they were given
+                log.debug("got a stop request", fname=fname)
+                _done_with_learner(db_fname, fname)  # reset the job_id to None
+        except Exception as e:
+            return e
 
     async def _manage(self) -> Coroutine:
         """Database manager co-routine.
@@ -114,7 +125,7 @@ class DatabaseManager(BaseManager):
         try:
             while True:
                 self._last_request = await socket.recv_pyobj()
-                self._last_reply = _dispatch(self._last_request, self.db_fname)
+                self._last_reply = self._dispatch(self._last_request, self.db_fname)
                 await socket.send_pyobj(self._last_reply)
         finally:
             socket.close()
@@ -157,6 +168,7 @@ class JobManager(BaseManager):
         max_simultaneous_jobs: int = 5000,
         max_fails_per_job: int = 100,
     ):
+        super().__init__()
         self.job_names = job_names
         self.db_fname = db_fname
         self.scheduler = scheduler
@@ -164,20 +176,7 @@ class JobManager(BaseManager):
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
 
-        self.ioloop = None
-        self._coro = None
-        self.task = None
-
         self.n_started = 0
-
-    def start(self):
-        self.ioloop = asyncio.get_event_loop()
-        self._coro = self._manage()
-        self.task = self.ioloop.create_task(self._coro)
-
-    def cancel(self):
-        if self.task is not None:
-            return self.task.cancel()
 
     async def _manage(self) -> Coroutine:
         max_job_starts = self.max_fails_per_job * len(self.job_names)
@@ -391,100 +390,86 @@ def logs_with_string_or_condition(
     return have_error
 
 
-async def manage_killer(
-    job_names: List[str],
-    scheduler: BaseScheduler,
-    error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
-    interval: int = 600,
-    max_cancel_tries: int = 5,
-    move_to: Optional[str] = None,
-    db_fname: str = "running.json",
-) -> Coroutine:
-    # It seems like tasks that print the error message do not always stop working
-    # I think it only stops working when the error happens on a node where the logger runs.
+class KillManager(BaseManager):
+    """Kill manager.
 
-    while True:
-        try:
-            failed_jobs = logs_with_string_or_condition(error, db_fname, scheduler)
-            to_cancel = []
-            to_delete = []
+    Automatically cancel jobs that contain an error (or other condition)
+    in the log files.
 
-            # get cancel/delete only the processes/logs that are running now
-            for job_id in scheduler.queue().keys():
-                if job_id in failed_jobs:
-                    job_name, fnames = failed_jobs[job_id]
-                    to_cancel.append(job_name)
-                    to_delete += fnames
+    Parameters
+    ----------
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    error : str or callable, default: "srun: error:"
+        If ``error`` is a string and is found in the log files, the job will
+        be cancelled and restarted. If it is a callable, it is applied
+        to the log text. Must take a single argument, a list of
+        strings, and return True if the job has to be killed, or
+        False if not.
+    interval : int, default: 600
+        Time in seconds between checking for the condition.
+    max_cancel_tries : int, default: 5
+        Try maximum `max_cancel_tries` times to cancel a job.
+    move_to : str, optional
+        If a job is cancelled the log is either removed (if ``move_to=None``)
+        or moved to a folder (e.g. if ``move_to='old_logs'``).
+    db_fname : str, default: "running.json"
+        Filename of the database, e.g. 'running.json'.
+    """
 
-            scheduler.cancel(
-                to_cancel, with_progress_bar=False, max_tries=max_cancel_tries
-            )
-            _remove_or_move_files(to_delete, with_progress_bar=False, move_to=move_to)
-            await asyncio.sleep(interval)
-        except concurrent.futures.CancelledError:
-            log.info("task was cancelled because of a CancelledError")
-            raise
-        except Exception as e:
-            log.exception("got exception in kill manager", exception=str(e))
+    def __init__(
+        self,
+        scheduler: BaseScheduler,
+        error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
+        interval: int = 600,
+        max_cancel_tries: int = 5,
+        move_to: Optional[str] = None,
+        db_fname: str = "running.json",
+    ):
+        super().__init__()
+        self.scheduler = scheduler
+        self.error = error
+        self.interval = interval
+        self.max_cancel_tries = max_cancel_tries
+        self.move_to = move_to
+        self.db_fname = db_fname
 
+        self.cancelled = []
+        self.deleted = []
 
-_KILL_MANAGER_DOC = """{first_line}
+    async def _manage(self) -> Coroutine:
+        # It seems like tasks that print the error message do not always stop working
+        # I think it only stops working when the error happens on a node where the logger runs.
 
-Automatically cancel jobs that contain an error (or other condition)
-in the log files.
+        while True:
+            try:
+                failed_jobs = logs_with_string_or_condition(
+                    self.error, self.db_fname, self.scheduler
+                )
+                to_cancel = []
+                to_delete = []
 
-Parameters
-----------
-job_names : list
-    List of unique names used for the jobs with the same length as
-    `learners`.
-scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
-    A scheduler instance from `adaptive_scheduler.scheduler`.
-error : str or callable, default: "srun: error:"
-    If ``error`` is a string and is found in the log files, the job will
-    be cancelled and restarted. If it is a callable, it is applied
-    to the log text. Must take a single argument, a list of
-    strings, and return True if the job has to be killed, or
-    False if not.
-interval : int, default: 600
-    Time in seconds between checking for the condition.
-max_cancel_tries : int, default: 5
-    Try maximum `max_cancel_tries` times to cancel a job.
-move_to : str, optional
-    If a job is cancelled the log is either removed (if ``move_to=None``)
-    or moved to a folder (e.g. if ``move_to='old_logs'``).
-db_fname : str, default: "running.json"
-    Filename of the database, e.g. 'running.json'.
+                # get cancel/delete only the processes/logs that are running now
+                for job_id in self.scheduler.queue().keys():
+                    if job_id in failed_jobs:
+                        job_name, fnames = failed_jobs[job_id]
+                        to_cancel.append(job_name)
+                        to_delete += fnames
 
-Returns
--------
-{returns}
-"""
-
-manage_killer.__doc__ = _KILL_MANAGER_DOC.format(
-    first_line="Kill manager co-routine.", returns="coroutine"
-)
-
-
-def start_kill_manager(
-    job_names: List[str],
-    scheduler: BaseScheduler,
-    error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
-    interval: int = 600,
-    max_cancel_tries: int = 5,
-    move_to: Optional[str] = None,
-    db_fname: str = "running.json",
-) -> asyncio.Task:
-    ioloop = asyncio.get_event_loop()
-    coro = manage_killer(
-        job_names, scheduler, error, interval, max_cancel_tries, move_to, db_fname
-    )
-    return ioloop.create_task(coro)
-
-
-start_kill_manager.__doc__ = _KILL_MANAGER_DOC.format(
-    first_line="Start the kill manager task.", returns="asyncio.Task"
-)
+                self.scheduler.cancel(
+                    to_cancel, with_progress_bar=False, max_tries=self.max_cancel_tries
+                )
+                _remove_or_move_files(
+                    to_delete, with_progress_bar=False, move_to=self.move_to
+                )
+                self.cancelled += to_cancel
+                self.deleted += to_delete
+                await asyncio.sleep(self.interval)
+            except concurrent.futures.CancelledError:
+                log.info("task was cancelled because of a CancelledError")
+                raise
+            except Exception as e:
+                log.exception("got exception in kill manager", exception=str(e))
 
 
 def _make_default_run_script(
@@ -775,7 +760,7 @@ class RunManager(BaseManager):
         Overwrite the existing database.
     job_manager_kwargs : dict, default: None
         Keyword arguments for the `start_job_manager` function that aren't set in ``__init__`` here.
-    start_kill_manager_kwargs : dict, default: None
+    kill_manager_kwargs : dict, default: None
         Keyword arguments for the `start_kill_manager` function that aren't set in ``__init__`` here.
 
     Examples
@@ -825,7 +810,7 @@ class RunManager(BaseManager):
         db_fname: str = "running.json",
         overwrite_db: bool = True,
         job_manager_kwargs: Optional[Dict[str, Any]] = None,
-        start_kill_manager_kwargs: Optional[Dict[str, Any]] = None,
+        kill_manager_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Set from arguments
         self.scheduler = scheduler
@@ -842,10 +827,9 @@ class RunManager(BaseManager):
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
-        self.start_kill_manager_kwargs = start_kill_manager_kwargs or {}
+        self.kill_manager_kwargs = kill_manager_kwargs or {}
 
         # Set in methods
-        self.kill_task = None
         self.start_time = None
         self.end_time = None
         self.ioloop = None
@@ -855,7 +839,9 @@ class RunManager(BaseManager):
         self.learners_module = self._get_learners_file()
         self._set_job_names()
         self.url = url or get_allowed_url()
-        self.database_manager = DatabaseManager(self.url, self.db_fname)
+        self.database_manager = DatabaseManager(
+            self.url, self.db_fname, self.learners_module.fnames, self.overwrite_db
+        )
         self.job_manager = JobManager(
             self.job_names,
             self.db_fname,
@@ -863,6 +849,18 @@ class RunManager(BaseManager):
             interval=self.job_manager_interval,
             **self.job_manager_kwargs,
         )
+
+        if self.kill_on_error is not None:
+            self.kill_manager = KillManager(
+                scheduler=self.scheduler,
+                error=self.kill_on_error,
+                interval=self.kill_interval,
+                move_to=self.move_old_logs_to,
+                db_fname=self.db_fname,
+                **self.kill_manager_kwargs,
+            )
+        else:
+            self.kill_manager = None
 
     def start(self):
         """Start running the `RunManager`."""
@@ -877,11 +875,10 @@ class RunManager(BaseManager):
             self.scheduler.executor_type,
         )
 
-        self._write_db()
         self.database_manager.start()
         self.job_manager.start()
-        if self.kill_on_error is not None:
-            self._start_kill_manager()
+        if self.kill_manager:
+            self.kill_manager.start()
 
         async def _start():
             await self.job_manager.task
@@ -902,34 +899,15 @@ class RunManager(BaseManager):
         spec.loader.exec_module(learners_file)
         return learners_file
 
-    def _write_db(self) -> None:
-        if os.path.exists(self.db_fname) and not self.overwrite_db:
-            return
-        create_empty_db(self.db_fname, self.learners_module.fnames)
-
     def _set_job_names(self) -> None:
         learners = self.learners_module.learners
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(learners))]
-
-    def _start_kill_manager(self) -> None:
-        if self.kill_on_error is None:
-            return
-        self.kill_task = start_kill_manager(
-            self.job_names,
-            self.scheduler,
-            error=self.kill_on_error,
-            interval=self.kill_interval,
-            move_to=self.move_old_logs_to,
-            db_fname=self.db_fname,
-            **self.start_kill_manager_kwargs,
-        )
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
         self.database_manager.cancel()
         self.job_manager.cancel()
-        if self.kill_task is not None:
-            self.kill_task.cancel()
+        self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
 
     def cleanup(self) -> None:
@@ -967,8 +945,8 @@ class RunManager(BaseManager):
             self.job_manager.task.print_stack()
         if self.database_manager.task is not None:
             self.database_manager.task.print_stack()
-        if self.kill_task is not None:
-            self.kill_task.print_stack()
+        if self.kill_manager.task is not None:
+            self.kill_manager.task.print_stack()
 
     def get_database(self) -> List[Dict[str, Any]]:
         """Get the database as a list of dicts."""
