@@ -120,138 +120,123 @@ class DatabaseManager(BaseManager):
             socket.close()
 
 
-_JOB_MANAGER_DOC = """{first_line}
+class JobManager(BaseManager):
+    """Job manager.
 
-Parameters
-----------
-job_names : list
-    List of unique names used for the jobs with the same length as
-    `learners`. Note that a job name does not correspond to a certain
-    specific learner.
-db_fname : str
-    Filename of the database, e.g. 'running.json'
-{extra_args}
-scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
-    A scheduler instance from `adaptive_scheduler.scheduler`.
-interval : int, default: 30
-    Time in seconds between checking and starting jobs.
-max_simultaneous_jobs : int, default: 5000
-    Maximum number of simultaneously running jobs. By default no more than 5000
-    jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
-    jobs will run forever, resulting in the jobs that were not initially started
-    (because of this `max_simultaneous_jobs` condition) to not ever start.
-max_fails_per_job : int, default: 40
-    Maximum number of times that a job can fail. This is here as a fail switch
-    because a job might fail instantly because of a bug inside `run_script`.
-    The job manager will stop when
-    ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    Parameters
+    ----------
+    job_names : list
+        List of unique names used for the jobs with the same length as
+        `learners`. Note that a job name does not correspond to a certain
+        specific learner.
+    db_fname : str
+        Filename of the database, e.g. 'running.json'
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    interval : int, default: 30
+        Time in seconds between checking and starting jobs.
+    max_simultaneous_jobs : int, default: 5000
+        Maximum number of simultaneously running jobs. By default no more than 5000
+        jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
+        jobs will run forever, resulting in the jobs that were not initially started
+        (because of this `max_simultaneous_jobs` condition) to not ever start.
+    max_fails_per_job : int, default: 40
+        Maximum number of times that a job can fail. This is here as a fail switch
+        because a job might fail instantly because of a bug inside `run_script`.
+        The job manager will stop when
+        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    """
 
-Returns
--------
-{returns}
-"""
+    def __init__(
+        self,
+        job_names: List[str],
+        db_fname: str,
+        scheduler: BaseScheduler,
+        interval: int = 30,
+        *,
+        max_simultaneous_jobs: int = 5000,
+        max_fails_per_job: int = 100,
+    ):
+        self.job_names = job_names
+        self.db_fname = db_fname
+        self.scheduler = scheduler
+        self.interval = interval
+        self.max_simultaneous_jobs = max_simultaneous_jobs
+        self.max_fails_per_job = max_fails_per_job
 
+        self.ioloop = None
+        self._coro = None
+        self.task = None
 
-async def manage_jobs(
-    job_names: List[str],
-    db_fname: str,
-    ioloop,
-    scheduler: BaseScheduler,
-    interval: int = 30,
-    *,
-    max_simultaneous_jobs: int = 5000,
-    max_fails_per_job: int = 100,
-) -> Coroutine:
-    n_started = 0
-    max_job_starts = max_fails_per_job * len(job_names)
-    with concurrent.futures.ProcessPoolExecutor() as ex:
-        while True:
-            try:
-                running = scheduler.queue()
-                _update_db(db_fname, running)  # in case some jobs died
-                queued = {
-                    j["job_name"]
-                    for j in running.values()
-                    if j["job_name"] in job_names
-                }
-                not_queued = set(job_names) - queued
+        self.n_started = 0
 
-                n_done = _get_n_jobs_done(db_fname)
+    def start(self):
+        self.ioloop = asyncio.get_event_loop()
+        self._coro = self._manage()
+        self.task = self.ioloop.create_task(self._coro)
 
-                for _ in range(n_done):
-                    # remove jobs that are finished
-                    if not_queued:
-                        # A job might still be running but can at the same
-                        # time be marked as finished in the db. Therefore
-                        # we added the `if not_queued` clause.
-                        not_queued.pop()
+    def cancel(self):
+        if self.task is not None:
+            return self.task.cancel()
 
-                if n_done == len(job_names):
-                    # we are finished!
-                    return
+    async def _manage(self) -> Coroutine:
+        max_job_starts = self.max_fails_per_job * len(self.job_names)
+        with concurrent.futures.ProcessPoolExecutor() as ex:
+            while True:
+                try:
+                    running = self.scheduler.queue()
+                    _update_db(self.db_fname, running)  # in case some jobs died
+                    queued = {
+                        j["job_name"]
+                        for j in running.values()
+                        if j["job_name"] in self.job_names
+                    }
+                    not_queued = set(self.job_names) - queued
 
-                while not_queued:
-                    if len(queued) < max_simultaneous_jobs:
-                        job_name = not_queued.pop()
-                        queued.add(job_name)
-                        await ioloop.run_in_executor(ex, scheduler.start_job, job_name)
-                        n_started += 1
-                    else:
-                        break
-                if n_started > max_job_starts:
-                    raise MaxRestartsReached(
-                        "Too many jobs failed, your Python code probably has a bug."
+                    n_done = _get_n_jobs_done(self.db_fname)
+
+                    for _ in range(n_done):
+                        # remove jobs that are finished
+                        if not_queued:
+                            # A job might still be running but can at the same
+                            # time be marked as finished in the db. Therefore
+                            # we added the `if not_queued` clause.
+                            not_queued.pop()
+
+                    if n_done == len(self.job_names):
+                        # we are finished!
+                        return
+
+                    while not_queued:
+                        if len(queued) < self.max_simultaneous_jobs:
+                            job_name = not_queued.pop()
+                            queued.add(job_name)
+                            await self.ioloop.run_in_executor(
+                                ex, self.scheduler.start_job, job_name
+                            )
+                            self.n_started += 1
+                        else:
+                            break
+                    if self.n_started > max_job_starts:
+                        raise MaxRestartsReached(
+                            "Too many jobs failed, your Python code probably has a bug."
+                        )
+                    await asyncio.sleep(self.interval)
+                except concurrent.futures.CancelledError:
+                    log.info("task was cancelled because of a CancelledError")
+                    raise
+                except MaxRestartsReached as e:
+                    log.exception(
+                        "too many jobs have failed, cancelling the job manager",
+                        n_started=self.n_started,
+                        max_fails_per_job=self.max_fails_per_job,
+                        max_job_starts=max_job_starts,
+                        exception=str(e),
                     )
-                await asyncio.sleep(interval)
-            except concurrent.futures.CancelledError:
-                log.info("task was cancelled because of a CancelledError")
-                raise
-            except MaxRestartsReached as e:
-                log.exception(
-                    "too many jobs have failed, cancelling the job manager",
-                    n_started=n_started,
-                    max_fails_per_job=max_fails_per_job,
-                    max_job_starts=max_job_starts,
-                    exception=str(e),
-                )
-                raise
-            except Exception as e:
-                log.exception("got exception when starting a job", exception=str(e))
-                await asyncio.sleep(5)
-
-
-manage_jobs.__doc__ = _JOB_MANAGER_DOC.format(
-    first_line="Job manager co-routine.",
-    returns="coroutine",
-    extra_args="ioloop : `asyncio.AbstractEventLoop` instance\n    A running eventloop.",
-)
-
-
-def start_job_manager(
-    job_names: List[str],
-    db_fname: str,
-    scheduler: BaseScheduler,
-    interval: int = 30,
-    *,
-    max_simultaneous_jobs: int = 5000,
-    max_fails_per_job: int = 40,
-) -> asyncio.Task:
-    ioloop = asyncio.get_event_loop()
-    coro = manage_jobs(
-        job_names,
-        db_fname,
-        ioloop,
-        scheduler,
-        interval,
-        max_simultaneous_jobs=max_simultaneous_jobs,
-        max_fails_per_job=max_fails_per_job,
-    )
-    return ioloop.create_task(coro)
-
-
-start_job_manager.__doc__ = _JOB_MANAGER_DOC.format(
-    first_line="Start the job manager task.", returns="asyncio.Task", extra_args=""
-)
+                    raise
+                except Exception as e:
+                    log.exception("got exception when starting a job", exception=str(e))
+                    await asyncio.sleep(5)
 
 
 def get_allowed_url() -> str:
@@ -788,7 +773,7 @@ class RunManager(BaseManager):
         Filename of the database, e.g. 'running.json'.
     overwrite_db : bool, default: True
         Overwrite the existing database.
-    start_job_manager_kwargs : dict, default: None
+    job_manager_kwargs : dict, default: None
         Keyword arguments for the `start_job_manager` function that aren't set in ``__init__`` here.
     start_kill_manager_kwargs : dict, default: None
         Keyword arguments for the `start_kill_manager` function that aren't set in ``__init__`` here.
@@ -839,7 +824,7 @@ class RunManager(BaseManager):
         move_old_logs_to: Optional[str] = "old_logs",
         db_fname: str = "running.json",
         overwrite_db: bool = True,
-        start_job_manager_kwargs: Optional[Dict[str, Any]] = None,
+        job_manager_kwargs: Optional[Dict[str, Any]] = None,
         start_kill_manager_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Set from arguments
@@ -856,38 +841,57 @@ class RunManager(BaseManager):
         self.move_old_logs_to = move_old_logs_to
         self.db_fname = db_fname
         self.overwrite_db = overwrite_db
-        self.start_job_manager_kwargs = start_job_manager_kwargs or {}
+        self.job_manager_kwargs = job_manager_kwargs or {}
         self.start_kill_manager_kwargs = start_kill_manager_kwargs or {}
 
         # Set in methods
-        self.job_task = None
         self.kill_task = None
         self.start_time = None
         self.end_time = None
+        self.ioloop = None
 
         # Set on init
-        self.url = url or get_allowed_url()
-        self.database_manager = DatabaseManager(self.url, self.db_fname)
+        self.is_started = False  # XXX: make into a property
         self.learners_module = self._get_learners_file()
         self._set_job_names()
-        self.is_started = False
-        self.ioloop = asyncio.get_event_loop()
+        self.url = url or get_allowed_url()
+        self.database_manager = DatabaseManager(self.url, self.db_fname)
+        self.job_manager = JobManager(
+            self.job_names,
+            self.db_fname,
+            scheduler=self.scheduler,
+            interval=self.job_manager_interval,
+            **self.job_manager_kwargs,
+        )
 
     def start(self):
         """Start running the `RunManager`."""
-
-        async def _start():
-            await self.job_task
-            self.end_time = time.time()
+        _make_default_run_script(
+            self.url,
+            self.learners_file,
+            self.save_interval,
+            self.log_interval,
+            self.goal,
+            self.runner_kwargs,
+            self.scheduler.run_script,
+            self.scheduler.executor_type,
+        )
 
         self._write_db()
         self.database_manager.start()
-        self._start_job_manager()
+        self.job_manager.start()
         if self.kill_on_error is not None:
             self._start_kill_manager()
+
+        async def _start():
+            await self.job_manager.task
+            self.end_time = time.time()
+
         self.is_started = True
         self.start_time = time.time()
-        self.ioloop.create_task(_start())
+        self.ioloop = asyncio.get_event_loop()
+        coro = _start()
+        self.ioloop.create_task(coro)
         return self
 
     def _get_learners_file(self):
@@ -907,27 +911,6 @@ class RunManager(BaseManager):
         learners = self.learners_module.learners
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(learners))]
 
-    def _start_job_manager(self) -> None:
-
-        self.run_script = _make_default_run_script(
-            self.url,
-            self.learners_file,
-            self.save_interval,
-            self.log_interval,
-            self.goal,
-            self.runner_kwargs,
-            self.scheduler.run_script,
-            self.scheduler.executor_type,
-        )
-
-        self.job_task = start_job_manager(
-            self.job_names,
-            self.db_fname,
-            scheduler=self.scheduler,
-            interval=self.job_manager_interval,
-            **self.start_job_manager_kwargs,
-        )
-
     def _start_kill_manager(self) -> None:
         if self.kill_on_error is None:
             return
@@ -944,8 +927,7 @@ class RunManager(BaseManager):
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
         self.database_manager.cancel()
-        if self.job_task is not None:
-            self.job_task.cancel()
+        self.job_manager.cancel()
         if self.kill_task is not None:
             self.kill_task.cancel()
         self.scheduler.cancel(self.job_names)
@@ -981,9 +963,9 @@ class RunManager(BaseManager):
 
     def task_status(self) -> None:
         r"""Print the stack of the `asyncio.Task`\s."""
-        if self.job_task is not None:
-            self.job_task.print_stack()
-        if self.database_manager is not None:
+        if self.job_manager.task is not None:
+            self.job_manager.task.print_stack()
+        if self.database_manager.task is not None:
             self.database_manager.task.print_stack()
         if self.kill_task is not None:
             self.kill_task.print_stack()
@@ -1001,11 +983,11 @@ class RunManager(BaseManager):
         if not self.is_started:
             return 0
 
-        if self.job_task.done():
+        if self.job_manager.task.done():
             end_time = self.end_time
             if end_time is None:
                 # task was cancelled before it began
-                assert self.job_task.cancelled()
+                assert self.job_manager.task.cancelled()
                 return 0
         else:
             end_time = time.time()
@@ -1016,7 +998,7 @@ class RunManager(BaseManager):
         if not self.is_started:
             return "not yet started"
         try:
-            self.job_task.result()
+            self.job_manager.task.result()
         except asyncio.InvalidStateError:
             return "running"
         except asyncio.CancelledError:
