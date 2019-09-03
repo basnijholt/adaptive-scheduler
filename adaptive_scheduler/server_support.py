@@ -155,6 +155,10 @@ class DatabaseManager(BaseManager):
         with TinyDB(self.db_fname) as db:
             db.insert_multiple(entries)
 
+    def as_dict(self):
+        with TinyDB(self.db_fname) as db:
+            return db.all()
+
 
 class JobManager(BaseManager):
     """Job manager.
@@ -333,7 +337,7 @@ def _get_output_fnames(job_name, db_fname, scheduler):
 
 def logs_with_string_or_condition(
     error: Union[str, Callable[[List[str]], bool]],
-    db_fname: List[str],
+    database_manager: DatabaseManager,
     scheduler: BaseScheduler,
 ) -> Dict[str, list]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
@@ -347,8 +351,8 @@ def logs_with_string_or_condition(
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
-    db_fname : str, default: "running.json"
-        Filename of the database, e.g. 'running.json'.
+    database_manager : `DatabaseManager`
+        A `DatabaseManager` instance.
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
 
@@ -374,10 +378,12 @@ def logs_with_string_or_condition(
         return has_error(lines)
 
     have_error = {}
-    for entry in get_database(db_fname):
+    for entry in database_manager.as_dict():
         if entry["job_id"] is None:
             continue
-        output_fnames = _get_output_fnames(entry["job_name"], db_fname, scheduler)
+        output_fnames = _get_output_fnames(
+            entry["job_name"], database_manager.db_fname, scheduler
+        )
         if any(file_has_error(f) for f in output_fnames):
             have_error[entry["job_id"]] = entry["job_name"], output_fnames
     return have_error
@@ -393,6 +399,8 @@ class KillManager(BaseManager):
     ----------
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
+    database_manager : `DatabaseManager`
+        A `DatabaseManager` instance.
     error : str or callable, default: "srun: error:"
         If ``error`` is a string and is found in the log files, the job will
         be cancelled and restarted. If it is a callable, it is applied
@@ -406,26 +414,24 @@ class KillManager(BaseManager):
     move_to : str, optional
         If a job is cancelled the log is either removed (if ``move_to=None``)
         or moved to a folder (e.g. if ``move_to='old_logs'``).
-    db_fname : str, default: "running.json"
-        Filename of the database, e.g. 'running.json'.
     """
 
     def __init__(
         self,
         scheduler: BaseScheduler,
+        database_manager: DatabaseManager,
         error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
         interval: int = 600,
         max_cancel_tries: int = 5,
         move_to: Optional[str] = None,
-        db_fname: str = "running.json",
     ):
         super().__init__()
         self.scheduler = scheduler
+        self.database_manager = database_manager
         self.error = error
         self.interval = interval
         self.max_cancel_tries = max_cancel_tries
         self.move_to = move_to
-        self.db_fname = db_fname
 
         self.cancelled = []
         self.deleted = []
@@ -437,7 +443,7 @@ class KillManager(BaseManager):
         while True:
             try:
                 failed_jobs = logs_with_string_or_condition(
-                    self.error, self.db_fname, self.scheduler
+                    self.error, self.database_manager, self.scheduler
                 )
                 to_cancel = []
                 to_delete = []
@@ -846,10 +852,10 @@ class RunManager(BaseManager):
         if self.kill_on_error is not None:
             self.kill_manager = KillManager(
                 scheduler=self.scheduler,
+                database_manager=self.database_manager,
                 error=self.kill_on_error,
                 interval=self.kill_interval,
                 move_to=self.move_old_logs_to,
-                db_fname=self.db_fname,
                 **self.kill_manager_kwargs,
             )
         else:
@@ -943,7 +949,7 @@ class RunManager(BaseManager):
 
     def get_database(self) -> List[Dict[str, Any]]:
         """Get the database as a list of dicts."""
-        return get_database(self.db_fname)
+        return self.database_manager.as_dict()
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
