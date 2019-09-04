@@ -79,6 +79,8 @@ class DatabaseManager(_BaseManager):
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
         to get a `url` that will work.
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
     db_fname : str
         Filename of the database, e.g. 'running.json'.
     fnames : list
@@ -93,10 +95,16 @@ class DatabaseManager(_BaseManager):
     """
 
     def __init__(
-        self, url: str, db_fname: str, fnames: List[str], overwrite_db: bool = True
+        self,
+        url: str,
+        scheduler: BaseScheduler,
+        db_fname: str,
+        fnames: List[str],
+        overwrite_db: bool = True,
     ):
         super().__init__()
         self.url = url
+        self.scheduler = scheduler
         self.db_fname = db_fname
         self.fnames = fnames
         self.overwrite_db = overwrite_db
@@ -112,8 +120,11 @@ class DatabaseManager(_BaseManager):
             return
         self.create_empty_db()
 
-    def update(self, queue: Dict[str, Dict[str, str]]) -> None:
+    def update(self, queue: Optional[Dict[str, Dict[str, str]]] = None) -> None:
         """If the job_id isn't running anymore, replace it with None."""
+        if queue is None:
+            queue = self.scheduler.queue(me_only=True)
+
         with TinyDB(self.db_fname) as db:
             to_rm = [
                 entry
@@ -143,16 +154,16 @@ class DatabaseManager(_BaseManager):
         with TinyDB(self.db_fname) as db:
             return db.all()
 
-    def output_fnames(self, scheduler: BaseScheduler) -> Dict[str, List[str]]:
+    def output_fnames(self) -> Dict[str, List[str]]:
         """The output log filenames as a dictionary."""
         output_fnames = {}
         for entry in self.as_dicts():
             if entry["job_id"] is None:
                 continue
-            job_id = scheduler.sanatize_job_id(entry["job_id"])
+            job_id = self.scheduler.sanatize_job_id(entry["job_id"])
             output_fnames[entry["job_id"]] = [
-                f.replace(scheduler._JOB_ID_VARIABLE, job_id)
-                for f in scheduler.output_fnames(entry["job_name"])
+                f.replace(self.scheduler._JOB_ID_VARIABLE, job_id)
+                for f in self.scheduler.output_fnames(entry["job_name"])
             ]
         return output_fnames
 
@@ -343,9 +354,7 @@ class JobManager(_BaseManager):
 
 
 def logs_with_string_or_condition(
-    error: Union[str, Callable[[List[str]], bool]],
-    database_manager: DatabaseManager,
-    scheduler: BaseScheduler,
+    error: Union[str, Callable[[List[str]], bool]], database_manager: DatabaseManager
 ) -> Dict[str, Tuple[str, List[str]]]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -360,8 +369,6 @@ def logs_with_string_or_condition(
         False if not.
     database_manager : `DatabaseManager`
         A `DatabaseManager` instance.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
-        A scheduler instance from `adaptive_scheduler.scheduler`.
 
     Returns
     -------
@@ -384,7 +391,7 @@ def logs_with_string_or_condition(
             lines = f.readlines()
         return has_error(lines)
 
-    output_fnames: Dict[str, List[str]] = database_manager.output_fnames(scheduler)
+    output_fnames: Dict[str, List[str]] = database_manager.output_fnames()
 
     have_error = {}
     for entry in database_manager.as_dicts():
@@ -451,7 +458,7 @@ class KillManager(_BaseManager):
                 self.database_manager.update(queue)
 
                 failed_jobs = logs_with_string_or_condition(
-                    self.error, self.database_manager, self.scheduler
+                    self.error, self.database_manager
                 )
                 to_cancel: List[str] = []
                 to_delete: List[str] = []
@@ -880,7 +887,11 @@ class RunManager(_BaseManager):
         ]
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
-            self.url, self.db_fname, self.learners_module.fnames, self.overwrite_db
+            self.url,
+            self.scheduler,
+            self.db_fname,
+            self.learners_module.fnames,
+            self.overwrite_db,
         )
         self.job_manager = JobManager(
             self.job_names,

@@ -104,17 +104,17 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
    from adaptive_scheduler import server_support
    from learners_file import learners, fnames
 
-   # create a new database that keeps track of job <-> learner
-   db_fname = "running.json"
-   url = server_support.get_allowed_url()  # get a url where we can run the database_manager
-   database_manager = server_support.DatabaseManager(url, db_fname, fnames)
-   database_manager.start()
-
    # create a scheduler
    scheduler = adaptive_scheduler.scheduler.PBS(
        cores=10,
        run_script="run_learner.py",
    )
+
+   # create a new database that keeps track of job <-> learner
+   db_fname = "running.json"
+   url = server_support.get_allowed_url()  # get a url where we can run the database_manager
+   database_manager = server_support.DatabaseManager(url, scheduler, db_fname, fnames)
+   database_manager.start()
 
    # create the Python script that runs a learner (run_learner.py)
    server_support._make_default_run_script(
