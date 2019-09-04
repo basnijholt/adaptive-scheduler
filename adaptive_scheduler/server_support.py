@@ -512,13 +512,13 @@ def _make_default_run_script(
     else:
         raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
 
-    if os.path.dirname(learners_file):
+    if os.path.abspath(os.path.dirname(learners_file)) != os.path.abspath(""):
         raise RuntimeError(
             f"The {learners_file} needs to be in the same"
             " directory as where this is run from."
         )
 
-    learners_module = os.path.splitext(learners_file)[0]
+    learners_module = os.path.splitext(os.path.basename(learners_file))[0]
 
     template = textwrap.dedent(
         f"""\
