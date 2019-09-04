@@ -433,9 +433,6 @@ class KillManager(BaseManager):
         self.deleted = []
 
     async def _manage(self) -> Coroutine:
-        # It seems like tasks that print the error message do not always stop working
-        # I think it only stops working when the error happens on a node where the logger runs.
-
         while True:
             try:
                 queue = self.scheduler.queue()
