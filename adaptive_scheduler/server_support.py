@@ -58,11 +58,15 @@ class BaseManager(metaclass=abc.ABCMeta):
         return self.task is not None
 
     def cancel(self):
-        if self.task is not None:
+        if self.is_started:
             return self.task.cancel()
 
     def _setup(self):
         """Is run in the beginning of `self.start`."""
+        pass
+
+    @abc.abstractmethod
+    async def _manage(self):
         pass
 
 
