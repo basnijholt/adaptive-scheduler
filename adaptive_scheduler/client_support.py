@@ -86,7 +86,7 @@ def get_learner(
             fname = reply
             log.info(f"got fname")
 
-    def maybe_lst(fname: Union[Tuple[str], str]):
+    def maybe_lst(fname: Union[List[str], str]):
         if isinstance(fname, tuple):
             # TinyDB converts tuples to lists
             fname = list(fname)
@@ -96,7 +96,7 @@ def get_learner(
         learner = next(l for l, f in zip(learners, fnames) if maybe_lst(f) == fname)
     except StopIteration:
         msg = "Learner with this fname doesn't exist in the database."
-        exception = UserWarning(msg)
+        exception = RuntimeError(msg)
         log_exception(log, msg, exception)
         raise exception
 
@@ -126,7 +126,7 @@ def tell_done(url: str, fname: str) -> None:
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
     learner = runner.learner
-    info = {}
+    info: Dict[str, Union[int, float, str]] = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()

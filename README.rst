@@ -86,7 +86,7 @@ That's it! You can run ``run_manager.info()`` which will display an interactive 
 
 
 
-But how does *really* it work?
+But how does it *really* work?
 ------------------------------
 
 The `~adaptive_scheduler.server_support.RunManager` basically does the following.

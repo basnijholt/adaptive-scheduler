@@ -40,9 +40,9 @@ class MaxRestartsReached(Exception):
 
 class _BaseManager(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
-        self.ioloop = None
-        self._coro = None
-        self.task = None
+        self.ioloop: Optional[asyncio.events.AbstractEventLoop] = None
+        self._coro: Optional[Coroutine] = None
+        self.task: Optional[asyncio.Task] = None
 
     def start(self):
         if self.is_started:
@@ -57,7 +57,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
     def is_started(self) -> bool:
         return self.task is not None
 
-    def cancel(self) -> bool:
+    def cancel(self) -> Optional[bool]:
         if self.is_started:
             return self.task.cancel()
 
@@ -66,7 +66,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         pass
 
 
@@ -98,8 +98,8 @@ class DatabaseManager(_BaseManager):
 
         self.defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
 
-        self._last_reply = None
-        self._last_request = None
+        self._last_reply: Union[str, Exception, None] = None
+        self._last_request: Optional[Tuple[str, ...]] = None
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
@@ -146,7 +146,9 @@ class DatabaseManager(_BaseManager):
             ]
         return output_fnames
 
-    def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str:
+    def _start_request(
+        self, job_id: str, log_fname: str, job_name: str
+    ) -> Optional[str]:
         Entry = Query()
         with TinyDB(self.db_fname) as db:
             if db.contains(Entry.job_id == job_id):
@@ -163,7 +165,7 @@ class DatabaseManager(_BaseManager):
             )  # noqa: E711
             log.debug("choose fname", entry=entry)
             if entry is None:
-                return
+                return None
             db.update(
                 {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
                 doc_ids=[entry.doc_id],
@@ -176,9 +178,7 @@ class DatabaseManager(_BaseManager):
             reset = dict(job_id=None, is_done=True, job_name=None)
             db.update(reset, Entry.fname == fname)
 
-    def _dispatch(
-        self, request: Tuple[str, ...], db_fname: str
-    ) -> Union[str, None, Exception]:
+    def _dispatch(self, request: Tuple[str, ...]) -> Union[str, Exception, None]:
         request_type, *request_arg = request
         log.debug("got a request", request=request)
         try:
@@ -194,11 +194,11 @@ class DatabaseManager(_BaseManager):
                 fname = request_arg[0]  # workers send us the fname they were given
                 log.debug("got a stop request", fname=fname)
                 self._stop_request(fname)  # reset the job_id to None
-                return
+                return None
         except Exception as e:
             return e
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         """Database manager co-routine.
 
         Returns
@@ -211,7 +211,7 @@ class DatabaseManager(_BaseManager):
         try:
             while True:
                 self._last_request = await socket.recv_pyobj()
-                self._last_reply = self._dispatch(self._last_request, self.db_fname)
+                self._last_reply = self._dispatch(self._last_request)
                 await socket.send_pyobj(self._last_reply)
         finally:
             socket.close()
@@ -281,11 +281,11 @@ class JobManager(_BaseManager):
             if job["job_name"] in self.job_names
         }
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         with concurrent.futures.ProcessPoolExecutor() as ex:
             while True:
                 try:
-                    running = self.scheduler.queue()
+                    running = self.scheduler.queue(me_only=True)
                     self.database_manager.update(running)  # in case some jobs died
 
                     queued = self._queued(running)  # running `job_name`s
@@ -431,20 +431,20 @@ class KillManager(_BaseManager):
         self.max_cancel_tries = max_cancel_tries
         self.move_to = move_to
 
-        self.cancelled = []
-        self.deleted = []
+        self.cancelled: List[str] = []
+        self.deleted: List[str] = []
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         while True:
             try:
-                queue = self.scheduler.queue()
+                queue = self.scheduler.queue(me_only=True)
                 self.database_manager.update(queue)
 
                 failed_jobs = logs_with_string_or_condition(
                     self.error, self.database_manager, self.scheduler
                 )
-                to_cancel = []
-                to_delete = []
+                to_cancel: List[str] = []
+                to_delete: List[str] = []
 
                 # get cancel/delete only the processes/logs that are running now
                 for job_id in queue.keys():
@@ -488,7 +488,7 @@ def _make_default_run_script(
     learners_file: str,
     save_interval: int,
     log_interval: int,
-    goal: Optional[Callable[[adaptive.BaseLearner], bool]] = None,
+    goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
     runner_kwargs: Optional[Dict[str, Any]] = None,
     run_script_fname: str = "run_learner.py",
     executor_type: str = "mpi4py",
@@ -825,7 +825,7 @@ class RunManager(_BaseManager):
     def __init__(
         self,
         scheduler: BaseScheduler,
-        goal: Optional[Callable[[adaptive.BaseLearner], bool]] = None,
+        goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
         runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
         learners_file: str = "learners_file.py",
@@ -860,8 +860,8 @@ class RunManager(_BaseManager):
         self.kill_manager_kwargs = kill_manager_kwargs or {}
 
         # Set in methods
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
 
         # Set on init
         self.learners_module = self._get_learners_file()
@@ -909,7 +909,7 @@ class RunManager(_BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         await self.job_manager.task
         self.end_time = time.time()
 
@@ -1062,7 +1062,7 @@ class RunManager(_BaseManager):
         )
 
     def _info_html(self) -> str:
-        queue = self.scheduler.queue()
+        queue = self.scheduler.queue(me_only=True)
         self.database_manager.update(queue)
         jobs = [job for job in queue.values() if job["job_name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
