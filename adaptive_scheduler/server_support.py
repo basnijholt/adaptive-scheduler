@@ -123,7 +123,7 @@ class DatabaseManager(_BaseManager):
         self.create_empty_db()
 
     def update(self, queue: Optional[Dict[str, Dict[str, str]]] = None) -> None:
-        """If the job_id isn't running anymore, replace it with None."""
+        """If the ``job_id`` isn't running anymore, replace it with None."""
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
 
@@ -144,7 +144,7 @@ class DatabaseManager(_BaseManager):
 
     def create_empty_db(self) -> None:
         """Create an empty database that keeps track of
-        fname -> (job_id, is_done, log_fname, job_name).
+        ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
         entries = [dict(fname=fname, **self.defaults) for fname in self.fnames]
         if os.path.exists(self.db_fname):
@@ -994,7 +994,7 @@ class RunManager(_BaseManager):
         load_parallel(self.learners_module.learners, self.learners_module.fnames)
 
     def elapsed_time(self) -> float:
-        """Total time elapsed since the RunManager was started."""
+        """Total time elapsed since the `RunManager` was started."""
         if not self.is_started:
             return 0
 
@@ -1009,7 +1009,7 @@ class RunManager(_BaseManager):
         return end_time - self.start_time
 
     def status(self) -> str:
-        """Return the current status of the RunManager."""
+        """Return the current status of the `RunManager`."""
         if not self.is_started:
             return "not yet started"
 
