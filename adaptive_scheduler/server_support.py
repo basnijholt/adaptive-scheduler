@@ -38,7 +38,7 @@ class MaxRestartsReached(Exception):
     your Python code which results jobs being started indefinitely."""
 
 
-class BaseManager(metaclass=abc.ABCMeta):
+class _BaseManager(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
         self.ioloop = None
         self._coro = None
@@ -70,7 +70,7 @@ class BaseManager(metaclass=abc.ABCMeta):
         pass
 
 
-class DatabaseManager(BaseManager):
+class DatabaseManager(_BaseManager):
     """Database manager.
 
     Parameters
@@ -217,7 +217,7 @@ class DatabaseManager(BaseManager):
             socket.close()
 
 
-class JobManager(BaseManager):
+class JobManager(_BaseManager):
     """Job manager.
 
     Parameters
@@ -387,7 +387,7 @@ def logs_with_string_or_condition(
     return have_error
 
 
-class KillManager(BaseManager):
+class KillManager(_BaseManager):
     """Kill manager.
 
     Automatically cancel jobs that contain an error (or other condition)
@@ -729,7 +729,7 @@ def _delete_old_ipython_profiles(
             fut.result()
 
 
-class RunManager(BaseManager):
+class RunManager(_BaseManager):
     """A convenience tool that starts the job, database, and kill manager.
 
     Parameters
