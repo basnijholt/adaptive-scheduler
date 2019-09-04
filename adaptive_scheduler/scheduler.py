@@ -568,7 +568,7 @@ class SLURM(BaseScheduler):
         )
         return job_script
 
-    def queue(self, me_only: bool = True) -> Dict[str, dict]:
+    def queue(self, me_only: bool = True) -> Dict[str, Dict[str, str]]:
         python_format = {
             "jobid": 100,
             "name": 100,

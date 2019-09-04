@@ -39,7 +39,7 @@ class MaxRestartsReached(Exception):
 
 
 class BaseManager(metaclass=abc.ABCMeta):
-    def __init__(self):
+    def __init__(self) -> None:
         self.ioloop = None
         self._coro = None
         self.task = None
