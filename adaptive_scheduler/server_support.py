@@ -460,7 +460,7 @@ class KillManager(_BaseManager):
                 to_delete: List[str] = []
                 for job_name, fnames in failed_jobs:
                     to_cancel.append(job_name)
-                    to_delete += fnames
+                    to_delete.extend(fnames)
 
                 self.scheduler.cancel(
                     to_cancel, with_progress_bar=False, max_tries=self.max_cancel_tries
@@ -468,8 +468,8 @@ class KillManager(_BaseManager):
                 _remove_or_move_files(
                     to_delete, with_progress_bar=False, move_to=self.move_to
                 )
-                self.cancelled += to_cancel
-                self.deleted += to_delete
+                self.cancelled.extend(to_cancel)
+                self.deleted.extend(to_delete)
                 await asyncio.sleep(self.interval)
             except concurrent.futures.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
