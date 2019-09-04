@@ -356,7 +356,7 @@ class JobManager(_BaseManager):
 
 def logs_with_string_or_condition(
     error: Union[str, Callable[[List[str]], bool]], database_manager: DatabaseManager
-) -> Dict[str, Tuple[str, List[str]]]:
+) -> List[Tuple[str, List[str]]]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
     Either use `string` or `error`.
@@ -374,8 +374,7 @@ def logs_with_string_or_condition(
     Returns
     -------
     has_string : dict
-        A dictionary of ``job_id -> (job_name, fnames)``,
-        which have the string inside their log-file.
+        A list ``(job_name, fnames)``, which have the string inside their log-file.
     """
 
     if isinstance(error, str):
@@ -392,14 +391,12 @@ def logs_with_string_or_condition(
             lines = f.readlines()
         return has_error(lines)
 
-    have_error = {}
+    have_error = []
     for entry in database_manager.as_dicts():
-        job_id = entry["job_id"]
-        if job_id is None:
-            continue
         fnames = entry["output_logs"]
-        if any(file_has_error(f) for f in fnames):
-            have_error[entry["job_id"]] = entry["job_name"], fnames
+        if entry["job_id"] is not None and any(file_has_error(f) for f in fnames):
+            all_fnames = fnames + [entry["log_fname"]]
+            have_error.append((entry["job_name"], all_fnames))
     return have_error
 
 
@@ -453,21 +450,17 @@ class KillManager(_BaseManager):
     async def _manage(self) -> None:
         while True:
             try:
-                queue = self.scheduler.queue(me_only=True)
-                self.database_manager.update(queue)
+                self.database_manager.update()
 
                 failed_jobs = logs_with_string_or_condition(
                     self.error, self.database_manager
                 )
+
                 to_cancel: List[str] = []
                 to_delete: List[str] = []
-
-                # get cancel/delete only the processes/logs that are running now
-                for job_id in queue.keys():
-                    if job_id in failed_jobs:
-                        job_name, fnames = failed_jobs[job_id]
-                        to_cancel.append(job_name)
-                        to_delete += fnames
+                for job_name, fnames in failed_jobs:
+                    to_cancel.append(job_name)
+                    to_delete += fnames
 
                 self.scheduler.cancel(
                     to_cancel, with_progress_bar=False, max_tries=self.max_cancel_tries
