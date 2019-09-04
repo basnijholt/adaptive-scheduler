@@ -705,7 +705,7 @@ class LocalMockScheduler(BaseScheduler):
     def queue(self, me_only: bool = True) -> Dict[str, dict]:
         return self.mock_scheduler.queue()
 
-    def start_job(self, name: str) -> str:
+    def start_job(self, name: str) -> None:
         self.write_job_script(name)
         returncode = None
         while returncode != 0:

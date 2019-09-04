@@ -1,4 +1,5 @@
 import inspect
+import collections.abc
 import math
 import os
 import random
@@ -7,7 +8,7 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import adaptive
 import toolz
@@ -25,13 +26,13 @@ def shuffle_list(*lists, seed=0):
     return zip(*combined)
 
 
-def _split(seq: Sequence, n_parts: int):
+def _split(seq: collections.abc.Iterable, n_parts: int):
     # TODO: remove this in v1.0.0
     s = "adaptive_scheduler.utils."
     raise Exception(f"`{s}_split` is renamed to {s}split`.")
 
 
-def split(seq: Sequence, n_parts: int):
+def split(seq: collections.abc.Iterable, n_parts: int):
     """Split up a sequence into ``n_parts``.
 
     Parameters
@@ -90,7 +91,9 @@ def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
         return sum(l.npoints for l in learner.learners)
 
 
-def _progress(seq: Sequence[Any], with_progress_bar: bool = True, desc: str = ""):
+def _progress(
+    seq: collections.abc.Iterable, with_progress_bar: bool = True, desc: str = ""
+):
     if not with_progress_bar:
         return seq
     else:
