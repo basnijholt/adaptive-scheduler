@@ -54,10 +54,10 @@ class BaseManager(metaclass=abc.ABCMeta):
         return self
 
     @property
-    def is_started(self):
+    def is_started(self) -> bool:
         return self.task is not None
 
-    def cancel(self):
+    def cancel(self) -> bool:
         if self.is_started:
             return self.task.cancel()
 
@@ -66,7 +66,7 @@ class BaseManager(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def _manage(self):
+    async def _manage(self) -> Coroutine:
         pass
 
 
@@ -101,12 +101,12 @@ class DatabaseManager(BaseManager):
         self._last_reply = None
         self._last_request = None
 
-    def _setup(self):
+    def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
 
-    def update(self, queue):
+    def update(self, queue: Dict[str, Dict[str, str]]) -> None:
         """If the job_id isn't running anymore, replace it with None."""
         with TinyDB(self.db_fname) as db:
             doc_ids = [
@@ -129,7 +129,7 @@ class DatabaseManager(BaseManager):
         with TinyDB(self.db_fname) as db:
             db.insert_multiple(entries)
 
-    def as_dicts(self):
+    def as_dicts(self) -> List[Dict[str, str]]:
         with TinyDB(self.db_fname) as db:
             return db.all()
 
@@ -176,7 +176,9 @@ class DatabaseManager(BaseManager):
             reset = dict(job_id=None, is_done=True, job_name=None)
             db.update(reset, Entry.fname == fname)
 
-    def _dispatch(self, request: Tuple[str, ...], db_fname: str):
+    def _dispatch(
+        self, request: Tuple[str, ...], db_fname: str
+    ) -> Union[str, None, Exception]:
         request_type, *request_arg = request
         log.debug("got a request", request=request)
         try:
@@ -268,7 +270,7 @@ class JobManager(BaseManager):
         self.n_started = 0
 
     @property
-    def max_job_starts(self):
+    def max_job_starts(self) -> int:
         """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
         return self.max_fails_per_job * len(self.job_names)
 
@@ -334,7 +336,7 @@ def logs_with_string_or_condition(
     error: Union[str, Callable[[List[str]], bool]],
     database_manager: DatabaseManager,
     scheduler: BaseScheduler,
-) -> Dict[str, list]:
+) -> Dict[str, Tuple[str, List[str]]]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
     Either use `string` or `error`.
@@ -490,7 +492,7 @@ def _make_default_run_script(
     runner_kwargs: Optional[Dict[str, Any]] = None,
     run_script_fname: str = "run_learner.py",
     executor_type: str = "mpi4py",
-):
+) -> None:
     default_runner_kwargs = dict(shutdown_executor=True)
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
     serialized_runner_kwargs = dill.dumps(runner_kwargs)
@@ -590,7 +592,6 @@ def _make_default_run_script(
 
     with open(run_script_fname, "w") as f:
         f.write(template)
-    return run_script_fname
 
 
 def parse_log_files(
@@ -598,7 +599,7 @@ def parse_log_files(
     database_manager: DatabaseManager,
     scheduler,
     only_last: bool = True,
-):
+) -> pd.DataFrame:
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
     This only works if you use `adaptive_scheduler.client_support.log_info`
@@ -675,7 +676,7 @@ def cleanup(
     scheduler: BaseScheduler,
     with_progress_bar: bool = True,
     move_to: Optional[str] = None,
-):
+) -> None:
     """Cleanup the scheduler log-files files.
 
     Parameters
@@ -702,7 +703,7 @@ def cleanup(
 
 def _delete_old_ipython_profiles(
     scheduler: BaseScheduler, with_progress_bar: bool = True
-):
+) -> None:
 
     if scheduler.executor_type != "ipyparallel":
         return
@@ -770,9 +771,26 @@ class RunManager(BaseManager):
     overwrite_db : bool, default: True
         Overwrite the existing database.
     job_manager_kwargs : dict, default: None
-        Keyword arguments for the `start_job_manager` function that aren't set in ``__init__`` here.
+        Keyword arguments for the `JobManager` function that aren't set in ``__init__`` here.
     kill_manager_kwargs : dict, default: None
-        Keyword arguments for the `start_kill_manager` function that aren't set in ``__init__`` here.
+        Keyword arguments for the `KillManager` function that aren't set in ``__init__`` here.
+
+    Attributes
+    ----------
+    learners_module : module
+        Attribute access to the ``learners_file``.
+    job_names : list
+        List of job_names. Generated with ``self.job_name``.
+    database_manager : `DatabaseManager`
+        The database manager.
+    job_manager : `JobManager`
+        The job manager.
+    kill_manager : `KillManager` or None
+        The kill manager.
+    start_time : float or None
+        Time at which ``self.start()`` is called.
+    end_time : float or None
+        Time at which the jobs are all done or at which ``self.cancel()`` is called.
 
     Examples
     --------
@@ -874,7 +892,7 @@ class RunManager(BaseManager):
         else:
             self.kill_manager = None
 
-    def _setup(self):
+    def _setup(self) -> None:
         _make_default_run_script(
             self.url,
             self.learners_file,
@@ -891,7 +909,7 @@ class RunManager(BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    async def _manage(self):
+    async def _manage(self) -> Coroutine:
         await self.job_manager.task
         self.end_time = time.time()
 
@@ -926,7 +944,7 @@ class RunManager(BaseManager):
 
         cleanup(self.job_names, self.scheduler, True, self.move_old_logs_to)
 
-    def parse_log_files(self, only_last: bool = True):
+    def parse_log_files(self, only_last: bool = True) -> pd.DataFrame:
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
         Parameters
