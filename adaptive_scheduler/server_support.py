@@ -240,6 +240,11 @@ class JobManager(BaseManager):
         because a job might fail instantly because of a bug inside `run_script`.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+
+    Attributes
+    ----------
+    n_started : int
+        Total number of jobs started by the `JobManager`.
     """
 
     def __init__(
@@ -261,7 +266,11 @@ class JobManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
 
         self.n_started = 0
-        self.max_job_starts = self.max_fails_per_job * len(self.job_names)
+
+    @property
+    def max_job_starts(self):
+        """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
+        return self.max_fails_per_job * len(self.job_names)
 
     def _queued(self, queue) -> Set[str]:
         return {
