@@ -86,7 +86,7 @@ def get_learner(
             fname = reply
             log.info(f"got fname")
 
-    def maybe_lst(fname: Union[Tuple[str], str]):
+    def maybe_lst(fname: Union[List[str], str]):
         if isinstance(fname, tuple):
             # TinyDB converts tuples to lists
             fname = list(fname)

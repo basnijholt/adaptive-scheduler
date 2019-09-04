@@ -72,6 +72,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
         self.num_threads = num_threads
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
+        self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
     def queue(self, me_only: bool) -> Dict[str, dict]:

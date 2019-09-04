@@ -12,7 +12,18 @@ import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 import adaptive
 import dill
@@ -40,9 +51,9 @@ class MaxRestartsReached(Exception):
 
 class _BaseManager(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
-        self.ioloop = None
-        self._coro = None
-        self.task = None
+        self.ioloop: Union[asyncio.events.AbstractEventLoop, None] = None
+        self._coro: Union[Coroutine, None] = None
+        self.task: Union[Awaitable, None] = None
 
     def start(self):
         if self.is_started:
@@ -66,7 +77,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         pass
 
 
@@ -98,8 +109,8 @@ class DatabaseManager(_BaseManager):
 
         self.defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
 
-        self._last_reply = None
-        self._last_request = None
+        self._last_reply: Union[str, None, Exception] = None
+        self._last_request: Union[Tuple[str, str], None] = None
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
@@ -146,7 +157,9 @@ class DatabaseManager(_BaseManager):
             ]
         return output_fnames
 
-    def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str:
+    def _start_request(
+        self, job_id: str, log_fname: str, job_name: str
+    ) -> Union[None, str]:
         Entry = Query()
         with TinyDB(self.db_fname) as db:
             if db.contains(Entry.job_id == job_id):
@@ -198,7 +211,7 @@ class DatabaseManager(_BaseManager):
         except Exception as e:
             return e
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         """Database manager co-routine.
 
         Returns
@@ -281,7 +294,7 @@ class JobManager(_BaseManager):
             if job["job_name"] in self.job_names
         }
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         with concurrent.futures.ProcessPoolExecutor() as ex:
             while True:
                 try:
@@ -434,7 +447,7 @@ class KillManager(_BaseManager):
         self.cancelled = []
         self.deleted = []
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         while True:
             try:
                 queue = self.scheduler.queue()
@@ -860,8 +873,8 @@ class RunManager(_BaseManager):
         self.kill_manager_kwargs = kill_manager_kwargs or {}
 
         # Set in methods
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Union[None, float] = None
+        self.end_time: Union[None, float] = None
 
         # Set on init
         self.learners_module = self._get_learners_file()
@@ -909,7 +922,7 @@ class RunManager(_BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    async def _manage(self) -> Coroutine:
+    async def _manage(self) -> None:
         await self.job_manager.task
         self.end_time = time.time()
 
