@@ -4,7 +4,6 @@ import warnings
 from copy import copy
 
 from adaptive.learner.base_learner import BaseLearner
-
 from adaptive_scheduler.utils import _print_same_line
 
 inf = sys.float_info.max
