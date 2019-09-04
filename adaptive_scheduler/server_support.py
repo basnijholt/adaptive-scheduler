@@ -109,7 +109,9 @@ class DatabaseManager(_BaseManager):
         self.fnames = fnames
         self.overwrite_db = overwrite_db
 
-        self.defaults = dict(job_id=None, is_done=False, log_fname=None, job_name=None)
+        self.defaults = dict(
+            job_id=None, is_done=False, log_fname=None, job_name=None, output_logs=[]
+        )
 
         self._last_reply: Union[str, Exception, None] = None
         self._last_request: Optional[Tuple[str, ...]] = None
@@ -126,13 +128,13 @@ class DatabaseManager(_BaseManager):
             queue = self.scheduler.queue(me_only=True)
 
         with TinyDB(self.db_fname) as db:
-            to_rm = [
+            failed = [
                 entry
                 for entry in db.all()
                 if (entry["job_id"] is not None) and (entry["job_id"] not in queue)
             ]
-            self.failed.extend(to_rm)
-            doc_ids = [e.doc_id for e in to_rm]
+            self.failed.extend(failed)
+            doc_ids = [e.doc_id for e in failed]
             db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
     def n_done(self) -> int:
@@ -154,18 +156,12 @@ class DatabaseManager(_BaseManager):
         with TinyDB(self.db_fname) as db:
             return db.all()
 
-    def output_fnames(self) -> Dict[str, List[str]]:
-        """The output log filenames as a dictionary."""
-        output_fnames = {}
-        for entry in self.as_dicts():
-            if entry["job_id"] is None:
-                continue
-            job_id = self.scheduler.sanatize_job_id(entry["job_id"])
-            output_fnames[entry["job_id"]] = [
-                f.replace(self.scheduler._JOB_ID_VARIABLE, job_id)
-                for f in self.scheduler.output_fnames(entry["job_name"])
-            ]
-        return output_fnames
+    def _output_logs(self, job_id: str, job_name: str):
+        job_id = self.scheduler.sanatize_job_id(job_id)
+        output_fnames = self.scheduler.output_fnames(job_name)
+        return [
+            f.replace(self.scheduler._JOB_ID_VARIABLE, job_id) for f in output_fnames
+        ]
 
     def _start_request(
         self, job_id: str, log_fname: str, job_name: str
@@ -188,7 +184,12 @@ class DatabaseManager(_BaseManager):
             if entry is None:
                 return None
             db.update(
-                {"job_id": job_id, "log_fname": log_fname, "job_name": job_name},
+                {
+                    "job_id": job_id,
+                    "log_fname": log_fname,
+                    "job_name": job_name,
+                    "output_logs": self._output_logs(job_id, job_name),
+                },
                 doc_ids=[entry.doc_id],
             )
         return entry["fname"]
@@ -391,14 +392,12 @@ def logs_with_string_or_condition(
             lines = f.readlines()
         return has_error(lines)
 
-    output_fnames: Dict[str, List[str]] = database_manager.output_fnames()
-
     have_error = {}
     for entry in database_manager.as_dicts():
         job_id = entry["job_id"]
         if job_id is None:
             continue
-        fnames = output_fnames[job_id]
+        fnames = entry["output_logs"]
         if any(file_has_error(f) for f in fnames):
             have_error[entry["job_id"]] = entry["job_name"], fnames
     return have_error
