@@ -85,6 +85,11 @@ class DatabaseManager(_BaseManager):
         List of `fnames` corresponding to `learners`.
     overwrite_db : bool, default: True
         Overwrite the existing database upon starting.
+
+    Attributes
+    ----------
+    failed : list
+        A list of entries that have failed and have been removed from the database.
     """
 
     def __init__(
@@ -100,6 +105,7 @@ class DatabaseManager(_BaseManager):
 
         self._last_reply: Union[str, Exception, None] = None
         self._last_request: Optional[Tuple[str, ...]] = None
+        self.failed: List[Dict[str, Any]] = []
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
@@ -109,9 +115,13 @@ class DatabaseManager(_BaseManager):
     def update(self, queue: Dict[str, Dict[str, str]]) -> None:
         """If the job_id isn't running anymore, replace it with None."""
         with TinyDB(self.db_fname) as db:
-            doc_ids = [
-                entry.doc_id for entry in db.all() if entry["job_id"] not in queue
+            to_rm = [
+                entry
+                for entry in db.all()
+                if (entry["job_id"] is not None) and (entry["job_id"] not in queue)
             ]
+            self.failed.extend(to_rm)
+            doc_ids = [e.doc_id for e in to_rm]
             db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
     def n_done(self) -> int:
