@@ -506,7 +506,7 @@ class SLURM(BaseScheduler):
         self._ext = ".sbatch"
         self._submit_cmd = "sbatch"
         self._JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
-        self._scheduler = "SLURM"
+        self._scheduler = "SBATCH"
         self._cancel_cmd = "scancel"
 
         # SLURM specific
