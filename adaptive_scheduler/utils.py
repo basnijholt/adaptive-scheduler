@@ -1,5 +1,6 @@
-import inspect
+import abc
 import collections.abc
+import inspect
 import math
 import os
 import random
@@ -17,6 +18,17 @@ from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
 
 MAX_LINE_LENGTH = 100
+
+
+class _RequireAttrsABCMeta(abc.ABCMeta):
+    required_attributes = []
+
+    def __call__(self, *args, **kwargs):
+        obj = super().__call__(*args, **kwargs)
+        for name in obj.required_attributes:
+            if not hasattr(obj, name):
+                raise ValueError(f"Required attribute {name} not set in __init__.")
+        return obj
 
 
 def shuffle_list(*lists, seed=0):

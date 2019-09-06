@@ -12,10 +12,10 @@ from distutils.spawn import find_executable
 from typing import Dict, List
 
 import adaptive_scheduler._mock_scheduler
-from adaptive_scheduler.utils import _progress
+from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 
-class BaseScheduler(metaclass=abc.ABCMeta):
+class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     """Base object for a Scheduler.
 
     Parameters
@@ -50,6 +50,8 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     -------
     `BaseScheduler` object.
     """
+
+    required_attributes = ["_ext", "_submit_cmd", "_options_flag", "_cancel_cmd"]
 
     def __init__(
         self,
