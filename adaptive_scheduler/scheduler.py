@@ -223,7 +223,7 @@ class BaseScheduler(metaclass=abc.ABCMeta):
     def extra_scheduler(self):
         """Scheduler options that go in the job script."""
         extra_scheduler = self._extra_scheduler or []
-        return "\n".join(f"#{self._scheduler} {arg}" for arg in extra_scheduler)
+        return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     @property
     def extra_env_vars(self):
@@ -297,7 +297,7 @@ class PBS(BaseScheduler):
         # is that the logfiles are put in the homefolder.
         self._submit_cmd = "qsub -k oe"
         self._JOB_ID_VARIABLE = "${PBS_JOBID}"
-        self._scheduler = "PBS"
+        self._options_flag = "PBS"
         self._cancel_cmd = "qdel"
 
         # PBS specific
@@ -506,7 +506,7 @@ class SLURM(BaseScheduler):
         self._ext = ".sbatch"
         self._submit_cmd = "sbatch"
         self._JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
-        self._scheduler = "SBATCH"
+        self._options_flag = "SBATCH"
         self._cancel_cmd = "scancel"
 
         # SLURM specific
