@@ -3,14 +3,14 @@ An asynchronous job scheduler for `Adaptive <https://github.com/python-adaptive/
 
 |PyPI|  |Conda|  |Downloads|  |Build Status| |Documentation Status|
 
-Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask.distributed`.
+Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `distributed`.
 
 What is this?
 -------------
 
 The Adaptive scheduler solves the following problem, you need to run more learners than you can run with a single runner and/or can use >1k cores.
  
-`ipyparallel` and `dask.distributed` provide very powerful engines for interactive sessions. However, when you want to connect to >1k cores it starts to struggle. Besides that, on a shared cluster there is often the problem of starting an interactive session with ample space available.
+`ipyparallel` and `distributed` provide very powerful engines for interactive sessions. However, when you want to connect to >1k cores it starts to struggle. Besides that, on a shared cluster there is often the problem of starting an interactive session with ample space available.
 
 Our approach is to schedule a different job for each ``adaptive.Learner``. The creation and running of these jobs are managed by ``adaptive-scheduler``. This means that your calculation will definitely run, even though the cluster might be fully occupied at the moment. Because of this approach, there is almost no limit to how many cores you want to use. You can either use 10 nodes for 1 job (\ ``learner``\ ) or 1 core for 1 job (\ ``learner``\ ) while scheduling hundreds of jobs.
 
