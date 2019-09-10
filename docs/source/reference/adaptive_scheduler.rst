@@ -16,3 +16,10 @@ Scheduler specific
 
 .. toctree::
     adaptive_scheduler.scheduler
+
+
+Private API
+-----------
+
+.. toctree::
+    adaptive_scheduler.scheduler
