@@ -8,6 +8,7 @@ dependencies:
   - adaptive
   - dill
   - ipyparallel
+  - m2r
   - mpich
   - mpi4py
   - pandas
@@ -17,5 +18,3 @@ dependencies:
   - tinydb
   - toolz
   - tqdm
-  - pip:
-    - m2r
