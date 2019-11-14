@@ -98,7 +98,7 @@ For example:
 
 Q: `ipyparallel` doesn't work for me, I want to use `process-pool`, how?
 -----------------------------------------------------------------------------------------------------------------
-**A:** Sometimes `ipyparallel` doesn't import modules correctly on its workers. In this case you can use `process-pool`. You just have to pass ``executor_type="process-pool"`` to `~adaptive_scheduler.scheduler.SLURM` or `~adaptive_scheduler.scheduler.PBS`. Note the `process-pool` uses Python's `ProcessPoolExecutor` for parallelism and cannot be used beyond a since machine (for one learner).
+**A:** Sometimes `ipyparallel` doesn't import modules correctly on its workers. In this case you can use `process-pool`. You just have to pass ``executor_type="process-pool"`` to `~adaptive_scheduler.scheduler.SLURM` or `~adaptive_scheduler.scheduler.PBS`. Note the `process-pool` uses Python's `~concurrent.futures.ProcessPoolExecutor` for parallelism and cannot be used beyond a since machine (for one learner).
 
 Q: Cool! What else should I check out?
 --------------------------------------
