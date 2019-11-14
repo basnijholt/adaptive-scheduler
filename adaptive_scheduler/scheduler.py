@@ -216,7 +216,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             return self._process_pool(name)
         else:
             raise NotImplementedError(
-                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process_pool'."
+                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
             )
 
     def log_fname(self, name: str) -> str:
