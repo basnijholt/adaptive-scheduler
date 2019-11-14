@@ -97,6 +97,10 @@ intersphinx_mapping = {
     "mpi4py": ("https://mpi4py.readthedocs.io/en/stable/", None),
     "ipyparallel": ("https://ipywidgets.readthedocs.io/en/stable/", None),
     "dask-mpi": ("http://mpi.dask.org/en/latest/", None),
+    "process-pool": (
+        "https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor",
+        None,
+    ),
     "distributed": ("https://distributed.dask.org/en/latest/", None),
     "dask": ("https://docs.dask.org/en/latest/", None),
 }

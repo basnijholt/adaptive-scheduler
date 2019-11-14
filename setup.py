@@ -45,7 +45,7 @@ setup(
     include_package_data=True,
     maintainer="Bas Nijholt",
     maintainer_email="bas@nijho.lt",
-    description="Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `dask-mpi`.",
+    description="Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, `dask-mpi`, or `process-pool`.",
     long_description=readme,
     long_description_content_type="text/x-rst",
     license="BSD-3",

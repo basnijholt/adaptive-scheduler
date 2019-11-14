@@ -520,8 +520,13 @@ def _make_default_run_script(
             raise Exception(msg) from e
         import_line = "from distributed import Client"
         executor_line = "Client()"
+    elif executor_type == "process-pool":
+        import_line = "from concurrent.futures import ProcessPoolExecutor"
+        executor_line = "ProcessPoolExecutor(max_workers=args.n)"
     else:
-        raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
+        raise NotImplementedError(
+            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+        )
 
     if os.path.abspath(os.path.dirname(learners_file)) != os.path.abspath(""):
         raise RuntimeError(

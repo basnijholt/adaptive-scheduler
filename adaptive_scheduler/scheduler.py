@@ -35,7 +35,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         used (so probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"``, ``"dask-mpi"``, or ``"mpi4py"``.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
         will be set to this number.
@@ -196,6 +196,10 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             """
         )
 
+    def _process_pool(self, name: str) -> str:
+        log_fname = self.log_fname(name)
+        return f"{self.python_executable} {self.run_script} --n {self.cores} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+
     def _executor_specific(self, name: str) -> str:
         if self.executor_type == "mpi4py":
             return self._mpi4py(name)
@@ -208,8 +212,12 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
                     "the rest of the cores for the engines, so use more than 1 core."
                 )
             return self._ipyparallel(name)
+        elif self.executor_type == "process-pool":
+            return self._process_pool(name)
         else:
-            raise NotImplementedError("Use 'ipyparallel', 'dask-mpi' or 'mpi4py'.")
+            raise NotImplementedError(
+                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process_pool'."
+            )
 
     def log_fname(self, name: str) -> str:
         """The filename of the log."""
