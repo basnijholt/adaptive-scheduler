@@ -37,4 +37,7 @@ repos:
           - --force-grid-wrap=0
           - --use-parentheses
           - --line-width=88
-          - --thirdparty=adaptive,dill,ipyparallel,mpi4py,pandas,psutil,pyzmq,structlog,tinydb,toolz,tqdm,pyzmq
+-   repo: https://github.com/asottile/seed-isort-config
+    rev: v1.9.3
+    hooks:
+    -   id: seed-isort-config
