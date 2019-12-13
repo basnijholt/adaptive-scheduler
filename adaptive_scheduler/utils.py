@@ -163,6 +163,7 @@ def load_parallel(
     fnames: List[str],
     *,
     with_progress_bar: bool = True,
+    max_workers: Optional[int] = None,
 ) -> None:
     r"""Load a sequence of learners in parallel.
 
@@ -174,12 +175,15 @@ def load_parallel(
         A list of filenames corresponding to `learners`.
     with_progress_bar : bool, default True
         Display a progress bar using `tqdm`.
+    max_workers : int, optional
+        The maximum number of parallel threads when loading the data.
+        If ``None``, use the maximum number of threads that is possible.
     """
 
     def load(learner, fname):
         learner.load(fname)
 
-    with ThreadPoolExecutor() as ex:
+    with ThreadPoolExecutor(max_workers) as ex:
         iterator = zip(learners, fnames)
         pbar = _progress(iterator, with_progress_bar, "Submitting loading tasks")
         futs = [ex.submit(load, *args) for args in pbar]
