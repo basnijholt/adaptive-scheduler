@@ -155,7 +155,7 @@ def _remove_or_move_files(
             n_failed += 1
 
     if n_failed:
-        warnings.warn(f"Failed to remove {n_failed} files.")
+        warnings.warn(f"Failed to remove (or move) {n_failed}/{len(fnames)} files.")
 
 
 def load_parallel(
