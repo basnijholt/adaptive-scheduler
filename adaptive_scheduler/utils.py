@@ -261,11 +261,11 @@ def connect_to_ipyparallel(
     timeout : int
         Time for which we try to connect to get all the engines.
     folder : str, optional
-        Folder that is added to the path of the engines, e.g. "~/Work/my_current_project".
+        Folder that is added to the path of the engines, e.g. ``"~/Work/my_current_project"``.
 
     Returns
     -------
-    client : ipython.Client object
+    client : `ipyparallel.Client` object
         An IPyparallel client.
     """
     client = Client(profile=profile, **(client_kwargs or {}))
