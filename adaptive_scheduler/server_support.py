@@ -1039,7 +1039,7 @@ class RunManager(_BaseManager):
         Returns an interactive ipywidget that can be
         visualized in a Jupyter notebook.
         """
-        from ipywidgets import Layout, Button, VBox, HBox, HTML
+        from ipywidgets import Layout, Button, VBox, HTML
         from IPython.display import display
 
         status = HTML(value=self._info_html())
@@ -1072,12 +1072,7 @@ class RunManager(_BaseManager):
         buttons["update info"].on_click(update)
 
         buttons = VBox(list(buttons.values()))
-        display(
-            HBox(
-                (status, buttons),
-                layout=Layout(border="solid 1px", width="400px", align_items="center"),
-            )
-        )
+        display(VBox((status, buttons),))
 
     def _info_html(self) -> str:
         queue = self.scheduler.queue(me_only=True)
@@ -1096,6 +1091,13 @@ class RunManager(_BaseManager):
             "finished": "green",
         }[status]
 
+        def _table_row(i, key, value):
+            """Style the rows of a table. Based on the default Jupyterlab table style."""
+            style = "text-align: right; padding: 0.5em 0.5em; line-height: 1.0;"
+            if i % 2 == 1:
+                style += " background: var(--md-grey-100);"
+            return f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
+
         info = [
             ("status", f'<font color="{color}">{status}</font>'),
             ("# running jobs", f'<font color="blue">{n_running}</font>'),
@@ -1107,11 +1109,24 @@ class RunManager(_BaseManager):
         with suppress(Exception):
             df = self.parse_log_files()
             t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+
+            overhead = df.mem_usage.mean()
+            red_level = max(0, min(int(255 * overhead / 100), 255))
+            overhead_color = "#{:02x}{:02x}{:02x}".format(red_level, 255 - red_level, 0)
+            overhead_html_value = (
+                f'<font color="{overhead_color}">{overhead:.2f}%</font>'
+            )
+
+            cpu = df.cpu_usage.mean()
+            red_level = max(0, min(int(255 * cpu / 100), 255))
+            cpu_color = "#{:02x}{:02x}{:02x}".format(red_level, red_level, 0)
+            cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
+
             from_logs = [
                 ("# of points", df.npoints.sum()),
-                ("mean CPU usage", f"{df.cpu_usage.mean().round(1)} %"),
+                ("mean CPU usage", cpu_html_value),
                 ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
-                ("mean overhead", f"{df.overhead.mean().round(1)} %"),
+                ("mean overhead", overhead_html_value,),
                 ("last log-entry", f"{t_last}s ago"),
             ]
             for key in ["npoints/s", "latest_loss", "nlearners"]:
@@ -1121,13 +1136,12 @@ class RunManager(_BaseManager):
             abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
             info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
 
-        template = '<dt class="ignore-css">{}</dt><dd>{}</dd>'
-        table = "\n".join(template.format(k, v) for k, v in info)
+        table = "\n".join(_table_row(i, k, v) for i, (k, v) in enumerate(info))
 
         return f"""
-            <dl>
+            <table>
             {table}
-            </dl>
+            </table>
         """
 
     def _repr_html_(self) -> None:
