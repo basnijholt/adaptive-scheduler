@@ -617,7 +617,8 @@ class SLURM(BaseScheduler):
             return info
 
         squeue = [line_to_dict(line) for line in output.split("\n")]
-        squeue = [info for info in squeue if info["state"] in ("PENDING", "RUNNING")]
+        states = ("PENDING", "RUNNING", "CONFIGURING")
+        squeue = [info for info in squeue if info["state"] in states]
         running = {info.pop("jobid"): info for info in squeue}
         for info in running.values():
             info["job_name"] = info.pop("name")

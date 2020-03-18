@@ -1079,7 +1079,7 @@ class RunManager(_BaseManager):
         self.database_manager.update(queue)
         jobs = [job for job in queue.values() if job["job_name"] in self.job_names]
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
-        n_pending = sum(job["state"] in ("PENDING", "Q") for job in jobs)
+        n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
         n_done = sum(job["is_done"] for job in self.database_manager.as_dicts())
 
         status = self.status()
