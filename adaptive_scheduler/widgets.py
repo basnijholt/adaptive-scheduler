@@ -33,7 +33,9 @@ def log_explorer(run_manager):
         while True:
             await asyncio.sleep(2)
             try:
-                textarea.value = _read_file(fname)
+                text = _read_file(fname)
+                if textarea.value != text:
+                    textarea.value = text
             except asyncio.CancelledError:
                 return
             except Exception:
