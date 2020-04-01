@@ -25,6 +25,7 @@ from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import _progress, _remove_or_move_files, load_parallel
+from adaptive_scheduler.widgets import log_explorer
 
 ctx = zmq.asyncio.Context()
 
@@ -1053,8 +1054,11 @@ class RunManager(_BaseManager):
                 layout=layout,
                 button_style="danger",
             ),
+            Button(description="show logs", layout=layout, button_style="info"),
         ]
         buttons = {b.description: b for b in buttons}
+
+        box = VBox([])
 
         def update(_):
             status.value = self._info_html()
@@ -1067,12 +1071,19 @@ class RunManager(_BaseManager):
             self.cleanup()
             update(_)
 
+        def show_logs(_):
+            new_children = tuple(
+                c for c in box.children if c.description != "show logs"
+            )
+            box.children = (*new_children, log_explorer(self))
+
         buttons["cancel jobs"].on_click(cancel)
         buttons["cleanup log and batch files"].on_click(cleanup)
         buttons["update info"].on_click(update)
+        buttons["show logs"].on_click(show_logs)
 
-        buttons = VBox(list(buttons.values()))
-        display(VBox((status, buttons),))
+        box.children = (status, *tuple(buttons.values()))
+        display(box)
 
     def _info_html(self) -> str:
         queue = self.scheduler.queue(me_only=True)
