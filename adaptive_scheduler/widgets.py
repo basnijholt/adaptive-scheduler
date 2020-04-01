@@ -113,5 +113,5 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     title = HTML("<h2><tt>adaptive_scheduler.widgets.log_explorer</tt></h2>")
     return VBox(
         [title, checkbox, update_button, dropdown, tail_button, textarea],
-        layout=Layout(border="solid 2px gray", min_height="500px"),
+        layout=Layout(border="solid 2px gray"),
     )
