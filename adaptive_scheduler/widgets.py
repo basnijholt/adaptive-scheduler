@@ -17,8 +17,13 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
 
 
 def _read_file(fname: Path) -> str:
-    with fname.open() as f:
-        return "".join(f.readlines())
+    try:
+        with fname.open() as f:
+            return "".join(f.readlines())
+    except UnicodeDecodeError:
+        return f"Could not decode file ({fname})!"
+    except Exception as e:
+        return f"Exception with trying to read {fname}:\n{e}."
 
 
 def log_explorer(run_manager) -> VBox:  # noqa: C901
