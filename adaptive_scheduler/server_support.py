@@ -538,8 +538,8 @@ def _make_default_run_script(
         import_line = "from distributed import Client"
         executor_line = "Client()"
     elif executor_type == "process-pool":
-        import_line = "from concurrent.futures import ProcessPoolExecutor"
-        executor_line = "ProcessPoolExecutor(max_workers=args.n)"
+        import_line = "from loky import get_reusable_executor"
+        executor_line = "get_reusable_executor(max_workers=args.n)"
     else:
         raise NotImplementedError(
             "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
