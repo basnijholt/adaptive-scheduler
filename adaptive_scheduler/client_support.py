@@ -60,10 +60,11 @@ def get_learner(
         "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
     )
     with ctx.socket(zmq.REQ) as socket:
+        socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
-        socket.send_pyobj(("start", job_id, log_fname, job_name))
+        socket.send_pyobj(dill.dumps(("start", job_id, log_fname, job_name)))
         log.info(f"sent start signal, timeout after 10s.")
-        socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
+        socket.setsockopt(zmq.RCVTIMEO, 20_000)  # timeout after 10s
         reply = dill.loads(socket.recv_pyobj())
         log.info("got reply", reply=str(reply))
         if reply is None:
