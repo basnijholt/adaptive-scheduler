@@ -6,8 +6,10 @@ channels:
 dependencies:
   - python
   - adaptive
+  - cloudpickle
   - dill
   - ipyparallel
+  - loky
   - mpich
   - mpi4py
   - pandas
