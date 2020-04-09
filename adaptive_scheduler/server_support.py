@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 
 import adaptive
-import dill
+import cloudpickle
 import pandas as pd
 import structlog
 import zmq
@@ -28,8 +28,10 @@ from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
     _progress,
     _remove_or_move_files,
+    deserialize,
     load_parallel,
     maybe_lst,
+    serialize,
 )
 from adaptive_scheduler.widgets import log_explorer
 
@@ -248,9 +250,9 @@ class DatabaseManager(_BaseManager):
         socket.bind(self.url)
         try:
             while True:
-                self._last_request = dill.loads(await socket.recv_pyobj())
+                self._last_request = await socket.recv_serialized(deserialize)
                 self._last_reply = self._dispatch(self._last_request)
-                await socket.send_pyobj(dill.dumps(self._last_reply))
+                await socket.send_serialized(self._last_reply, serialize)
         finally:
             socket.close()
 
@@ -519,7 +521,7 @@ def _make_default_run_script(
 ) -> None:
     default_runner_kwargs = dict(shutdown_executor=True)
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
-    serialized_runner_kwargs = dill.dumps(runner_kwargs)
+    serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
 
     if executor_type == "mpi4py":
         import_line = "from mpi4py.futures import MPIPoolExecutor"
@@ -552,7 +554,7 @@ def _make_default_run_script(
     from contextlib import suppress
 
     import adaptive
-    import dill
+    import cloudpickle
     from adaptive_scheduler import client_support
     {import_line}
 
@@ -583,8 +585,8 @@ def _make_default_run_script(
         # connect to the executor
         executor = {executor_line}
 
-        # this is serialized by dill.dumps
-        runner_kwargs = dill.loads({serialized_runner_kwargs})
+        # this is serialized by cloudpickle.dumps
+        runner_kwargs = cloudpickle.loads({serialized_runner_kwargs})
 
         # run until `some_goal` is reached with an `MPIPoolExecutor`
         runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
