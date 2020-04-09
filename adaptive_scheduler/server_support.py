@@ -12,6 +12,7 @@ import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 
 import adaptive
@@ -24,7 +25,12 @@ import zmq.ssh
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import BaseScheduler
-from adaptive_scheduler.utils import _progress, _remove_or_move_files, load_parallel
+from adaptive_scheduler.utils import (
+    _progress,
+    _remove_or_move_files,
+    load_parallel,
+    maybe_lst,
+)
 from adaptive_scheduler.widgets import log_explorer
 
 ctx = zmq.asyncio.Context()
@@ -84,6 +90,8 @@ class DatabaseManager(_BaseManager):
         A scheduler instance from `adaptive_scheduler.scheduler`.
     db_fname : str
         Filename of the database, e.g. 'running.json'.
+    learners : list of `adaptive.BaseLearner` isinstances
+        List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
     overwrite_db : bool, default: True
@@ -100,6 +108,7 @@ class DatabaseManager(_BaseManager):
         url: str,
         scheduler: BaseScheduler,
         db_fname: str,
+        learners: List[adaptive.BaseLearner],
         fnames: List[str],
         overwrite_db: bool = True,
     ):
@@ -107,6 +116,7 @@ class DatabaseManager(_BaseManager):
         self.url = url
         self.scheduler = scheduler
         self.db_fname = db_fname
+        self.learners = learners
         self.fnames = fnames
         self.overwrite_db = overwrite_db
 
@@ -211,8 +221,13 @@ class DatabaseManager(_BaseManager):
                 kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
                 # give the worker a job and send back the fname to the worker
                 fname = self._start_request(**kwargs)
+                learner = next(
+                    l
+                    for l, f in zip(self.learners, self.fnames)
+                    if maybe_lst(f) == fname
+                )
                 log.debug("choose a fname", fname=fname, **kwargs)
-                return fname
+                return learner, fname
             elif request_type == "stop":
                 fname = request_arg[0]  # workers send us the fname they were given
                 log.debug("got a stop request", fname=fname)
@@ -233,9 +248,9 @@ class DatabaseManager(_BaseManager):
         socket.bind(self.url)
         try:
             while True:
-                self._last_request = await socket.recv_pyobj()
+                self._last_request = dill.loads(await socket.recv_pyobj())
                 self._last_reply = self._dispatch(self._last_request)
-                await socket.send_pyobj(self._last_reply)
+                await socket.send_pyobj(dill.dumps(self._last_reply))
         finally:
             socket.close()
 
@@ -495,7 +510,6 @@ def get_allowed_url() -> str:
 
 def _make_default_run_script(
     url: str,
-    learners_file: str,
     save_interval: int,
     log_interval: int,
     goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
@@ -529,14 +543,6 @@ def _make_default_run_script(
             "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
         )
 
-    if os.path.abspath(os.path.dirname(learners_file)) != os.path.abspath(""):
-        raise RuntimeError(
-            f"The {learners_file} needs to be in the same"
-            " directory as where this is run from."
-        )
-
-    learners_module = os.path.splitext(os.path.basename(learners_file))[0]
-
     template = textwrap.dedent(
         f"""\
     #!/usr/bin/env python3
@@ -550,9 +556,6 @@ def _make_default_run_script(
     from adaptive_scheduler import client_support
     {import_line}
 
-
-    # the file that defines the learners we created above
-    from {learners_module} import learners, fnames
 
     if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
 
@@ -570,7 +573,7 @@ def _make_default_run_script(
 
         # ask the database for a learner that we can run which we log in `args.log_fname`
         learner, fname = client_support.get_learner(
-            learners, fnames, url, args.log_fname, args.job_id, args.name
+            url, args.log_fname, args.job_id, args.name
         )
 
         # load the data
@@ -751,6 +754,10 @@ class RunManager(_BaseManager):
     ----------
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
+    learners : list of `adaptive.BaseLearner` isinstances
+        List of `learners` corresponding to `fnames`.
+    fnames : list
+        List of `fnames` corresponding to `learners`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``run_script``.
@@ -760,8 +767,6 @@ class RunManager(_BaseManager):
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
-    learners_file : str, default: "learners_file.py"
-        The module that defined the variables ``learners`` and ``fnames``.
     save_interval : int, default: 300
         Time in seconds between saving of the learners.
     log_interval : int, default: 300
@@ -792,8 +797,6 @@ class RunManager(_BaseManager):
 
     Attributes
     ----------
-    learners_module : module
-        Attribute access to the ``learners_file``.
     job_names : list
         List of job_names. Generated with ``self.job_name``.
     database_manager : `DatabaseManager`
@@ -828,7 +831,6 @@ class RunManager(_BaseManager):
     ...     return learner.npoints > 2000
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
     ...     scheduler=scheduler,
-    ...     learners_file="learners_file.py",
     ...     goal=goal,
     ...     log_interval=30,
     ...     save_interval=30,
@@ -840,10 +842,11 @@ class RunManager(_BaseManager):
     def __init__(
         self,
         scheduler: BaseScheduler,
+        learners: List[adaptive.BaseLearner],
+        fnames: List[Union[str, Path]],
         goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
         runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
-        learners_file: str = "learners_file.py",
         save_interval: int = 300,
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
@@ -861,7 +864,6 @@ class RunManager(_BaseManager):
         self.scheduler = scheduler
         self.goal = goal
         self.runner_kwargs = runner_kwargs
-        self.learners_file = learners_file
         self.save_interval = save_interval
         self.log_interval = log_interval
         self.job_name = job_name
@@ -879,16 +881,16 @@ class RunManager(_BaseManager):
         self.end_time: Optional[float] = None
 
         # Set on init
-        self.learners_module = self._get_learners_file()
-        self.job_names = [
-            f"{self.job_name}-{i}" for i in range(len(self.learners_module.learners))
-        ]
+        self.learners = learners
+        self.fnames = fnames
+        self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
             self.url,
             self.scheduler,
             self.db_fname,
-            self.learners_module.fnames,
+            self.learners,
+            self.fnames,
             self.overwrite_db,
         )
         self.job_manager = JobManager(
@@ -914,7 +916,6 @@ class RunManager(_BaseManager):
     def _setup(self) -> None:
         _make_default_run_script(
             self.url,
-            self.learners_file,
             self.save_interval,
             self.log_interval,
             self.goal,
@@ -931,14 +932,6 @@ class RunManager(_BaseManager):
     async def _manage(self) -> None:
         await self.job_manager.task
         self.end_time = time.time()
-
-    def _get_learners_file(self):
-        from importlib.util import module_from_spec, spec_from_file_location
-
-        spec = spec_from_file_location("learners_file", self.learners_file)
-        learners_file = module_from_spec(spec)
-        spec.loader.exec_module(learners_file)
-        return learners_file
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
@@ -997,7 +990,7 @@ class RunManager(_BaseManager):
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
-        load_parallel(self.learners_module.learners, self.learners_module.fnames)
+        load_parallel(self.learners, self.fnames)
 
     def elapsed_time(self) -> float:
         """Total time elapsed since the `RunManager` was started."""

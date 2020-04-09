@@ -490,3 +490,10 @@ def log_exception(log, msg, exception):
         raise exception
     except Exception:
         log.exception(msg, exc_info=True)
+
+
+def maybe_lst(fname: Union[List[str], str]):
+    if isinstance(fname, tuple):
+        # TinyDB converts tuples to lists
+        fname = list(fname)
+    return fname
