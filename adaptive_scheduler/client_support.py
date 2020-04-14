@@ -3,8 +3,9 @@ import datetime
 import logging
 import socket
 from contextlib import suppress
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
+import adaptive
 import psutil
 import structlog
 import zmq
@@ -39,7 +40,7 @@ def _add_log_file_handler(log_fname):
 
 def get_learner(
     url: str, log_fname: str, job_id: str, job_name: str,
-) -> Tuple[str, str]:
+) -> Tuple[adaptive.BaseLearner, Union[str, List[str]]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
 
@@ -57,6 +58,8 @@ def get_learner(
 
     Returns
     -------
+    learner : `adaptive.BaseLearner`
+        Learner that is chosen.
     fname : str
         The filename of the learner that was chosen.
     """
