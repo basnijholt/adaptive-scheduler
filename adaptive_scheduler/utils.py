@@ -1,15 +1,18 @@
 import abc
 import collections.abc
+import hashlib
 import inspect
 import math
 import os
+import pickle
 import random
 import shutil
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import adaptive
 import toolz
@@ -36,6 +39,13 @@ def shuffle_list(*lists, seed=0):
     combined = list(zip(*lists))
     random.Random(seed).shuffle(combined)
     return zip(*combined)
+
+
+def hash_anything(x):
+    try:
+        return hashlib.md5(x).hexdigest()
+    except TypeError:
+        return hashlib.md5(pickle.dumps(x)).hexdigest()
 
 
 def _split(seq: collections.abc.Iterable, n_parts: int):
@@ -92,6 +102,44 @@ def split_in_balancing_learners(
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
         new_fnames.append(fnames_part)
+    return new_learners, new_fnames
+
+
+def split_in_sequence_learners(
+    function: Callable[[Any], Any],
+    sequence: Sequence[Any],
+    n_parts: int,
+    folder: Union[str, Path] = "",
+) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+    r"""Split a sequenceinto `adaptive.SequenceLearner`\s and fnames.
+
+    Parameters
+    ----------
+    function : callable
+        Function for `adaptive.SequenceLearner`\s.
+    sequence : sequence
+        The sequence to split into ``n_parts``.
+    n_parts : int
+        Total number of `~adaptive.SequenceLearner`\s.
+    folder : pathlib.Path or str
+        Folder to prepend to fnames.
+
+    Returns
+    -------
+    new_learners : List[adaptive.SequenceLearner]
+        List of `~adaptive.SequenceLearner`\s.
+    new_fnames : List[Path]
+        List of `pathlib.Path`\s based on a hash of the sequence.
+    """
+    folder = Path(folder)
+    new_learners = []
+    new_fnames = []
+    for sequence_part in split(sequence, n_parts):
+        learner = adaptive.SequenceLearner(function, sequence_part)
+        new_learners.append(learner)
+        hsh = hash_anything((sequence_part[0], len(sequence_part)))
+        fname = folder / f"{hsh}.pickle"
+        new_fnames.append(fname)
     return new_learners, new_fnames
 
 
