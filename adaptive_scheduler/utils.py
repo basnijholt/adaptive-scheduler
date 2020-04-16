@@ -342,7 +342,7 @@ def _remove_or_move_files(
                 os.remove(fname)
             else:
                 os.makedirs(move_to, exist_ok=True)
-                shutil.move(fname, move_to)
+                shutil.move(fname, Path(move_to) / fname)  # overwrites old files
         except Exception:
             n_failed += 1
 
