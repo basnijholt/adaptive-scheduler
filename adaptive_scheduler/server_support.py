@@ -8,7 +8,6 @@ import logging
 import os
 import shutil
 import socket
-import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -17,6 +16,7 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, U
 
 import adaptive
 import cloudpickle
+import jinja2
 import pandas as pd
 import structlog
 import zmq
@@ -119,7 +119,7 @@ class DatabaseManager(_BaseManager):
         self.scheduler = scheduler
         self.db_fname = db_fname
         self.learners = learners
-        self.fnames = fnames
+        self.fnames = list(map(str, fnames))  # convert from pathlib.Path
         self.overwrite_db = overwrite_db
 
         self.defaults = dict(
@@ -523,92 +523,29 @@ def _make_default_run_script(
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
     serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
 
-    if executor_type == "mpi4py":
-        import_line = "from mpi4py.futures import MPIPoolExecutor"
-        executor_line = "MPIPoolExecutor()"
-    elif executor_type == "ipyparallel":
-        import_line = "from adaptive_scheduler.utils import connect_to_ipyparallel"
-        executor_line = "connect_to_ipyparallel(profile=args.profile, n=args.n)"
-    elif executor_type == "dask-mpi":
+    if executor_type not in ("mpi4py", "ipyparallel", "dask-mpi", "process-pool"):
+        raise NotImplementedError(
+            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+        )
+
+    if executor_type == "dask-mpi":
         try:
             import dask_mpi  # noqa: F401
         except ModuleNotFoundError as e:
             msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
             raise Exception(msg) from e
-        import_line = "from distributed import Client"
-        executor_line = "Client()"
-    elif executor_type == "process-pool":
-        import_line = "from loky import get_reusable_executor"
-        executor_line = "get_reusable_executor(max_workers=args.n)"
-    else:
-        raise NotImplementedError(
-            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
-        )
 
-    template = textwrap.dedent(
-        f"""\
-    #!/usr/bin/env python3
-    # {run_script_fname}, automatically generated
-    # by `adaptive_scheduler.server_support._make_default_run_script()`.
-    import argparse
-    from contextlib import suppress
+    with open(Path(__file__).parent / "run_script.py.j2") as f:
+        empty = "".join(f.readlines())
 
-    import adaptive
-    import cloudpickle
-    from adaptive_scheduler import client_support
-    {import_line}
-
-
-    if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
-
-        # parse arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--profile", action="store", dest="profile", type=str)
-        parser.add_argument("--n", action="store", dest="n", type=int)
-        parser.add_argument("--log-fname", action="store", dest="log_fname", type=str)
-        parser.add_argument("--job-id", action="store", dest="job_id", type=str)
-        parser.add_argument("--name", action="store", dest="name", type=str)
-        args = parser.parse_args()
-
-        # the address of the "database manager"
-        url = "{url}"
-
-        # ask the database for a learner that we can run which we log in `args.log_fname`
-        learner, fname = client_support.get_learner(
-            url, args.log_fname, args.job_id, args.name
-        )
-
-        # load the data
-        with suppress(Exception):
-            learner.load(fname)
-
-        # connect to the executor
-        executor = {executor_line}
-
-        # this is serialized by cloudpickle.dumps
-        runner_kwargs = cloudpickle.loads({serialized_runner_kwargs})
-
-        # run until `some_goal` is reached with an `MPIPoolExecutor`
-        runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
-
-        # periodically save the data (in case the job dies)
-        runner.start_periodic_saving(dict(fname=fname), interval={save_interval})
-
-        # log progress info in the job output script, optional
-        client_support.log_info(runner, interval={log_interval})
-
-        # block until runner goal reached
-        runner.ioloop.run_until_complete(runner.task)
-
-        # save once more after the runner is done
-        learner.save(fname)
-
-        # tell the database that this learner has reached its goal
-        client_support.tell_done(url, fname)
-    """
+    template = jinja2.Template(empty).render(
+        run_script_fname=run_script_fname,
+        executor_type=executor_type,
+        url=url,
+        serialized_runner_kwargs=serialized_runner_kwargs,
+        save_interval=save_interval,
+        log_interval=log_interval,
     )
-    if executor_type == "dask-mpi":
-        template = "from dask_mpi import initialize; initialize()\n" + template
 
     with open(run_script_fname, "w") as f:
         f.write(template)

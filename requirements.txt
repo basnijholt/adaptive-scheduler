@@ -2,6 +2,7 @@ adaptive
 cloudpickle
 dill
 ipyparallel
+jinja2
 loky
 mpi4py
 numpy
