@@ -700,6 +700,8 @@ class RunManager(_BaseManager):
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``run_script``.
+    check_goal_on_start : bool, default: True
+        Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``run_script``.
@@ -784,6 +786,7 @@ class RunManager(_BaseManager):
         learners: List[adaptive.BaseLearner],
         fnames: List[Union[str, Path]],
         goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
+        check_goal_on_start: bool = True,
         runner_kwargs: Optional[dict] = None,
         url: Optional[str] = None,
         save_interval: int = 300,
@@ -802,6 +805,7 @@ class RunManager(_BaseManager):
         # Set from arguments
         self.scheduler = scheduler
         self.goal = goal
+        self.check_goal_on_start = check_goal_on_start
         self.runner_kwargs = runner_kwargs
         self.save_interval = save_interval
         self.log_interval = log_interval
@@ -863,6 +867,12 @@ class RunManager(_BaseManager):
             self.scheduler.executor_type,
         )
         self.database_manager.start()
+        if self.check_goal_on_start:
+            # Check if goal already reached
+            # Only works after the `database_manager` has started.
+            for fname, learner in zip(self.fnames, self.learners):
+                if self.goal(learner):
+                    self.database_manager._stop_request(str(fname))
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
