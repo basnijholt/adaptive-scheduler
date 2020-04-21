@@ -1,5 +1,6 @@
 import abc
 import collections.abc
+import functools
 import hashlib
 import inspect
 import math
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import adaptive
+import numpy as np
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -105,10 +107,53 @@ def split_in_balancing_learners(
     return new_learners, new_fnames
 
 
-def split_in_sequence_learners(
+def split_sequence_learner(
+    big_learner, n_learners: int, folder: Union[str, Path] = "",
+) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+    r"""Split a sinlge `~adaptive.SequenceLearner` into
+    mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
+
+    See also `split_sequence_in_sequence_learners`.
+
+    Parameters
+    ----------
+    big_learner : callable
+        A `~adaptive.SequenceLearner` instance
+    n_learners : int
+        Total number of `~adaptive.SequenceLearner`\s.
+    folder : pathlib.Path or str
+        Folder to prepend to fnames.
+
+    Returns
+    -------
+    new_learners : List[adaptive.SequenceLearner]
+        List of `~adaptive.SequenceLearner`\s.
+    new_fnames : List[Path]
+        List of `pathlib.Path`\s based on a hash of the sequence.
+    """
+    new_learners, new_fnames = split_sequence_in_sequence_learners(
+        function=big_learner._original_function,
+        sequence=big_learner.sequence,
+        n_learners=n_learners,
+        folder=folder,
+    )
+    # Load the new learners with data
+    index_parts = split(range(len(big_learner.sequence)), n_learners)
+    for small_learner, part in zip(new_learners, index_parts):
+        for i_small, i_big in enumerate(part):
+            y = big_learner.data.get(i_big)
+            if y is None:
+                continue
+            x = i_small, big_learner.sequence[i_big]
+            small_learner.tell(x, y)
+
+    return new_learners, new_fnames
+
+
+def split_sequence_in_sequence_learners(
     function: Callable[[Any], Any],
     sequence: Sequence[Any],
-    n_parts: int,
+    n_learners: int,
     folder: Union[str, Path] = "",
 ) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
     r"""Split a sequenceinto `adaptive.SequenceLearner`\s and fnames.
@@ -118,8 +163,8 @@ def split_in_sequence_learners(
     function : callable
         Function for `adaptive.SequenceLearner`\s.
     sequence : sequence
-        The sequence to split into ``n_parts``.
-    n_parts : int
+        The sequence to split into ``n_learners``.
+    n_learners : int
         Total number of `~adaptive.SequenceLearner`\s.
     folder : pathlib.Path or str
         Folder to prepend to fnames.
@@ -134,13 +179,51 @@ def split_in_sequence_learners(
     folder = Path(folder)
     new_learners = []
     new_fnames = []
-    for sequence_part in split(sequence, n_parts):
+    for sequence_part in split(sequence, n_learners):
         learner = adaptive.SequenceLearner(function, sequence_part)
         new_learners.append(learner)
         hsh = hash_anything((sequence_part[0], len(sequence_part)))
         fname = folder / f"{hsh}.pickle"
         new_fnames.append(fname)
     return new_learners, new_fnames
+
+
+def combine_sequence_learners(
+    learners: List[adaptive.SequenceLearner],
+    big_learner: Optional[adaptive.SequenceLearner] = None,
+) -> adaptive.SequenceLearner:
+    r"""Combine several `~adaptive.SequenceLearner`\s into a single
+    `~adaptive.SequenceLearner` any copy over the data.
+
+    Assumes that all ``learners`` take the same function.
+
+    Parameters
+    ----------
+    learners : List[adaptive.SequenceLearner]
+        List of `~adaptive.SequenceLearner`\s.
+    big_learner : Optional[adaptive.SequenceLearner]
+        A learner to load, if None, a new learner will be generated.
+
+    Returns
+    -------
+    adaptive.SequenceLearner
+        Big `~adaptive.SequenceLearner` with data from ``learners``.
+    """
+    if big_learner is None:
+        big_sequence = sum((list(learner.sequence) for learner in learners), [])
+        big_learner = adaptive.SequenceLearner(
+            learners[0]._original_function, sequence=big_sequence
+        )
+
+    cnt = 0
+    for learner in learners:
+        for i, key in enumerate(learner.sequence):
+            if i in learner.data:
+                x = cnt, key
+                y = learner.data[i]
+                big_learner.tell(x, y)
+            cnt += 1
+    return big_learner
 
 
 def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
@@ -163,12 +246,73 @@ def _progress(
             return tqdm(list(seq), desc=desc)
 
 
-def combo_to_fname(combo: Dict[str, Any], folder: Optional[str] = None) -> str:
+def combo_to_fname(
+    combo: Dict[str, Any], folder: Optional[str] = None, ext: Optional[str] = ".pickle"
+) -> str:
     """Converts a dict into a human readable filename."""
-    fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ".pickle"
+    fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
     if folder is None:
         return fname
     return os.path.join(folder, fname)
+
+
+def combo2fname(
+    combo: Dict[str, Any],
+    folder: Optional[Union[str, Path]] = None,
+    ext: Optional[str] = ".pickle",
+    sig_figs: int = 8,
+) -> Path:
+    """Converts a dict into a human readable filename.
+
+    Improved version of `combo_to_fname`."""
+    name_parts = [f"{k}_{maybe_round(v, sig_figs)}" for k, v in sorted(combo.items())]
+    fname = Path("__".join(name_parts) + ext)
+    if folder is None:
+        return fname
+    return folder / fname
+
+
+def add_constant_to_fname(
+    combo: Dict[str, Any],
+    constant: Dict[str, Any],
+    folder: Optional[Union[str, Path]] = None,
+    ext: Optional[str] = ".pickle",
+    sig_figs: int = 8,
+    dry_run: bool = True,
+):
+    for k in constant.keys():
+        combo.pop(k, None)
+    old_fname = combo2fname(combo, folder, ext, sig_figs)
+    combo.update(constant)
+    new_fname = combo2fname(combo, folder, ext, sig_figs)
+    if not dry_run:
+        old_fname.rename(new_fname)
+    return old_fname, new_fname
+
+
+def maybe_round(x: Any, sig_figs: int) -> Any:
+    rnd = functools.partial(round_sigfigs, sig_figs=sig_figs)
+    if np.isnan(x) or np.isinf(x):
+        return x
+    elif isinstance(x, (np.float, float)):
+        return rnd(x)
+    elif isinstance(x, (complex, np.complex)):
+        return complex(rnd(x.real), rnd(x.imag))
+    else:
+        return x
+
+
+def round_sigfigs(num: float, sig_figs: int) -> float:
+    """Round to specified number of sigfigs.
+
+    From
+    http://code.activestate.com/recipes/578114-round-number-to-specified-number-of-significant-di/
+    """
+    num = float(num)
+    if num != 0:
+        return round(num, -int(math.floor(math.log10(abs(num))) - (sig_figs - 1)))
+    else:
+        return 0.0  # Can't take the log of 0
 
 
 def _remove_or_move_files(
