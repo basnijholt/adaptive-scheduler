@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import adaptive
-import numpy as np
 import cloudpickle
+import numpy as np
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -262,7 +262,7 @@ def combo2fname(
     folder: Optional[Union[str, Path]] = None,
     ext: Optional[str] = ".pickle",
     sig_figs: int = 8,
-) -> Path:
+) -> str:
     """Converts a dict into a human readable filename.
 
     Improved version of `combo_to_fname`."""
@@ -270,7 +270,7 @@ def combo2fname(
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
         return fname
-    return folder / fname
+    return str(folder / fname)
 
 
 def add_constant_to_fname(

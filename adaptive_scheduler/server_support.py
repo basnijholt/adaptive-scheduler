@@ -111,7 +111,7 @@ class DatabaseManager(_BaseManager):
         scheduler: BaseScheduler,
         db_fname: str,
         learners: List[adaptive.BaseLearner],
-        fnames: List[str],
+        fnames: Union[List[str], List[List[str]]],
         overwrite_db: bool = True,
     ):
         super().__init__()
@@ -119,7 +119,7 @@ class DatabaseManager(_BaseManager):
         self.scheduler = scheduler
         self.db_fname = db_fname
         self.learners = learners
-        self.fnames = list(map(str, fnames))  # convert from pathlib.Path
+        self.fnames = fnames
         self.overwrite_db = overwrite_db
 
         self.defaults = dict(
@@ -784,7 +784,7 @@ class RunManager(_BaseManager):
         self,
         scheduler: BaseScheduler,
         learners: List[adaptive.BaseLearner],
-        fnames: List[Union[str, Path]],
+        fnames: List[str],
         goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
         check_goal_on_start: bool = True,
         runner_kwargs: Optional[dict] = None,
@@ -826,6 +826,7 @@ class RunManager(_BaseManager):
         # Set on init
         self.learners = learners
         self.fnames = fnames
+
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
@@ -872,7 +873,7 @@ class RunManager(_BaseManager):
             # Only works after the `database_manager` has started.
             for fname, learner in zip(self.fnames, self.learners):
                 if self.goal(learner):
-                    self.database_manager._stop_request(str(fname))
+                    self.database_manager._stop_request(fname)
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
