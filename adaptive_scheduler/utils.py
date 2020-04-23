@@ -227,6 +227,29 @@ def combine_sequence_learners(
     return big_learner
 
 
+def copy_from_sequence_learner(
+    learner_from: adaptive.SequenceLearner, learner_to: adaptive.SequenceLearner
+) -> None:
+    """Convinience function to copy the data from a `~adaptive.SequenceLearner`
+    into a different `~adaptive.SequenceLearner`.
+
+    Parameters
+    ----------
+    learner_from : adaptive.SequenceLearner
+        Learner to take the data from.
+    learner_to : adaptive.SequenceLearner
+        Learner to tell the data to.
+    """
+    mapping = {
+        hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()
+    }
+    for i, key in enumerate(learner_to.sequence):
+        hsh = hash_anything(key)
+        if hsh in mapping:
+            v = mapping[hsh]
+            learner_to.tell((i, key), v)
+
+
 def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
     with suppress(AttributeError):
         return learner.npoints
