@@ -110,7 +110,7 @@ def split_in_balancing_learners(
 
 def split_sequence_learner(
     big_learner, n_learners: int, folder: Union[str, Path] = "",
-) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
     r"""Split a sinlge `~adaptive.SequenceLearner` into
     mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
 
@@ -130,7 +130,7 @@ def split_sequence_learner(
     new_learners : List[adaptive.SequenceLearner]
         List of `~adaptive.SequenceLearner`\s.
     new_fnames : List[Path]
-        List of `pathlib.Path`\s based on a hash of the sequence.
+        List of str based on a hash of the sequence.
     """
     new_learners, new_fnames = split_sequence_in_sequence_learners(
         function=big_learner._original_function,
@@ -156,7 +156,7 @@ def split_sequence_in_sequence_learners(
     sequence: Sequence[Any],
     n_learners: int,
     folder: Union[str, Path] = "",
-) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
     r"""Split a sequenceinto `adaptive.SequenceLearner`\s and fnames.
 
     Parameters
@@ -175,7 +175,7 @@ def split_sequence_in_sequence_learners(
     new_learners : List[adaptive.SequenceLearner]
         List of `~adaptive.SequenceLearner`\s.
     new_fnames : List[Path]
-        List of `pathlib.Path`\s based on a hash of the sequence.
+        List of str based on a hash of the sequence.
     """
     folder = Path(folder)
     new_learners = []
@@ -185,7 +185,7 @@ def split_sequence_in_sequence_learners(
         new_learners.append(learner)
         hsh = hash_anything((sequence_part[0], len(sequence_part)))
         fname = folder / f"{hsh}.pickle"
-        new_fnames.append(fname)
+        new_fnames.append(str(fname))
     return new_learners, new_fnames
 
 

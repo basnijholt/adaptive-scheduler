@@ -832,6 +832,12 @@ class RunManager(_BaseManager):
         self.learners = learners
         self.fnames = fnames
 
+        if isinstance(self.fnames[0], (list, tuple)):
+            # For a BalancingLearner
+            assert isinstance(self.fnames[0][0], str)
+        else:
+            assert isinstance(self.fnames[0], str)
+
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
