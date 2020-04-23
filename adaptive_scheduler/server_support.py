@@ -207,10 +207,14 @@ class DatabaseManager(_BaseManager):
             )
         return entry["fname"]
 
-    def _stop_request(self, fname: str) -> None:
+    def _stop_request(self, fname: Union[str, List[str]]) -> None:
+        fname = maybe_lst(fname)  # if a BalancingLearner
         Entry = Query()
         with TinyDB(self.db_fname) as db:
             reset = dict(job_id=None, is_done=True, job_name=None)
+            assert (
+                db.get(Entry.fname == fname) is not None
+            )  # make sure the entry exists
             db.update(reset, Entry.fname == fname)
 
     def _dispatch(self, request: Tuple[str, ...]) -> Union[str, Exception, None]:
