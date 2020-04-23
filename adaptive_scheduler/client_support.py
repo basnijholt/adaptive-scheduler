@@ -71,8 +71,8 @@ def get_learner(
         socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
         socket.send_serialized(("start", job_id, log_fname, job_name), serialize)
-        log.info(f"sent start signal, timeout after 10s.")
-        socket.setsockopt(zmq.RCVTIMEO, 20_000)  # timeout after 10s
+        log.info(f"sent start signal, going to wait 60s for a reply.")
+        socket.setsockopt(zmq.RCVTIMEO, 60_000)  # timeout after 60s
         reply = socket.recv_serialized(deserialize)
         log.info("got reply", reply=str(reply))
         if reply is None:
@@ -107,7 +107,7 @@ def tell_done(url: str, fname: str) -> None:
         socket.connect(url)
         socket.send_serialized(("stop", fname), serialize)
         socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
-        log.info("sent stop signal, timeout after 10s", fname=fname)
+        log.info("sent stop signal, going to wait 10s for a reply", fname=fname)
         socket.recv_serialized(deserialize)  # Needed because of socket type
 
 
