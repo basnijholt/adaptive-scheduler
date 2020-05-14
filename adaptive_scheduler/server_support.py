@@ -217,6 +217,14 @@ class DatabaseManager(_BaseManager):
             )  # make sure the entry exists
             db.update(reset, Entry.fname == fname)
 
+    def _stop_requests(self, fnames: List[Union[str, List[str]]]) -> None:
+        # Same as `_stop_request` but optimized for processing many `fnames` at once
+        fnames = {str(maybe_lst(fname)) for fname in fnames}
+        with TinyDB(self.db_fname) as db:
+            reset = dict(job_id=None, is_done=True, job_name=None)
+            doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames]
+            db.update(reset, doc_ids=doc_ids)
+
     def _dispatch(self, request: Tuple[str, ...]) -> Union[str, Exception, None]:
         request_type, *request_arg = request
         log.debug("got a request", request=request)
@@ -882,9 +890,12 @@ class RunManager(_BaseManager):
         if self.check_goal_on_start:
             # Check if goal already reached
             # Only works after the `database_manager` has started.
-            for fname, learner in zip(self.fnames, self.learners):
-                if self.goal(learner):
-                    self.database_manager._stop_request(fname)
+            done_fnames = [
+                fname
+                for fname, learner in zip(self.fnames, self.learners)
+                if self.goal(learner)
+            ]
+            self.database_manager._stop_requests(done_fnames)
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
