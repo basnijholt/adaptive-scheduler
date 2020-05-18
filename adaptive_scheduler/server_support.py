@@ -1047,14 +1047,33 @@ class RunManager(_BaseManager):
 
         layout = Layout(width="200px")
         buttons = [
-            Button(description="update info", layout=layout, button_color="lightgreen"),
-            Button(description="cancel jobs", layout=layout, button_style="danger"),
+            Button(
+                description="update info",
+                layout=layout,
+                button_color="lightgreen",
+                icon="refresh",
+            ),
+            Button(
+                description="cancel jobs",
+                layout=layout,
+                button_style="danger",
+                icon="stop",
+            ),
             Button(
                 description="cleanup log and batch files",
                 layout=layout,
                 button_style="danger",
+                icon="remove",
             ),
-            Button(description="show logs", layout=layout, button_style="info"),
+            Button(
+                description="show logs", layout=layout, button_style="info", icon="book"
+            ),
+            Button(
+                description="load learners",
+                layout=layout,
+                button_style="info",
+                icon="download",
+            ),
         ]
         buttons = {b.description: b for b in buttons}
 
@@ -1071,6 +1090,9 @@ class RunManager(_BaseManager):
             self.cleanup()
             update(_)
 
+        def load_learners(_):
+            self.load_learners()
+
         def show_logs(_):
             new_children = tuple(
                 c for c in box.children if c.description != "show logs"
@@ -1081,6 +1103,7 @@ class RunManager(_BaseManager):
         buttons["cleanup log and batch files"].on_click(cleanup)
         buttons["update info"].on_click(update)
         buttons["show logs"].on_click(show_logs)
+        buttons["load learners"].on_click(load_learners)
 
         box.children = (status, *tuple(buttons.values()))
         display(box)
