@@ -35,7 +35,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             current_value = dropdown.value
             fnames = _get_fnames(run_manager, checkbox.value)
             dropdown.options = fnames
-            with suppress(StopIteration):
+            with suppress(Exception):
                 dropdown.value = current_value
             dropdown.disabled = not fnames
 
