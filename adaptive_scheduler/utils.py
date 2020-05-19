@@ -523,9 +523,9 @@ def maybe_lst(fname: Union[List[str], str]):
     return fname
 
 
-def serialize(msg):
+def _serialize(msg):
     return [cloudpickle.dumps(msg)]
 
 
-def deserialize(frames):
+def _deserialize(frames):
     return cloudpickle.loads(frames[0])

@@ -26,12 +26,12 @@ from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
+    _deserialize,
     _progress,
     _remove_or_move_files,
-    deserialize,
+    _serialize,
     load_parallel,
     maybe_lst,
-    serialize,
 )
 from adaptive_scheduler.widgets import log_explorer
 
@@ -262,9 +262,9 @@ class DatabaseManager(_BaseManager):
         socket.bind(self.url)
         try:
             while True:
-                self._last_request = await socket.recv_serialized(deserialize)
+                self._last_request = await socket.recv_serialized(_deserialize)
                 self._last_reply = self._dispatch(self._last_request)
-                await socket.send_serialized(self._last_reply, serialize)
+                await socket.send_serialized(self._last_reply, _serialize)
         finally:
             socket.close()
 
