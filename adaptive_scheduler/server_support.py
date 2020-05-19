@@ -235,6 +235,8 @@ class DatabaseManager(_BaseManager):
                 kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
                 # give the worker a job and send back the fname to the worker
                 fname = self._start_request(**kwargs)
+                if fname is None:
+                    raise RuntimeError("No more learners to run in the database.")
                 learner = next(
                     l
                     for l, f in zip(self.learners, self.fnames)
