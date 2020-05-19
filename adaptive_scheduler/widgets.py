@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 from pathlib import Path
 from typing import List
 
@@ -29,8 +30,11 @@ def _read_file(fname: Path) -> str:
 def log_explorer(run_manager) -> VBox:  # noqa: C901
     def _update_dropdown(run_manager, dropdown, checkbox):
         def on_click(_):
+            current_value = dropdown.value
             fnames = _get_fnames(run_manager, checkbox.value)
             dropdown.options = fnames
+            with suppress(StopIteration):
+                dropdown.value = current_value
             dropdown.disabled = not fnames
 
         return on_click
