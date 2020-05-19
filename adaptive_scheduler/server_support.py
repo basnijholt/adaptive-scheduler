@@ -1066,18 +1066,20 @@ class RunManager(_BaseManager):
                 icon="remove",
             ),
             Button(
-                description="show logs", layout=layout, button_style="info", icon="book"
-            ),
-            Button(
                 description="load learners",
                 layout=layout,
                 button_style="info",
                 icon="download",
             ),
+            Button(
+                description="show logs", layout=layout, button_style="info", icon="book"
+            ),
         ]
         buttons = {b.description: b for b in buttons}
 
         box = VBox([])
+
+        log_widget = None
 
         def update(_):
             status.value = self._info_html()
@@ -1093,18 +1095,25 @@ class RunManager(_BaseManager):
         def load_learners(_):
             self.load_learners()
 
-        def show_logs(_):
-            new_children = tuple(
-                c for c in box.children if c.description != "show logs"
-            )
-            box.children = (*new_children, log_explorer(self))
+        def toggle_logs(_):
+            nonlocal log_widget
+
+            if log_widget is None:
+                log_widget = log_explorer(self)
+
+            b = buttons["show logs"]
+            if b.description == "show logs":
+                b.description = "hide logs"
+                box.children = (*box.children, log_widget)
+            else:
+                b.description = "show logs"
+                box.children = box.children[:-1]
 
         buttons["cancel jobs"].on_click(cancel)
         buttons["cleanup log and batch files"].on_click(cleanup)
         buttons["update info"].on_click(update)
-        buttons["show logs"].on_click(show_logs)
+        buttons["show logs"].on_click(toggle_logs)
         buttons["load learners"].on_click(load_learners)
-
         box.children = (status, *tuple(buttons.values()))
         display(box)
 
