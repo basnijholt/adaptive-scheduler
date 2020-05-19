@@ -5,11 +5,10 @@ import socket
 from contextlib import suppress
 from typing import Any, Dict, List, Tuple, Union
 
-import adaptive
 import psutil
 import structlog
 import zmq
-from adaptive import AsyncRunner
+from adaptive import AsyncRunner, BaseLearner
 
 from adaptive_scheduler.utils import (
     _deserialize,
@@ -40,7 +39,7 @@ def _add_log_file_handler(log_fname):
 
 def get_learner(
     url: str, log_fname: str, job_id: str, job_name: str,
-) -> Tuple[adaptive.BaseLearner, Union[str, List[str]]]:
+) -> Tuple[BaseLearner, Union[str, List[str]]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
 
