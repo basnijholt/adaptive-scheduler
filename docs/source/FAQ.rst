@@ -14,8 +14,6 @@ Q: What if I have more learners than cores?
 
 .. code-block:: python
 
-    %%writefile learners_file.py
-
     from functools import partial
 
     import adaptive
@@ -90,8 +88,9 @@ For example:
     )
 
     run_manager = adaptive_scheduler.server_support.RunManager(
-        learners_file="learners_file.py",
         scheduler=scheduler,
+        learners=learners,
+        fnames=fnames,
 
     )
     run_manager.start()

@@ -36,11 +36,10 @@ Design goals
 How does it work?
 -----------------
 
-You create a file where you define a bunch of ``learners`` and corresponding ``fnames`` such that they can be imported, like:
+You create a bunch of ``learners`` and corresponding ``fnames`` such that they can be loaded, like:
 
 .. code-block:: python
 
-   # learners_file.py
    import adaptive
    from functools import partial
 
@@ -69,8 +68,9 @@ Then you start a process that creates and submits as many job-scripts as there a
    scheduler = adaptive_scheduler.scheduler.SLURM(cores=10)  # every learner get this many cores
 
    run_manager = adaptive_scheduler.server_support.RunManager(
-       scheduler=scheduler,
-       learners_file="learners_file.py",
+       scheduler,
+       learners,
+       fnames,
        goal=goal,
        log_interval=30,  #  write info such as npoints, cpu_usage, time, etc. to the job log file
        save_interval=300,  # save the data every 300 seconds
@@ -90,7 +90,7 @@ But how does it *really* work?
 ------------------------------
 
 The `~adaptive_scheduler.server_support.RunManager` basically does the following.
-So, *you* need to create a ``learners_file.py`` that defines ``N`` ``learners`` and ``fnames`` (like in the section above).
+So, *you* need to create ``N`` ``learners`` and ``fnames`` (like in the section above).
 Then a "job manager" writes and submits ``max(N, max_simultaneous_jobs)`` job scripts but *doesn't know* which learner it is going to run!
 This is the responsibility of the "database manager", which keeps a database of ``job_id <--> learner``.
 The job script starts a Python file ``run_learner.py`` in which the learner is run.
@@ -102,44 +102,41 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
 
    import adaptive_scheduler
    from adaptive_scheduler import server_support
-   from learners_file import learners, fnames
 
    # create a scheduler
-   scheduler = adaptive_scheduler.scheduler.PBS(
-       cores=10,
-       run_script="run_learner.py",
-   )
+   scheduler = adaptive_scheduler.scheduler.SLURM(cores=10, run_script="run_learner.py",)
 
    # create a new database that keeps track of job <-> learner
    db_fname = "running.json"
-   url = server_support.get_allowed_url()  # get a url where we can run the database_manager
-   database_manager = server_support.DatabaseManager(url, scheduler, db_fname, fnames)
+   url = (
+      server_support.get_allowed_url()
+   )  # get a url where we can run the database_manager
+   database_manager = server_support.DatabaseManager(
+      url, scheduler, db_fname, learners, fnames
+   )
    database_manager.start()
 
    # create the Python script that runs a learner (run_learner.py)
    server_support._make_default_run_script(
-       url=url,
-       learners_file="learners_file.py",
-       save_interval=300,
-       log_interval=30,
-       goal=None,
-       executor_type=scheduler.executor_type,
-       run_script_fname=scheduler.run_script,
+      url=url,
+      save_interval=300,
+      log_interval=30,
+      goal=None,
+      executor_type=scheduler.executor_type,
+      run_script_fname=scheduler.run_script,
    )
 
    # create unique names for the jobs
    n_jobs = len(learners)
    job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
-   job_manager = server_support.JobManager(
-       job_names,
-       database_manager,
-       scheduler,
-   )
+   job_manager = server_support.JobManager(job_names, database_manager, scheduler)
    job_manager.start()
 
 
 Then when the job have been running for a while you can check ``server_support.parse_log_files(job_names, database_manager, scheduler)``.
+
+And use ``scheduler.cancel(job_names)`` to cancel the jobs.
 
 You don't actually ever have to leave the Jupter notebook, take a look at the `example notebook <https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb>`_.
 
