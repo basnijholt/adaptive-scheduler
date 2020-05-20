@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import adaptive
+import cloudpickle
 import numpy as np
 import toolz
 from adaptive.notebook_integration import in_ipynb
@@ -109,7 +110,7 @@ def split_in_balancing_learners(
 
 def split_sequence_learner(
     big_learner, n_learners: int, folder: Union[str, Path] = "",
-) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
     r"""Split a sinlge `~adaptive.SequenceLearner` into
     mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
 
@@ -129,7 +130,7 @@ def split_sequence_learner(
     new_learners : List[adaptive.SequenceLearner]
         List of `~adaptive.SequenceLearner`\s.
     new_fnames : List[Path]
-        List of `pathlib.Path`\s based on a hash of the sequence.
+        List of str based on a hash of the sequence.
     """
     new_learners, new_fnames = split_sequence_in_sequence_learners(
         function=big_learner._original_function,
@@ -155,7 +156,7 @@ def split_sequence_in_sequence_learners(
     sequence: Sequence[Any],
     n_learners: int,
     folder: Union[str, Path] = "",
-) -> Tuple[List[adaptive.SequenceLearner], List[Path]]:
+) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
     r"""Split a sequenceinto `adaptive.SequenceLearner`\s and fnames.
 
     Parameters
@@ -174,7 +175,7 @@ def split_sequence_in_sequence_learners(
     new_learners : List[adaptive.SequenceLearner]
         List of `~adaptive.SequenceLearner`\s.
     new_fnames : List[Path]
-        List of `pathlib.Path`\s based on a hash of the sequence.
+        List of str based on a hash of the sequence.
     """
     folder = Path(folder)
     new_learners = []
@@ -184,7 +185,7 @@ def split_sequence_in_sequence_learners(
         new_learners.append(learner)
         hsh = hash_anything((sequence_part[0], len(sequence_part)))
         fname = folder / f"{hsh}.pickle"
-        new_fnames.append(fname)
+        new_fnames.append(str(fname))
     return new_learners, new_fnames
 
 
@@ -226,6 +227,29 @@ def combine_sequence_learners(
     return big_learner
 
 
+def copy_from_sequence_learner(
+    learner_from: adaptive.SequenceLearner, learner_to: adaptive.SequenceLearner
+) -> None:
+    """Convinience function to copy the data from a `~adaptive.SequenceLearner`
+    into a different `~adaptive.SequenceLearner`.
+
+    Parameters
+    ----------
+    learner_from : adaptive.SequenceLearner
+        Learner to take the data from.
+    learner_to : adaptive.SequenceLearner
+        Learner to tell the data to.
+    """
+    mapping = {
+        hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()
+    }
+    for i, key in enumerate(learner_to.sequence):
+        hsh = hash_anything(key)
+        if hsh in mapping:
+            v = mapping[hsh]
+            learner_to.tell((i, key), v)
+
+
 def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
     with suppress(AttributeError):
         return learner.npoints
@@ -261,7 +285,7 @@ def combo2fname(
     folder: Optional[Union[str, Path]] = None,
     ext: Optional[str] = ".pickle",
     sig_figs: int = 8,
-) -> Path:
+) -> str:
     """Converts a dict into a human readable filename.
 
     Improved version of `combo_to_fname`."""
@@ -269,7 +293,7 @@ def combo2fname(
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
         return fname
-    return folder / fname
+    return str(folder / fname)
 
 
 def add_constant_to_fname(
@@ -490,3 +514,18 @@ def log_exception(log, msg, exception):
         raise exception
     except Exception:
         log.exception(msg, exc_info=True)
+
+
+def maybe_lst(fname: Union[List[str], str]):
+    if isinstance(fname, tuple):
+        # TinyDB converts tuples to lists
+        fname = list(fname)
+    return fname
+
+
+def _serialize(msg):
+    return [cloudpickle.dumps(msg)]
+
+
+def _deserialize(frames):
+    return cloudpickle.loads(frames[0])

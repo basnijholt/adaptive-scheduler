@@ -10,6 +10,8 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
     if only_running:
         fnames = []
         for entry in run_manager.database_manager.as_dicts():
+            if entry["is_done"]:
+                continue
             if entry["log_fname"] is not None:
                 fnames.append(entry["log_fname"])
             fnames += entry["output_logs"]
@@ -33,7 +35,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             current_value = dropdown.value
             fnames = _get_fnames(run_manager, checkbox.value)
             dropdown.options = fnames
-            with suppress(StopIteration):
+            with suppress(Exception):
                 dropdown.value = current_value
             dropdown.disabled = not fnames
 

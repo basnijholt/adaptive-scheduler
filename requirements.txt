@@ -1,6 +1,9 @@
-adaptive
+adaptive>=0.11
+cloudpickle
 dill
 ipyparallel
+jinja2
+loky
 mpi4py
 numpy
 pandas

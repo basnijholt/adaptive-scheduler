@@ -10,7 +10,13 @@ import structlog
 import zmq
 from adaptive import AsyncRunner, BaseLearner
 
-from adaptive_scheduler.utils import _get_npoints, log_exception
+from adaptive_scheduler.utils import (
+    _deserialize,
+    _get_npoints,
+    _serialize,
+    log_exception,
+    maybe_lst,
+)
 
 ctx = zmq.Context()
 logger = logging.getLogger("adaptive_scheduler.client")
@@ -32,22 +38,13 @@ def _add_log_file_handler(log_fname):
 
 
 def get_learner(
-    learners: List[BaseLearner],
-    fnames: List[str],
-    url: str,
-    log_fname: str,
-    job_id: str,
-    job_name: str,
-) -> Tuple[str, str]:
+    url: str, log_fname: str, job_id: str, job_name: str,
+) -> Tuple[BaseLearner, Union[str, List[str]]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
 
     Parameters
     ----------
-    learners : list of `adaptive.BaseLearner` isinstances
-        List of `learners` corresponding to `fnames`.
-    fnames : list
-        List of `fnames` corresponding to `learners`.
     url : str
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
@@ -60,6 +57,8 @@ def get_learner(
 
     Returns
     -------
+    learner : `adaptive.BaseLearner`
+        Learner that is chosen.
     fname : str
         The filename of the learner that was chosen.
     """
@@ -68,11 +67,12 @@ def get_learner(
         "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
     )
     with ctx.socket(zmq.REQ) as socket:
+        socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
-        socket.send_pyobj(("start", job_id, log_fname, job_name))
-        log.info(f"sent start signal, timeout after 10s.")
-        socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
-        reply = socket.recv_pyobj()
+        socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
+        log.info(f"sent start signal, going to wait 60s for a reply.")
+        socket.setsockopt(zmq.RCVTIMEO, 60_000)  # timeout after 60s
+        reply = socket.recv_serialized(_deserialize)
         log.info("got reply", reply=str(reply))
         if reply is None:
             msg = f"No learners to be run."
@@ -83,25 +83,11 @@ def get_learner(
             log_exception(log, "got an exception", exception=reply)
             raise reply
         else:
-            fname = reply
-            log.info(f"got fname")
-
-    def maybe_lst(fname: Union[List[str], str]):
-        if isinstance(fname, tuple):
-            # TinyDB converts tuples to lists
-            fname = list(fname)
-        return fname
-
-    try:
-        learner = next(l for l, f in zip(learners, fnames) if maybe_lst(f) == fname)
-    except StopIteration:
-        msg = "Learner with this fname doesn't exist in the database."
-        exception = RuntimeError(msg)
-        log_exception(log, msg, exception)
-        raise exception
+            learner, fname = reply
+            log.info(f"got fname and learner")
 
     log.info("picked a learner")
-    return learner, fname
+    return learner, maybe_lst(fname)
 
 
 def tell_done(url: str, fname: str) -> None:
@@ -118,10 +104,10 @@ def tell_done(url: str, fname: str) -> None:
     log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
-        socket.send_pyobj(("stop", fname))
+        socket.send_serialized(("stop", fname), _serialize)
         socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
-        log.info("sent stop signal, timeout after 10s", fname=fname)
-        socket.recv_pyobj()  # Needed because of socket type
+        log.info("sent stop signal, going to wait 10s for a reply", fname=fname)
+        socket.recv_serialized(_deserialize)  # Needed because of socket type
 
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
