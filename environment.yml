@@ -9,9 +9,11 @@ dependencies:
   - cloudpickle
   - dill
   - ipyparallel
+  - jinja2
   - loky
   - mpich
   - mpi4py
+  - numpy
   - pandas
   - psutil
   - pyzmq
