@@ -279,7 +279,7 @@ class DatabaseManager(_BaseManager):
         """
         log.debug("started database")
         socket = ctx.socket(zmq.REP)
-        socket.bind(self._url_worker)
+        socket.connect(self._url_worker)
         try:
             while True:
                 self._last_request = await socket.recv_serialized(_deserialize)
