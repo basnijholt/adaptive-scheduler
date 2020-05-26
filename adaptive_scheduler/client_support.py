@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import socket
+import time
 from contextlib import suppress
 from typing import Any, Dict, List, Tuple, Union
 
@@ -69,11 +70,12 @@ def get_learner(
     with ctx.socket(zmq.REQ) as socket:
         socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
+        t_start = time.time()
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
-        log.info(f"sent start signal, going to wait 60s for a reply.")
-        socket.setsockopt(zmq.RCVTIMEO, 60_000)  # timeout after 60s
+        log.info(f"sent start signal, going to wait 180s for a reply.")
+        socket.setsockopt(zmq.RCVTIMEO, 180_000)  # timeout after 180s
         reply = socket.recv_serialized(_deserialize)
-        log.info("got reply", reply=str(reply))
+        log.info("got reply", reply=str(reply), t_total=time.time() - t_start)
         if reply is None:
             msg = f"No learners to be run."
             exception = RuntimeError(msg)

@@ -529,3 +529,21 @@ def _serialize(msg):
 
 def _deserialize(frames):
     return cloudpickle.loads(frames[0])
+
+
+async def send_serialized(socket, loop, executor, msg):
+    """Send a message with a custom serialization function.
+
+    Modified from `pyzmq.send_serialized` to have awaitable serialization.
+    """
+    frames = await loop.run_in_executor(executor, _serialize, msg)
+    return await socket.send_multipart(frames)
+
+
+async def recv_serialized(socket, loop, executor):
+    """Receive a message with a custom deserialization function.
+
+    Modified from `pyzmq.send_serialized` to have awaitable serialization.
+    """
+    frames = await socket.recv_multipart()
+    return await loop.run_in_executor(executor, _deserialize, frames)
