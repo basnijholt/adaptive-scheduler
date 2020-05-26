@@ -129,6 +129,7 @@ class DatabaseManager(_BaseManager):
         self._last_reply: Union[str, Exception, None] = None
         self._last_request: Optional[Tuple[str, ...]] = None
         self.failed: List[Dict[str, Any]] = []
+        self._comm_times: List[Tuple[float, float, float]] = []
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
@@ -265,8 +266,12 @@ class DatabaseManager(_BaseManager):
         try:
             while True:
                 self._last_request = await socket.recv_serialized(_deserialize)
+                t_0 = time.time()
                 self._last_reply = self._dispatch(self._last_request)
+                t_1 = time.time()
                 await socket.send_serialized(self._last_reply, _serialize)
+                t_2 = time.time()
+                self._comm_times.append((t_0, t_1, t_2))
         finally:
             socket.close()
 
