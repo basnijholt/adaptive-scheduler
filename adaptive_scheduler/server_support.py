@@ -31,6 +31,7 @@ from adaptive_scheduler.utils import (
     _progress,
     _remove_or_move_files,
     _serialize,
+    hash_anything,
     load_parallel,
     maybe_lst,
 )
@@ -132,7 +133,7 @@ class DatabaseManager(_BaseManager):
     ):
         super().__init__()
         self.url = url
-        self._url_worker = "inproc://workers"
+        self._url_worker = f"inproc://workers-{hash_anything(time.time())}"
         self.scheduler = scheduler
         self.db_fname = db_fname
         self.learners = learners
