@@ -5,6 +5,7 @@ import datetime
 import glob
 import json
 import logging
+import multiprocessing
 import os
 import shutil
 import socket
@@ -40,6 +41,21 @@ ctx = zmq.asyncio.Context()
 logger = logging.getLogger("adaptive_scheduler.server")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
+
+
+async def _run_proxy(socket_from, socket_to):
+    poller = zmq.asyncio.Poller()
+    poller.register(socket_from, zmq.POLLIN)
+    poller.register(socket_to, zmq.POLLIN)
+    while True:
+        events = await poller.poll()
+        events = dict(events)
+        if socket_from in events:
+            msg = await socket_from.recv_multipart()
+            await socket_to.send_multipart(msg)
+        elif socket_to in events:
+            msg = await socket_to.recv_multipart()
+            await socket_from.send_multipart(msg)
 
 
 class MaxRestartsReached(Exception):
@@ -116,6 +132,7 @@ class DatabaseManager(_BaseManager):
     ):
         super().__init__()
         self.url = url
+        self._url_worker = "inproc://workers"
         self.scheduler = scheduler
         self.db_fname = db_fname
         self.learners = learners
@@ -253,8 +270,8 @@ class DatabaseManager(_BaseManager):
         except Exception as e:
             return e
 
-    async def _manage(self) -> None:
-        """Database manager co-routine.
+    async def _manage_worker(self) -> None:
+        """Database worker manager co-routine.
 
         Returns
         -------
@@ -262,7 +279,7 @@ class DatabaseManager(_BaseManager):
         """
         log.debug("started database")
         socket = ctx.socket(zmq.REP)
-        socket.bind(self.url)
+        socket.bind(self._url_worker)
         try:
             while True:
                 self._last_request = await socket.recv_serialized(_deserialize)
@@ -274,6 +291,25 @@ class DatabaseManager(_BaseManager):
                 self._comm_times.append((t_0, t_1, t_2))
         finally:
             socket.close()
+
+    async def _manage(self) -> None:
+        """Database manager co-routine.
+
+        Runs multiple instances of ``_manage_worker`` to not be limitted by
+        slow ``send_serialized`` calls.
+
+        Returns
+        -------
+        coroutine
+        """
+        clients = ctx.socket(zmq.ROUTER)
+        clients.bind(self.url)
+        workers = ctx.socket(zmq.DEALER)
+        workers.bind(self._url_worker)
+        proxy_coro = _run_proxy(clients, workers)
+        ncores = multiprocessing.cpu_count()
+        worker_coros = [self._manage_worker() for i in range(ncores)]
+        await asyncio.wait((proxy_coro, *worker_coros))
 
 
 class JobManager(_BaseManager):
