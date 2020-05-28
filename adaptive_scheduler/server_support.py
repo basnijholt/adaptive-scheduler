@@ -1091,6 +1091,8 @@ class RunManager(_BaseManager):
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
         n_done = sum(job["is_done"] for job in self.database_manager.as_dicts())
+        n_failed = len(self.database_manager.failed)
+        n_failed_color = "red" if n_failed > 0 else "black"
 
         status = self.status()
         color = {
@@ -1113,6 +1115,7 @@ class RunManager(_BaseManager):
             ("# running jobs", f'<font color="blue">{n_running}</font>'),
             ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
             ("# finished jobs", f'<font color="green">{n_done}</font>'),
+            ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
             ("elapsed time", datetime.timedelta(seconds=self.elapsed_time())),
         ]
 
