@@ -11,13 +11,7 @@ import structlog
 import zmq
 from adaptive import AsyncRunner, BaseLearner
 
-from adaptive_scheduler.utils import (
-    _deserialize,
-    _get_npoints,
-    _serialize,
-    log_exception,
-    maybe_lst,
-)
+from adaptive_scheduler.utils import _get_npoints, log_exception, maybe_lst
 
 ctx = zmq.Context()
 ctx.linger = 0
@@ -71,10 +65,10 @@ def get_learner(
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         t_start = time.time()
-        socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
+        socket.send_pyobj(("start", job_id, log_fname, job_name))
         log.info(f"sent start signal, going to wait 180s for a reply.")
         socket.setsockopt(zmq.RCVTIMEO, 180_000)  # timeout after 180s
-        reply = socket.recv_serialized(_deserialize)
+        reply = socket.recv_pyobj()
         log.info("got reply", reply=str(reply), t_total=time.time() - t_start)
         if reply is None:
             msg = f"No learners to be run."
@@ -107,14 +101,14 @@ def tell_done(url: str, fname: str) -> None:
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
         t_start = time.time()
-        socket.send_serialized(("stop", fname), _serialize)
+        socket.send_pyobj(("stop", fname))
         socket.setsockopt(zmq.RCVTIMEO, 180_000)  # timeout after 19s
         log.info(
             "sent stop signal, going to wait 180s for a reply",
             fname=fname,
             t_total=time.time() - t_start,
         )
-        socket.recv_serialized(_deserialize)  # Needed because of socket type
+        socket.recv_pyobj()  # Needed because of socket type
 
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:

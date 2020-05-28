@@ -32,8 +32,6 @@ from adaptive_scheduler.utils import (
     hash_anything,
     load_parallel,
     maybe_lst,
-    recv_serialized,
-    send_serialized,
 )
 from adaptive_scheduler.widgets import log_explorer
 
@@ -140,7 +138,6 @@ class DatabaseManager(_BaseManager):
         self.learners = learners
         self.fnames = fnames
         self.overwrite_db = overwrite_db
-        self._executor = None
 
         self.defaults = dict(
             job_id=None, is_done=False, log_fname=None, job_name=None, output_logs=[]
@@ -155,13 +152,6 @@ class DatabaseManager(_BaseManager):
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
-        self._executor = ThreadPoolExecutor()
-
-    def cancel(self):
-        super().cancel()
-        if self._executor is not None:
-            self._executor.shutdown()
-            self._executor = None
 
     def update(self, queue: Optional[Dict[str, Dict[str, str]]] = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
@@ -292,15 +282,11 @@ class DatabaseManager(_BaseManager):
         socket.connect(self._url_worker)
         try:
             while True:
-                self._last_request = await recv_serialized(
-                    socket, self.ioloop, self._executor
-                )
+                self._last_request = await socket.recv_pyobj()
                 t_0 = time.time()
                 self._last_reply = self._dispatch(self._last_request)
                 t_1 = time.time()
-                await send_serialized(
-                    socket, self.ioloop, self._executor, self._last_reply
-                )
+                await socket.send_pyobj(self._last_reply)
                 t_2 = time.time()
                 self._comm_times.append((t_0, t_1, t_2))
         finally:
