@@ -20,6 +20,7 @@ from adaptive_scheduler.utils import (
 )
 
 ctx = zmq.Context()
+ctx.linger = 0
 logger = logging.getLogger("adaptive_scheduler.client")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(
@@ -68,7 +69,6 @@ def get_learner(
         "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
     )
     with ctx.socket(zmq.REQ) as socket:
-        socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
         t_start = time.time()
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
@@ -106,9 +106,14 @@ def tell_done(url: str, fname: str) -> None:
     log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
         socket.connect(url)
+        t_start = time.time()
         socket.send_serialized(("stop", fname), _serialize)
-        socket.setsockopt(zmq.RCVTIMEO, 10_000)  # timeout after 10s
-        log.info("sent stop signal, going to wait 10s for a reply", fname=fname)
+        socket.setsockopt(zmq.RCVTIMEO, 180_000)  # timeout after 19s
+        log.info(
+            "sent stop signal, going to wait 180s for a reply",
+            fname=fname,
+            t_total=time.time() - t_start,
+        )
         socket.recv_serialized(_deserialize)  # Needed because of socket type
 
 

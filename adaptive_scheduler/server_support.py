@@ -322,7 +322,7 @@ class DatabaseManager(_BaseManager):
         workers.bind(self._url_worker)
         proxy_coro = _run_proxy(clients, workers)
         ncores = multiprocessing.cpu_count()
-        worker_coros = [self._manage_worker() for i in range(ncores)]
+        worker_coros = [self._manage_worker() for i in range(ncores - 1)]
         await asyncio.wait((proxy_coro, *worker_coros))
 
 
@@ -964,8 +964,8 @@ class RunManager(_BaseManager):
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
-        self.database_manager.cancel()
         self.job_manager.cancel()
+        self.database_manager.cancel()
         self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
         self.task.cancel()
