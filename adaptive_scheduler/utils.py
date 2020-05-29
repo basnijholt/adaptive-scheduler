@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import adaptive
-import cloudpickle
 import numpy as np
 import toolz
 from adaptive.notebook_integration import in_ipynb
@@ -521,11 +520,3 @@ def maybe_lst(fname: Union[List[str], str]):
         # TinyDB converts tuples to lists
         fname = list(fname)
     return fname
-
-
-def _serialize(msg):
-    return [cloudpickle.dumps(msg)]
-
-
-def _deserialize(frames):
-    return cloudpickle.loads(frames[0])

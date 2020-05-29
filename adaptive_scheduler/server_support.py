@@ -5,6 +5,7 @@ import datetime
 import glob
 import json
 import logging
+import multiprocessing
 import os
 import shutil
 import socket
@@ -26,20 +27,35 @@ from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
-    _deserialize,
     _progress,
     _remove_or_move_files,
-    _serialize,
+    hash_anything,
     load_parallel,
     maybe_lst,
 )
 from adaptive_scheduler.widgets import log_explorer
 
 ctx = zmq.asyncio.Context()
+ctx.linger = 0
 
 logger = logging.getLogger("adaptive_scheduler.server")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
+
+
+async def _run_proxy(socket_from, socket_to):
+    poller = zmq.asyncio.Poller()
+    poller.register(socket_from, zmq.POLLIN)
+    poller.register(socket_to, zmq.POLLIN)
+    while True:
+        events = await poller.poll()
+        events = dict(events)
+        if socket_from in events:
+            msg = await socket_from.recv_multipart()
+            await socket_to.send_multipart(msg)
+        elif socket_to in events:
+            msg = await socket_to.recv_multipart()
+            await socket_from.send_multipart(msg)
 
 
 class MaxRestartsReached(Exception):
@@ -116,6 +132,7 @@ class DatabaseManager(_BaseManager):
     ):
         super().__init__()
         self.url = url
+        self._url_worker = f"inproc://workers-{hash_anything(time.time())}"
         self.scheduler = scheduler
         self.db_fname = db_fname
         self.learners = learners
@@ -129,6 +146,7 @@ class DatabaseManager(_BaseManager):
         self._last_reply: Union[str, Exception, None] = None
         self._last_request: Optional[Tuple[str, ...]] = None
         self.failed: List[Dict[str, Any]] = []
+        self._comm_times: List[Tuple[float, float, float]] = []
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
@@ -252,8 +270,8 @@ class DatabaseManager(_BaseManager):
         except Exception as e:
             return e
 
-    async def _manage(self) -> None:
-        """Database manager co-routine.
+    async def _manage_worker(self) -> None:
+        """Database worker manager co-routine.
 
         Returns
         -------
@@ -261,14 +279,37 @@ class DatabaseManager(_BaseManager):
         """
         log.debug("started database")
         socket = ctx.socket(zmq.REP)
-        socket.bind(self.url)
+        socket.connect(self._url_worker)
         try:
             while True:
-                self._last_request = await socket.recv_serialized(_deserialize)
+                self._last_request = await socket.recv_pyobj()
+                t_0 = time.time()
                 self._last_reply = self._dispatch(self._last_request)
-                await socket.send_serialized(self._last_reply, _serialize)
+                t_1 = time.time()
+                await socket.send_pyobj(self._last_reply)
+                t_2 = time.time()
+                self._comm_times.append((t_0, t_1, t_2))
         finally:
             socket.close()
+
+    async def _manage(self) -> None:
+        """Database manager co-routine.
+
+        Runs multiple instances of ``_manage_worker`` to not be limitted by
+        slow ``send_serialized`` calls.
+
+        Returns
+        -------
+        coroutine
+        """
+        clients = ctx.socket(zmq.ROUTER)
+        clients.bind(self.url)
+        workers = ctx.socket(zmq.DEALER)
+        workers.bind(self._url_worker)
+        proxy_coro = _run_proxy(clients, workers)
+        ncores = multiprocessing.cpu_count()
+        worker_coros = [self._manage_worker() for i in range(ncores - 1)]
+        await asyncio.wait((proxy_coro, *worker_coros))
 
 
 class JobManager(_BaseManager):
@@ -909,8 +950,8 @@ class RunManager(_BaseManager):
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""
-        self.database_manager.cancel()
         self.job_manager.cancel()
+        self.database_manager.cancel()
         self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
         self.task.cancel()
