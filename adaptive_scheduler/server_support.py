@@ -1132,6 +1132,8 @@ class RunManager(_BaseManager):
         n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
         n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
         n_done = sum(job["is_done"] for job in self.database_manager.as_dicts())
+        comm_time = sum([t2 - t0 for t0, t1, t2 in self.database_manager._comm_times])
+        comm_time = datetime.timedelta(seconds=comm_time)
 
         status = self.status()
         color = {
@@ -1155,6 +1157,7 @@ class RunManager(_BaseManager):
             ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
             ("# finished jobs", f'<font color="green">{n_done}</font>'),
             ("elapsed time", datetime.timedelta(seconds=self.elapsed_time())),
+            ("communication time", comm_time),
         ]
 
         with suppress(Exception):
