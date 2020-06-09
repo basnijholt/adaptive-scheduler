@@ -8,7 +8,6 @@ dependencies:
   - adaptive
   - dill
   - ipyparallel
-  - m2r
   - mpich
   - mpi4py
   - pandas
@@ -18,3 +17,5 @@ dependencies:
   - tinydb
   - toolz
   - tqdm
+  - pip:
+      - m2r @ git+https://github.com/crossnox/m2r@dev#egg=m2r  # https://github.com/sphinx-doc/sphinx/issues/7420#issuecomment-610958327
