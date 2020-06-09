@@ -45,6 +45,9 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     extra_env_vars : list, optional
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
+    extra_script : str, optional
+        Extra script that will be executed after any environment variables are set,
+        but before the main scheduler is run.
 
     Returns
     -------
@@ -64,6 +67,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         num_threads,
         extra_scheduler,
         extra_env_vars,
+        extra_script,
     ):
         self.cores = cores
         self.run_script = run_script
@@ -74,6 +78,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self.num_threads = num_threads
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
+        self._extra_script = extra_script
         self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
@@ -241,6 +246,11 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
+    @property
+    def extra_script(self):
+        """Script that will be run before the main scheduler."""
+        return str(self._extra_script) or ""
+
     def write_job_script(self, name: str) -> None:
         with open(self.batch_fname(name), "w") as f:
             job_script = self.job_script(name)
@@ -286,6 +296,7 @@ class PBS(BaseScheduler):
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
+        extra_script=None,
         *,
         cores_per_node=None,
     ):
@@ -299,6 +310,7 @@ class PBS(BaseScheduler):
             num_threads,
             extra_scheduler,
             extra_env_vars,
+            extra_script,
         )
         # Attributes that all schedulers need to have
         self._ext = ".batch"
@@ -393,6 +405,8 @@ class PBS(BaseScheduler):
 
             cd $PBS_O_WORKDIR
 
+            {{extra_script}}
+
             {{executor_specific}}
             """
         )
@@ -400,6 +414,7 @@ class PBS(BaseScheduler):
         job_script = job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
+            extra_script=self.extra_script,
             executor_specific=self._executor_specific(name),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
@@ -500,6 +515,7 @@ class SLURM(BaseScheduler):
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
+        extra_script=None,
     ):
         super().__init__(
             cores,
@@ -511,6 +527,7 @@ class SLURM(BaseScheduler):
             num_threads,
             extra_scheduler,
             extra_env_vars,
+            extra_script,
         )
         # Attributes that all schedulers need to have
         self._ext = ".sbatch"
@@ -568,6 +585,8 @@ class SLURM(BaseScheduler):
             export OMP_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
+            {{extra_script}}
+
             {{executor_specific}}
             """
         )
@@ -575,6 +594,7 @@ class SLURM(BaseScheduler):
         job_script = job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
+            extra_script=self.extra_script,
             executor_specific=self._executor_specific(name),
         )
         return job_script
@@ -642,6 +662,7 @@ class LocalMockScheduler(BaseScheduler):
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
+        extra_script=None,
         *,
         mock_scheduler_kwargs=None,
     ):
@@ -656,6 +677,7 @@ class LocalMockScheduler(BaseScheduler):
             num_threads,
             extra_scheduler,
             extra_env_vars,
+            extra_script,
         )
         # LocalMockScheduler specific
         self.mock_scheduler_kwargs = mock_scheduler_kwargs or {}
@@ -701,6 +723,8 @@ class LocalMockScheduler(BaseScheduler):
             export OMP_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
+            {{extra_script}}
+
             {{executor_specific}}
             """
         )
@@ -708,6 +732,7 @@ class LocalMockScheduler(BaseScheduler):
         job_script = job_script.format(
             extra_env_vars=self.extra_env_vars,
             executor_specific=self._executor_specific(name),
+            extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
