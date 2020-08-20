@@ -22,6 +22,17 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
     return sorted(Path(".").glob(f"{run_manager.job_name}-*"))
 
 
+def _files_that_contain(fnames, text):
+    def contains(fname, text):
+        with fname.open() as f:
+            for line in f:
+                if text in line:
+                    return True
+            return False
+
+    return [fname for fname in fnames if contains(fname, text)]
+
+
 def _sort_fnames(sort_by, run_manager, fnames):
     def _try_transform(f):
         def _f(x):
@@ -96,11 +107,19 @@ def _read_file(fname: Path) -> str:
 
 
 def log_explorer(run_manager) -> VBox:  # noqa: C901
-    def _update_fname_dropdown(run_manager, fname_dropdown, checkbox, sortby_dropdown):
+    def _update_fname_dropdown(
+        run_manager,
+        fname_dropdown,
+        only_running_checkbox,
+        sort_by_dropdown,
+        contains_text,
+    ):
         def on_click(_):
             current_value = fname_dropdown.value
-            fnames = _get_fnames(run_manager, checkbox.value)
-            fnames = _sort_fnames(sortby_dropdown.value, run_manager, fnames)
+            fnames = _get_fnames(run_manager, only_running_checkbox.value)
+            if contains_text.value.strip() != "":
+                fnames = _files_that_contain(fnames, contains_text.value.strip())
+            fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
             fname_dropdown.options = fnames
             with suppress(Exception):
                 fname_dropdown.value = current_value
@@ -128,7 +147,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             except Exception:
                 pass
 
-    def _tail(dropdown, tail_button, textarea, update_button, checkbox):
+    def _tail(dropdown, tail_button, textarea, update_button, only_running_checkbox):
         tail_task = None
         ioloop = asyncio.get_running_loop()
 
@@ -140,7 +159,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 tail_button.icon = "window-close"
                 dropdown.disabled = True
                 update_button.disabled = True
-                checkbox.disabled = True
+                only_running_checkbox.disabled = True
                 fname = dropdown.options[dropdown.index]
                 tail_task = ioloop.create_task(_tail_log(fname, textarea))
             else:
@@ -148,7 +167,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 tail_button.button_style = "info"
                 tail_button.icon = "refresh"
                 dropdown.disabled = False
-                checkbox.disabled = False
+                only_running_checkbox.disabled = False
                 update_button.disabled = False
                 tail_task.cancel()
                 tail_task = None
@@ -174,9 +193,10 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         return on_change
 
     fnames = _get_fnames(run_manager, only_running=False)
+    # no need to sort `fnames` because the default sort_by option is alphabetical
     text = _read_file(fnames[0]) if fnames else ""
     textarea = Textarea(text, layout=dict(width="auto"), rows=20)
-    sortby_dropdown = Dropdown(
+    sort_by_dropdown = Dropdown(
         description="Sort by",
         options=["Alphabetical", "CPU %", "Mem %", "Last editted", "Loss", "npoints"],
     )
@@ -191,7 +211,11 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     )
     update_button.on_click(
         _update_fname_dropdown(
-            run_manager, fname_dropdown, only_running_checkbox, sortby_dropdown
+            run_manager,
+            fname_dropdown,
+            only_running_checkbox,
+            sort_by_dropdown,
+            contains_text,
         )
     )
     only_running_checkbox.observe(_click_button_on_change(update_button))
@@ -207,9 +231,9 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             title,
             only_running_checkbox,
             update_button,
-            sortby_dropdown,
-            fname_dropdown,
+            sort_by_dropdown,
             contains_text,
+            fname_dropdown,
             tail_button,
             textarea,
         ],
