@@ -316,7 +316,14 @@ def add_constant_to_fname(
 
 def maybe_round(x: Any, sig_figs: int) -> Any:
     rnd = functools.partial(round_sigfigs, sig_figs=sig_figs)
-    if np.isnan(x) or np.isinf(x):
+
+    def try_is_nan_inf(x):
+        try:
+            return np.isnan(x) or np.isinf(x)
+        except Exception:
+            return False
+
+    if try_is_nan_inf(x):
         return x
     elif isinstance(x, (np.float, float)):
         return rnd(x)
