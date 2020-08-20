@@ -78,7 +78,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self.num_threads = num_threads
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
-        self._extra_script = extra_script
+        self._extra_script = extra_script if extra_script is not None else ""
         self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
