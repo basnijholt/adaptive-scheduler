@@ -1,9 +1,12 @@
 import asyncio
+from collections import defaultdict
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from ipywidgets import HTML, Button, Checkbox, Dropdown, Layout, Textarea, VBox
+import numpy as np
+from ipywidgets import HTML, Button, Checkbox, Dropdown, Layout, Text, Textarea, VBox
 
 
 def _get_fnames(run_manager, only_running: bool) -> List[Path]:
@@ -19,6 +22,69 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
     return sorted(Path(".").glob(f"{run_manager.job_name}-*"))
 
 
+def _sort_fnames(sort_by, run_manager, fnames):
+    def _try_transform(f):
+        def _f(x):
+            try:
+                return f(x)
+            except Exception:
+                return x
+
+        return _f
+
+    def _sort_key(value):
+        x, fname = value
+        if isinstance(x, str):
+            return -1, fname
+        return float(x), fname
+
+    mapping = {
+        "Alphabetical": (None, lambda x: ""),
+        "CPU %": ("cpu_usage", lambda x: f"{x:.1f}%"),
+        "Mem %": ("mem_usage", lambda x: f"{x:.1f}%"),
+        "Last editted": (
+            "timestamp",
+            lambda x: f"{(np.datetime64(datetime.now()) - x) / 1e9}s ago",
+        ),
+        "Loss": ("latest_loss", lambda x: f"{x:.2f}"),
+        "npoints": ("npoints", lambda x: f"{x} pnts"),
+        "Elapsed time": ("elapsed_time", lambda x: f"{x / 1e9}s"),
+    }
+
+    def extract(df, fname, key):
+        values = df[df.log_fname == fname.name][key].values
+        if values:
+            return values[0]
+        else:
+            return "?"
+
+    if sort_by != "Alphabetical":
+        fname_mapping = defaultdict(list)
+        for fname in fnames:
+            fname_mapping[fname.stem].append(fname)
+
+        df = run_manager.parse_log_files()
+        log_fnames = set(df.log_fname.apply(Path))
+        df_key, transform = mapping[sort_by]
+        stems = [fname.stem for fname in log_fnames]
+        vals = [extract(df, fname, df_key) for fname in log_fnames]
+        val_stem = sorted(zip(vals, stems), key=_sort_key, reverse=True)
+
+        result = []
+        for val, stem in val_stem:
+            val = _try_transform(transform)(val)
+            for fname in fname_mapping[stem]:
+                result.append((f"{val}: {fname.name}", fname))
+
+        missing = fname_mapping.keys() - set(stems)
+        for stem in sorted(missing):
+            for fname in fname_mapping[stem]:
+                result.append((f"?: {fname.name}", fname))
+    else:
+        result = [(fname.name, fname) for fname in fnames]
+    return result
+
+
 def _read_file(fname: Path) -> str:
     try:
         with fname.open() as f:
@@ -30,14 +96,15 @@ def _read_file(fname: Path) -> str:
 
 
 def log_explorer(run_manager) -> VBox:  # noqa: C901
-    def _update_dropdown(run_manager, dropdown, checkbox):
+    def _update_fname_dropdown(run_manager, fname_dropdown, checkbox, sortby_dropdown):
         def on_click(_):
-            current_value = dropdown.value
+            current_value = fname_dropdown.value
             fnames = _get_fnames(run_manager, checkbox.value)
-            dropdown.options = fnames
+            fnames = _sort_fnames(sortby_dropdown.value, run_manager, fnames)
+            fname_dropdown.options = fnames
             with suppress(Exception):
-                dropdown.value = current_value
-            dropdown.disabled = not fnames
+                fname_dropdown.value = current_value
+            fname_dropdown.disabled = not fnames
 
         return on_click
 
@@ -48,7 +115,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             return -1.0
 
     async def _tail_log(fname: Path, textarea: Textarea) -> None:
-        T = _last_editted(fname)
+        T = -2.0  # to make sure the update always triggers
         while True:
             await asyncio.sleep(2)
             try:
@@ -109,20 +176,42 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     fnames = _get_fnames(run_manager, only_running=False)
     text = _read_file(fnames[0]) if fnames else ""
     textarea = Textarea(text, layout=dict(width="auto"), rows=20)
-    dropdown = Dropdown(options=fnames)
-    dropdown.observe(_on_dropdown_change(textarea))
-    checkbox = Checkbox(description="Only files of running jobs", indent=False)
+    sortby_dropdown = Dropdown(
+        description="Sort by",
+        options=["Alphabetical", "CPU %", "Mem %", "Last editted", "Loss", "npoints"],
+    )
+    contains_text = Text(description="Has string")
+    fname_dropdown = Dropdown(description="File name", options=fnames)
+    fname_dropdown.observe(_on_dropdown_change(textarea))
+    only_running_checkbox = Checkbox(
+        description="Only files of running jobs", indent=False
+    )
     update_button = Button(
         description="update file list", button_style="info", icon="refresh",
     )
-    update_button.on_click(_update_dropdown(run_manager, dropdown, checkbox))
-    checkbox.observe(_click_button_on_change(update_button))
+    update_button.on_click(
+        _update_fname_dropdown(
+            run_manager, fname_dropdown, only_running_checkbox, sortby_dropdown
+        )
+    )
+    only_running_checkbox.observe(_click_button_on_change(update_button))
     tail_button = Button(description="tail log", button_style="info", icon="refresh")
     tail_button.on_click(
-        _tail(dropdown, tail_button, textarea, update_button, checkbox)
+        _tail(
+            fname_dropdown, tail_button, textarea, update_button, only_running_checkbox
+        )
     )
     title = HTML("<h2><tt>adaptive_scheduler.widgets.log_explorer</tt></h2>")
     return VBox(
-        [title, checkbox, update_button, dropdown, tail_button, textarea],
+        [
+            title,
+            only_running_checkbox,
+            update_button,
+            sortby_dropdown,
+            fname_dropdown,
+            contains_text,
+            tail_button,
+            textarea,
+        ],
         layout=Layout(border="solid 2px gray"),
     )
