@@ -2,6 +2,7 @@ import asyncio
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime
+from glob import glob
 from pathlib import Path
 from typing import List
 
@@ -20,6 +21,30 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
             fnames += entry["output_logs"]
         return sorted(map(Path, fnames))
     return sorted(Path(".").glob(f"{run_manager.job_name}-*"))
+
+
+def _failed_job_logs(fnames, run_manager, only_running):
+
+    running = {
+        Path(e["log_fname"]).stem
+        for e in run_manager.database_manager.as_dicts()
+        if e["log_fname"] is not None
+    }
+
+    fnames = {
+        fname.stem for fname in fnames if fname.suffix != run_manager.scheduler.ext
+    }
+    failed = fnames - running
+    failed = [Path(f) for stem in failed for f in glob(f"{stem}*")]
+
+    if not only_running:
+        base = Path(run_manager.move_old_logs_to)
+        for e in run_manager.database_manager.failed:
+            if not e["is_done"]:
+                for f in e["output_logs"]:
+                    failed.append(base / f)
+            failed.append(base / e["log_fname"])
+    return failed
 
 
 def _files_that_contain(fnames, text):
@@ -75,6 +100,8 @@ def _sort_fnames(sort_by, run_manager, fnames):
             fname_mapping[fname.stem].append(fname)
 
         df = run_manager.parse_log_files()
+        if df.empty:
+            return fnames
         log_fnames = set(df.log_fname.apply(Path))
         df_key, transform = mapping[sort_by]
         stems = [fname.stem for fname in log_fnames]
@@ -91,9 +118,9 @@ def _sort_fnames(sort_by, run_manager, fnames):
         for stem in sorted(missing):
             for fname in fname_mapping[stem]:
                 result.append((f"?: {fname.name}", fname))
-    else:
-        result = [(fname.name, fname) for fname in fnames]
-    return result
+        return result
+
+    return fnames
 
 
 def _read_file(fname: Path) -> str:
@@ -111,12 +138,17 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         run_manager,
         fname_dropdown,
         only_running_checkbox,
+        only_failed_checkbox,
         sort_by_dropdown,
         contains_text,
     ):
         def on_click(_):
             current_value = fname_dropdown.value
             fnames = _get_fnames(run_manager, only_running_checkbox.value)
+            if only_failed_checkbox.value:
+                fnames = _failed_job_logs(
+                    fnames, run_manager, only_running_checkbox.value
+                )
             if contains_text.value.strip() != "":
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
             fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
@@ -147,7 +179,14 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             except Exception:
                 pass
 
-    def _tail(dropdown, tail_button, textarea, update_button, only_running_checkbox):
+    def _tail(
+        dropdown,
+        tail_button,
+        textarea,
+        update_button,
+        only_running_checkbox,
+        only_failed_checkbox,
+    ):
         tail_task = None
         ioloop = asyncio.get_running_loop()
 
@@ -160,6 +199,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 dropdown.disabled = True
                 update_button.disabled = True
                 only_running_checkbox.disabled = True
+                only_failed_checkbox.disabled = True
                 fname = dropdown.options[dropdown.index]
                 tail_task = ioloop.create_task(_tail_log(fname, textarea))
             else:
@@ -168,6 +208,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 tail_button.icon = "refresh"
                 dropdown.disabled = False
                 only_running_checkbox.disabled = False
+                only_failed_checkbox.disabled = False
                 update_button.disabled = False
                 tail_task.cancel()
                 tail_task = None
@@ -206,6 +247,9 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     only_running_checkbox = Checkbox(
         description="Only files of running jobs", indent=False
     )
+    only_failed_checkbox = Checkbox(
+        description="Only files of failed jobs", indent=False
+    )
     update_button = Button(
         description="update file list", button_style="info", icon="refresh",
     )
@@ -214,15 +258,23 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             run_manager,
             fname_dropdown,
             only_running_checkbox,
+            only_failed_checkbox,
             sort_by_dropdown,
             contains_text,
         )
     )
+    sort_by_dropdown.observe(_click_button_on_change(update_button))
     only_running_checkbox.observe(_click_button_on_change(update_button))
+    only_failed_checkbox.observe(_click_button_on_change(update_button))
     tail_button = Button(description="tail log", button_style="info", icon="refresh")
     tail_button.on_click(
         _tail(
-            fname_dropdown, tail_button, textarea, update_button, only_running_checkbox
+            fname_dropdown,
+            tail_button,
+            textarea,
+            update_button,
+            only_running_checkbox,
+            only_failed_checkbox,
         )
     )
     title = HTML("<h2><tt>adaptive_scheduler.widgets.log_explorer</tt></h2>")
@@ -230,6 +282,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         [
             title,
             only_running_checkbox,
+            only_failed_checkbox,
             update_button,
             sort_by_dropdown,
             contains_text,
