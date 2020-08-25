@@ -8,7 +8,17 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from ipywidgets import HTML, Button, Checkbox, Dropdown, Layout, Text, Textarea, VBox
+from ipywidgets import (
+    HTML,
+    Button,
+    Checkbox,
+    Dropdown,
+    HBox,
+    Layout,
+    Text,
+    Textarea,
+    VBox,
+)
 
 
 def _get_fnames(run_manager, only_running: bool) -> List[Path]:
@@ -382,36 +392,46 @@ def info(run_manager) -> None:
     status = HTML(value=_info_html(run_manager))
 
     layout = Layout(width="200px")
-    buttons = [
-        Button(
+
+    cancel_button = Button(
+        description="cancel jobs", layout=layout, button_style="danger", icon="stop"
+    )
+
+    widgets = {
+        "update info": Button(
             description="update info",
             layout=layout,
             button_color="lightgreen",
             icon="refresh",
         ),
-        Button(
-            description="cancel jobs",
-            layout=layout,
-            button_style="danger",
-            icon="stop",
-        ),
-        Button(
+        "cancel": HBox([cancel_button], layout=layout),
+        "cleanup log and batch files": Button(
             description="cleanup log and batch files",
             layout=layout,
             button_style="danger",
             icon="remove",
         ),
-        Button(
+        "load learners": Button(
             description="load learners",
             layout=layout,
             button_style="info",
             icon="download",
         ),
-        Button(
+        "show logs": Button(
             description="show logs", layout=layout, button_style="info", icon="book"
         ),
-    ]
-    buttons = {b.description: b for b in buttons}
+    }
+
+    confirm_button = Button(description="Confirm", button_style="success", icon="check")
+    deny_button = Button(description="Deny", button_style="danger", icon="close")
+
+    def switch_to(box, *buttons, _callable=None):
+        def on_click(_):
+            box.children = tuple(buttons)
+            if _callable is not None:
+                _callable()
+
+        return on_click
 
     box = VBox([])
 
@@ -419,10 +439,6 @@ def info(run_manager) -> None:
 
     def update(_):
         status.value = _info_html(run_manager)
-
-    def cancel(_):
-        run_manager.cancel()
-        update(_)
 
     def cleanup(_):
         run_manager.cleanup()
@@ -437,7 +453,7 @@ def info(run_manager) -> None:
         if log_widget is None:
             log_widget = log_explorer(run_manager)
 
-        b = buttons["show logs"]
+        b = widgets["show logs"]
         if b.description == "show logs":
             b.description = "hide logs"
             box.children = (*box.children, log_widget)
@@ -445,10 +461,23 @@ def info(run_manager) -> None:
             b.description = "show logs"
             box.children = box.children[:-1]
 
-    buttons["cancel jobs"].on_click(cancel)
-    buttons["cleanup log and batch files"].on_click(cleanup)
-    buttons["update info"].on_click(update)
-    buttons["show logs"].on_click(toggle_logs)
-    buttons["load learners"].on_click(load_learners)
-    box.children = (status, *tuple(buttons.values()))
+    def cancel():
+        run_manager.cancel()
+        update(None)
+
+    widgets["cleanup log and batch files"].on_click(cleanup)
+    widgets["update info"].on_click(update)
+    widgets["show logs"].on_click(toggle_logs)
+    widgets["load learners"].on_click(load_learners)
+
+    # Cancel button with confirm/deny option
+    cancel_on_click = switch_to(widgets["cancel"], confirm_button, deny_button)
+    deny_on_click = switch_to(widgets["cancel"], cancel_button)
+    confirm_on_click = switch_to(widgets["cancel"], cancel_button, _callable=cancel)
+
+    cancel_button.on_click(cancel_on_click)
+    deny_button.on_click(deny_on_click)
+    confirm_button.on_click(confirm_on_click)
+
+    box.children = (status, *tuple(widgets.values()))
     display(box)
