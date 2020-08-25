@@ -255,7 +255,7 @@ def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
         return learner.npoints
     with suppress(AttributeError):
         # If the Learner is a BalancingLearner
-        return sum(l.npoints for l in learner.learners)
+        return sum(learner.npoints for learner in learner.learners)
 
 
 def _progress(
