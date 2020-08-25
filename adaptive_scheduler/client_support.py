@@ -70,12 +70,12 @@ def get_learner(
         socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
-        log.info(f"sent start signal, going to wait 60s for a reply.")
+        log.info("sent start signal, going to wait 60s for a reply.")
         socket.setsockopt(zmq.RCVTIMEO, 60_000)  # timeout after 60s
         reply = socket.recv_serialized(_deserialize)
         log.info("got reply", reply=str(reply))
         if reply is None:
-            msg = f"No learners to be run."
+            msg = "No learners to be run."
             exception = RuntimeError(msg)
             log_exception(log, msg, exception)
             raise exception
@@ -84,7 +84,7 @@ def get_learner(
             raise reply
         else:
             learner, fname = reply
-            log.info(f"got fname and learner")
+            log.info("got fname and learner")
 
     log.info("picked a learner")
     return learner, maybe_lst(fname)
