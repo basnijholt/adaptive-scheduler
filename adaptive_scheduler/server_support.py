@@ -913,7 +913,8 @@ class RunManager(_BaseManager):
         self.job_manager.cancel()
         self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
-        self.task.cancel()
+        if self.task is not None:
+            self.task.cancel()
         self.end_time = time.time()
 
     def cleanup(self) -> None:
@@ -928,7 +929,12 @@ class RunManager(_BaseManager):
 
         _delete_old_ipython_profiles(self.scheduler)
 
-        cleanup(self.job_names, self.scheduler, True, self.move_old_logs_to)
+        cleanup(
+            job_names=self.job_names,
+            scheduler=self.scheduler,
+            with_progress_bar=True,
+            move_to=self.move_old_logs_to,
+        )
 
     def parse_log_files(self, only_last: bool = True) -> pd.DataFrame:
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
