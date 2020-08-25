@@ -33,7 +33,7 @@ from adaptive_scheduler.utils import (
     load_parallel,
     maybe_lst,
 )
-from adaptive_scheduler.widgets import log_explorer
+from adaptive_scheduler.widgets import info
 
 ctx = zmq.asyncio.Context()
 
@@ -113,7 +113,7 @@ class DatabaseManager(_BaseManager):
         learners: List[adaptive.BaseLearner],
         fnames: Union[List[str], List[List[str]]],
         overwrite_db: bool = True,
-    ):
+    ) -> None:
         super().__init__()
         self.url = url
         self.scheduler = scheduler
@@ -153,7 +153,7 @@ class DatabaseManager(_BaseManager):
     def n_done(self) -> int:
         Entry = Query()
         with TinyDB(self.db_fname) as db:
-            return db.count(Entry.is_done == True)  # noqa: E711
+            return db.count(Entry.is_done == True)  # noqa: E712
 
     def create_empty_db(self) -> None:
         """Create an empty database that keeps track of
@@ -191,8 +191,8 @@ class DatabaseManager(_BaseManager):
                     "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
                 )
             entry = db.get(
-                (Entry.job_id == None) & (Entry.is_done == False)
-            )  # noqa: E711
+                (Entry.job_id == None) & (Entry.is_done == False)  # noqa: E711
+            )
             log.debug("choose fname", entry=entry)
             if entry is None:
                 return None
@@ -238,8 +238,8 @@ class DatabaseManager(_BaseManager):
                 if fname is None:
                     raise RuntimeError("No more learners to run in the database.")
                 learner = next(
-                    l
-                    for l, f in zip(self.learners, self.fnames)
+                    learner
+                    for learner, f in zip(self.learners, self.fnames)
                     if maybe_lst(f) == fname
                 )
                 log.debug("choose a fname", fname=fname, **kwargs)
@@ -614,21 +614,21 @@ def parse_log_files(
         log_fname = entry["log_fname"]
         if log_fname is None or not os.path.exists(log_fname):
             continue
-        for info in _get_infos(log_fname, only_last):
-            info.pop("event")  # this is always "current status"
-            info["timestamp"] = datetime.datetime.strptime(
-                info["timestamp"], "%Y-%m-%d %H:%M.%S"
+        for info_dict in _get_infos(log_fname, only_last):
+            info_dict.pop("event")  # this is always "current status"
+            info_dict["timestamp"] = datetime.datetime.strptime(
+                info_dict["timestamp"], "%Y-%m-%d %H:%M.%S"
             )
-            info["elapsed_time"] = pd.to_timedelta(info["elapsed_time"])
-            info.update(entry)
-            infos.append(info)
+            info_dict["elapsed_time"] = pd.to_timedelta(info_dict["elapsed_time"])
+            info_dict.update(entry)
+            infos.append(info_dict)
 
-    for info in infos:
-        info_from_queue = _queue.get(info["job_id"])
+    for info_dict in infos:
+        info_from_queue = _queue.get(info_dict["job_id"])
         if info_from_queue is None:
             continue
-        info["state"] = info_from_queue["state"]
-        info["job_name"] = info_from_queue["job_name"]
+        info_dict["state"] = info_from_queue["state"]
+        info_dict["job_name"] = info_from_queue["job_name"]
 
     return pd.DataFrame(infos)
 
@@ -1001,164 +1001,11 @@ class RunManager(_BaseManager):
             self.end_time = time.time()
         return status
 
-    def info(self) -> None:
-        """Display information about the `RunManager`.
-
-        Returns an interactive ipywidget that can be
-        visualized in a Jupyter notebook.
-        """
-        from ipywidgets import Layout, Button, VBox, HTML
-        from IPython.display import display
-
-        status = HTML(value=self._info_html())
-
-        layout = Layout(width="200px")
-        buttons = [
-            Button(
-                description="update info",
-                layout=layout,
-                button_color="lightgreen",
-                icon="refresh",
-            ),
-            Button(
-                description="cancel jobs",
-                layout=layout,
-                button_style="danger",
-                icon="stop",
-            ),
-            Button(
-                description="cleanup log and batch files",
-                layout=layout,
-                button_style="danger",
-                icon="remove",
-            ),
-            Button(
-                description="load learners",
-                layout=layout,
-                button_style="info",
-                icon="download",
-            ),
-            Button(
-                description="show logs", layout=layout, button_style="info", icon="book"
-            ),
-        ]
-        buttons = {b.description: b for b in buttons}
-
-        box = VBox([])
-
-        log_widget = None
-
-        def update(_):
-            status.value = self._info_html()
-
-        def cancel(_):
-            self.cancel()
-            update(_)
-
-        def cleanup(_):
-            self.cleanup()
-            update(_)
-
-        def load_learners(_):
-            self.load_learners()
-
-        def toggle_logs(_):
-            nonlocal log_widget
-
-            if log_widget is None:
-                log_widget = log_explorer(self)
-
-            b = buttons["show logs"]
-            if b.description == "show logs":
-                b.description = "hide logs"
-                box.children = (*box.children, log_widget)
-            else:
-                b.description = "show logs"
-                box.children = box.children[:-1]
-
-        buttons["cancel jobs"].on_click(cancel)
-        buttons["cleanup log and batch files"].on_click(cleanup)
-        buttons["update info"].on_click(update)
-        buttons["show logs"].on_click(toggle_logs)
-        buttons["load learners"].on_click(load_learners)
-        box.children = (status, *tuple(buttons.values()))
-        display(box)
-
-    def _info_html(self) -> str:
-        queue = self.scheduler.queue(me_only=True)
-        self.database_manager.update(queue)
-        jobs = [job for job in queue.values() if job["job_name"] in self.job_names]
-        n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
-        n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
-        n_done = sum(job["is_done"] for job in self.database_manager.as_dicts())
-        n_failed = len(self.database_manager.failed)
-        n_failed_color = "red" if n_failed > 0 else "black"
-
-        status = self.status()
-        color = {
-            "cancelled": "orange",
-            "not yet started": "orange",
-            "running": "blue",
-            "failed": "red",
-            "finished": "green",
-        }[status]
-
-        def _table_row(i, key, value):
-            """Style the rows of a table. Based on the default Jupyterlab table style."""
-            style = "text-align: right; padding: 0.5em 0.5em; line-height: 1.0;"
-            if i % 2 == 1:
-                style += " background: var(--md-grey-100);"
-            return f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
-
-        info = [
-            ("status", f'<font color="{color}">{status}</font>'),
-            ("# running jobs", f'<font color="blue">{n_running}</font>'),
-            ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
-            ("# finished jobs", f'<font color="green">{n_done}</font>'),
-            ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
-            ("elapsed time", datetime.timedelta(seconds=self.elapsed_time())),
-        ]
-
-        with suppress(Exception):
-            df = self.parse_log_files()
-            t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
-
-            overhead = df.mem_usage.mean()
-            red_level = max(0, min(int(255 * overhead / 100), 255))
-            overhead_color = "#{:02x}{:02x}{:02x}".format(red_level, 255 - red_level, 0)
-            overhead_html_value = (
-                f'<font color="{overhead_color}">{overhead:.2f}%</font>'
-            )
-
-            cpu = df.cpu_usage.mean()
-            red_level = max(0, min(int(255 * cpu / 100), 255))
-            cpu_color = "#{:02x}{:02x}{:02x}".format(red_level, red_level, 0)
-            cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
-
-            from_logs = [
-                ("# of points", df.npoints.sum()),
-                ("mean CPU usage", cpu_html_value),
-                ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
-                ("mean overhead", overhead_html_value,),
-                ("last log-entry", f"{t_last}s ago"),
-            ]
-            for key in ["npoints/s", "latest_loss", "nlearners"]:
-                with suppress(Exception):
-                    from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
-            msg = "this is extracted from the log files, so it might not be up-to-date"
-            abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
-            info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
-
-        table = "\n".join(_table_row(i, k, v) for i, (k, v) in enumerate(info))
-
-        return f"""
-            <table>
-            {table}
-            </table>
-        """
-
     def _repr_html_(self) -> None:
-        return self.info()
+        return info(self)
+
+    def info(self):
+        return info(self)
 
 
 def periodically_clean_ipython_profiles(scheduler, interval: int = 600):

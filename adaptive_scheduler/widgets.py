@@ -1,12 +1,13 @@
 import asyncio
 from collections import defaultdict
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
 from typing import List
 
 import numpy as np
+import pandas as pd
 from ipywidgets import HTML, Button, Checkbox, Dropdown, Layout, Text, Textarea, VBox
 
 
@@ -248,7 +249,8 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         description="Only files of running jobs", indent=False
     )
     only_failed_checkbox = Checkbox(
-        description="Only files of failed jobs", indent=False
+        description="Only files of failed jobs (might include false positives)",
+        indent=False,
     )
     update_button = Button(
         description="update file list", button_style="info", icon="refresh",
@@ -292,3 +294,161 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         ],
         layout=Layout(border="solid 2px gray"),
     )
+
+
+def _info_html(run_manager) -> str:
+    queue = run_manager.scheduler.queue(me_only=True)
+    run_manager.database_manager.update(queue)
+    jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
+    n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
+    n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
+    n_done = sum(job["is_done"] for job in run_manager.database_manager.as_dicts())
+    n_failed = len(run_manager.database_manager.failed)
+    n_failed_color = "red" if n_failed > 0 else "black"
+
+    status = run_manager.status()
+    color = {
+        "cancelled": "orange",
+        "not yet started": "orange",
+        "running": "blue",
+        "failed": "red",
+        "finished": "green",
+    }[status]
+
+    def _table_row(i, key, value):
+        """Style the rows of a table. Based on the default Jupyterlab table style."""
+        style = "text-align: right; padding: 0.5em 0.5em; line-height: 1.0;"
+        if i % 2 == 1:
+            style += " background: var(--md-grey-100);"
+        return (
+            f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
+        )
+
+    info = [
+        ("status", f'<font color="{color}">{status}</font>'),
+        ("# running jobs", f'<font color="blue">{n_running}</font>'),
+        ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
+        ("# finished jobs", f'<font color="green">{n_done}</font>'),
+        ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
+        ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
+    ]
+
+    with suppress(Exception):
+        df = run_manager.parse_log_files()
+        t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+
+        overhead = df.mem_usage.mean()
+        red_level = max(0, min(int(255 * overhead / 100), 255))
+        overhead_color = "#{:02x}{:02x}{:02x}".format(red_level, 255 - red_level, 0)
+        overhead_html_value = f'<font color="{overhead_color}">{overhead:.2f}%</font>'
+
+        cpu = df.cpu_usage.mean()
+        red_level = max(0, min(int(255 * cpu / 100), 255))
+        cpu_color = "#{:02x}{:02x}{:02x}".format(red_level, red_level, 0)
+        cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
+
+        from_logs = [
+            ("# of points", df.npoints.sum()),
+            ("mean CPU usage", cpu_html_value),
+            ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
+            ("mean overhead", overhead_html_value,),
+            ("last log-entry", f"{t_last}s ago"),
+        ]
+        for key in ["npoints/s", "latest_loss", "nlearners"]:
+            with suppress(Exception):
+                from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
+        msg = "this is extracted from the log files, so it might not be up-to-date"
+        abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
+        info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
+
+    table = "\n".join(_table_row(i, k, v) for i, (k, v) in enumerate(info))
+
+    return f"""
+        <table>
+        {table}
+        </table>
+    """
+
+
+def info(run_manager) -> None:
+    """Display information about the `RunManager`.
+
+    Returns an interactive ipywidget that can be
+    visualized in a Jupyter notebook.
+    """
+    from IPython.display import display
+    from ipywidgets import HTML, Button, Layout, VBox
+
+    status = HTML(value=_info_html(run_manager))
+
+    layout = Layout(width="200px")
+    buttons = [
+        Button(
+            description="update info",
+            layout=layout,
+            button_color="lightgreen",
+            icon="refresh",
+        ),
+        Button(
+            description="cancel jobs",
+            layout=layout,
+            button_style="danger",
+            icon="stop",
+        ),
+        Button(
+            description="cleanup log and batch files",
+            layout=layout,
+            button_style="danger",
+            icon="remove",
+        ),
+        Button(
+            description="load learners",
+            layout=layout,
+            button_style="info",
+            icon="download",
+        ),
+        Button(
+            description="show logs", layout=layout, button_style="info", icon="book"
+        ),
+    ]
+    buttons = {b.description: b for b in buttons}
+
+    box = VBox([])
+
+    log_widget = None
+
+    def update(_):
+        status.value = _info_html(run_manager)
+
+    def cancel(_):
+        run_manager.cancel()
+        update(_)
+
+    def cleanup(_):
+        run_manager.cleanup()
+        update(_)
+
+    def load_learners(_):
+        run_manager.load_learners()
+
+    def toggle_logs(_):
+        nonlocal log_widget
+
+        if log_widget is None:
+            log_widget = log_explorer(run_manager)
+
+        b = buttons["show logs"]
+        if b.description == "show logs":
+            b.description = "hide logs"
+            box.children = (*box.children, log_widget)
+        else:
+            b.description = "show logs"
+            box.children = box.children[:-1]
+
+    buttons["cancel jobs"].on_click(cancel)
+    buttons["cleanup log and batch files"].on_click(cleanup)
+    buttons["update info"].on_click(update)
+    buttons["show logs"].on_click(toggle_logs)
+    buttons["load learners"].on_click(load_learners)
+    box.children = (status, *tuple(buttons.values()))
+    display(box)
