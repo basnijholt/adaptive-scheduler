@@ -396,6 +396,12 @@ def info(run_manager) -> None:
     cancel_button = Button(
         description="cancel jobs", layout=layout, button_style="danger", icon="stop"
     )
+    cleanup_button = Button(
+        description="cleanup log and batch files",
+        layout=layout,
+        button_style="danger",
+        icon="remove",
+    )
 
     widgets = {
         "update info": Button(
@@ -405,12 +411,7 @@ def info(run_manager) -> None:
             icon="refresh",
         ),
         "cancel": HBox([cancel_button], layout=layout),
-        "cleanup log and batch files": Button(
-            description="cleanup log and batch files",
-            layout=layout,
-            button_style="danger",
-            icon="remove",
-        ),
+        "cleanup": HBox([cleanup_button], layout=layout),
         "load learners": Button(
             description="load learners",
             layout=layout,
@@ -421,9 +422,6 @@ def info(run_manager) -> None:
             description="show logs", layout=layout, button_style="info", icon="book"
         ),
     }
-
-    confirm_button = Button(description="Confirm", button_style="success", icon="check")
-    deny_button = Button(description="Deny", button_style="danger", icon="close")
 
     def switch_to(box, *buttons, _callable=None):
         def on_click(_):
@@ -439,10 +437,6 @@ def info(run_manager) -> None:
 
     def update(_):
         status.value = _info_html(run_manager)
-
-    def cleanup(_):
-        run_manager.cleanup()
-        update(_)
 
     def load_learners(_):
         run_manager.load_learners()
@@ -465,19 +459,54 @@ def info(run_manager) -> None:
         run_manager.cancel()
         update(None)
 
-    widgets["cleanup log and batch files"].on_click(cleanup)
+    def cleanup(include_old_logs):
+        def _callable():
+            run_manager.cleanup(include_old_logs.value)
+            update(None)
+
+        return _callable
+
     widgets["update info"].on_click(update)
     widgets["show logs"].on_click(toggle_logs)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
-    cancel_on_click = switch_to(widgets["cancel"], confirm_button, deny_button)
-    deny_on_click = switch_to(widgets["cancel"], cancel_button)
-    confirm_on_click = switch_to(widgets["cancel"], cancel_button, _callable=cancel)
+    confirm_cancel_button = Button(
+        description="Confirm", button_style="success", icon="check"
+    )
+    deny_cancel_button = Button(description="Deny", button_style="danger", icon="close")
 
-    cancel_button.on_click(cancel_on_click)
-    deny_button.on_click(deny_on_click)
-    confirm_button.on_click(confirm_on_click)
+    cancel_button.on_click(
+        switch_to(widgets["cancel"], confirm_cancel_button, deny_cancel_button)
+    )
+    deny_cancel_button.on_click(switch_to(widgets["cancel"], cancel_button))
+    confirm_cancel_button.on_click(
+        switch_to(widgets["cancel"], cancel_button, _callable=cancel)
+    )
+
+    # Cleanup button with confirm/deny option
+    include_old_logs = Checkbox(
+        False,
+        description=f"Remove {run_manager.move_old_logs_to}/ folder",
+        indent=False,
+    )
+    confirm_cleanup_button = Button(
+        description="Confirm", button_style="success", icon="check"
+    )
+    deny_cleanup_button = Button(
+        description="Deny", button_style="danger", icon="close"
+    )
+
+    cleanup_box = VBox(
+        [HBox([confirm_cleanup_button, deny_cleanup_button]), include_old_logs]
+    )
+    cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_box))
+    deny_cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_button))
+    confirm_cleanup_button.on_click(
+        switch_to(
+            widgets["cleanup"], cleanup_button, _callable=cleanup(include_old_logs)
+        )
+    )
 
     box.children = (status, *tuple(widgets.values()))
     display(box)

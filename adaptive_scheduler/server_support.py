@@ -917,7 +917,7 @@ class RunManager(_BaseManager):
             self.task.cancel()
         self.end_time = time.time()
 
-    def cleanup(self) -> None:
+    def cleanup(self, remove_old_logs_folder=False) -> None:
         """Cleanup the log and batch files.
 
         If the `RunManager` is not running, the ``run_script.py`` file
@@ -935,6 +935,9 @@ class RunManager(_BaseManager):
             with_progress_bar=True,
             move_to=self.move_old_logs_to,
         )
+        if remove_old_logs_folder:
+            with suppress(FileNotFoundError):
+                shutil.rmtree(self.move_old_logs_to)
 
     def parse_log_files(self, only_last: bool = True) -> pd.DataFrame:
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
