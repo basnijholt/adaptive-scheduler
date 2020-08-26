@@ -76,8 +76,8 @@ if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
     # save once more after the runner is done
     learner.save(fname)
 
-    # tell the database that this learner has reached its goal
-    client_support.tell_done(url, fname)
-
     # log once more after the runner is done
     client_support.log_info(runner, interval=0)
+
+    # tell the database that this learner has reached its goal
+    client_support.tell_done(url, fname)
