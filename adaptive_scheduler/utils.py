@@ -12,6 +12,8 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from inspect import signature
+from multiprocessing import Manager
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -24,6 +26,7 @@ from ipyparallel import Client
 from tqdm import tqdm, tqdm_notebook
 
 MAX_LINE_LENGTH = 100
+_NONE_RETURN_STR = "__ReturnsNone__"
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
@@ -536,3 +539,84 @@ def _serialize(msg):
 
 def _deserialize(frames):
     return cloudpickle.loads(frames[0])
+
+
+class LRUCachedCallable(Callable[..., Any]):
+    """Wraps a function to become cached.
+
+    Parameters
+    ----------
+    function : Callable[..., Any]
+    max_size : int, optional
+        Cache size of the LRU cache, by default 128.
+    """
+
+    def __init__(
+        self, function: Callable[..., Any], max_size: int = 128,
+    ):
+        self.max_size = max_size
+        self.function = function
+        self.signature = signature(self.function)
+        if max_size == 0:
+            return
+        manager = Manager()
+        self._dict = manager.dict()
+        self._queue = manager.list()
+        self._lock = manager.Lock()
+
+    def get(self, key: str) -> Optional[Any]:
+        """Get a value from the cache by key."""
+        if self.max_size == 0:
+            value = None
+        with self._lock:
+            value = self._dict.get(key)
+            if value is not None:  # Move key to back of queue
+                self._queue.remove(key)
+                self._queue.append(key)
+        if value is not None:
+            found = True
+            value = value if value != _NONE_RETURN_STR else None
+        else:
+            found = False
+        return found, value
+
+    def insert(self, key: str, value: Any):
+        """Insert a key value pair into the cache."""
+        value = value if value is not None else _NONE_RETURN_STR
+        with self._lock:
+            cache_size = len(self._queue)
+            self._dict[key] = value
+            if cache_size < self.max_size:
+                self._queue.append(key)
+            else:
+                key_to_evict = self._queue.pop(0)
+                self._dict.pop(key_to_evict)
+                self._queue.append(key)
+            return self._queue
+
+    def __call__(self, *args, **kwargs) -> Any:
+        bound_args = self.signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        if self.max_size == 0:
+            return self.function(*args, **kwargs)
+        key = str(bound_args.arguments)
+        found, value = self.get(key)
+        if found:
+            return value
+        ret = self.function(*args, **kwargs)
+        self.insert(key, ret)
+        return ret
+
+
+def shared_memory_cache(cache_size: int = 128):
+    """Create a cache similar to `functools.lru_cache.
+
+    This will actually cache the return values of the function, whereas
+    `functools.lru_cache` will pickle the decorated function each time
+    with an empty cache.
+    """
+
+    def cache_decorator(function):
+        return functools.wraps(function)(LRUCachedCallable(function, cache_size))
+
+    return cache_decorator
