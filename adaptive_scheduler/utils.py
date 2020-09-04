@@ -556,23 +556,23 @@ class LRUCachedCallable(Callable[..., Any]):
     ):
         self.max_size = max_size
         self.function = function
-        self.signature = signature(self.function)
+        self._signature = signature(self.function)
         if max_size == 0:
             return
         manager = Manager()
-        self._dict = manager.dict()
-        self._queue = manager.list()
-        self._lock = manager.Lock()
+        self._cache_dict = manager.dict()
+        self._cache_queue = manager.list()
+        self._cache_lock = manager.Lock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def _get_from_cache(self, key: str) -> Optional[Any]:
         """Get a value from the cache by key."""
         if self.max_size == 0:
             value = None
-        with self._lock:
-            value = self._dict.get(key)
+        with self._cache_lock:
+            value = self._cache_dict.get(key)
             if value is not None:  # Move key to back of queue
-                self._queue.remove(key)
-                self._queue.append(key)
+                self._cache_queue.remove(key)
+                self._cache_queue.append(key)
         if value is not None:
             found = True
             value = value if value != _NONE_RETURN_STR else None
@@ -580,31 +580,36 @@ class LRUCachedCallable(Callable[..., Any]):
             found = False
         return found, value
 
-    def insert(self, key: str, value: Any):
+    def _insert_into_cache(self, key: str, value: Any):
         """Insert a key value pair into the cache."""
         value = value if value is not None else _NONE_RETURN_STR
-        with self._lock:
-            cache_size = len(self._queue)
-            self._dict[key] = value
+        with self._cache_lock:
+            cache_size = len(self._cache_queue)
+            self._cache_dict[key] = value
             if cache_size < self.max_size:
-                self._queue.append(key)
+                self._cache_queue.append(key)
             else:
-                key_to_evict = self._queue.pop(0)
-                self._dict.pop(key_to_evict)
-                self._queue.append(key)
-            return self._queue
+                key_to_evict = self._cache_queue.pop(0)
+                self._cache_dict.pop(key_to_evict)
+                self._cache_queue.append(key)
+            return self._cache_queue
+
+    @property
+    def cache_dict(self):
+        """Returns a copy of the cache."""
+        return dict(self._cache_dict.items())
 
     def __call__(self, *args, **kwargs) -> Any:
-        bound_args = self.signature.bind(*args, **kwargs)
+        bound_args = self._signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
         if self.max_size == 0:
             return self.function(*args, **kwargs)
         key = str(bound_args.arguments)
-        found, value = self.get(key)
+        found, value = self._get_from_cache(key)
         if found:
             return value
         ret = self.function(*args, **kwargs)
-        self.insert(key, ret)
+        self._insert_into_cache(key, ret)
         return ret
 
 
