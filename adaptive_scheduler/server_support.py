@@ -811,7 +811,7 @@ class RunManager(_BaseManager):
         kill_interval: int = 60,
         kill_on_error: Union[str, Callable[[List[str]], bool], None] = "srun: error:",
         move_old_logs_to: Optional[str] = "old_logs",
-        db_fname: str = "running.json",
+        db_fname: Optional[str] = None,
         overwrite_db: bool = True,
         job_manager_kwargs: Optional[Dict[str, Any]] = None,
         kill_manager_kwargs: Optional[Dict[str, Any]] = None,
@@ -829,7 +829,7 @@ class RunManager(_BaseManager):
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = move_old_logs_to
-        self.db_fname = db_fname
+        self.db_fname = db_fname or f"{job_name}-database.json"
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}

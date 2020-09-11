@@ -204,6 +204,8 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         def on_click(_):
             nonlocal tail_task
             if tail_task is None:
+                fname = dropdown.options[dropdown.index]
+                tail_task = ioloop.create_task(_tail_log(fname, textarea))
                 tail_button.description = "cancel tail log"
                 tail_button.button_style = "danger"
                 tail_button.icon = "window-close"
@@ -211,8 +213,6 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 update_button.disabled = True
                 only_running_checkbox.disabled = True
                 only_failed_checkbox.disabled = True
-                fname = dropdown.options[dropdown.index]
-                tail_task = ioloop.create_task(_tail_log(fname, textarea))
             else:
                 tail_button.description = "tail log"
                 tail_button.button_style = "info"

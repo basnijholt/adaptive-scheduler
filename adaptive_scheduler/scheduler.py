@@ -570,14 +570,11 @@ class SLURM(BaseScheduler):
         job_script : str
             A job script that can be submitted to SLURM.
         """
-        output_fname = self.output_fnames(name)[0].replace(self._JOB_ID_VARIABLE, "%A")
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
-            #SBATCH --job-name {name}
             #SBATCH --ntasks {self.cores}
             #SBATCH --no-requeue
-            #SBATCH --output {output_fname}
             {{extra_scheduler}}
 
             export MKL_NUM_THREADS={self.num_threads}
@@ -598,6 +595,23 @@ class SLURM(BaseScheduler):
             executor_specific=self._executor_specific(name),
         )
         return job_script
+
+    def start_job(self, name: str) -> None:
+        """Writes a job script and submits it to the scheduler."""
+        name_prefix = name.rsplit("-", 1)[0]
+        self.write_job_script(name_prefix)
+
+        output_fname = self.output_fnames(name)[0].replace(self._JOB_ID_VARIABLE, "%A")
+        output_opt = f"--output {output_fname}"
+        name_opt = f"--job-name {name}"
+
+        returncode = None
+        while returncode != 0:
+            returncode = subprocess.run(
+                f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}".split(),
+                stderr=subprocess.PIPE,
+            ).returncode
+            time.sleep(0.5)
 
     def queue(self, me_only: bool = True) -> Dict[str, Dict[str, str]]:
         python_format = {
