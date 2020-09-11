@@ -592,7 +592,7 @@ class SLURM(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific(name),
+            executor_specific=self._executor_specific(name),  # XXX: still has name!
         )
         return job_script
 
