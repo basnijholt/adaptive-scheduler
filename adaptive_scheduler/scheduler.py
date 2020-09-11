@@ -592,7 +592,9 @@ class SLURM(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific(name),  # XXX: still has name!
+            executor_specific=self._executor_specific(
+                "${NAME}"
+            ),  # XXX: still has name!
         )
         return job_script
 
@@ -606,10 +608,13 @@ class SLURM(BaseScheduler):
         name_opt = f"--job-name {name}"
 
         returncode = None
+        my_env = os.environ.copy()
+        my_env["NAME"] = name
         while returncode != 0:
             returncode = subprocess.run(
                 f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}".split(),
                 stderr=subprocess.PIPE,
+                env=my_env,
             ).returncode
             time.sleep(0.5)
 
