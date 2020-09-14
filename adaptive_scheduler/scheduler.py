@@ -438,7 +438,7 @@ class PBS(BaseScheduler):
         self.write_job_script(name_prefix)
         name_opt = f"-N {name}"
         submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"
-        _run_submit(submit_cmd)
+        _run_submit(submit_cmd, name)
 
     @staticmethod
     def _split_by_job(lines):
@@ -626,7 +626,7 @@ class SLURM(BaseScheduler):
         submit_cmd = (
             f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"
         )
-        _run_submit(submit_cmd)
+        _run_submit(submit_cmd, name)
 
     def queue(self, me_only: bool = True) -> Dict[str, Dict[str, str]]:
         python_format = {
