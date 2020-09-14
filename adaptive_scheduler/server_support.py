@@ -939,11 +939,6 @@ class RunManager(_BaseManager):
             with suppress(FileNotFoundError):
                 shutil.rmtree(self.move_old_logs_to)
 
-        # Remove last because its content is used above
-        with suppress(FileNotFoundError):
-            if self.status() != "running":
-                os.remove(self.db_fname)
-
     def parse_log_files(self, only_last: bool = True) -> pd.DataFrame:
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
