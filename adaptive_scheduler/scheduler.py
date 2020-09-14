@@ -265,19 +265,14 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def write_job_script(self, name: str) -> None:
         with open(self.batch_fname(name), "w") as f:
-            job_script = self.job_script(name)
+            job_script = self.job_script()
             f.write(job_script)
 
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         self.write_job_script(name)
-        returncode = None
-        while returncode != 0:
-            returncode = subprocess.run(
-                f"{self.submit_cmd} {self.batch_fname(name)}".split(),
-                stderr=subprocess.PIPE,
-            ).returncode
-            time.sleep(0.5)
+        submit_cmd = f"{self.submit_cmd} {self.batch_fname(name)}"
+        _run_submit(submit_cmd)
 
     def __getstate__(self) -> dict:
         return dict(
@@ -391,7 +386,7 @@ class PBS(BaseScheduler):
         ]
         return [stdout, stderr]
 
-    def job_script(self, _: str) -> str:
+    def job_script(self) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -581,7 +576,7 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def job_script(self, _: str) -> str:
+    def job_script(self) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -728,7 +723,7 @@ class LocalMockScheduler(BaseScheduler):
             **super().__getstate__(), mock_scheduler_kwargs=self.mock_scheduler_kwargs
         )
 
-    def job_script(self, name: str) -> str:
+    def job_script(self) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -760,7 +755,7 @@ class LocalMockScheduler(BaseScheduler):
 
         job_script = job_script.format(
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self._executor_specific(name),
+            executor_specific=self._executor_specific("${NAME}"),
             extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
