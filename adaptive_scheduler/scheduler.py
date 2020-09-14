@@ -15,6 +15,18 @@ import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 
+def _run_submit(cmd, name=None):
+    returncode = None
+    env = os.environ.copy()
+    if name is not None:
+        env["NAME"] = name
+    while returncode != 0:
+        returncode = subprocess.run(
+            cmd.split(), stderr=subprocess.PIPE, env=env,
+        ).returncode
+        time.sleep(0.5)
+
+
 class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     """Base object for a Scheduler.
 
@@ -214,7 +226,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             if self.cores <= 1:
                 raise ValueError(
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
-                    "the rest of the cores for the engines, so use more than 1 core."
+                    " the rest of the cores for the engines, so use more than 1 core."
                 )
             return self._ipyparallel(name)
         elif self.executor_type == "process-pool":
@@ -379,7 +391,7 @@ class PBS(BaseScheduler):
         ]
         return [stdout, stderr]
 
-    def job_script(self, name: str) -> str:
+    def job_script(self, _: str) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -393,7 +405,6 @@ class PBS(BaseScheduler):
             #!/bin/sh
             #PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}
             #PBS -V
-            #PBS -N {name}
             #PBS -o /tmp/placeholder
             #PBS -e /tmp/placeholder
             {{extra_scheduler}}
@@ -415,11 +426,19 @@ class PBS(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific(name),
+            executor_specific=self._executor_specific("${NAME}"),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
         return job_script
+
+    def start_job(self, name: str) -> None:
+        """Writes a job script and submits it to the scheduler."""
+        name_prefix = name.rsplit("-", 1)[0]
+        self.write_job_script(name_prefix)
+        name_opt = f"-N {name}"
+        submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"
+        _run_submit(submit_cmd)
 
     @staticmethod
     def _split_by_job(lines):
@@ -604,17 +623,10 @@ class SLURM(BaseScheduler):
         output_fname = self.output_fnames(name)[0].replace(self._JOB_ID_VARIABLE, "%A")
         output_opt = f"--output {output_fname}"
         name_opt = f"--job-name {name}"
-
-        returncode = None
-        env = os.environ.copy()
-        env["NAME"] = name
-        while returncode != 0:
-            returncode = subprocess.run(
-                f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}".split(),
-                stderr=subprocess.PIPE,
-                env=env,
-            ).returncode
-            time.sleep(0.5)
+        submit_cmd = (
+            f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"
+        )
+        _run_submit(submit_cmd)
 
     def queue(self, me_only: bool = True) -> Dict[str, Dict[str, str]]:
         python_format = {
@@ -760,13 +772,8 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str) -> None:
         self.write_job_script(name)
-        returncode = None
-        while returncode != 0:
-            returncode = subprocess.run(
-                f"{self.submit_cmd} {name} {self.batch_fname(name)}".split(),
-                stderr=subprocess.PIPE,
-            ).returncode
-            time.sleep(0.5)
+        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
+        _run_submit(submit_cmd)
 
     @property
     def extra_scheduler(self):
