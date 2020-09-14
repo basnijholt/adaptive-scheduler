@@ -562,7 +562,7 @@ class SLURM(BaseScheduler):
             """
         )
 
-    def job_script(self, name: str) -> str:
+    def job_script(self, _: str) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -592,9 +592,7 @@ class SLURM(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific(
-                "${NAME}"
-            ),  # XXX: still has name!
+            executor_specific=self._executor_specific("${NAME}"),
         )
         return job_script
 
@@ -608,13 +606,13 @@ class SLURM(BaseScheduler):
         name_opt = f"--job-name {name}"
 
         returncode = None
-        my_env = os.environ.copy()
-        my_env["NAME"] = name
+        env = os.environ.copy()
+        env["NAME"] = name
         while returncode != 0:
             returncode = subprocess.run(
                 f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}".split(),
                 stderr=subprocess.PIPE,
-                env=my_env,
+                env=env,
             ).returncode
             time.sleep(0.5)
 
@@ -728,7 +726,7 @@ class LocalMockScheduler(BaseScheduler):
 
         Notes
         -----
-        Currenty there is a problem that this will not properly cleanup.
+        Currently, there is a problem that this will not properly cleanup.
         for example `ipengine ... &` will be detached and go on,
         normally a scheduler will take care of this.
         """
