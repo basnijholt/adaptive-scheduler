@@ -640,7 +640,14 @@ def _get_all_files(job_names: List[str], scheduler: BaseScheduler) -> List[str]:
     batch_fnames = [scheduler.batch_fname(name) for name in job_names]
     fnames = log_fnames + output_fnames + batch_fnames
     all_files = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
-    return sum(all_files, [])
+    all_files = sum(all_files, [])
+
+    # For schedulers that use a single batch file
+    name_prefix = job_names[0].rsplit("-", 1)[0]
+    batch_file = scheduler.batch_fname(name_prefix)
+    if os.path.exists(batch_file):
+        all_files.append(batch_file)
+    return all_files
 
 
 def cleanup(
