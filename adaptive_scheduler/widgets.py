@@ -31,7 +31,10 @@ def _get_fnames(run_manager, only_running: bool) -> List[Path]:
                 fnames.append(entry["log_fname"])
             fnames += entry["output_logs"]
         return sorted(map(Path, fnames))
-    return sorted(Path(".").glob(f"{run_manager.job_name}-*"))
+    pattern = f"{run_manager.job_name}-*"
+    logs = set(Path(run_manager.scheduler.log_folder).glob(pattern))
+    logs |= set(Path(".").glob(pattern))
+    return sorted(logs)
 
 
 def _failed_job_logs(fnames, run_manager, only_running):
