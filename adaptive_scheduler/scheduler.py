@@ -16,14 +16,16 @@ from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 
 def _run_submit(cmd, name=None):
-    returncode = None
     env = os.environ.copy()
     if name is not None:
         env["NAME"] = name
-    while returncode != 0:
-        returncode = subprocess.run(
-            cmd.split(), stderr=subprocess.PIPE, env=env,
-        ).returncode
+    for _ in range(10):
+        proc = subprocess.run(cmd.split(), env=env, capture_output=True)
+        if proc.returncode == 0:
+            return
+        stderr = proc.stderr.decode()
+        if stderr != "":
+            print(f"Error: {stderr}")
         time.sleep(0.5)
 
 
