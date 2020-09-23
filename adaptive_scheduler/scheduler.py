@@ -49,8 +49,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
     num_threads : int, default 1
-        ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, and ``OMP_NUM_THREADS``
-        will be set to this number.
+        ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
+        ``NUMEXPR_NUM_THREADS`` will be set to this number.
     extra_scheduler : list, optional
         Extra ``#SLURM`` (depending on scheduler type)
         arguments, e.g. ``["--exclusive=user", "--time=1"]``.
@@ -407,6 +407,7 @@ class PBS(BaseScheduler):
             export MKL_NUM_THREADS={self.num_threads}
             export OPENBLAS_NUM_THREADS={self.num_threads}
             export OMP_NUM_THREADS={self.num_threads}
+            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             cd $PBS_O_WORKDIR
@@ -594,6 +595,7 @@ class SLURM(BaseScheduler):
             export MKL_NUM_THREADS={self.num_threads}
             export OPENBLAS_NUM_THREADS={self.num_threads}
             export OMP_NUM_THREADS={self.num_threads}
+            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             {{extra_script}}
@@ -745,6 +747,7 @@ class LocalMockScheduler(BaseScheduler):
             export MKL_NUM_THREADS={self.num_threads}
             export OPENBLAS_NUM_THREADS={self.num_threads}
             export OMP_NUM_THREADS={self.num_threads}
+            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             {{extra_script}}
