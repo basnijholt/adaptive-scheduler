@@ -561,7 +561,7 @@ def _make_default_run_script(
         log_interval=log_interval,
     )
 
-    with open(run_script_fname, "w") as f:
+    with open(run_script_fname, "w", encoding="utf-8") as f:
         f.write(template)
 
 
