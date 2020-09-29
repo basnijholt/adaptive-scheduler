@@ -56,7 +56,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
         for e in run_manager.database_manager.failed:
             if not e["is_done"]:
                 for f in e["output_logs"]:
-                    failed.append(base / f)
+                    failed.append(base / Path(f).name)
             failed.append(base / Path(e["log_fname"]).name)
     return failed
 
