@@ -9,6 +9,7 @@ import os
 import shutil
 import socket
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from pathlib import Path
@@ -1005,13 +1006,27 @@ class RunManager(_BaseManager):
         try:
             self.job_manager.task.result()
         except asyncio.InvalidStateError:
-            return "running"
+            status = "running"
         except asyncio.CancelledError:
             status = "cancelled"
         except Exception:
             status = "failed"
+            print("JobManager failed because of the following")
+            traceback.print_exc()
         else:
             status = "finished"
+
+        try:
+            self.database_manager.task.result()
+        except (asyncio.InvalidStateError, asyncio.CancelledError):
+            pass
+        except Exception:
+            status = "failed"
+            print("DatabaseManager failed because of the following")
+            traceback.print_exc()
+
+        if status == "running":
+            return "running"
 
         if self.end_time is None:
             self.end_time = time.time()
