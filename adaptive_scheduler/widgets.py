@@ -51,13 +51,21 @@ def _failed_job_logs(fnames, run_manager, only_running):
     failed = fnames - running
     failed = [Path(f) for stem in failed for f in glob(f"{stem}*")]
 
+    def maybe_append(fname: str, other_dir: Path, lst: List[Path]):
+        p = Path(fname)
+        p_other = other_dir / p.name
+        if p.exists():
+            lst.append(p)
+        elif p_other.exist():
+            lst.append(p_other)
+
     if not only_running:
         base = Path(run_manager.move_old_logs_to)
         for e in run_manager.database_manager.failed:
             if not e["is_done"]:
                 for f in e["output_logs"]:
-                    failed.append(base / Path(f).name)
-            failed.append(base / Path(e["log_fname"]).name)
+                    maybe_append(f, base, failed)
+            maybe_append(e["log_fname"], base, failed)
     return failed
 
 
