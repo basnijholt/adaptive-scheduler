@@ -110,7 +110,8 @@ def _sort_fnames(sort_by, run_manager, fnames):
     }
 
     def extract(df, fname, key):
-        values = df[df.log_fname == fname.name][key].values
+        df_sel = df[df.log_fname.str.contains(fname.name)]
+        values = df_sel[key].values
         if values:
             return values[0]
         else:
