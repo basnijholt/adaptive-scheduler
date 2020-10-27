@@ -112,7 +112,7 @@ def split_in_balancing_learners(
 
 
 def split_sequence_learner(
-    big_learner, n_learners: int, folder: Union[str, Path] = "",
+    big_learner, n_learners: int, folder: Union[str, Path] = ""
 ) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
     r"""Split a sinlge `~adaptive.SequenceLearner` into
     mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
@@ -553,9 +553,7 @@ class LRUCachedCallable(Callable[..., Any]):
         Cache size of the LRU cache, by default 128.
     """
 
-    def __init__(
-        self, function: Callable[..., Any], max_size: int = 128,
-    ):
+    def __init__(self, function: Callable[..., Any], max_size: int = 128):
         self.max_size = max_size
         self.function = function
         self._signature = signature(self.function)

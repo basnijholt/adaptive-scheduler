@@ -275,7 +275,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         indent=False,
     )
     update_button = Button(
-        description="update file list", button_style="info", icon="refresh",
+        description="update file list", button_style="info", icon="refresh"
     )
     update_button.on_click(
         _update_fname_dropdown(
@@ -373,7 +373,7 @@ def _info_html(run_manager) -> str:
             ("# of points", df.npoints.sum()),
             ("mean CPU usage", cpu_html_value),
             ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
-            ("mean overhead", overhead_html_value,),
+            ("mean overhead", overhead_html_value),
             ("last log-entry", f"{t_last}s ago"),
         ]
         for key in ["npoints/s", "latest_loss", "nlearners"]:

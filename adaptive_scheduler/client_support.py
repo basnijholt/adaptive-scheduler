@@ -38,7 +38,7 @@ def _add_log_file_handler(log_fname):
 
 
 def get_learner(
-    url: str, log_fname: str, job_id: str, job_name: str,
+    url: str, log_fname: str, job_id: str, job_name: str
 ) -> Tuple[BaseLearner, Union[str, List[str]]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
