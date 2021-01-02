@@ -550,7 +550,7 @@ def _make_default_run_script(
             msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
             raise Exception(msg) from e
 
-    with open(Path(__file__).parent / "run_script.py.j2") as f:
+    with open(Path(__file__).parent / "run_script.py.j2", encoding="utf-8") as f:
         empty = "".join(f.readlines())
 
     template = jinja2.Template(empty).render(
