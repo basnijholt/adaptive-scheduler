@@ -56,7 +56,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
         p_other = other_dir / p.name
         if p.exists():
             lst.append(p)
-        elif p_other.exist():
+        elif p_other.exists():
             lst.append(p_other)
 
     if not only_running:
