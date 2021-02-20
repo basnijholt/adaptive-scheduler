@@ -414,25 +414,25 @@ def info(run_manager) -> None:
         button_style="danger",
         icon="remove",
     )
-
+    update_info_button = Button(
+        description="update info", layout=layout, icon="refresh",
+    )
+    update_info_button.style.button_color = "lightgreen"
+    load_learners_button = Button(
+        description="load learners",
+        layout=layout,
+        button_style="info",
+        icon="download",
+    )
+    show_logs_button = Button(
+        description="show logs", layout=layout, button_style="info", icon="book"
+    )
     widgets = {
-        "update info": Button(
-            description="update info",
-            layout=layout,
-            button_color="lightgreen",
-            icon="refresh",
-        ),
+        "update info": update_info_button,
         "cancel": HBox([cancel_button], layout=layout),
         "cleanup": HBox([cleanup_button], layout=layout),
-        "load learners": Button(
-            description="load learners",
-            layout=layout,
-            button_style="info",
-            icon="download",
-        ),
-        "show logs": Button(
-            description="show logs", layout=layout, button_style="info", icon="book"
-        ),
+        "load learners": load_learners_button,
+        "show logs": show_logs_button,
     }
 
     def switch_to(box, *buttons, _callable=None):
