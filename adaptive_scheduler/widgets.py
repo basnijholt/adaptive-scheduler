@@ -415,7 +415,9 @@ def info(run_manager) -> None:
         icon="remove",
     )
     update_info_button = Button(
-        description="update info", layout=layout, icon="refresh",
+        description="update info",
+        layout=layout,
+        icon="refresh",
     )
     update_info_button.style.button_color = "lightgreen"
     load_learners_button = Button(
