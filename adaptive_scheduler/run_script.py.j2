@@ -23,7 +23,7 @@ from distributed import Client
 {% elif executor_type == "process-pool" %}
 from loky import get_reusable_executor
 {% endif %}
-if __name__ == "__main__":  # ← use this, see warning @ https://bit.ly/2HAk0GG
+if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
 
     # parse arguments
     parser = argparse.ArgumentParser()
