@@ -3,7 +3,6 @@ import collections
 import getpass
 import math
 import os
-import os.path
 import subprocess
 import sys
 import textwrap
@@ -141,7 +140,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def batch_fname(self, name: str) -> str:
         """The filename of the job script."""
-        return os.path.abspath(name + self.ext)
+        return name + self.ext
 
     @staticmethod
     def sanatize_job_id(job_id):
