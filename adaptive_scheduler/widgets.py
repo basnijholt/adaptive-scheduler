@@ -59,7 +59,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
         elif p_other.exists():
             lst.append(p_other)
 
-    if not only_running:
+    if not only_running and run_manager.move_old_logs_to is not None:
         base = Path(run_manager.move_old_logs_to)
         for e in run_manager.database_manager.failed:
             if not e["is_done"]:
