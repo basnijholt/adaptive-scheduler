@@ -701,7 +701,7 @@ def _delete_old_ipython_profiles(
         if not folder.split(pattern)[1] in running_job_ids
     ]
 
-    with ThreadPoolExecutor() as ex:
+    with ThreadPoolExecutor(256) as ex:
         desc = "Submitting deleting old IPython profiles tasks"
         pbar = _progress(to_delete, desc=desc)
         futs = [ex.submit(shutil.rmtree, folder) for folder in pbar]
