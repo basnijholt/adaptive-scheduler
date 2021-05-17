@@ -129,7 +129,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return self._submit_cmd
 
     @abc.abstractmethod
-    def job_script(self, name: str) -> str:
+    def job_script(self) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -288,6 +288,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             num_threads=self.num_threads,
             extra_scheduler=self._extra_scheduler,
             extra_env_vars=self._extra_env_vars,
+            extra_script=self._extra_script,
         )
 
     def __setstate__(self, state):
