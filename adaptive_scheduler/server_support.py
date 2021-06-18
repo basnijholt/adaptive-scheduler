@@ -265,9 +265,16 @@ class DatabaseManager(_BaseManager):
         socket.bind(self.url)
         try:
             while True:
-                self._last_request = await socket.recv_serialized(_deserialize)
-                self._last_reply = self._dispatch(self._last_request)
-                await socket.send_serialized(self._last_reply, _serialize)
+                try:
+                    self._last_request = await socket.recv_serialized(_deserialize)
+                except zmq.error.Again:
+                    log.exception(
+                        "socket.recv_serialized failed in the DatabaseManager"
+                        " with `zmq.error.Again`."
+                    )
+                else:
+                    self._last_reply = self._dispatch(self._last_request)
+                    await socket.send_serialized(self._last_reply, _serialize)
         finally:
             socket.close()
 
