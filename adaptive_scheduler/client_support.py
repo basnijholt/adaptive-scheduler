@@ -68,6 +68,7 @@ def get_learner(
     )
     with ctx.socket(zmq.REQ) as socket:
         socket.setsockopt(zmq.LINGER, 0)
+        socket.setsockopt(zmq.SNDTIMEO, 300_000)  # timeout after 300s
         socket.connect(url)
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
         log.info("sent start signal, going to wait 60s for a reply.")
@@ -103,7 +104,9 @@ def tell_done(url: str, fname: str) -> None:
     """
     log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
+        socket.setsockopt(zmq.LINGER, 0)
         socket.connect(url)
+        socket.setsockopt(zmq.SNDTIMEO, 300_000)  # timeout after 300s
         socket.send_serialized(("stop", fname), _serialize)
         socket.setsockopt(zmq.RCVTIMEO, 300_000)  # timeout after 300s
         log.info("sent stop signal, going to wait 300s for a reply", fname=fname)
