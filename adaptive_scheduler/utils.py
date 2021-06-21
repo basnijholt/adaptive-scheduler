@@ -540,7 +540,15 @@ def _serialize(msg):
 
 
 def _deserialize(frames):
-    return cloudpickle.loads(frames[0])
+    try:
+        return cloudpickle.loads(frames[0])
+    except pickle.UnpicklingError:
+        with open("pickle_error.txt", "wb") as f:
+            f.write(frames[0])
+        print(
+            "pickle.UnpicklingError in _deserialize, `pickle_error.txt` has been written."
+        )
+        raise
 
 
 class LRUCachedCallable(Callable[..., Any]):

@@ -6,6 +6,7 @@ import glob
 import json
 import logging
 import os
+import pickle
 import shutil
 import socket
 import time
@@ -271,6 +272,11 @@ class DatabaseManager(_BaseManager):
                     log.exception(
                         "socket.recv_serialized failed in the DatabaseManager"
                         " with `zmq.error.Again`."
+                    )
+                except pickle.UnpicklingError:
+                    log.exception(
+                        "socket.recv_serialized failed in the DatabaseManager"
+                        " with `pickle.UnpicklingError` in _deserialize."
                     )
                 else:
                     self._last_reply = self._dispatch(self._last_request)
