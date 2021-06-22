@@ -542,12 +542,14 @@ def _serialize(msg):
 def _deserialize(frames):
     try:
         return cloudpickle.loads(frames[0])
-    except pickle.UnpicklingError:
-        with open("pickle_error.txt", "wb") as f:
-            f.write(frames[0])
-        print(
-            "pickle.UnpicklingError in _deserialize, `pickle_error.txt` has been written."
-        )
+    except pickle.UnpicklingError as e:
+        if r"\x03" in str(e):
+            # Means that the frame is empty because it only contains an end of text char
+            # `\x03  ^C    (End of text)`
+            # TODO: Not sure why this happens.
+            print(
+                r"pickle.UnpicklingError in _deserialize: Received an empty frame (\x03)."
+            )
         raise
 
 
