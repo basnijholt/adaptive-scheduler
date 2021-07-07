@@ -540,7 +540,17 @@ def _serialize(msg):
 
 
 def _deserialize(frames):
-    return cloudpickle.loads(frames[0])
+    try:
+        return cloudpickle.loads(frames[0])
+    except pickle.UnpicklingError as e:
+        if r"\x03" in str(e):
+            # Means that the frame is empty because it only contains an end of text char
+            # `\x03  ^C    (End of text)`
+            # TODO: Not sure why this happens.
+            print(
+                r"pickle.UnpicklingError in _deserialize: Received an empty frame (\x03)."
+            )
+        raise
 
 
 class LRUCachedCallable(Callable[..., Any]):

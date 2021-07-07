@@ -6,6 +6,7 @@ import glob
 import json
 import logging
 import os
+import pickle
 import shutil
 import socket
 import time
@@ -265,9 +266,26 @@ class DatabaseManager(_BaseManager):
         socket.bind(self.url)
         try:
             while True:
-                self._last_request = await socket.recv_serialized(_deserialize)
-                self._last_reply = self._dispatch(self._last_request)
-                await socket.send_serialized(self._last_reply, _serialize)
+                try:
+                    self._last_request = await socket.recv_serialized(_deserialize)
+                except zmq.error.Again:
+                    log.exception(
+                        "socket.recv_serialized failed in the DatabaseManager"
+                        " with `zmq.error.Again`."
+                    )
+                except pickle.UnpicklingError as e:
+                    if r"\x03" in str(e):
+                        # Empty frame received.
+                        # TODO: not sure why this happens
+                        pass
+                    else:
+                        log.exception(
+                            "socket.recv_serialized failed in the DatabaseManager"
+                            " with `pickle.UnpicklingError` in _deserialize."
+                        )
+                else:
+                    self._last_reply = self._dispatch(self._last_request)
+                    await socket.send_serialized(self._last_reply, _serialize)
         finally:
             socket.close()
 
