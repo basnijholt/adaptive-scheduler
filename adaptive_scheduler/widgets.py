@@ -361,12 +361,12 @@ def _info_html(run_manager) -> str:
 
         overhead = df.mem_usage.mean()
         red_level = max(0, min(int(255 * overhead / 100), 255))
-        overhead_color = "#{:02x}{:02x}{:02x}".format(red_level, 255 - red_level, 0)
+        overhead_color = f"#{red_level:02x}{255 - red_level:02x}{0:02x}"
         overhead_html_value = f'<font color="{overhead_color}">{overhead:.2f}%</font>'
 
         cpu = df.cpu_usage.mean()
         red_level = max(0, min(int(255 * cpu / 100), 255))
-        cpu_color = "#{:02x}{:02x}{:02x}".format(red_level, red_level, 0)
+        cpu_color = f"#{red_level:02x}{red_level:02x}{0:02x}"
         cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
 
         from_logs = [
