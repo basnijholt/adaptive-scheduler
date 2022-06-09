@@ -385,9 +385,9 @@ class PBS(BaseScheduler):
         # files directly instead of at the end of the job. The downside
         # is that the logfiles are put in the homefolder.
         home = os.path.expanduser("~/")
-        stdout, stderr = [
+        stdout, stderr = (
             os.path.join(home, f"{name}.{x}{self._JOB_ID_VARIABLE}") for x in "oe"
-        ]
+        )
         return [stdout, stderr]
 
     def job_script(self) -> str:
