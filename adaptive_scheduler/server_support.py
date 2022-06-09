@@ -283,6 +283,15 @@ class DatabaseManager(_BaseManager):
                             "socket.recv_serialized failed in the DatabaseManager"
                             " with `pickle.UnpicklingError` in _deserialize."
                         )
+                except UnicodeDecodeError as e:
+                    if r"\x99" in str(e):
+                        # TODO: Cameron encountered this error
+                        pass
+                    else:
+                        log.exception(
+                            "socket.recv_serialized failed in the DatabaseManager"
+                            " with `UnicodeDecodeError` in _deserialize."
+                        )
                 else:
                     self._last_reply = self._dispatch(self._last_request)
                     await socket.send_serialized(self._last_reply, _serialize)
