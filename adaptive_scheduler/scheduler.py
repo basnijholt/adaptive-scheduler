@@ -267,7 +267,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return str(self._extra_script) or ""
 
     def write_job_script(self, name: str) -> None:
-        with open(self.batch_fname(name), "w") as f:
+        with open(self.batch_fname(name), "w", encoding="utf-8") as f:
             job_script = self.job_script()
             f.write(job_script)
 

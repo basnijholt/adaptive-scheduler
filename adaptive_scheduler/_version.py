@@ -180,7 +180,7 @@ def _write_version(fname):
         os.remove(fname)
     except OSError:
         pass
-    with open(fname, "w") as f:
+    with open(fname, "w", encoding="utf-8") as f:
         f.write(
             "# This file has been created by setup.py.\n"
             "version = '{}'\n".format(__version__)

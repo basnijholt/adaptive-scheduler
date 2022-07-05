@@ -69,9 +69,9 @@ def _failed_job_logs(fnames, run_manager, only_running):
     return failed
 
 
-def _files_that_contain(fnames, text):
-    def contains(fname, text):
-        with fname.open() as f:
+def _files_that_contain(fnames: list[Path], text: str):
+    def contains(fname: Path, text: str):
+        with fname.open("r", encoding="utf-8") as f:
             for line in f:
                 if text in line:
                     return True
@@ -148,7 +148,7 @@ def _sort_fnames(sort_by, run_manager, fnames):
 
 def _read_file(fname: Path) -> str:
     try:
-        with fname.open() as f:
+        with fname.open("r", encoding="utf-8") as f:
             return "".join(f.readlines())
     except UnicodeDecodeError:
         return f"Could not decode file ({fname})!"
