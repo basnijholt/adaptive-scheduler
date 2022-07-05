@@ -557,9 +557,15 @@ def _make_default_run_script(
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
     serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
 
-    if executor_type not in ("mpi4py", "ipyparallel", "dask-mpi", "process-pool"):
+    if executor_type not in (
+        "mpi4py",
+        "ipyparallel",
+        "dask-mpi",
+        "loky",
+        "process-pool",
+    ):
         raise NotImplementedError(
-            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+            "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', or 'process-pool'."
         )
 
     if executor_type == "dask-mpi":
