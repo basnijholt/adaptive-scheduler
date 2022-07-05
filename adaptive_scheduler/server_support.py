@@ -439,7 +439,7 @@ def logs_with_string_or_condition(
     def file_has_error(fname):
         if not os.path.exists(fname):
             return False
-        with open(fname) as f:
+        with open(fname, encoding="utf-8") as f:
             lines = f.readlines()
         return has_error(lines)
 
@@ -587,7 +587,7 @@ def _make_default_run_script(
 
 def _get_infos(fname: str, only_last: bool = True) -> List[str]:
     status_lines: List[str] = []
-    with open(fname) as f:
+    with open(fname, encoding="utf-8") as f:
         lines = f.readlines()
         for line in reversed(lines):
             with suppress(Exception):
