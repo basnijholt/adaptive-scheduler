@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import collections.abc
 import functools
@@ -15,7 +17,7 @@ from contextlib import suppress
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Sequence
 
 import adaptive
 import cloudpickle
@@ -79,11 +81,11 @@ def split(seq: collections.abc.Iterable, n_parts: int):
 
 
 def split_in_balancing_learners(
-    learners: List[adaptive.BaseLearner],
-    fnames: List[str],
+    learners: list[adaptive.BaseLearner],
+    fnames: list[str],
     n_parts: int,
     strategy: str = "npoints",
-) -> Tuple[List[adaptive.BaseLearner], List[str]]:
+) -> tuple[list[adaptive.BaseLearner], list[str]]:
     r"""Split a list of learners and fnames into `adaptive.BalancingLearner`\s.
 
     Parameters
@@ -112,8 +114,8 @@ def split_in_balancing_learners(
 
 
 def split_sequence_learner(
-    big_learner, n_learners: int, folder: Union[str, Path] = ""
-) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
+    big_learner, n_learners: int, folder: str | Path = ""
+) -> tuple[list[adaptive.SequenceLearner], list[str]]:
     r"""Split a sinlge `~adaptive.SequenceLearner` into
     mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
 
@@ -158,8 +160,8 @@ def split_sequence_in_sequence_learners(
     function: Callable[[Any], Any],
     sequence: Sequence[Any],
     n_learners: int,
-    folder: Union[str, Path] = "",
-) -> Tuple[List[adaptive.SequenceLearner], List[str]]:
+    folder: str | Path = "",
+) -> tuple[list[adaptive.SequenceLearner], list[str]]:
     r"""Split a sequenceinto `adaptive.SequenceLearner`\s and fnames.
 
     Parameters
@@ -193,8 +195,8 @@ def split_sequence_in_sequence_learners(
 
 
 def combine_sequence_learners(
-    learners: List[adaptive.SequenceLearner],
-    big_learner: Optional[adaptive.SequenceLearner] = None,
+    learners: list[adaptive.SequenceLearner],
+    big_learner: adaptive.SequenceLearner | None = None,
 ) -> adaptive.SequenceLearner:
     r"""Combine several `~adaptive.SequenceLearner`\s into a single
     `~adaptive.SequenceLearner` any copy over the data.
@@ -253,7 +255,7 @@ def copy_from_sequence_learner(
             learner_to.tell((i, key), v)
 
 
-def _get_npoints(learner: adaptive.BaseLearner) -> Optional[int]:
+def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
     with suppress(AttributeError):
         return learner.npoints
     with suppress(AttributeError):
@@ -274,7 +276,7 @@ def _progress(
 
 
 def combo_to_fname(
-    combo: Dict[str, Any], folder: Optional[str] = None, ext: Optional[str] = ".pickle"
+    combo: dict[str, Any], folder: str | None = None, ext: str | None = ".pickle"
 ) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
@@ -284,9 +286,9 @@ def combo_to_fname(
 
 
 def combo2fname(
-    combo: Dict[str, Any],
-    folder: Optional[Union[str, Path]] = None,
-    ext: Optional[str] = ".pickle",
+    combo: dict[str, Any],
+    folder: str | Path | None = None,
+    ext: str | None = ".pickle",
     sig_figs: int = 8,
 ) -> str:
     """Converts a dict into a human readable filename.
@@ -300,10 +302,10 @@ def combo2fname(
 
 
 def add_constant_to_fname(
-    combo: Dict[str, Any],
-    constant: Dict[str, Any],
-    folder: Optional[Union[str, Path]] = None,
-    ext: Optional[str] = ".pickle",
+    combo: dict[str, Any],
+    constant: dict[str, Any],
+    folder: str | Path | None = None,
+    ext: str | None = ".pickle",
     sig_figs: int = 8,
     dry_run: bool = True,
 ):
@@ -350,10 +352,10 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 
 
 def _remove_or_move_files(
-    fnames: List[str],
+    fnames: list[str],
     with_progress_bar: bool = True,
-    move_to: Optional[str] = None,
-    desc: Optional[str] = None,
+    move_to: str | None = None,
+    desc: str | None = None,
 ) -> None:
     """Remove files by filename.
 
@@ -387,11 +389,11 @@ def _remove_or_move_files(
 
 
 def load_parallel(
-    learners: List[adaptive.BaseLearner],
-    fnames: List[str],
+    learners: list[adaptive.BaseLearner],
+    fnames: list[str],
     *,
     with_progress_bar: bool = True,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
 ) -> None:
     r"""Load a sequence of learners in parallel.
 
@@ -420,8 +422,8 @@ def load_parallel(
 
 
 def save_parallel(
-    learners: List[adaptive.BaseLearner],
-    fnames: List[str],
+    learners: list[adaptive.BaseLearner],
+    fnames: list[str],
     *,
     with_progress_bar: bool = True,
 ) -> None:
@@ -479,7 +481,7 @@ def connect_to_ipyparallel(
     n: int,
     profile: str,
     timeout: int = 300,
-    folder: Optional[str] = None,
+    folder: str | None = None,
     client_kwargs=None,
 ):
     """Connect to an `ipcluster` on the cluster headnode.
@@ -512,7 +514,7 @@ def connect_to_ipyparallel(
     return client
 
 
-def _get_default_args(func: Callable) -> Dict[str, str]:
+def _get_default_args(func: Callable) -> dict[str, str]:
     signature = inspect.signature(func)
     return {
         k: v.default
@@ -528,7 +530,7 @@ def log_exception(log, msg, exception):
         log.exception(msg, exc_info=True)
 
 
-def maybe_lst(fname: Union[List[str], str]):
+def maybe_lst(fname: list[str] | str):
     if isinstance(fname, tuple):
         # TinyDB converts tuples to lists
         fname = list(fname)
@@ -574,7 +576,7 @@ class LRUCachedCallable(Callable[..., Any]):
         self._cache_queue = manager.list()
         self._cache_lock = manager.Lock()
 
-    def _get_from_cache(self, key: str) -> Optional[Any]:
+    def _get_from_cache(self, key: str) -> Any | None:
         """Get a value from the cache by key."""
         if self.max_size == 0:
             value = None

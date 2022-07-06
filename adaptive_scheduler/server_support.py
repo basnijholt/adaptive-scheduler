@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import asyncio
 import concurrent.futures
@@ -14,7 +16,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Coroutine
 
 import adaptive
 import cloudpickle
@@ -51,9 +53,9 @@ class MaxRestartsReached(Exception):
 
 class _BaseManager(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
-        self.ioloop: Optional[asyncio.events.AbstractEventLoop] = None
-        self._coro: Optional[Coroutine] = None
-        self.task: Optional[asyncio.Task] = None
+        self.ioloop: asyncio.events.AbstractEventLoop | None = None
+        self._coro: Coroutine | None = None
+        self.task: asyncio.Task | None = None
 
     def start(self):
         if self.is_started:
@@ -68,13 +70,12 @@ class _BaseManager(metaclass=abc.ABCMeta):
     def is_started(self) -> bool:
         return self.task is not None
 
-    def cancel(self) -> Optional[bool]:
+    def cancel(self) -> bool | None:
         if self.is_started:
             return self.task.cancel()
 
     def _setup(self):
         """Is run in the beginning of `self.start`."""
-        pass
 
     @abc.abstractmethod
     async def _manage(self) -> None:
@@ -112,8 +113,8 @@ class DatabaseManager(_BaseManager):
         url: str,
         scheduler: BaseScheduler,
         db_fname: str,
-        learners: List[adaptive.BaseLearner],
-        fnames: Union[List[str], List[List[str]]],
+        learners: list[adaptive.BaseLearner],
+        fnames: list[str] | list[list[str]],
         overwrite_db: bool = True,
     ) -> None:
         super().__init__()
@@ -128,16 +129,16 @@ class DatabaseManager(_BaseManager):
             job_id=None, is_done=False, log_fname=None, job_name=None, output_logs=[]
         )
 
-        self._last_reply: Union[str, Exception, None] = None
-        self._last_request: Optional[Tuple[str, ...]] = None
-        self.failed: List[Dict[str, Any]] = []
+        self._last_reply: str | Exception | None = None
+        self._last_request: tuple[str, ...] | None = None
+        self.failed: list[dict[str, Any]] = []
 
     def _setup(self) -> None:
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
 
-    def update(self, queue: Optional[Dict[str, Dict[str, str]]] = None) -> None:
+    def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
@@ -167,7 +168,7 @@ class DatabaseManager(_BaseManager):
         with TinyDB(self.db_fname) as db:
             db.insert_multiple(entries)
 
-    def as_dicts(self) -> List[Dict[str, str]]:
+    def as_dicts(self) -> list[dict[str, str]]:
         with TinyDB(self.db_fname) as db:
             return db.all()
 
@@ -178,9 +179,7 @@ class DatabaseManager(_BaseManager):
             f.replace(self.scheduler._JOB_ID_VARIABLE, job_id) for f in output_fnames
         ]
 
-    def _start_request(
-        self, job_id: str, log_fname: str, job_name: str
-    ) -> Optional[str]:
+    def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str | None:
         Entry = Query()
         with TinyDB(self.db_fname) as db:
             if db.contains(Entry.job_id == job_id):
@@ -209,7 +208,7 @@ class DatabaseManager(_BaseManager):
             )
         return entry["fname"]
 
-    def _stop_request(self, fname: Union[str, List[str]]) -> None:
+    def _stop_request(self, fname: str | list[str]) -> None:
         fname = maybe_lst(fname)  # if a BalancingLearner
         Entry = Query()
         with TinyDB(self.db_fname) as db:
@@ -219,7 +218,7 @@ class DatabaseManager(_BaseManager):
             )  # make sure the entry exists
             db.update(reset, Entry.fname == fname)
 
-    def _stop_requests(self, fnames: List[Union[str, List[str]]]) -> None:
+    def _stop_requests(self, fnames: list[str | list[str]]) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         fnames = {str(maybe_lst(fname)) for fname in fnames}
         with TinyDB(self.db_fname) as db:
@@ -227,7 +226,7 @@ class DatabaseManager(_BaseManager):
             doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames]
             db.update(reset, doc_ids=doc_ids)
 
-    def _dispatch(self, request: Tuple[str, ...]) -> Union[str, Exception, None]:
+    def _dispatch(self, request: tuple[str, ...]) -> str | Exception | None:
         request_type, *request_arg = request
         log.debug("got a request", request=request)
         try:
@@ -324,7 +323,7 @@ class JobManager(_BaseManager):
 
     def __init__(
         self,
-        job_names: List[str],
+        job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
         interval: int = 30,
@@ -347,7 +346,7 @@ class JobManager(_BaseManager):
         """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
         return self.max_fails_per_job * len(self.job_names)
 
-    def _queued(self, queue) -> Set[str]:
+    def _queued(self, queue) -> set[str]:
         return {
             job["job_name"]
             for job in queue.values()
@@ -407,8 +406,8 @@ class JobManager(_BaseManager):
 
 
 def logs_with_string_or_condition(
-    error: Union[str, Callable[[List[str]], bool]], database_manager: DatabaseManager
-) -> List[Tuple[str, List[str]]]:
+    error: str | Callable[[list[str]], bool], database_manager: DatabaseManager
+) -> list[tuple[str, list[str]]]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
     Either use `string` or `error`.
@@ -483,10 +482,10 @@ class KillManager(_BaseManager):
         self,
         scheduler: BaseScheduler,
         database_manager: DatabaseManager,
-        error: Union[str, Callable[[List[str]], bool]] = "srun: error:",
+        error: str | Callable[[list[str]], bool] = "srun: error:",
         interval: int = 600,
         max_cancel_tries: int = 5,
-        move_to: Optional[str] = None,
+        move_to: str | None = None,
     ):
         super().__init__()
         self.scheduler = scheduler
@@ -496,8 +495,8 @@ class KillManager(_BaseManager):
         self.max_cancel_tries = max_cancel_tries
         self.move_to = move_to
 
-        self.cancelled: List[str] = []
-        self.deleted: List[str] = []
+        self.cancelled: list[str] = []
+        self.deleted: list[str] = []
 
     async def _manage(self) -> None:
         while True:
@@ -508,8 +507,8 @@ class KillManager(_BaseManager):
                     self.error, self.database_manager
                 )
 
-                to_cancel: List[str] = []
-                to_delete: List[str] = []
+                to_cancel: list[str] = []
+                to_delete: list[str] = []
                 for job_name, fnames in failed_jobs:
                     to_cancel.append(job_name)
                     to_delete.extend(fnames)
@@ -548,8 +547,8 @@ def _make_default_run_script(
     url: str,
     save_interval: int,
     log_interval: int,
-    goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
-    runner_kwargs: Optional[Dict[str, Any]] = None,
+    goal: Callable[[adaptive.BaseLearner], bool] | None = None,
+    runner_kwargs: dict[str, Any] | None = None,
     run_script_fname: str = "run_learner.py",
     executor_type: str = "mpi4py",
 ) -> None:
@@ -585,8 +584,8 @@ def _make_default_run_script(
         f.write(template)
 
 
-def _get_infos(fname: str, only_last: bool = True) -> List[str]:
-    status_lines: List[str] = []
+def _get_infos(fname: str, only_last: bool = True) -> list[str]:
+    status_lines: list[str] = []
     with open(fname, encoding="utf-8") as f:
         lines = f.readlines()
         for line in reversed(lines):
@@ -600,7 +599,7 @@ def _get_infos(fname: str, only_last: bool = True) -> List[str]:
 
 
 def parse_log_files(
-    job_names: List[str],
+    job_names: list[str],
     database_manager: DatabaseManager,
     scheduler,
     only_last: bool = True,
@@ -653,7 +652,7 @@ def parse_log_files(
     return pd.DataFrame(infos)
 
 
-def _get_all_files(job_names: List[str], scheduler: BaseScheduler) -> List[str]:
+def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> list[str]:
     log_fnames = [scheduler.log_fname(name) for name in job_names]
     output_fnames = [scheduler.output_fnames(name) for name in job_names]
     output_fnames = sum(output_fnames, [])
@@ -671,10 +670,10 @@ def _get_all_files(job_names: List[str], scheduler: BaseScheduler) -> List[str]:
 
 
 def cleanup(
-    job_names: List[str],
+    job_names: list[str],
     scheduler: BaseScheduler,
     with_progress_bar: bool = True,
-    move_to: Optional[str] = None,
+    move_to: str | None = None,
 ) -> None:
     """Cleanup the scheduler log-files files.
 
@@ -825,23 +824,23 @@ class RunManager(_BaseManager):
     def __init__(
         self,
         scheduler: BaseScheduler,
-        learners: List[adaptive.BaseLearner],
-        fnames: List[str],
-        goal: Union[Callable[[adaptive.BaseLearner], bool], None] = None,
+        learners: list[adaptive.BaseLearner],
+        fnames: list[str],
+        goal: Callable[[adaptive.BaseLearner], bool] | None = None,
         check_goal_on_start: bool = True,
-        runner_kwargs: Optional[dict] = None,
-        url: Optional[str] = None,
+        runner_kwargs: dict | None = None,
+        url: str | None = None,
         save_interval: int = 300,
         log_interval: int = 300,
         job_name: str = "adaptive-scheduler",
         job_manager_interval: int = 60,
         kill_interval: int = 60,
-        kill_on_error: Union[str, Callable[[List[str]], bool], None] = "srun: error:",
-        move_old_logs_to: Optional[str] = "old_logs",
-        db_fname: Optional[str] = None,
+        kill_on_error: str | Callable[[list[str]], bool] | None = "srun: error:",
+        move_old_logs_to: str | None = "old_logs",
+        db_fname: str | None = None,
         overwrite_db: bool = True,
-        job_manager_kwargs: Optional[Dict[str, Any]] = None,
-        kill_manager_kwargs: Optional[Dict[str, Any]] = None,
+        job_manager_kwargs: dict[str, Any] | None = None,
+        kill_manager_kwargs: dict[str, Any] | None = None,
     ):
         super().__init__()
         # Set from arguments
@@ -862,8 +861,8 @@ class RunManager(_BaseManager):
         self.kill_manager_kwargs = kill_manager_kwargs or {}
 
         # Set in methods
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
+        self.start_time: float | None = None
+        self.end_time: float | None = None
 
         # Set on init
         self.learners = learners
@@ -994,7 +993,7 @@ class RunManager(_BaseManager):
         if self.task is not None:
             self.task.print_stack()
 
-    def get_database(self) -> List[Dict[str, Any]]:
+    def get_database(self) -> list[dict[str, Any]]:
         """Get the database as a `pandas.DataFrame`."""
         return pd.DataFrame(self.database_manager.as_dicts())
 

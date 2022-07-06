@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import datetime
 import logging
 import socket
 from contextlib import suppress
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import psutil
 import structlog
@@ -39,7 +41,7 @@ def _add_log_file_handler(log_fname):
 
 def get_learner(
     url: str, log_fname: str, job_id: str, job_name: str
-) -> Tuple[BaseLearner, Union[str, List[str]]]:
+) -> tuple[BaseLearner, str | list[str]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
 
@@ -113,9 +115,9 @@ def tell_done(url: str, fname: str) -> None:
         socket.recv_serialized(_deserialize)  # Needed because of socket type
 
 
-def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> Dict[str, Any]:
+def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
-    info: Dict[str, Union[int, float, str]] = {}
+    info: dict[str, int | float | str] = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()

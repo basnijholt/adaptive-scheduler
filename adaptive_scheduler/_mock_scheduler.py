@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import datetime
 import logging
 import os
 import subprocess
-from typing import Coroutine, Tuple
+from typing import Coroutine
 
 import structlog
 import zmq
@@ -139,7 +141,7 @@ class MockScheduler:
         finally:
             socket.close()
 
-    def _dispatch(self, request: Tuple[str, ...]):
+    def _dispatch(self, request: tuple[str, ...]):
         log.debug("got a request", request=request)
         request_type, *request_arg = request
         try:
@@ -162,7 +164,7 @@ class MockScheduler:
             return e
 
 
-def _external_command(command: Tuple[str, ...], url: str):
+def _external_command(command: tuple[str, ...], url: str):
     async def _coro(command, url) -> None:
         with ctx.socket(zmq.REQ) as socket:
             socket.setsockopt(zmq.RCVTIMEO, 2000)
