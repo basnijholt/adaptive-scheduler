@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from ipywidgets import (
 )
 
 
-def _get_fnames(run_manager, only_running: bool) -> List[Path]:
+def _get_fnames(run_manager, only_running: bool) -> list[Path]:
     if only_running:
         fnames = []
         for entry in run_manager.database_manager.as_dicts():
@@ -51,7 +52,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
     failed = fnames - running
     failed = [Path(f) for stem in failed for f in glob(f"{stem}*")]
 
-    def maybe_append(fname: str, other_dir: Path, lst: List[Path]):
+    def maybe_append(fname: str, other_dir: Path, lst: list[Path]):
         p = Path(fname)
         p_other = other_dir / p.name
         if p.exists():

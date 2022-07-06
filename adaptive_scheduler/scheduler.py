@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import collections
 import getpass
@@ -10,7 +12,6 @@ import textwrap
 import time
 import warnings
 from distutils.spawn import find_executable
-from typing import Dict, List
 
 import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
@@ -97,7 +98,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
-    def queue(self, me_only: bool) -> Dict[str, dict]:
+    def queue(self, me_only: bool) -> dict[str, dict]:
         """Get the current running and pending jobs.
 
         Parameters
@@ -116,7 +117,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         This function might return extra information about the job, however
         this is not used elsewhere in this package.
         """
-        pass
 
     @property
     def ext(self) -> str:
@@ -137,7 +137,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         job_script : str
             A job script that can be submitted to the scheduler.
         """
-        pass
 
     def batch_fname(self, name: str) -> str:
         """The filename of the job script."""
@@ -148,7 +147,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return job_id
 
     def cancel(
-        self, job_names: List[str], with_progress_bar: bool = True, max_tries: int = 5
+        self, job_names: list[str], with_progress_bar: bool = True, max_tries: int = 5
     ) -> None:
         """Cancel all jobs in `job_names`.
 
@@ -245,7 +244,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             os.makedirs(self.log_folder, exist_ok=True)
         return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
 
-    def output_fnames(self, name: str) -> List[str]:
+    def output_fnames(self, name: str) -> list[str]:
         log_fname = self.log_fname(name)
         return [log_fname.replace(".log", ".out")]
 
@@ -380,7 +379,7 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def output_fnames(self, name: str) -> List[str]:
+    def output_fnames(self, name: str) -> list[str]:
         # The "-k oe" flags with "qsub" writes the log output to
         # files directly instead of at the end of the job. The downside
         # is that the logfiles are put in the homefolder.
@@ -461,7 +460,7 @@ class PBS(BaseScheduler):
                 info[-1] += line
         return info
 
-    def queue(self, me_only: bool = True) -> Dict[str, dict]:
+    def queue(self, me_only: bool = True) -> dict[str, dict]:
         cmd = ["qstat", "-f"]
 
         proc = subprocess.run(
@@ -629,7 +628,7 @@ class SLURM(BaseScheduler):
         )
         _run_submit(submit_cmd, name)
 
-    def queue(self, me_only: bool = True) -> Dict[str, Dict[str, str]]:
+    def queue(self, me_only: bool = True) -> dict[str, dict[str, str]]:
         python_format = {
             "jobid": 100,
             "name": 100,
@@ -769,7 +768,7 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script
 
-    def queue(self, me_only: bool = True) -> Dict[str, dict]:
+    def queue(self, me_only: bool = True) -> dict[str, dict]:
         return self.mock_scheduler.queue()
 
     def start_job(self, name: str) -> None:
