@@ -563,11 +563,19 @@ class LRUCachedCallable(Callable[..., Any]):
     function : Callable[..., Any]
     max_size : int, optional
         Cache size of the LRU cache, by default 128.
+    with_cloudpickle : bool
+        Use cloudpickle for storing the data in memory.
     """
 
-    def __init__(self, function: Callable[..., Any], max_size: int = 128):
+    def __init__(
+        self,
+        function: Callable[..., Any],
+        max_size: int = 128,
+        with_cloudpickle: bool = False,
+    ):
         self.max_size = max_size
         self.function = function
+        self._with_cloudpickle = with_cloudpickle
         self._signature = signature(self.function)
         if max_size == 0:
             return
@@ -587,14 +595,20 @@ class LRUCachedCallable(Callable[..., Any]):
                 self._cache_queue.append(key)
         if value is not None:
             found = True
-            value = value if value != _NONE_RETURN_STR else None
+            if value == _NONE_RETURN_STR:
+                value = None
+            elif self._with_cloudpickle:
+                value = cloudpickle.loads(value)
         else:
             found = False
         return found, value
 
     def _insert_into_cache(self, key: str, value: Any):
         """Insert a key value pair into the cache."""
-        value = value if value is not None else _NONE_RETURN_STR
+        if value is None:
+            value = _NONE_RETURN_STR
+        elif self._with_cloudpickle:
+            value = cloudpickle.dumps(value)
         with self._cache_lock:
             cache_size = len(self._cache_queue)
             self._cache_dict[key] = value
