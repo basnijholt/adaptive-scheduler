@@ -21,7 +21,9 @@ from adaptive_scheduler.utils import connect_to_ipyparallel
 {% elif executor_type == "dask-mpi" %}
 from distributed import Client
 {% elif executor_type == "process-pool" %}
-from loky import get_reusable_executor
+import loky
+loky.backend.context.set_start_method("{{ loky_start_method }}")
+
 {% endif %}
 if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
 
@@ -54,7 +56,7 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     {% elif executor_type == "dask-mpi" %}
     executor = Client()
     {% elif executor_type == "process-pool" %}
-    executor = get_reusable_executor(max_workers=args.n)
+    executor = loky.get_reusable_executor(max_workers=args.n)
     {% endif %}
     # this is serialized by cloudpickle.dumps
     runner_kwargs = cloudpickle.loads(

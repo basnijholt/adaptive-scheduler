@@ -16,7 +16,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Literal
 
 import adaptive
 import cloudpickle
@@ -551,6 +551,9 @@ def _make_default_run_script(
     runner_kwargs: dict[str, Any] | None = None,
     run_script_fname: str = "run_learner.py",
     executor_type: str = "mpi4py",
+    loky_start_method: Literal[
+        "loky", "loky_int_main", "spawn", "fork", "forkserver"
+    ] = "loky",
 ) -> None:
     default_runner_kwargs = dict(shutdown_executor=True)
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
@@ -578,6 +581,7 @@ def _make_default_run_script(
         serialized_runner_kwargs=serialized_runner_kwargs,
         save_interval=save_interval,
         log_interval=log_interval,
+        loky_start_method=loky_start_method,
     )
 
     with open(run_script_fname, "w", encoding="utf-8") as f:
@@ -776,6 +780,8 @@ class RunManager(_BaseManager):
         Keyword arguments for the `JobManager` function that aren't set in ``__init__`` here.
     kill_manager_kwargs : dict, default: None
         Keyword arguments for the `KillManager` function that aren't set in ``__init__`` here.
+    loky_start_method : str
+        Loky start method, by default "loky".
 
     Attributes
     ----------
@@ -841,6 +847,9 @@ class RunManager(_BaseManager):
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
+        loky_start_method: Literal[
+            "loky", "loky_int_main", "spawn", "fork", "forkserver"
+        ] = "loky",
     ):
         super().__init__()
         # Set from arguments
@@ -859,6 +868,7 @@ class RunManager(_BaseManager):
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
+        self.loky_start_method = loky_start_method
 
         # Set in methods
         self.start_time: float | None = None
@@ -913,6 +923,7 @@ class RunManager(_BaseManager):
             self.runner_kwargs,
             self.scheduler.run_script,
             self.scheduler.executor_type,
+            self.loky_start_method,
         )
         self.database_manager.start()
         if self.check_goal_on_start:
