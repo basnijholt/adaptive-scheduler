@@ -641,18 +641,13 @@ class LRUCachedCallable(Callable[..., Any]):
     def __getstate__(self):
         """Pickle everything but in-memory cached items."""
         state = self.__dict__.copy()
-        del state["_cache_dict"]
-        del state["_cache_queue"]
-        del state["_cache_lock"]
+        state["_cache_lock"] = cloudpickle.dumps(state["_cache_lock"])
         return state
 
     def __setstate__(self, state):
         """Restore instance attributes and initialize new cache on unpickling."""
+        state["_cache_lock"] = cloudpickle.loads(state["_cache_lock"])
         self.__dict__.update(state)
-        manager = Manager()
-        self._cache_dict = manager.dict()
-        self._cache_queue = manager.list()
-        self._cache_lock = manager.Lock()
 
 
 def shared_memory_cache(cache_size: int = 128):
