@@ -638,6 +638,22 @@ class LRUCachedCallable(Callable[..., Any]):
         self._insert_into_cache(key, ret)
         return ret
 
+    def __getstate__(self):
+        """Pickle everything but in-memory cached items."""
+        state = self.__dict__.copy()
+        del state["_cache_dict"]
+        del state["_cache_queue"]
+        del state["_cache_lock"]
+        return state
+
+    def __setstate__(self, state):
+        """Restore instance attributes and initialize new cache on unpickling."""
+        self.__dict__.update(state)
+        manager = Manager()
+        self._cache_dict = manager.dict()
+        self._cache_queue = manager.list()
+        self._cache_lock = manager.Lock()
+
 
 def shared_memory_cache(cache_size: int = 128):
     """Create a cache similar to `functools.lru_cache.
