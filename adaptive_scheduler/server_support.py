@@ -34,6 +34,7 @@ from adaptive_scheduler.utils import (
     _progress,
     _remove_or_move_files,
     _serialize,
+    cloudpickle_learners,
     load_parallel,
     maybe_lst,
 )
@@ -137,6 +138,7 @@ class DatabaseManager(_BaseManager):
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
+        cloudpickle_learners(self.learners, self.fnames, with_progress_bar=True)
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""

@@ -16,6 +16,7 @@ from adaptive_scheduler.utils import (
     _deserialize,
     _get_npoints,
     _serialize,
+    fname_to_learner,
     log_exception,
     maybe_lst,
 )
@@ -86,8 +87,9 @@ def get_learner(
             log_exception(log, "got an exception", exception=reply)
             raise reply
         else:
-            learner, fname = reply
-            log.info("got fname and learner")
+            fname = reply
+            learner = fname_to_learner(fname)
+            log.info("got fname and loaded learner")
 
     log.info("picked a learner")
     return learner, maybe_lst(fname)

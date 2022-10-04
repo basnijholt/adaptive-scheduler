@@ -651,3 +651,38 @@ def shared_memory_cache(cache_size: int = 128):
         return functools.wraps(function)(LRUCachedCallable(function, cache_size))
 
     return cache_decorator
+
+
+def fname_to_learner_fname(
+    fname: str, *, _sep: str = 5 * "_", suffix: str = "learner"
+) -> str:
+    p = Path(fname)
+    return str(p.with_stem(f"{p.stem}{_sep}{suffix}"))
+
+
+def learner_fname_to_fname(
+    fname: str, *, _sep: str = 5 * "_", _suffix: str = "learner"
+) -> str:
+    p = Path(fname)
+    original_stem, suffix = p.stem.split(_sep, 1)
+    assert suffix == _suffix
+    return str(p.with_stem(original_stem))
+
+
+def fname_to_learner(
+    fname: str, *, _sep: str = 5 * "_", suffix: str = "learner"
+) -> str:
+    learner_name = fname_to_learner_fname(fname, _sep=_sep, suffix=suffix)
+    with open(learner_name, "rb") as f:
+        return cloudpickle.load(f)
+
+
+def cloudpickle_learners(learners, fnames, with_progress_bar: bool = False):
+    """Save a list of learners to disk using cloudpickle."""
+    Path(fnames[0]).parent.mkdir(parents=True, exist_ok=True)
+    for learner, fname in _progress(
+        zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
+    ):
+        fname_learner = fname_to_learner_fname(fname)
+        with open(fname_learner, "wb") as f:
+            cloudpickle.dump(learner, f)
