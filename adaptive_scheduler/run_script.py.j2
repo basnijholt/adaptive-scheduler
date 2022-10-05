@@ -12,7 +12,6 @@ from contextlib import suppress
 import adaptive
 import cloudpickle
 from adaptive_scheduler import client_support
-from adaptive_scheduler.utils import save_dataframe
 {%- if executor_type == "mpi4py" %}
 import cloudpickle
 from mpi4py import MPI
@@ -25,7 +24,6 @@ from distributed import Client
 {% elif executor_type == "process-pool" %}
 import loky
 loky.backend.context.set_start_method("{{ loky_start_method }}")
-
 
 {% endif %}
 if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
@@ -72,6 +70,7 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     # periodically save the data (in case the job dies)
     runner.start_periodic_saving(dict(fname=fname), interval={{ save_interval }})
     {% if save_dataframe %}
+    from adaptive_scheduler.utils import save_dataframe
     runner.start_periodic_saving(interval={{ save_interval }}, method=save_dataframe(fname))
     {% endif %}
 
