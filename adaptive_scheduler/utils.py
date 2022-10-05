@@ -22,6 +22,8 @@ from typing import Any, Callable, Sequence
 import adaptive
 import cloudpickle
 import numpy as np
+import pandas as pd
+import pyarrow
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -669,3 +671,24 @@ def save_dataframe(
         df.to_parquet(fname_df)
 
     return save
+
+
+def load_dataframes(
+    fnames: list[str] | list[list[str]], concat: bool = True
+) -> pd.DataFrame | list[pd.DataFrame]:
+    dfs = []
+    for fn in fnames:
+        fn_df = fname_to_dataframe(fn)
+        if not os.path.exists(fn):
+            continue
+        try:
+            df = pd.read_parquet(fn_df)
+        except pyarrow.ArrowInvalid:
+            print(f"`{fn}`'s DataFrame ({fn_df}) is invalid.")
+            continue
+        df["fname"] = len(df) * [fn]
+        dfs.append(df)
+    if concat:
+        return pd.concat(dfs, axis=0)
+    else:
+        return dfs
