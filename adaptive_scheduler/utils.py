@@ -696,3 +696,21 @@ def cloudpickle_learners(
         fname_learner = fname_to_learner_fname(fname)
         with open(fname_learner, "wb") as f:
             cloudpickle.dump(learner, f)
+
+
+def fname_to_dataframe(fname: str | list[str] | tuple[str, ...]) -> str | list[str]:
+    if isinstance(fname, (tuple, list)):
+        fname = fname[0]
+    p = Path(fname)
+    return str(p.with_stem(f"dataframe.{p.stem}").with_suffix(".parquet"))
+
+
+def save_dataframe(
+    fname: str | list[str] | tuple[str, ...], **to_dataframe_kwargs: Any
+) -> Callable[[adaptive.BaseLearner], None]:
+    def save(learner):
+        df = learner.to_dataframe(**to_dataframe_kwargs)
+        fname_df = fname_to_dataframe(fname)
+        df.to_parquet(fname_df)
+
+    return save
