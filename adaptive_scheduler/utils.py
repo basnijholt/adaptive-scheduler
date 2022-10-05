@@ -653,38 +653,25 @@ def shared_memory_cache(cache_size: int = 128):
     return cache_decorator
 
 
-def fname_to_learner_fname(
-    fname: str | list[str] | tuple[str, ...],
-    *,
-    _sep: str = 5 * "_",
-    suffix: str = "learner",
-) -> str:
+def _prefix(fname: str | list[str] | tuple[str, ...]) -> str:
     if isinstance(fname, (tuple, list)):
-        # Got a tuple of fnames
-        # TODO: just return the first one now, change this
-        fname = fname[0]
-    elif not isinstance(fname, str):
+        return f".{len(fname):08}_learners."
+    elif isinstance(fname, str):
+        return ".learner."
+    else:
         raise TypeError("Incorrect type for fname.")
+
+
+def fname_to_learner_fname(fname: str | list[str] | tuple[str, ...]) -> str:
+    prefix = _prefix(fname)
+    if isinstance(fname, (tuple, list)):
+        fname = fname[0]
     p = Path(fname)
-    return str(p.with_stem(f"{p.stem}{_sep}{suffix}"))
+    return str(p.with_stem(f"{prefix}{p.stem}"))
 
 
-def learner_fname_to_fname(
-    fname: str, *, _sep: str = 5 * "_", _suffix: str = "learner"
-) -> str:
-    p = Path(fname)
-    original_stem, suffix = p.stem.split(_sep, 1)
-    assert suffix == _suffix
-    return str(p.with_stem(original_stem))
-
-
-def fname_to_learner(
-    fname: str | list[str] | tuple[str, ...],
-    *,
-    _sep: str = 5 * "_",
-    suffix: str = "learner",
-) -> adaptive.BaseLearner:
-    learner_name = fname_to_learner_fname(fname, _sep=_sep, suffix=suffix)
+def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseLearner:
+    learner_name = fname_to_learner_fname(fname)
     with open(learner_name, "rb") as f:
         return cloudpickle.load(f)
 
