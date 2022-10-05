@@ -8,6 +8,7 @@ mpi4py
 numpy
 pandas
 psutil
+pyarrow
 pyzmq
 structlog
 tinydb
