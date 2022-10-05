@@ -554,6 +554,7 @@ def _make_default_run_script(
     loky_start_method: Literal[
         "loky", "loky_int_main", "spawn", "fork", "forkserver"
     ] = "loky",
+    save_dataframe: bool = False,
 ) -> None:
     default_runner_kwargs = dict(shutdown_executor=True)
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
@@ -582,6 +583,7 @@ def _make_default_run_script(
         save_interval=save_interval,
         log_interval=log_interval,
         loky_start_method=loky_start_method,
+        save_dataframe=save_dataframe,
     )
 
     with open(run_script_fname, "w", encoding="utf-8") as f:
@@ -850,6 +852,7 @@ class RunManager(_BaseManager):
         loky_start_method: Literal[
             "loky", "loky_int_main", "spawn", "fork", "forkserver"
         ] = "loky",
+        save_dataframe: bool = False,
     ):
         super().__init__()
         # Set from arguments
@@ -869,6 +872,7 @@ class RunManager(_BaseManager):
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
         self.loky_start_method = loky_start_method
+        self.save_dataframe = save_dataframe
 
         # Set in methods
         self.start_time: float | None = None
@@ -924,6 +928,7 @@ class RunManager(_BaseManager):
             self.scheduler.run_script,
             self.scheduler.executor_type,
             self.loky_start_method,
+            self.save_dataframe,
         )
         self.database_manager.start()
         if self.check_goal_on_start:
