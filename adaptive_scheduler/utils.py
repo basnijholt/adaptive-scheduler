@@ -654,8 +654,17 @@ def shared_memory_cache(cache_size: int = 128):
 
 
 def fname_to_learner_fname(
-    fname: str, *, _sep: str = 5 * "_", suffix: str = "learner"
+    fname: str | list[str] | tuple[str, ...],
+    *,
+    _sep: str = 5 * "_",
+    suffix: str = "learner",
 ) -> str:
+    if isinstance(fname, (tuple, list)):
+        # Got a tuple of fnames
+        # TODO: just return the first one now, change this
+        fname = fname[0]
+    elif not isinstance(fname, str):
+        raise TypeError("Incorrect type for fname.")
     p = Path(fname)
     return str(p.with_stem(f"{p.stem}{_sep}{suffix}"))
 
@@ -670,16 +679,30 @@ def learner_fname_to_fname(
 
 
 def fname_to_learner(
-    fname: str, *, _sep: str = 5 * "_", suffix: str = "learner"
-) -> str:
+    fname: str | list[str] | tuple[str, ...],
+    *,
+    _sep: str = 5 * "_",
+    suffix: str = "learner",
+) -> adaptive.BaseLearner:
     learner_name = fname_to_learner_fname(fname, _sep=_sep, suffix=suffix)
     with open(learner_name, "rb") as f:
         return cloudpickle.load(f)
 
 
-def cloudpickle_learners(learners, fnames, with_progress_bar: bool = False):
+def cloudpickle_learners(
+    learners,
+    fnames: list[str | list[str] | tuple[str, ...]],
+    with_progress_bar: bool = False,
+):
     """Save a list of learners to disk using cloudpickle."""
-    Path(fnames[0]).parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(fnames[0], (tuple, list)):
+        # Got a tuple of fnames
+        # TODO: just return the first one now, change this
+        first = fnames[0][0]
+    else:
+        first = fnames[0]
+    Path(first).parent.mkdir(parents=True, exist_ok=True)
+
     for learner, fname in _progress(
         zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
     ):
