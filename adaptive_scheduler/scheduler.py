@@ -12,6 +12,7 @@ import textwrap
 import time
 import warnings
 from distutils.spawn import find_executable
+from functools import cached_property
 
 import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
@@ -673,6 +674,10 @@ class SLURM(BaseScheduler):
             info["job_name"] = info.pop("name")
         return running
 
+    @cached_property
+    def partitions(self):
+        return slurm_partitions()
+
 
 class LocalMockScheduler(BaseScheduler):
     """A scheduler that can be used for testing and runs locally.
@@ -828,3 +833,12 @@ def _get_default_scheduler():
 
 
 DefaultScheduler = _get_default_scheduler()
+
+
+def slurm_partitions(timeout: int = 5) -> set[str] | None:
+    """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
+    output = subprocess.run(
+        ["sinfo", "-ahO", "partition"], capture_output=True, timeout=timeout
+    )
+    lines = output.stdout.decode("utf-8").split("\n")
+    return {partition for line in lines if (partition := line.strip())}
