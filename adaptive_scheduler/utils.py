@@ -17,7 +17,7 @@ from contextlib import suppress
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Literal, Sequence
 
 import adaptive
 import cloudpickle
@@ -704,20 +704,33 @@ def cloudpickle_learners(
             cloudpickle.dump(learner, f)
 
 
-def fname_to_dataframe(fname: str | list[str] | tuple[str, ...]) -> str | list[str]:
+def fname_to_dataframe(
+    fname: str | list[str] | tuple[str, ...], format: str = "parquet"
+) -> str | list[str]:
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return str(p.with_stem(f"dataframe.{p.stem}").with_suffix(".parquet"))
+    return str(p.with_stem(f"dataframe.{p.stem}").with_suffix(f".{format}"))
 
 
 def save_dataframe(
-    fname: str | list[str] | tuple[str, ...], **to_dataframe_kwargs: Any
+    fname: str | list[str] | tuple[str, ...],
+    format: Literal["parquet", "csv", "hdf", "pickle"] = "parquet",
+    **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     def save(learner):
         df = learner.to_dataframe(**to_dataframe_kwargs)
-        fname_df = fname_to_dataframe(fname)
-        df.to_parquet(fname_df)
+        fname_df = fname_to_dataframe(fname, format=format)
+        if format == "parquet":
+            df.to_parquet(fname_df)
+        elif format == "csv":
+            df.to_csv(fname_df)
+        elif format == "hdf":
+            df.to_hdf(fname_df)
+        elif format == "pickle":
+            df.to_pickle(fname_df)
+        else:
+            raise ValueError(f"Unknown format {format}.")
 
     return save
 
