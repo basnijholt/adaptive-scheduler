@@ -756,15 +756,34 @@ _DATAFRAME_FORMATS = Literal[
 def load_dataframes(
     fnames: list[str] | list[list[str]],
     concat: bool = True,
+    read_kwargs: dict[str, Any] | None = None,
     format: _DATAFRAME_FORMATS = "parquet",
 ) -> pd.DataFrame | list[pd.DataFrame]:
+    read_kwargs = read_kwargs or {}
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
         if not os.path.exists(fn):
             continue
         try:
-            df = pd.read_parquet(fn_df)
+            if format == "parquet":
+                df = pd.read_parquet(fn_df, **read_kwargs)
+            elif format == "csv":
+                df = pd.read_csv(fn_df, **read_kwargs)
+            elif format == "hdf":
+                if "key" not in read_kwargs:
+                    read_kwargs["key"] = "data"
+                df = pd.read_hdf(fn_df, **read_kwargs)
+            elif format == "pickle":
+                df = pd.read_pickle(fn_df, **read_kwargs)
+            elif format == "feather":
+                df = pd.read_feather(fn_df, **read_kwargs)
+            elif format == "excel":
+                df = pd.read_excel(fn_df, **read_kwargs)
+            elif format == "json":
+                df = pd.read_json(fn_df, **read_kwargs)
+            else:
+                raise ValueError(f"Unknown format {format}.")
         except pyarrow.ArrowInvalid:
             print(f"`{fn}`'s DataFrame ({fn_df}) is invalid.")
             continue
