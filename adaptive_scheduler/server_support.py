@@ -36,6 +36,7 @@ from adaptive_scheduler.utils import (
     _remove_or_move_files,
     _serialize,
     cloudpickle_learners,
+    load_dataframes,
     load_parallel,
     maybe_lst,
 )
@@ -1101,6 +1102,12 @@ class RunManager(_BaseManager):
 
     def info(self):
         return info(self)
+
+    def load_dataframes(self):
+        """Load the `pandas.DataFrame`s with the most recently saved learners data."""
+        if not self.save_dataframe:
+            raise ValueError("The `save_dataframe` option was not set to True.")
+        return load_dataframes(self.fnames, format=self.dataframe_format)
 
 
 def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
