@@ -715,9 +715,7 @@ def fname_to_dataframe(
 
 def save_dataframe(
     fname: str | list[str] | tuple[str, ...],
-    format: Literal[
-        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
-    ] = "parquet",
+    format: _DATAFRAME_FORMATS = "parquet",
     save_kwargs: dict[str, Any] | None = None,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
@@ -748,12 +746,15 @@ def save_dataframe(
     return save
 
 
+_DATAFRAME_FORMATS = Literal[
+    "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+]
+
+
 def load_dataframes(
     fnames: list[str] | list[list[str]],
     concat: bool = True,
-    format: Literal[
-        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
-    ] = "parquet",
+    format: _DATAFRAME_FORMATS = "parquet",
 ) -> pd.DataFrame | list[pd.DataFrame]:
     dfs = []
     for fn in fnames:

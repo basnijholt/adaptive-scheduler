@@ -70,7 +70,8 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     runner.start_periodic_saving(dict(fname=fname), interval={{ save_interval }})
     {% if save_dataframe %}
     from adaptive_scheduler.utils import save_dataframe
-    runner.start_periodic_saving(interval={{ save_interval }}, method=save_dataframe(fname))
+    save_methpd = save_dataframe(fname, format={{ dataframe_format }})
+    runner.start_periodic_saving(interval={{ save_interval }}, method=save_method)
     {% endif %}
 
     # log progress info in the job output script, optional
