@@ -788,7 +788,7 @@ def load_dataframes(
             continue
         df["fname"] = len(df) * [fn]
         dfs.append(df)
-    if concat:
+    if dfs and concat:
         return pd.concat(dfs, axis=0)
     else:
         return dfs
