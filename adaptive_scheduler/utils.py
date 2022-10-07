@@ -715,7 +715,9 @@ def fname_to_dataframe(
 
 def save_dataframe(
     fname: str | list[str] | tuple[str, ...],
-    format: Literal["parquet", "csv", "hdf", "pickle"] = "parquet",
+    format: Literal[
+        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+    ] = "parquet",
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     def save(learner):
@@ -729,6 +731,12 @@ def save_dataframe(
             df.to_hdf(fname_df)
         elif format == "pickle":
             df.to_pickle(fname_df)
+        elif format == "feather":
+            df.to_feather(fname_df)
+        elif format == "excel":
+            df.to_excel(fname_df)
+        elif format == "json":
+            df.to_json(fname_df)
         else:
             raise ValueError(f"Unknown format {format}.")
 
@@ -736,11 +744,15 @@ def save_dataframe(
 
 
 def load_dataframes(
-    fnames: list[str] | list[list[str]], concat: bool = True
+    fnames: list[str] | list[list[str]],
+    concat: bool = True,
+    format: Literal[
+        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+    ] = "parquet",
 ) -> pd.DataFrame | list[pd.DataFrame]:
     dfs = []
     for fn in fnames:
-        fn_df = fname_to_dataframe(fn)
+        fn_df = fname_to_dataframe(fn, format=format)
         if not os.path.exists(fn):
             continue
         try:
