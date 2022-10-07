@@ -752,11 +752,26 @@ _DATAFRAME_FORMATS = Literal[
 ]
 
 
+def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    for col, val in df.iloc[0].iteritems():
+        if isinstance(val, dict):
+            prefix = f"{col}."
+            x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
+            x.index = df.index
+            for col in x:
+                assert col not in df, f"{col=} already exists in df."
+            df = df.join(x)
+    return df
+
+
 def load_dataframes(
     fnames: list[str] | list[list[str]],
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
     format: _DATAFRAME_FORMATS = "parquet",
+    expand_dicts: bool = True,
 ) -> pd.DataFrame | list[pd.DataFrame]:
     read_kwargs = read_kwargs or {}
     dfs = []
@@ -787,6 +802,8 @@ def load_dataframes(
             print(f"`{fn}`'s DataFrame ({fn_df}) could not be read.")
             continue
         df["fname"] = len(df) * [fn]
+        if expand_dicts:
+            df = expand_dict_columns(df)
         dfs.append(df)
     if concat:
         if dfs:
