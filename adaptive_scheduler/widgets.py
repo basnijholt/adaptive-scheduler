@@ -154,7 +154,13 @@ def _sort_fnames(sort_by, run_manager, fnames):
 def _read_file(fname: Path) -> str:
     try:
         with fname.open("r", encoding="utf-8") as f:
-            return "".join(f.readlines())
+            lines = f.readlines()
+            max_lines = 1_000
+            if len(lines) > max_lines:
+                lines = lines[-max_lines:]
+                lines.insert(0, f"Only displaying the last {max_lines} lines!")
+                lines.insert(1, "\n")
+            return "".join(lines)
     except UnicodeDecodeError:
         return f"Could not decode file ({fname})!"
     except Exception as e:
