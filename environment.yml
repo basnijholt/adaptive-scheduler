@@ -11,14 +11,14 @@ dependencies:
   - ipyparallel
   - jinja2
   - loky
-  - mpich
   - mpi4py
+  - mpich
   - numpy
   - pandas
   - psutil
+  - pyarrow
   - pyzmq
   - structlog
   - tinydb
   - toolz
   - tqdm
-  - pyzmq
