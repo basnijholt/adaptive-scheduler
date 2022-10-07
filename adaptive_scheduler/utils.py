@@ -23,7 +23,6 @@ import adaptive
 import cloudpickle
 import numpy as np
 import pandas as pd
-import pyarrow
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
@@ -784,8 +783,8 @@ def load_dataframes(
                 df = pd.read_json(fn_df, **read_kwargs)
             else:
                 raise ValueError(f"Unknown format {format}.")
-        except pyarrow.ArrowInvalid:
-            print(f"`{fn}`'s DataFrame ({fn_df}) is invalid.")
+        except Exception:
+            print(f"`{fn}`'s DataFrame ({fn_df}) could not be read.")
             continue
         df["fname"] = len(df) * [fn]
         dfs.append(df)
