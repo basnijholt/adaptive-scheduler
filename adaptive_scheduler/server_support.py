@@ -856,7 +856,10 @@ class RunManager(_BaseManager):
         ] = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
-        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
+        dataframe_format: Literal[
+            "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+        ] = "parquet",
     ):
         super().__init__()
 
