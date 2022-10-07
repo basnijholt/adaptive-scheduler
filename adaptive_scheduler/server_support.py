@@ -34,6 +34,7 @@ from adaptive_scheduler.utils import (
     _progress,
     _remove_or_move_files,
     _serialize,
+    cloudpickle_learners,
     load_parallel,
     maybe_lst,
 )
@@ -137,6 +138,7 @@ class DatabaseManager(_BaseManager):
         if os.path.exists(self.db_fname) and not self.overwrite_db:
             return
         self.create_empty_db()
+        cloudpickle_learners(self.learners, self.fnames, with_progress_bar=True)
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
@@ -238,13 +240,8 @@ class DatabaseManager(_BaseManager):
                 fname = self._start_request(**kwargs)
                 if fname is None:
                     raise RuntimeError("No more learners to run in the database.")
-                learner = next(
-                    learner
-                    for learner, f in zip(self.learners, self.fnames)
-                    if maybe_lst(f) == fname
-                )
                 log.debug("choose a fname", fname=fname, **kwargs)
-                return learner, fname
+                return fname
             elif request_type == "stop":
                 fname = request_arg[0]  # workers send us the fname they were given
                 log.debug("got a stop request", fname=fname)

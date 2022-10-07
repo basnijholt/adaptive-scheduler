@@ -655,6 +655,55 @@ def shared_memory_cache(cache_size: int = 128):
     return cache_decorator
 
 
+def _prefix(fname: str | list[str] | tuple[str, ...]) -> str:
+    if isinstance(fname, (tuple, list)):
+        return f".{len(fname):08}_learners."
+    elif isinstance(fname, str):
+        return ".learner."
+    else:
+        raise TypeError("Incorrect type for fname.")
+
+
+def fname_to_learner_fname(fname: str | list[str] | tuple[str, ...]) -> str:
+    prefix = _prefix(fname)
+    if isinstance(fname, (tuple, list)):
+        fname = fname[0]
+    p = Path(fname)
+    return str(p.with_stem(f"{prefix}{p.stem}"))
+
+
+def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseLearner:
+    learner_name = fname_to_learner_fname(fname)
+    with open(learner_name, "rb") as f:
+        return cloudpickle.load(f)
+
+
+def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]) -> None:
+    if isinstance(fnames[0], (tuple, list)):
+        for _fnames in fnames:
+            _ensure_folder_exists(_fnames)
+    else:
+        folders = {Path(fname).parent for fname in fnames}
+        for folder in folders:
+            folder.mkdir(parents=True, exist_ok=True)
+
+
+def cloudpickle_learners(
+    learners,
+    fnames: list[str | list[str] | tuple[str, ...]],
+    with_progress_bar: bool = False,
+):
+    """Save a list of learners to disk using cloudpickle."""
+    _ensure_folder_exists(fnames)
+
+    for learner, fname in _progress(
+        zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
+    ):
+        fname_learner = fname_to_learner_fname(fname)
+        with open(fname_learner, "wb") as f:
+            cloudpickle.dump(learner, f)
+
+
 def fname_to_dataframe(fname: str | list[str] | tuple[str, ...]) -> str | list[str]:
     if isinstance(fname, (tuple, list)):
         fname = fname[0]

@@ -6,6 +6,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,9 @@ from ipywidgets import (
     Textarea,
     VBox,
 )
+
+if TYPE_CHECKING:
+    from adaptive_scheduler.server_support import RunManager
 
 
 def _get_fnames(run_manager, only_running: bool) -> list[Path]:
@@ -393,7 +397,7 @@ def _info_html(run_manager) -> str:
     """
 
 
-def info(run_manager) -> None:
+def info(run_manager: RunManager) -> None:
     """Display information about the `RunManager`.
 
     Returns an interactive ipywidget that can be
