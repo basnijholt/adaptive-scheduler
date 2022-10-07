@@ -678,7 +678,7 @@ def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseL
         return cloudpickle.load(f)
 
 
-def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]):
+def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
             _ensure_folder_exists(_fnames)
