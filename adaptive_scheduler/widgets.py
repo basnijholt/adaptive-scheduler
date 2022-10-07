@@ -151,7 +151,7 @@ def _sort_fnames(sort_by, run_manager, fnames):
     return fnames
 
 
-def _read_file(fname: Path, max_lines: int = 10_000) -> str:
+def _read_file(fname: Path, max_lines: int = 500) -> str:
     try:
         with fname.open("r", encoding="utf-8") as f:
             lines = f.readlines()

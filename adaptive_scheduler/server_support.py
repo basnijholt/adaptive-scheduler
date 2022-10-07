@@ -868,7 +868,7 @@ class RunManager(_BaseManager):
         dataframe_format: Literal[
             "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
         ] = "parquet",
-        max_log_lines: int = 1000,
+        max_log_lines: int = 500,
     ):
         super().__init__()
 
