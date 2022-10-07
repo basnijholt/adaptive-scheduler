@@ -1117,7 +1117,14 @@ class RunManager(_BaseManager):
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             raise ValueError("The `save_dataframe` option was not set to True.")
-        return load_dataframes(self.fnames, format=self.dataframe_format)
+        df = load_dataframes(self.fnames, format=self.dataframe_format)
+        if (
+            isinstance(self.learners[0], adaptive.SequenceLearner)
+            and not df.empty
+            and isinstance(df.iloc[0]["x"], dict)
+        ):
+            return df.join(pd.json_normalize(df.pop("x")))
+        return df
 
 
 def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
