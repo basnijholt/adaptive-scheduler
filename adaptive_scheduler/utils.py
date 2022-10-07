@@ -718,12 +718,15 @@ def save_dataframe(
     fname: str | list[str] | tuple[str, ...],
     format: _DATAFRAME_FORMATS = "parquet",
     save_kwargs: dict[str, Any] | None = None,
+    expand_dicts: bool = True,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     save_kwargs = save_kwargs or {}
 
     def save(learner):
         df = learner.to_dataframe(**to_dataframe_kwargs)
+        if expand_dicts:
+            df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
         if format == "parquet":
             df.to_parquet(fname_df, **save_kwargs)
@@ -755,6 +758,7 @@ _DATAFRAME_FORMATS = Literal[
 def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
+
     for col, val in df.iloc[0].iteritems():
         if isinstance(val, dict):
             prefix = f"{col}."
