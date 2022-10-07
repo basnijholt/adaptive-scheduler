@@ -775,7 +775,6 @@ def load_dataframes(
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
     format: _DATAFRAME_FORMATS = "parquet",
-    expand_dicts: bool = True,
 ) -> pd.DataFrame | list[pd.DataFrame]:
     read_kwargs = read_kwargs or {}
     dfs = []
@@ -806,8 +805,6 @@ def load_dataframes(
             print(f"`{fn}`'s DataFrame ({fn_df}) could not be read.")
             continue
         df["fname"] = len(df) * [fn]
-        if expand_dicts:
-            df = expand_dict_columns(df)
         dfs.append(df)
     if concat:
         if dfs:

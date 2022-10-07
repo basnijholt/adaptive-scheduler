@@ -1113,13 +1113,11 @@ class RunManager(_BaseManager):
     def info(self):
         return info(self)
 
-    def load_dataframes(self, expand_dicts: bool = True):
+    def load_dataframes(self):
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             raise ValueError("The `save_dataframe` option was not set to True.")
-        df = load_dataframes(
-            self.fnames, format=self.dataframe_format, expand_dicts=expand_dicts
-        )
+        df = load_dataframes(self.fnames, format=self.dataframe_format)
         return df
 
 
