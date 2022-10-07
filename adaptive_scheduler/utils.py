@@ -707,6 +707,8 @@ def cloudpickle_learners(
 def fname_to_dataframe(
     fname: str | list[str] | tuple[str, ...], format: str = "parquet"
 ) -> str | list[str]:
+    if format == "excel":
+        format = "xlsx"
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
