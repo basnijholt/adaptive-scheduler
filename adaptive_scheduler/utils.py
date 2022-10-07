@@ -718,25 +718,30 @@ def save_dataframe(
     format: Literal[
         "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
     ] = "parquet",
+    save_kwargs: dict[str, Any] | None = None,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
+    save_kwargs = save_kwargs or {}
+
     def save(learner):
         df = learner.to_dataframe(**to_dataframe_kwargs)
         fname_df = fname_to_dataframe(fname, format=format)
         if format == "parquet":
-            df.to_parquet(fname_df)
+            df.to_parquet(fname_df, **save_kwargs)
         elif format == "csv":
-            df.to_csv(fname_df)
+            df.to_csv(fname_df, **save_kwargs)
         elif format == "hdf":
-            df.to_hdf(fname_df)
+            if "key" not in save_kwargs:
+                save_kwargs["key"] = "data"
+            df.to_hdf(fname_df, **save_kwargs)
         elif format == "pickle":
-            df.to_pickle(fname_df)
+            df.to_pickle(fname_df, **save_kwargs)
         elif format == "feather":
-            df.to_feather(fname_df)
+            df.to_feather(fname_df, **save_kwargs)
         elif format == "excel":
-            df.to_excel(fname_df)
+            df.to_excel(fname_df, **save_kwargs)
         elif format == "json":
-            df.to_json(fname_df)
+            df.to_json(fname_df, **save_kwargs)
         else:
             raise ValueError(f"Unknown format {format}.")
 
