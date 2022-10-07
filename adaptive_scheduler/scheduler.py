@@ -6,6 +6,7 @@ import getpass
 import math
 import os
 import os.path
+import re
 import subprocess
 import sys
 import textwrap
@@ -835,10 +836,21 @@ def _get_default_scheduler():
 DefaultScheduler = _get_default_scheduler()
 
 
-def slurm_partitions(timeout: int = 5) -> set[str] | None:
+def _get_ncores(partition):
+    numbers = re.findall(r"\d+", partition)
+    return int(numbers[0])
+
+
+def slurm_partitions(
+    timeout: int = 5, with_ncores: bool = True
+) -> list[str] | dict[str, int]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     output = subprocess.run(
         ["sinfo", "-ahO", "partition"], capture_output=True, timeout=timeout
     )
     lines = output.stdout.decode("utf-8").split("\n")
-    return {partition for line in lines if (partition := line.strip())}
+    partitions = sorted(partition for line in lines if (partition := line.strip()))
+    if not with_ncores:
+        return partitions
+    else:
+        return {partition: _get_ncores(partition) for partition in partitions}
