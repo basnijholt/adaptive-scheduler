@@ -36,6 +36,7 @@ from adaptive_scheduler.utils import (
     _remove_or_move_files,
     _serialize,
     cloudpickle_learners,
+    fname_to_learner_fname,
     load_dataframes,
     load_parallel,
     maybe_lst,
@@ -999,6 +1000,11 @@ class RunManager(_BaseManager):
         with suppress(FileNotFoundError):
             if self.status() != "running":
                 os.remove(self.scheduler.run_script)
+
+        for fname in self.fnames:
+            fname_cloudpickle = fname_to_learner_fname(fname)
+            with suppress(FileNotFoundError):
+                os.remove(fname_cloudpickle)
 
         _delete_old_ipython_profiles(self.scheduler)
 
