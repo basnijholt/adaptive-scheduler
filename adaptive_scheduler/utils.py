@@ -678,19 +678,23 @@ def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseL
         return cloudpickle.load(f)
 
 
+def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]):
+    if isinstance(fnames[0], (tuple, list)):
+        for _fnames in fnames:
+            _ensure_folder_exists(_fnames)
+    else:
+        folders = {Path(fname).parent for fname in fnames}
+        for folder in folders:
+            folder.mkdir(parents=True, exist_ok=True)
+
+
 def cloudpickle_learners(
     learners,
     fnames: list[str | list[str] | tuple[str, ...]],
     with_progress_bar: bool = False,
 ):
     """Save a list of learners to disk using cloudpickle."""
-    if isinstance(fnames[0], (tuple, list)):
-        # Got a tuple of fnames
-        # TODO: just return the first one now, change this
-        first = fnames[0][0]
-    else:
-        first = fnames[0]
-    Path(first).parent.mkdir(parents=True, exist_ok=True)
+    _ensure_folder_exists(fnames)
 
     for learner, fname in _progress(
         zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
