@@ -677,7 +677,7 @@ def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> list[str]:
     return all_files
 
 
-def cleanup(
+def cleanup_scheduler_files(
     job_names: list[str],
     scheduler: BaseScheduler,
     with_progress_bar: bool = True,
@@ -1008,7 +1008,7 @@ class RunManager(_BaseManager):
 
         _delete_old_ipython_profiles(self.scheduler)
 
-        cleanup(
+        cleanup_scheduler_files(
             job_names=self.job_names,
             scheduler=self.scheduler,
             with_progress_bar=True,
