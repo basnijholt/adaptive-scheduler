@@ -151,11 +151,11 @@ def _sort_fnames(sort_by, run_manager, fnames):
     return fnames
 
 
-def _read_file(fname: Path) -> str:
+def _read_file(fname: Path, max_lines: int = 10_000) -> str:
     try:
         with fname.open("r", encoding="utf-8") as f:
             lines = f.readlines()
-            max_lines = 1_000
+
             if len(lines) > max_lines:
                 lines = lines[-max_lines:]
                 lines.insert(0, f"Only displaying the last {max_lines} lines!")
@@ -206,7 +206,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             try:
                 T_new = _last_editted(fname)
                 if T_new > T:
-                    textarea.value = _read_file(fname)
+                    textarea.value = _read_file(fname, run_manager.max_log_lines)
                     T = T_new
             except asyncio.CancelledError:
                 return
@@ -256,7 +256,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                 and change["name"] == "value"
                 and change["new"] is not None
             ):
-                textarea.value = _read_file(change["new"])
+                textarea.value = _read_file(change["new"], run_manager.max_log_lines)
 
         return on_change
 
@@ -269,7 +269,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
 
     fnames = _get_fnames(run_manager, only_running=False)
     # no need to sort `fnames` because the default sort_by option is alphabetical
-    text = _read_file(fnames[0]) if fnames else ""
+    text = _read_file(fnames[0], run_manager.max_log_lines) if fnames else ""
     textarea = Textarea(text, layout=dict(width="auto"), rows=20)
     sort_by_dropdown = Dropdown(
         description="Sort by",
