@@ -591,6 +591,7 @@ class SLURM(BaseScheduler):
         self.cores_per_node = cores_per_node
         self.partition = partition
         self.exclusive = exclusive
+        self.__extra_scheduler = extra_scheduler
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
@@ -646,6 +647,7 @@ class SLURM(BaseScheduler):
         state["cores_per_node"] = self.cores_per_node
         state["partition"] = self.partition
         state["exclusive"] = self.exclusive
+        state["extra_scheduler"] = self.__extra_scheduler
         return state
 
     def __setstate__(self, state):
