@@ -217,8 +217,8 @@ Also there are **no tests** at all!
 .. |Downloads| image:: https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg
    :target: https://anaconda.org/conda-forge/adaptive-scheduler
    :alt: Downloads
-.. |Build Status| image:: https://dev.azure.com/basnijholt/adaptive-scheduler/_apis/build/status/basnijholt.adaptive-scheduler?branchName=master
-   :target: https://dev.azure.com/basnijholt/adaptive-scheduler/_build/latest?definitionId=1&branchName=master
+.. |Build Status| image:: https://github.com/basnijholt/adaptive-scheduler/actions/workflows/pytest.yml/badge.svg
+   :target: https://github.com/basnijholt/adaptive-scheduler/actions/workflows/pytest.yml
    :alt: Build Status
 .. |Documentation Status| image:: https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest
    :target: https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest
