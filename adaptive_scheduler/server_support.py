@@ -305,8 +305,8 @@ class JobManager(_BaseManager):
         A scheduler instance from `adaptive_scheduler.scheduler`.
     interval : int, default: 30
         Time in seconds between checking and starting jobs.
-    max_simultaneous_jobs : int, default: 5000
-        Maximum number of simultaneously running jobs. By default no more than 5000
+    max_simultaneous_jobs : int, default: 500
+        Maximum number of simultaneously running jobs. By default no more than 500
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
@@ -329,8 +329,8 @@ class JobManager(_BaseManager):
         scheduler: BaseScheduler,
         interval: int = 30,
         *,
-        max_simultaneous_jobs: int = 5000,
-        max_fails_per_job: int = 100,
+        max_simultaneous_jobs: int = 500,
+        max_fails_per_job: int = 50,
     ):
         super().__init__()
         self.job_names = job_names
@@ -870,6 +870,8 @@ class RunManager(_BaseManager):
             "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
         ] = "parquet",
         max_log_lines: int = 500,
+        max_fails_per_job: int = 50,
+        max_simultaneous_jobs: int = 500,
     ):
         super().__init__()
 
@@ -893,6 +895,15 @@ class RunManager(_BaseManager):
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
         self.max_log_lines = max_log_lines
+        self.max_fails_per_job = max_fails_per_job
+        self.max_simultaneous_jobs = max_simultaneous_jobs
+
+        for key in ["max_fails_per_job", "max_simultaneous_jobs"]:
+            if key in self.job_manager_kwargs:
+                raise ValueError(
+                    f"The `{key}` argument is not allowed in `job_manager_kwargs`."
+                    " Please specify it in `RunManager.__init__` instead."
+                )
 
         if self.save_dataframe:
             _require_adaptive("0.14.0", "save_dataframe")
@@ -931,6 +942,8 @@ class RunManager(_BaseManager):
             self.database_manager,
             scheduler=self.scheduler,
             interval=self.job_manager_interval,
+            max_fails_per_job=self.max_fails_per_job,
+            max_simultaneous_jobs=self.max_simultaneous_jobs,
             **self.job_manager_kwargs,
         )
 
