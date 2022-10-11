@@ -586,6 +586,7 @@ class SLURM(BaseScheduler):
         extra_env_vars=None,
         extra_script=None,
     ):
+        self._cores = cores
         self.nodes = nodes
         self.cores_per_node = cores_per_node
         self.partition = partition
@@ -640,6 +641,7 @@ class SLURM(BaseScheduler):
 
     def __getstate__(self) -> dict:
         state = super().__getstate__()
+        state["cores"] = self._cores
         state["nodes"] = self.nodes
         state["cores_per_node"] = self.cores_per_node
         state["partition"] = self.partition
