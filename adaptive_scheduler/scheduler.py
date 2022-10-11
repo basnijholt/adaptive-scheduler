@@ -571,7 +571,7 @@ class SLURM(BaseScheduler):
 
     def __init__(
         self,
-        cores: int | None,
+        cores: int | None = None,
         nodes: int | None = None,
         cores_per_node: int | None = None,
         partition: str | None = None,
