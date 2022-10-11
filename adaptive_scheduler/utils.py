@@ -823,7 +823,9 @@ def _require_adaptive(version: str, name: str) -> None:
     import pkg_resources
 
     required = pkg_resources.parse_version(version)
-    current = pkg_resources.parse_version(adaptive.__version__)
+    v = adaptive.__version__
+    v_clean = ".".join(v.split(".")[:3])  # remove the dev0 or other suffix
+    current = pkg_resources.parse_version(v_clean)
     if current < required:
         raise RuntimeError(
             f"`{name}` requires adaptive version "
