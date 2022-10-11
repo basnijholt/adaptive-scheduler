@@ -586,6 +586,10 @@ class SLURM(BaseScheduler):
         extra_env_vars=None,
         extra_script=None,
     ):
+        self.nodes = nodes
+        self.cores_per_node = cores_per_node
+        self.partition = partition
+        self.exclusive = exclusive
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
@@ -598,6 +602,10 @@ class SLURM(BaseScheduler):
         if extra_scheduler is None:
             extra_scheduler = []
 
+        if cores_per_node is not None:
+            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            cores = nodes * cores_per_node
+
         if partition is not None:
             if partition not in self.partitions:
                 raise ValueError(
@@ -607,10 +615,6 @@ class SLURM(BaseScheduler):
 
         if exclusive:
             extra_scheduler.append("--exclusive")
-
-        if cores_per_node is not None:
-            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-            cores = nodes * cores_per_node
 
         super().__init__(
             cores,
@@ -633,6 +637,17 @@ class SLURM(BaseScheduler):
 
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
+
+    def __getstate__(self) -> dict:
+        state = super().__getstate__()
+        state["nodes"] = self.nodes
+        state["cores_per_node"] = self.cores_per_node
+        state["partition"] = self.partition
+        state["exclusive"] = self.exclusive
+        return state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
