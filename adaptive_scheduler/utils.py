@@ -700,7 +700,7 @@ def cloudpickle_learners(
     ):
         fname_learner = fname_to_learner_fname(fname)
         with open(fname_learner, "wb") as f:
-            cloudpickle.dump(learner, f)
+            cloudpickle.dump(learner.new(), f)
 
 
 def fname_to_dataframe(
