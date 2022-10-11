@@ -6,6 +6,8 @@ jobs:
 
       - name: Install Conda environment from environment.yml
         uses: mamba-org/provision-with-micromamba@main
+        with:
+          cache-env: true
 
       # Linux and macOS
       - name: Run Python
