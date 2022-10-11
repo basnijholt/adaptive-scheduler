@@ -691,6 +691,7 @@ def cloudpickle_learners(
     learners,
     fnames: list[str | list[str] | tuple[str, ...]],
     with_progress_bar: bool = False,
+    empty_copies: bool = True,
 ):
     """Save a list of learners to disk using cloudpickle."""
     _ensure_folder_exists(fnames)
@@ -699,8 +700,11 @@ def cloudpickle_learners(
         zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
     ):
         fname_learner = fname_to_learner_fname(fname)
+        if empty_copies:
+            _require_adaptive("0.14.1")
+            learner = learner.new()
         with open(fname_learner, "wb") as f:
-            cloudpickle.dump(learner.new(), f)
+            cloudpickle.dump(learner, f)
 
 
 def fname_to_dataframe(
@@ -792,3 +796,15 @@ def load_dataframes(
         return pd.concat(dfs, axis=0)
     else:
         return dfs
+
+
+def _require_adaptive(version: str):
+    import pkg_resources
+
+    required = pkg_resources.parse_version(version)
+    current = pkg_resources.parse_version(adaptive.__version__)
+    if current < required:
+        raise RuntimeError(
+            "`save_dataframe` requires adaptive version "
+            f"of at least {required}, currently using {current}."
+        )

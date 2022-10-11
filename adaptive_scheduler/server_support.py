@@ -34,6 +34,7 @@ from adaptive_scheduler.utils import (
     _deserialize,
     _progress,
     _remove_or_move_files,
+    _require_adaptive,
     _serialize,
     cloudpickle_learners,
     load_dataframes,
@@ -889,15 +890,7 @@ class RunManager(_BaseManager):
         self.dataframe_format = dataframe_format
 
         if self.save_dataframe:
-            import pkg_resources
-
-            required = pkg_resources.parse_version("0.14.0")
-            current = pkg_resources.parse_version(adaptive.__version__)
-            if current < required:
-                raise RuntimeError(
-                    "`save_dataframe` requires adaptive version "
-                    f"of at least {required}, currently using {current}."
-                )
+            _require_adaptive("0.14.0")
 
         # Set in methods
         self.start_time: float | None = None
