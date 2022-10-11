@@ -890,7 +890,7 @@ class RunManager(_BaseManager):
         self.dataframe_format = dataframe_format
 
         if self.save_dataframe:
-            _require_adaptive("0.14.0")
+            _require_adaptive("0.14.0", "save_dataframe")
 
         # Set in methods
         self.start_time: float | None = None

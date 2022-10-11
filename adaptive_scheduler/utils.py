@@ -701,7 +701,7 @@ def cloudpickle_learners(
     ):
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
-            _require_adaptive("0.14.1")
+            _require_adaptive("0.14.1", "empty_copies")
             learner = learner.new()
         with open(fname_learner, "wb") as f:
             cloudpickle.dump(learner, f)
@@ -798,13 +798,13 @@ def load_dataframes(
         return dfs
 
 
-def _require_adaptive(version: str):
+def _require_adaptive(version: str, name: str) -> None:
     import pkg_resources
 
     required = pkg_resources.parse_version(version)
     current = pkg_resources.parse_version(adaptive.__version__)
     if current < required:
         raise RuntimeError(
-            "`save_dataframe` requires adaptive version "
+            f"`{name}` requires adaptive version "
             f"of at least {required}, currently using {current}."
         )
