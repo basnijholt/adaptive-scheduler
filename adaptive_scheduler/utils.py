@@ -835,18 +835,28 @@ def _require_adaptive(version: str, name: str) -> None:
 
 
 class _TimeGoal:
-    def __init__(self, dt: timedelta):
+    def __init__(self, dt: timedelta | datetime):
         self.dt = dt
         self.start_time = None
 
     def __call__(self, learner: adaptive.BaseLearner):
-        if self.start_time is None:
-            self.start_time = datetime.now()
-        return datetime.now() - self.start_time > self.dt
+        if isinstance(self.dt, timedelta):
+            if self.start_time is None:
+                self.start_time = datetime.now()
+            return datetime.now() - self.start_time > self.dt
+        elif isinstance(self.dt, datetime):
+            return datetime.now() > self.dt
+        else:
+            raise TypeError(f"{self.dt=} is not a datetime or timedelta.")
 
 
 def smart_goal(
-    goal: Callable[[adaptive.BaseLearner], bool] | int | float | timedelta | None,
+    goal: Callable[[adaptive.BaseLearner], bool]
+    | int
+    | float
+    | datetime
+    | timedelta
+    | None,
     learners: list[adaptive.BaseLearner],
 ):
     """Extract a goal from the learners.
@@ -870,7 +880,7 @@ def smart_goal(
         return lambda learner: learner.npoints >= goal
     elif isinstance(goal, float):
         return lambda learner: learner.loss() <= goal
-    elif isinstance(goal, timedelta):
+    elif isinstance(goal, (timedelta, datetime)):
         return _TimeGoal(goal)
     elif goal is None:
         learner_types = {type(learner) for learner in learners}
