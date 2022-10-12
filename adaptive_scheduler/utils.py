@@ -844,6 +844,8 @@ def smart_goal(
     goal
         Either a typical callable goal, or integer for number of points goal,
         or float for loss goal, or None to automatically determine.
+    learners
+        List of learners.
 
     Returns
     -------
