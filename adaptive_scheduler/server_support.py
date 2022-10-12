@@ -41,6 +41,7 @@ from adaptive_scheduler.utils import (
     load_dataframes,
     load_parallel,
     maybe_lst,
+    smart_goal,
 )
 from adaptive_scheduler.widgets import info
 
@@ -845,7 +846,7 @@ class RunManager(_BaseManager):
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
         fnames: list[str],
-        goal: Callable[[adaptive.BaseLearner], bool] | None = None,
+        goal: Callable[[adaptive.BaseLearner], bool] | int | float | None = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
@@ -877,7 +878,7 @@ class RunManager(_BaseManager):
 
         # Set from arguments
         self.scheduler = scheduler
-        self.goal = goal
+        self.goal = smart_goal(goal, learners)
         self.check_goal_on_start = check_goal_on_start
         self.runner_kwargs = runner_kwargs
         self.save_interval = save_interval
