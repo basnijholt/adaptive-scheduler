@@ -524,9 +524,58 @@ class PBS(BaseScheduler):
 
 
 class SLURM(BaseScheduler):
+    """Base object for a Scheduler.
+
+    Parameters
+    ----------
+    cores : int | None
+        Number of cores per job (so per learner.)
+        Either use `cores` or `nodes` and `cores_per_node`.
+    nodes : int | None
+        Number of nodes per job (so per learner.)
+        Either `nodes` and `cores_per_node` or use `cores`.
+    cores_per_node: int | None
+        Number of cores per node.
+        Either `nodes` and `cores_per_node` or use `cores`.
+    partition: str | None
+        The SLURM partition to submit the job to.
+    exclusive : bool
+        Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
+    run_script : str
+        Filename of the script that is run on the nodes. Inside this script we
+        query the database and run the learner.
+    python_executable : str, default: `sys.executable`
+        The Python executable that should run the `run_script`. By default
+        it uses the same Python as where this function is called.
+    log_folder : str, default: ""
+        The folder in which to put the log-files.
+    mpiexec_executable : str, optional
+        ``mpiexec`` executable. By default `mpiexec` will be
+        used (so probably from ``conda``).
+    executor_type : str, default: "mpi4py"
+        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
+    num_threads : int, default 1
+        ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
+        ``NUMEXPR_NUM_THREADS`` will be set to this number.
+    extra_scheduler : list, optional
+        Extra ``#SLURM`` (depending on scheduler type)
+        arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+    extra_env_vars : list, optional
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
+    extra_script : str, optional
+        Extra script that will be executed after any environment variables are set,
+        but before the main scheduler is run.
+    """
+
     def __init__(
         self,
-        cores,
+        cores: int | None = None,
+        nodes: int | None = None,
+        cores_per_node: int | None = None,
+        partition: str | None = None,
+        exclusive: bool = True,
         run_script="run_learner.py",
         python_executable=None,
         log_folder="",
@@ -537,6 +586,38 @@ class SLURM(BaseScheduler):
         extra_env_vars=None,
         extra_script=None,
     ):
+        self._cores = cores
+        self.nodes = nodes
+        self.cores_per_node = cores_per_node
+        self.partition = partition
+        self.exclusive = exclusive
+        self.__extra_scheduler = extra_scheduler
+
+        msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
+        if cores is None:
+            if nodes is None or cores_per_node is None:
+                raise ValueError(msg)
+        else:
+            if nodes is not None or cores_per_node is not None:
+                raise ValueError(msg)
+
+        if extra_scheduler is None:
+            extra_scheduler = []
+
+        if cores_per_node is not None:
+            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            cores = nodes * cores_per_node
+
+        if partition is not None:
+            if partition not in self.partitions:
+                raise ValueError(
+                    f"Invalid partition: {partition}, only {self.partitions} are available."
+                )
+            extra_scheduler.append(f"--partition={partition}")
+
+        if exclusive:
+            extra_scheduler.append("--exclusive")
+
         super().__init__(
             cores,
             run_script,
@@ -559,10 +640,28 @@ class SLURM(BaseScheduler):
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
+    def __getstate__(self) -> dict:
+        state = super().__getstate__()
+        state["cores"] = self._cores
+        state["nodes"] = self.nodes
+        state["cores_per_node"] = self.cores_per_node
+        state["partition"] = self.partition
+        state["exclusive"] = self.exclusive
+        state["extra_scheduler"] = self.__extra_scheduler
+        return state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
+        cores = self.cores - 1
+        if self.nodes is not None and self.partition is not None and self.exclusive:
+            max_cores_per_node = self.partitions[self.partition]
+            tot_cores = self.nodes * max_cores_per_node
+            cores = min(self.cores, tot_cores - 1)
         return textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
@@ -575,10 +674,10 @@ class SLURM(BaseScheduler):
             sleep 10
 
             echo "Launching engines"
-            srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
+            srun --ntasks {cores} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {cores} --log-fname {log_fname} --job-id {job_id} --name {name}
             """
         )
 
