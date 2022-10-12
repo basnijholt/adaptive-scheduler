@@ -657,6 +657,11 @@ class SLURM(BaseScheduler):
         log_fname = self.log_fname(name)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
+        cores = self.cores - 1
+        if self.nodes is not None and self.partition is not None and self.exclusive:
+            max_cores_per_node = self.partitions[self.partition]
+            tot_cores = self.nodes * max_cores_per_node
+            cores = min(self.cores, tot_cores - 1)
         return textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
@@ -669,10 +674,10 @@ class SLURM(BaseScheduler):
             sleep 10
 
             echo "Launching engines"
-            srun --ntasks {self.cores-1} ipengine --profile={profile} --cluster-id='' --log-to-file &
+            srun --ntasks {cores} ipengine --profile={profile} --cluster-id='' --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
+            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {cores} --log-fname {log_fname} --job-id {job_id} --name {name}
             """
         )
 
