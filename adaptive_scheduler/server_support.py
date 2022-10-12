@@ -28,7 +28,7 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.scheduler import SLURM, BaseScheduler
+from adaptive_scheduler.scheduler import SLURM, BaseScheduler, slurm_partitions
 from adaptive_scheduler.utils import (
     _DATAFRAME_FORMATS,
     _deserialize,
@@ -1171,7 +1171,7 @@ def slurm_run(
     fnames: list[str],
     partition: str,
     nodes: int = 1,
-    cores_per_node: int = 1,
+    cores_per_node: int | None = None,
     goal: Callable[[adaptive.BaseLearner], bool]
     | int
     | float
@@ -1211,6 +1211,8 @@ def slurm_run(
     if extra_scheduler_kwargs is None:
         extra_scheduler_kwargs = {}
     scheduler = SLURM(**dict(kw, **extra_scheduler_kwargs))
+    if cores_per_node is None:
+        cores_per_node = slurm_partitions()[partition]
     kw = dict(
         _get_default_args(RunManager),
         scheduler=scheduler,

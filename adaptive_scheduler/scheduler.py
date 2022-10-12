@@ -13,7 +13,7 @@ import textwrap
 import time
 import warnings
 from distutils.spawn import find_executable
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import Literal
 
 import adaptive_scheduler._mock_scheduler
@@ -945,6 +945,7 @@ def _get_ncores(partition):
     return int(numbers[0])
 
 
+@lru_cache(maxsize=1)
 def slurm_partitions(
     timeout: int = 5, with_ncores: bool = True
 ) -> list[str] | dict[str, int]:
