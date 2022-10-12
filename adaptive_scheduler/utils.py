@@ -14,6 +14,7 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
@@ -833,8 +834,19 @@ def _require_adaptive(version: str, name: str) -> None:
         )
 
 
+class _TimeGoal:
+    def __init__(self, dt: timedelta):
+        self.dt = dt
+        self.start_time = None
+
+    def __call__(self, learner: adaptive.BaseLearner):
+        if self.start_time is None:
+            self.start_time = datetime.now()
+        return datetime.now() - self.start_time > self.dt
+
+
 def smart_goal(
-    goal: Callable[[adaptive.BaseLearner], bool] | int | float | None,
+    goal: Callable[[adaptive.BaseLearner], bool] | int | float | timedelta | None,
     learners: list[adaptive.BaseLearner],
 ):
     """Extract a goal from the learners.
@@ -843,7 +855,8 @@ def smart_goal(
     ----------
     goal
         Either a typical callable goal, or integer for number of points goal,
-        or float for loss goal, or None to automatically determine.
+        or float for loss goal, or None to automatically determine, or
+        `datetime.timedelta` for a time-based goal.
     learners
         List of learners.
 
@@ -857,6 +870,8 @@ def smart_goal(
         return lambda learner: learner.npoints >= goal
     elif isinstance(goal, float):
         return lambda learner: learner.loss() <= goal
+    elif isinstance(goal, timedelta):
+        return _TimeGoal(goal)
     elif goal is None:
         learner_types = {type(learner) for learner in learners}
         if len(learner_types) > 1:

@@ -15,6 +15,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Literal
 
@@ -750,7 +751,10 @@ class RunManager(_BaseManager):
         List of `fnames` corresponding to `learners`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the ``run_script``.
+        be serialized and pasted in the ``run_script``. Can be a smart-goal
+        that accepts
+        ``Callable[[adaptive.BaseLearner], bool] | int | float | timedelta | None``.
+        See `adaptive_scheduler.utils.smart_goal` for more information.
     check_goal_on_start : bool, default: True
         Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs : dict, default: None
@@ -846,7 +850,11 @@ class RunManager(_BaseManager):
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
         fnames: list[str],
-        goal: Callable[[adaptive.BaseLearner], bool] | int | float | None = None,
+        goal: Callable[[adaptive.BaseLearner], bool]
+        | int
+        | timedelta
+        | float
+        | None = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
