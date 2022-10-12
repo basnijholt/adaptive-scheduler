@@ -831,3 +831,36 @@ def _require_adaptive(version: str, name: str) -> None:
             f"`{name}` requires adaptive version "
             f"of at least {required}, currently using {current}."
         )
+
+
+def smart_goal(
+    goal: Callable[[adaptive.BaseLearner], bool] | int | float | None,
+    learners: list[adaptive.BaseLearner],
+):
+    """Extract a goal from the learners.
+
+    Parameters
+    ----------
+    goal
+        Either a typical callable goal, or integer for number of points goal,
+        or float for loss goal, or None to automatically determine.
+
+    Returns
+    -------
+    Callable[[adaptive.BaseLearner], bool]
+    """
+    if callable(goal):
+        return goal
+    elif isinstance(goal, int):
+        return lambda learner: learner.npoints >= goal
+    elif isinstance(goal, float):
+        return lambda learner: learner.loss() <= goal
+    elif goal is None:
+        learner_types = {type(learner) for learner in learners}
+        if len(learner_types) > 1:
+            raise TypeError("Multiple learner types found.")
+        if isinstance(learners[0], adaptive.SequenceLearner):
+            return adaptive.SequenceLearner.done
+        raise RuntimeError(f"Cannot determine goal for {type(learners[0])}")
+    else:
+        raise ValueError("goal must be `callable | int | float | None`")
