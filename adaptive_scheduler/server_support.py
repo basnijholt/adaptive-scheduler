@@ -1196,6 +1196,11 @@ def slurm_run(
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
 ):
+    if executor_type == "process-pool" and nodes > 1:
+        raise ValueError(
+            "process-pool can maximally use a single node,"
+            " use e.g., ipyparallel for multi node."
+        )
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:
