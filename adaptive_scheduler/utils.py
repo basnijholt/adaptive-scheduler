@@ -888,6 +888,7 @@ def smart_goal(
             raise TypeError("Multiple learner types found.")
         if isinstance(learners[0], adaptive.SequenceLearner):
             return adaptive.SequenceLearner.done
+        warnings.warn("Goal is None which means the learners continue forever!")
         return lambda _: False
     else:
         raise ValueError("goal must be `callable | int | float | None`")

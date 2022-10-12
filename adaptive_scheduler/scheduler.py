@@ -13,7 +13,8 @@ import textwrap
 import time
 import warnings
 from distutils.spawn import find_executable
-from functools import cached_property
+from functools import cached_property, lru_cache
+from typing import Literal
 
 import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
@@ -81,7 +82,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         python_executable,
         log_folder,
         mpiexec_executable,
-        executor_type,
+        executor_type: Literal["ipyparallel", "dask-mpi", "mpi4py", "process-pool"],
         num_threads,
         extra_scheduler,
         extra_env_vars,
@@ -304,7 +305,9 @@ class PBS(BaseScheduler):
         python_executable=None,
         log_folder="",
         mpiexec_executable=None,
-        executor_type="mpi4py",
+        executor_type: Literal[
+            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+        ] = "mpi4py",
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
@@ -580,7 +583,9 @@ class SLURM(BaseScheduler):
         python_executable=None,
         log_folder="",
         mpiexec_executable=None,
-        executor_type="mpi4py",
+        executor_type: Literal[
+            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+        ] = "mpi4py",
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
@@ -940,6 +945,7 @@ def _get_ncores(partition):
     return int(numbers[0])
 
 
+@lru_cache(maxsize=1)
 def slurm_partitions(
     timeout: int = 5, with_ncores: bool = True
 ) -> list[str] | dict[str, int]:
