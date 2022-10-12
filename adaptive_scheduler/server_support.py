@@ -28,10 +28,11 @@ import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.scheduler import BaseScheduler
+from adaptive_scheduler.scheduler import SLURM, BaseScheduler
 from adaptive_scheduler.utils import (
     _DATAFRAME_FORMATS,
     _deserialize,
+    _get_default_args,
     _progress,
     _remove_or_move_files,
     _require_adaptive,
@@ -1163,3 +1164,69 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
     ioloop = asyncio.get_event_loop()
     coro = clean(interval)
     return ioloop.create_task(coro)
+
+
+def slurm_run(
+    learners: list[adaptive.BaseLearner],
+    fnames: list[str],
+    partition: str,
+    nodes: int = 1,
+    cores_per_node: int = 1,
+    goal: Callable[[adaptive.BaseLearner], bool]
+    | int
+    | float
+    | datetime.timedelta
+    | datetime.datetime
+    | None = None,
+    folder: str | Path = "",
+    name: str = "adaptive",
+    num_threads: int = 1,
+    save_interval: int = 300,
+    log_interval: int = 300,
+    cleanup_first: bool = False,
+    save_dataframe: bool = True,
+    dataframe_format: Literal[
+        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+    ] = "parquet",
+    max_fails_per_job: int = 50,
+    max_simultaneous_jobs: int = 500,
+    executor_type: Literal[
+        "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+    ] = "process-pool",
+    extra_run_manager_kwargs: dict[str, Any] | None = None,
+    extra_scheduler_kwargs: dict[str, Any] | None = None,
+):
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    kw = dict(
+        _get_default_args(SLURM),
+        nodes=nodes,
+        cores_per_node=cores_per_node,
+        partition=partition,
+        run_script=folder / f"{name}_adaptive_scheduler.py",
+        log_folder=folder / "logs",
+        executor_type=executor_type,
+        num_threads=num_threads,
+    )
+    if extra_scheduler_kwargs is None:
+        extra_scheduler_kwargs = {}
+    scheduler = SLURM(**dict(kw, **extra_scheduler_kwargs))
+    kw = dict(
+        _get_default_args(RunManager),
+        scheduler=scheduler,
+        learners=learners,
+        fnames=fnames,
+        goal=goal,
+        save_interval=save_interval,
+        log_interval=log_interval,
+        move_old_logs_to=folder / "old_logs",
+        job_name=name,
+        cleanup_first=cleanup_first,
+        save_dataframe=save_dataframe,
+        dataframe_format=dataframe_format,
+        max_fails_per_job=max_fails_per_job,
+        max_simultaneous_jobs=max_simultaneous_jobs,
+    )
+    if extra_run_manager_kwargs is None:
+        extra_run_manager_kwargs = {}
+    return RunManager(**dict(kw, **extra_run_manager_kwargs))
