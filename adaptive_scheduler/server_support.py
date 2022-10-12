@@ -1183,7 +1183,7 @@ def slurm_run(
     num_threads: int = 1,
     save_interval: int = 300,
     log_interval: int = 300,
-    cleanup_first: bool = False,
+    cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: Literal[
         "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
@@ -1198,6 +1198,8 @@ def slurm_run(
 ):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
+    if cores_per_node is None:
+        cores_per_node = slurm_partitions()[partition]
     kw = dict(
         _get_default_args(SLURM),
         nodes=nodes,
@@ -1211,8 +1213,6 @@ def slurm_run(
     if extra_scheduler_kwargs is None:
         extra_scheduler_kwargs = {}
     scheduler = SLURM(**dict(kw, **extra_scheduler_kwargs))
-    if cores_per_node is None:
-        cores_per_node = slurm_partitions()[partition]
     kw = dict(
         _get_default_args(RunManager),
         scheduler=scheduler,
@@ -1222,6 +1222,7 @@ def slurm_run(
         save_interval=save_interval,
         log_interval=log_interval,
         move_old_logs_to=folder / "old_logs",
+        db_fname=f"{name}.db.json",
         job_name=name,
         cleanup_first=cleanup_first,
         save_dataframe=save_dataframe,
