@@ -878,6 +878,6 @@ def smart_goal(
             raise TypeError("Multiple learner types found.")
         if isinstance(learners[0], adaptive.SequenceLearner):
             return adaptive.SequenceLearner.done
-        raise RuntimeError(f"Cannot determine goal for {type(learners[0])}")
+        return lambda _: False
     else:
         raise ValueError("goal must be `callable | int | float | None`")
