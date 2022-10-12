@@ -878,7 +878,7 @@ class RunManager(_BaseManager):
 
         # Set from arguments
         self.scheduler = scheduler
-        self.goal = smart_goal(goal)
+        self.goal = smart_goal(goal, learners)
         self.check_goal_on_start = check_goal_on_start
         self.runner_kwargs = runner_kwargs
         self.save_interval = save_interval
