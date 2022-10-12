@@ -873,7 +873,7 @@ class RunManager(_BaseManager):
             "loky", "loky_int_main", "spawn", "fork", "forkserver"
         ] = "loky",
         cleanup_first: bool = False,
-        save_dataframe: bool = False,
+        save_dataframe: bool = True,
         # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
         dataframe_format: Literal[
             "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
