@@ -200,7 +200,7 @@ class DatabaseManager(_BaseManager):
                     "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
                 )
             entry = db.get(
-                (Entry.job_id == None) & (Entry.is_done == False)  # noqa: E711
+                (Entry.job_id == None) & (Entry.is_done == False)  # noqa: E711,E712
             )
             log.debug("choose fname", entry=entry)
             if entry is None:
