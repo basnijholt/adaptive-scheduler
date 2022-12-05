@@ -331,7 +331,7 @@ class JobManager(_BaseManager):
         scheduler: BaseScheduler,
         interval: int = 30,
         *,
-        max_simultaneous_jobs: int = 500,
+        max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
     ):
         super().__init__()
@@ -881,7 +881,7 @@ class RunManager(_BaseManager):
         ] = "parquet",
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
-        max_simultaneous_jobs: int = 500,
+        max_simultaneous_jobs: int = 100,
     ):
         super().__init__()
 
@@ -1189,7 +1189,7 @@ def slurm_run(
         "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
     ] = "parquet",
     max_fails_per_job: int = 50,
-    max_simultaneous_jobs: int = 500,
+    max_simultaneous_jobs: int = 100,
     exclusive: bool = True,
     executor_type: Literal[
         "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
