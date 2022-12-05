@@ -1190,6 +1190,7 @@ def slurm_run(
     ] = "parquet",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 500,
+    exclusive: bool = True,
     executor_type: Literal[
         "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
     ] = "process-pool",
@@ -1238,6 +1239,8 @@ def slurm_run(
     executor_type : str, default: "process-pool"
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
         or "process-pool".
+    exclusive : bool, default: True
+        Whether to use exclusive nodes, adds ``"--exclusive=user"`` if True.
     extra_run_manager_kwargs : dict, default: None
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs : dict, default: None
@@ -1268,7 +1271,7 @@ def slurm_run(
     )
     if extra_scheduler_kwargs is None:
         extra_scheduler_kwargs = {}
-    scheduler = SLURM(**dict(kw, **extra_scheduler_kwargs))
+    scheduler = SLURM(**dict(kw, exclusive=exclusive, **extra_scheduler_kwargs))
     kw = dict(
         _get_default_args(RunManager),
         scheduler=scheduler,
