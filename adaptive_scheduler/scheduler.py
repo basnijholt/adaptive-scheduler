@@ -621,7 +621,7 @@ class SLURM(BaseScheduler):
             extra_scheduler.append(f"--partition={partition}")
 
         if exclusive:
-            extra_scheduler.append("--exclusive")
+            extra_scheduler.append("--exclusive=user")
 
         super().__init__(
             cores,
