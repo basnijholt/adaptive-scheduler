@@ -1196,6 +1196,57 @@ def slurm_run(
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
 ):
+    """Run adaptive on a SLURM cluster.
+
+    Parameters
+    ----------
+    learners : list[adaptive.BaseLearner]
+        A list of learners.
+    fnames : list[str]
+        A list of filenames to save the learners.
+    partition : str
+        The partition to use.
+    nodes : int, default: 1
+        The number of nodes to use.
+    cores_per_node : int, default: None
+        The number of cores per node to use. If None, then all cores on the partition
+        will be used.
+    goal : callable, int, float, datetime.timedelta, datetime.datetime, default: None
+        The goal of the adaptive run. If None, then the run will continue
+        indefinitely.
+    folder : str or pathlib.Path, default: ""
+        The folder to save the learners in.
+    name : str, default: "adaptive"
+        The name of the job.
+    num_threads : int, default: 1
+        The number of threads to use.
+    save_interval : int, default: 300
+        The interval at which to save the learners.
+    log_interval : int, default: 300
+        The interval at which to log the status of the run.
+    cleanup_first : bool, default: True
+        Whether to clean up the folder before starting the run.
+    save_dataframe : bool, default: True
+        Whether to save the `pandas.DataFrame`s with the learners data.
+    dataframe_format : str, default: "parquet"
+        The format to save the `pandas.DataFrame`s in. See
+        `adaptive_scheduler.utils.save_dataframes` for more information.
+    max_fails_per_job : int, default: 50
+        The maximum number of times a job can fail before it is cancelled.
+    max_simultaneous_jobs : int, default: 500
+        The maximum number of simultaneous jobs.
+    executor_type : str, default: "process-pool"
+        The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
+        or "process-pool".
+    extra_run_manager_kwargs : dict, default: None
+        Extra keyword arguments to pass to the `RunManager`.
+    extra_scheduler_kwargs : dict, default: None
+        Extra keyword arguments to pass to the `SLURMScheduler`.
+
+    Returns
+    -------
+    RunManager
+    """
     if executor_type == "process-pool" and nodes > 1:
         raise ValueError(
             "process-pool can maximally use a single node,"
