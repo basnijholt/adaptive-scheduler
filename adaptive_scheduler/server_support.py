@@ -921,6 +921,9 @@ class RunManager(_BaseManager):
         # Set in methods
         self.start_time: float | None = None
         self.end_time: float | None = None
+        self._start_one_by_one_task: tuple[
+            asyncio.Task, list[asyncio.Task]
+        ] | None = None
 
         # Set on init
         self.learners = learners
@@ -1000,7 +1003,7 @@ class RunManager(_BaseManager):
     def start(self, wait_for: RunManager | None = None):
         """Start the RunManager and optionally wait for another RunManager to finish."""
         if wait_for is not None:
-            start_one_by_one(wait_for, self)
+            self._start_one_by_one_task = start_one_by_one(wait_for, self)
         super().start()
 
     async def _manage(self) -> None:
@@ -1016,6 +1019,8 @@ class RunManager(_BaseManager):
         if self.task is not None:
             self.task.cancel()
         self.end_time = time.time()
+        if self._start_one_by_one_task is not None:
+            self._start_one_by_one_task[0].cancel()
 
     def cleanup(self, remove_old_logs_folder=False) -> None:
         """Cleanup the log and batch files.
