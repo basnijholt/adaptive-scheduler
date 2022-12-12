@@ -1323,7 +1323,19 @@ def _start_after(manager_first, manager_second) -> asyncio.Task:
 
 
 def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
-    """Start a list of RunManagers after each other."""
+    """Start a list of RunManagers after each other.
+
+    Parameters
+    ----------
+    run_managers : list[RunManager]
+        A list of RunManagers.
+
+    Returns
+    -------
+    tuple[asyncio.Task, list[asyncio.Task]]
+        The first element is the grouped task that starts all RunManagers.
+        The second element is a list of tasks that start each RunManager.
+    """
     uniques = ["job_name", "db_fname"]
     for u in uniques:
         if len({getattr(r, u) for r in run_managers}) != len(run_managers):
