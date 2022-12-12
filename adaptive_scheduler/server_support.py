@@ -1283,6 +1283,7 @@ def slurm_run(
     if extra_scheduler_kwargs is None:
         extra_scheduler_kwargs = {}
     scheduler = SLURM(**dict(kw, exclusive=exclusive, **extra_scheduler_kwargs))
+    # Below are the defaults for the RunManager
     kw = dict(
         _get_default_args(RunManager),
         scheduler=scheduler,
@@ -1321,10 +1322,14 @@ def _start_after(manager_first, manager_second) -> asyncio.Task:
 
 def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
     """Start a list of RunManagers after each other."""
-    if len({r.name for r in run_managers}) != len(run_managers):
-        raise ValueError("All run managers must have a unique name.")
-    if len({r.database_manager.db_fname for r in run_managers}) != len(run_managers):
-        raise ValueError("All run managers must have a unique database filename.")
+    uniques = ["job_name", "db_fname"]
+    for u in uniques:
+        if len({getattr(r, u) for r in run_managers}) != len(run_managers):
+            raise ValueError(
+                f"All `RunManager`s must have a unique {u}."
+                "If using `slurm_run` these are controlled through the `name` argument."
+            )
+
     tasks = [
         _start_after(run_managers[i], run_managers[i + 1])
         for i in range(len(run_managers) - 1)
