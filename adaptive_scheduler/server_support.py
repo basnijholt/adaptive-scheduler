@@ -1306,13 +1306,15 @@ def slurm_run(
 
 
 async def _wait_for(manager_first: RunManager, manager_second: RunManager):
-    if not manager_first.is_started:
-        manager_first.start()
     await manager_first.task
     manager_second.start()
 
 
 def _start_after(manager_first, manager_second) -> asyncio.Task:
+    if not manager_first.is_started:
+        manager_first.start()
+    if manager_second.is_started:
+        raise ValueError("The second manager must not be started yet.")
     coro = _wait_for(manager_first, manager_second)
     return manager_first.ioloop.create_task(coro)
 
