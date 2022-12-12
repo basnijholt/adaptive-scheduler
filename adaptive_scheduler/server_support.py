@@ -997,6 +997,12 @@ class RunManager(_BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
+    def start(self, wait_for: RunManager | None = None):
+        """Start the RunManager and optionally wait for another RunManager to finish."""
+        if wait_for is not None:
+            start_one_by_one(wait_for, self)
+        super().start()
+
     async def _manage(self) -> None:
         await self.job_manager.task
         self.end_time = time.time()
@@ -1292,3 +1298,26 @@ def slurm_run(
     if extra_run_manager_kwargs is None:
         extra_run_manager_kwargs = {}
     return RunManager(**dict(kw, **extra_run_manager_kwargs))
+
+
+async def _wait_for(manager_first: RunManager, manager_second: RunManager):
+    if not manager_first.is_started:
+        manager_first.start()
+    await manager_first.task
+    manager_second.start()
+
+
+def _start_after(manager_first, manager_second) -> asyncio.Task:
+    coro = _wait_for(manager_first, manager_second)
+    return manager_first.ioloop.create_task(coro)
+
+
+def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
+    """Start a list of RunManagers after each other."""
+    if len({r.name for r in run_managers}) != len(run_managers):
+        raise ValueError("All run managers must have a unique name.")
+    tasks = [
+        _start_after(run_managers[i], run_managers[i + 1])
+        for i in range(len(run_managers) - 1)
+    ]
+    return asyncio.gather(*tasks), tasks
