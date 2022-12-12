@@ -1004,7 +1004,8 @@ class RunManager(_BaseManager):
         """Start the RunManager and optionally wait for another RunManager to finish."""
         if wait_for is not None:
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
-        super().start()
+        else:
+            super().start()
 
     async def _manage(self) -> None:
         await self.job_manager.task
