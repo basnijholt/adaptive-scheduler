@@ -1321,6 +1321,8 @@ def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
     """Start a list of RunManagers after each other."""
     if len({r.name for r in run_managers}) != len(run_managers):
         raise ValueError("All run managers must have a unique name.")
+    if len({r.database_manager.db_fname for r in run_managers}) != len(run_managers):
+        raise ValueError("All run managers must have a unique database filename.")
     tasks = [
         _start_after(run_managers[i], run_managers[i + 1])
         for i in range(len(run_managers) - 1)
