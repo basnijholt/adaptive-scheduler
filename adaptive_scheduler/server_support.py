@@ -1314,8 +1314,6 @@ async def _wait_for(manager_first: RunManager, manager_second: RunManager):
 
 
 def _start_after(manager_first, manager_second) -> asyncio.Task:
-    if not manager_first.is_started:
-        manager_first.start()
     if manager_second.is_started:
         raise ValueError("The second manager must not be started yet.")
     coro = _wait_for(manager_first, manager_second)
@@ -1341,7 +1339,7 @@ def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
         if len({getattr(r, u) for r in run_managers}) != len(run_managers):
             raise ValueError(
                 f"All `RunManager`s must have a unique {u}."
-                "If using `slurm_run` these are controlled through the `name` argument."
+                " If using `slurm_run` these are controlled through the `name` argument."
             )
 
     tasks = [
