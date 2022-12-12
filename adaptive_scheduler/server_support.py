@@ -1006,6 +1006,7 @@ class RunManager(_BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
+        return self
 
     async def _manage(self) -> None:
         await self.job_manager.task
