@@ -1383,7 +1383,7 @@ def start_one_by_one(
     ...     npoints = df.get("npoints")
     ...     if npoints is None:
     ...         return False
-    ...     return npoints.sum() > 300
+    ...     return npoints.sum() > 1000
     >>> tasks = adaptive_scheduler.start_one_by_one(
     ...     manager_1,
     ...     manager_2,
