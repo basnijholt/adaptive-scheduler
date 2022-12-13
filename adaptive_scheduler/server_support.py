@@ -1240,7 +1240,7 @@ def slurm_run(
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
         or "process-pool".
     exclusive : bool, default: True
-        Whether to use exclusive nodes, adds ``"--exclusive=user"`` if True.
+        Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_run_manager_kwargs : dict, default: None
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs : dict, default: None
