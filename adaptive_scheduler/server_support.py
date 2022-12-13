@@ -921,6 +921,9 @@ class RunManager(_BaseManager):
         # Set in methods
         self.start_time: float | None = None
         self.end_time: float | None = None
+        self._start_one_by_one_task: tuple[
+            asyncio.Task, list[asyncio.Task]
+        ] | None = None
 
         # Set on init
         self.learners = learners
@@ -997,6 +1000,14 @@ class RunManager(_BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
+    def start(self, wait_for: RunManager | None = None):
+        """Start the RunManager and optionally wait for another RunManager to finish."""
+        if wait_for is not None:
+            self._start_one_by_one_task = start_one_by_one(wait_for, self)
+        else:
+            super().start()
+        return self
+
     async def _manage(self) -> None:
         await self.job_manager.task
         self.end_time = time.time()
@@ -1010,6 +1021,8 @@ class RunManager(_BaseManager):
         if self.task is not None:
             self.task.cancel()
         self.end_time = time.time()
+        if self._start_one_by_one_task is not None:
+            self._start_one_by_one_task[0].cancel()
 
     def cleanup(self, remove_old_logs_folder=False) -> None:
         """Cleanup the log and batch files.
@@ -1272,6 +1285,7 @@ def slurm_run(
     if extra_scheduler_kwargs is None:
         extra_scheduler_kwargs = {}
     scheduler = SLURM(**dict(kw, exclusive=exclusive, **extra_scheduler_kwargs))
+    # Below are the defaults for the RunManager
     kw = dict(
         _get_default_args(RunManager),
         scheduler=scheduler,
@@ -1292,3 +1306,101 @@ def slurm_run(
     if extra_run_manager_kwargs is None:
         extra_run_manager_kwargs = {}
     return RunManager(**dict(kw, **extra_run_manager_kwargs))
+
+
+async def _wait_for_finished(
+    manager_first: RunManager,
+    manager_second: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+):
+    if goal is None:
+        await manager_first.task
+    else:
+        while not goal(manager_first):
+            await asyncio.sleep(interval)
+    manager_second.start()
+
+
+def _start_after(
+    manager_first: RunManager,
+    manager_second: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+) -> asyncio.Task:
+    if manager_second.is_started:
+        raise ValueError("The second manager must not be started yet.")
+    coro = _wait_for_finished(manager_first, manager_second, goal, interval)
+    return asyncio.create_task(coro)
+
+
+def start_one_by_one(
+    *run_managers: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+) -> tuple[asyncio.Task, list[asyncio.Task]]:
+    """Start a list of RunManagers after each other.
+
+    Parameters
+    ----------
+    run_managers : list[RunManager]
+        A list of RunManagers.
+    goal : callable, default: None
+        A callable that takes a RunManager as argument and returns a boolean.
+        If `goal` is not None, the RunManagers will be started after `goal`
+        returns True for the previous RunManager. If `goal` is None, the
+        RunManagers will be started after the previous RunManager has finished.
+    interval : int, default: 120
+        The interval at which to check if `goal` is True. Only used if `goal`
+        is not None.
+
+    Returns
+    -------
+    tuple[asyncio.Task, list[asyncio.Task]]
+        The first element is the grouped task that starts all RunManagers.
+        The second element is a list of tasks that start each RunManager.
+
+    Examples
+    --------
+    >>> manager_1 = adaptive_scheduler.slurm_run(
+    ...     learners[:5],
+    ...     fnames[:5],
+    ...     partition="hb120rsv2-low",
+    ...     goal=0.01,
+    ...     name="first",
+    ... )
+    >>> manager_1.start()
+    >>> manager_2 = adaptive_scheduler.slurm_run(
+    ...     learners[5:],
+    ...     fnames[5:],
+    ...     partition="hb120rsv2-low",
+    ...     goal=0.01,
+    ...     name="second",
+    ... )
+    >>> # Start second when the first RunManager has more than 1000 points.
+    >>> def start_goal(run_manager):
+    ...     df = run_manager.parse_log_files()
+    ...     npoints = df.get("npoints")
+    ...     if npoints is None:
+    ...         return False
+    ...     return npoints.sum() > 1000
+    >>> tasks = adaptive_scheduler.start_one_by_one(
+    ...     manager_1,
+    ...     manager_2,
+    ...     goal=start_goal,
+    ... )
+
+    """
+    uniques = ["job_name", "db_fname"]
+    for u in uniques:
+        if len({getattr(r, u) for r in run_managers}) != len(run_managers):
+            raise ValueError(
+                f"All `RunManager`s must have a unique {u}."
+                " If using `slurm_run` these are controlled through the `name` argument."
+            )
+
+    tasks = [
+        _start_after(run_managers[i], run_managers[i + 1], goal, interval)
+        for i in range(len(run_managers) - 1)
+    ]
+    return asyncio.gather(*tasks), tasks
