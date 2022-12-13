@@ -1308,25 +1308,51 @@ def slurm_run(
     return RunManager(**dict(kw, **extra_run_manager_kwargs))
 
 
-async def _wait_for(manager_first: RunManager, manager_second: RunManager):
-    await manager_first.task
+async def _wait_for_finished(
+    manager_first: RunManager,
+    manager_second: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+):
+    if goal is None:
+        await manager_first.task
+    else:
+        while not goal(manager_first):
+            await asyncio.sleep(interval)
     manager_second.start()
 
 
-def _start_after(manager_first, manager_second) -> asyncio.Task:
+def _start_after(
+    manager_first: RunManager,
+    manager_second: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+) -> asyncio.Task:
     if manager_second.is_started:
         raise ValueError("The second manager must not be started yet.")
-    coro = _wait_for(manager_first, manager_second)
+    coro = _wait_for_finished(manager_first, manager_second, goal, interval)
     return manager_first.ioloop.create_task(coro)
 
 
-def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
+def start_one_by_one(
+    *run_managers: RunManager,
+    goal: Callable[[RunManager], bool] = None,
+    interval: int = 120,
+) -> tuple[asyncio.Task, list[asyncio.Task]]:
     """Start a list of RunManagers after each other.
 
     Parameters
     ----------
     run_managers : list[RunManager]
         A list of RunManagers.
+    goal : callable, default: None
+        A callable that takes a RunManager as argument and returns a boolean.
+        If `goal` is not None, the RunManagers will be started after `goal`
+        returns True for the previous RunManager. If `goal` is None, the
+        RunManagers will be started after the previous RunManager has finished.
+    interval : int, default: 120
+        The interval at which to check if `goal` is True. Only used if `goal`
+        is not None.
 
     Returns
     -------
@@ -1343,7 +1369,7 @@ def start_one_by_one(*run_managers) -> tuple[asyncio.Task, list[asyncio.Task]]:
             )
 
     tasks = [
-        _start_after(run_managers[i], run_managers[i + 1])
+        _start_after(run_managers[i], run_managers[i + 1], goal, interval)
         for i in range(len(run_managers) - 1)
     ]
     return asyncio.gather(*tasks), tasks
