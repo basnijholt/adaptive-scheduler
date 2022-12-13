@@ -1380,7 +1380,10 @@ def start_one_by_one(
     >>> # Start second when the first RunManager has more than 1000 points.
     >>> def start_goal(run_manager):
     ...     df = run_manager.parse_log_files()
-    ...     return df.get("npoints", 0) > 1000
+    ...     npoints = df.get("npoints")
+    ...     if npoints is None:
+    ...         return False
+    ...     return npoints.sum() > 300
     >>> tasks = adaptive_scheduler.start_one_by_one(
     ...     manager_1,
     ...     manager_2,
