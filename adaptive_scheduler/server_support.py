@@ -1359,6 +1359,34 @@ def start_one_by_one(
     tuple[asyncio.Task, list[asyncio.Task]]
         The first element is the grouped task that starts all RunManagers.
         The second element is a list of tasks that start each RunManager.
+
+    Examples
+    --------
+    >>> manager_1 = adaptive_scheduler.slurm_run(
+    ...     learners[:5],
+    ...     fnames[:5],
+    ...     partition="hb120rsv2-low",
+    ...     goal=0.01,
+    ...     name="first",
+    ... )
+    >>> manager_1.start()
+    >>> manager_2 = adaptive_scheduler.slurm_run(
+    ...     learners[5:],
+    ...     fnames[5:],
+    ...     partition="hb120rsv2-low",
+    ...     goal=0.01,
+    ...     name="second",
+    ... )
+    >>> # Start second when the first RunManager has more than 1000 points.
+    >>> def start_goal(run_manager):
+    ...     df = run_manager.parse_log_files()
+    ...     return df.get("npoints", 0) > 1000
+    >>> tasks = adaptive_scheduler.start_one_by_one(
+    ...     manager_1,
+    ...     manager_2,
+    ...     goal=start_goal,
+    ... )
+
     """
     uniques = ["job_name", "db_fname"]
     for u in uniques:
