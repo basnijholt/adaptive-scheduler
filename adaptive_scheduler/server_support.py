@@ -1331,7 +1331,7 @@ def _start_after(
     if manager_second.is_started:
         raise ValueError("The second manager must not be started yet.")
     coro = _wait_for_finished(manager_first, manager_second, goal, interval)
-    return manager_first.ioloop.create_task(coro)
+    return asyncio.create_task(coro)
 
 
 def start_one_by_one(
