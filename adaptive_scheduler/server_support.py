@@ -713,7 +713,6 @@ def cleanup_scheduler_files(
 def _delete_old_ipython_profiles(
     scheduler: BaseScheduler, with_progress_bar: bool = True
 ) -> None:
-
     if scheduler.executor_type != "ipyparallel":
         return
     # We need the job_ids because only job_names wouldn't be
