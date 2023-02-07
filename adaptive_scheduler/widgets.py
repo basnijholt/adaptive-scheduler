@@ -43,7 +43,6 @@ def _get_fnames(run_manager, only_running: bool) -> list[Path]:
 
 
 def _failed_job_logs(fnames, run_manager, only_running):
-
     running = {
         Path(e["log_fname"]).stem
         for e in run_manager.database_manager.as_dicts()
