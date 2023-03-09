@@ -954,12 +954,11 @@ def slurm_partitions(
         ["sinfo", "-ahO", "partition"], capture_output=True, timeout=timeout
     )
     lines = output.stdout.decode("utf-8").split("\n")
-
-    def clean(s: str):
-        # remove asterisk, which is used for default partition
-        return s.strip().replace("*", "")
-
-    partitions = sorted(partition for line in lines if (partition := clean(line)))
+    partitions = sorted(partition for line in lines if (partition := line.strip()))
+    # Sort partitions alphabetically, but put the default partition first
+    partitions = sorted(partitions, key=lambda s: ("*" not in s, s))
+    # Remove asterisk, which is used for default partition
+    partitions = [partition.replace("*", "") for partition in partitions]
     if not with_ncores:
         return partitions
     else:
