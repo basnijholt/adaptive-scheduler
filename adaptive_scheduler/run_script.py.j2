@@ -83,6 +83,10 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     # save once more after the runner is done
     learner.save(fname)
 
+    {% if save_dataframe %}
+    save_method(learner)
+    {% endif %}
+
     # log once more after the runner is done
     client_support.log_info(runner, interval=0)
 
