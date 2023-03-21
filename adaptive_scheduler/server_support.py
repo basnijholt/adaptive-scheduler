@@ -1218,7 +1218,8 @@ def slurm_run(
     fnames : list[str]
         A list of filenames to save the learners.
     partition : str
-        The partition to use.
+        The partition to use. If None, then the default partition will be used.
+        (The one marked with a * in `sinfo`)
     nodes : int, default: 1
         The number of nodes to use.
     cores_per_node : int, default: None
