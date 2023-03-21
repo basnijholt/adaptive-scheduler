@@ -27,7 +27,10 @@ import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from ipyparallel import Client
+from rich.console import Console
 from tqdm import tqdm, tqdm_notebook
+
+console = Console()
 
 MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
@@ -509,7 +512,7 @@ def connect_to_ipyparallel(
     dview.use_dill()
 
     if folder is not None:
-        print(f"Adding {folder} to path.")
+        console.print(f"Adding {folder} to path.")
         cmd = f"import sys, os; sys.path.append(os.path.expanduser('{folder}'))"
         dview.execute(cmd).result()
 
@@ -551,9 +554,10 @@ def _deserialize(frames):
             # Means that the frame is empty because it only contains an end of text char
             # `\x03  ^C    (End of text)`
             # TODO: Not sure why this happens.
-            print(
+            console.log(
                 r"pickle.UnpicklingError in _deserialize: Received an empty frame (\x03)."
             )
+            console.print_exception(show_locals=True)
         raise
 
 

@@ -10,6 +10,7 @@ pandas
 psutil
 pyarrow
 pyzmq
+rich
 structlog
 tinydb
 toolz
