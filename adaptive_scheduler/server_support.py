@@ -727,7 +727,7 @@ def _delete_old_ipython_profiles(
     to_delete = [
         folder
         for folder in profile_folders
-        if not folder.split(pattern)[1] in running_job_ids
+        if folder.split(pattern)[1] not in running_job_ids
     ]
 
     with ThreadPoolExecutor(256) as ex:
