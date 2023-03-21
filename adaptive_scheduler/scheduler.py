@@ -16,8 +16,12 @@ from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import Literal
 
+from rich.console import Console
+
 import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
+
+console = Console()
 
 
 def _run_submit(cmd, name=None):
@@ -30,7 +34,7 @@ def _run_submit(cmd, name=None):
             return
         stderr = proc.stderr.decode()
         if stderr != "":
-            print(f"Error: {stderr}")
+            console.log(f"Error: {stderr}")
         time.sleep(0.5)
 
 

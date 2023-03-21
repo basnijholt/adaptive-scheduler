@@ -12,7 +12,6 @@ import pickle
 import shutil
 import socket
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from pathlib import Path
@@ -26,6 +25,7 @@ import structlog
 import zmq
 import zmq.asyncio
 import zmq.ssh
+from rich.console import Console
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler.scheduler import SLURM, BaseScheduler, slurm_partitions
@@ -45,6 +45,8 @@ from adaptive_scheduler.utils import (
     smart_goal,
 )
 from adaptive_scheduler.widgets import info
+
+console = Console()
 
 ctx = zmq.asyncio.Context()
 
@@ -1114,8 +1116,8 @@ class RunManager(_BaseManager):
             status = "cancelled"
         except Exception:
             status = "failed"
-            print("JobManager failed because of the following")
-            traceback.print_exc()
+            console.log("`JobManager` failed because of the following")
+            console.print_exception(show_locals=True)
         else:
             status = "finished"
 
@@ -1125,9 +1127,8 @@ class RunManager(_BaseManager):
             pass
         except Exception:
             status = "failed"
-            print("DatabaseManager failed because of the following")
-            traceback.print_exc()
-
+            console.log("`DatabaseManager` failed because of the following")
+            console.print_exception(show_locals=True)
         if status == "running":
             return "running"
 
@@ -1219,7 +1220,8 @@ def slurm_run(
         A list of filenames to save the learners.
     partition : str
         The partition to use. If None, then the default partition will be used.
-        (The one marked with a * in `sinfo`)
+        (The one marked with a * in `sinfo`). Use `adaptive_scheduler.utils.slurm_partitions`
+        to see the available partitions.
     nodes : int, default: 1
         The number of nodes to use.
     cores_per_node : int, default: None
@@ -1266,7 +1268,12 @@ def slurm_run(
     if partition is None:
         partitions = slurm_partitions()
         partition, ncores = next(iter(partitions.items()))
-        print(f"Using default partition {partition} with {ncores} cores.")
+        console.log(
+            f"Using default partition {partition} (The one marked"
+            " with a '*' in `sinfo`) with {ncores} cores."
+            " Use `adaptive_scheduler.utils.slurm_partitions`"
+            " to see the available partitions."
+        )
     if executor_type == "process-pool" and nodes > 1:
         raise ValueError(
             "process-pool can maximally use a single node,"
