@@ -1181,7 +1181,7 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
 def slurm_run(
     learners: list[adaptive.BaseLearner],
     fnames: list[str],
-    partition: str,
+    partition: str | None = None,
     nodes: int = 1,
     cores_per_node: int | None = None,
     goal: Callable[[adaptive.BaseLearner], bool]
@@ -1262,6 +1262,10 @@ def slurm_run(
     -------
     RunManager
     """
+    if partition is None:
+        partitions = slurm_partitions()
+        partition, ncores = next(iter(partitions.items()))
+        print(f"Using default partition {partition} with {ncores} cores.")
     if executor_type == "process-pool" and nodes > 1:
         raise ValueError(
             "process-pool can maximally use a single node,"
