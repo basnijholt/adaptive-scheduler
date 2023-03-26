@@ -559,6 +559,11 @@ def _deserialize(frames):
             )
             console.print_exception(show_locals=True)
         raise
+    except UnicodeDecodeError as e:
+        if r"\x99" in str(e):
+            # TODO: Cameron encountered this error
+            print(f"UnicodeDecodeError in _deserialize: Received frame: {frames}.")
+        raise
 
 
 class LRUCachedCallable(Callable[..., Any]):
