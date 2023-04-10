@@ -10,19 +10,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from ipywidgets import (
-    HTML,
-    Button,
-    Checkbox,
-    Dropdown,
-    HBox,
-    Layout,
-    Text,
-    Textarea,
-    VBox,
-)
 
 if TYPE_CHECKING:
+    from ipywidgets import Checkbox, HBox, VBox
+
     from adaptive_scheduler.server_support import RunManager
 
 
@@ -167,6 +158,17 @@ def _read_file(fname: Path, max_lines: int = 500) -> str:
 
 
 def log_explorer(run_manager) -> VBox:  # noqa: C901
+    from ipywidgets import (
+        HTML,
+        Button,
+        Checkbox,
+        Dropdown,
+        Layout,
+        Text,
+        Textarea,
+        VBox,
+    )
+
     def _update_fname_dropdown(
         run_manager,
         fname_dropdown,
