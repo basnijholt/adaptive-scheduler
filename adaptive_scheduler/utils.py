@@ -26,7 +26,6 @@ import numpy as np
 import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
-from ipyparallel import Client
 from rich.console import Console
 from tqdm import tqdm, tqdm_notebook
 
@@ -507,6 +506,8 @@ def connect_to_ipyparallel(
     client : `ipyparallel.Client` object
         An IPyparallel client.
     """
+    from ipyparallel import Client
+
     client = Client(profile=profile, **(client_kwargs or {}))
     dview = _wait_for_successful_ipyparallel_client_start(client, n, timeout)
     dview.use_dill()
