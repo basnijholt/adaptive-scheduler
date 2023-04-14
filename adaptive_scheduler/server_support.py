@@ -351,7 +351,7 @@ class JobManager(_BaseManager):
         """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
         return self.max_fails_per_job * len(self.job_names)
 
-    def _queued(self, queue) -> set[str]:
+    def _queued(self, queue: dict[str, dict[str, Any]]) -> set[str]:
         return {
             job["job_name"]
             for job in queue.values()
@@ -359,55 +359,52 @@ class JobManager(_BaseManager):
         }
 
     async def _manage(self) -> None:
-        with concurrent.futures.ProcessPoolExecutor() as ex:
-            while True:
-                try:
-                    running = self.scheduler.queue(me_only=True)
-                    self.database_manager.update(running)  # in case some jobs died
+        while True:
+            try:
+                running = self.scheduler.queue(me_only=True)
+                self.database_manager.update(running)  # in case some jobs died
 
-                    queued = self._queued(running)  # running `job_name`s
-                    not_queued = set(self.job_names) - queued
+                queued = self._queued(running)  # running `job_name`s
+                not_queued = set(self.job_names) - queued
 
-                    n_done = self.database_manager.n_done()
-                    if n_done == len(self.job_names):
-                        # we are finished!
-                        self.database_manager.task.cancel()
-                        return
+                n_done = self.database_manager.n_done()
+
+                if n_done == len(self.job_names):
+                    # we are finished!
+                    self.database_manager.task.cancel()
+                    return
+                else:
+                    n_to_schedule = max(0, len(not_queued) - n_done)
+                    not_queued = set(list(not_queued)[:n_to_schedule])
+                while not_queued:
+                    # start new jobs
+                    if len(queued) < self.max_simultaneous_jobs:
+                        job_name = not_queued.pop()
+                        queued.add(job_name)
+                        await asyncio.to_thread(self.scheduler.start_job, job_name)
+                        self.n_started += 1
                     else:
-                        n_to_schedule = max(0, len(not_queued) - n_done)
-                        not_queued = set(list(not_queued)[:n_to_schedule])
-
-                    while not_queued:
-                        # start new jobs
-                        if len(queued) <= self.max_simultaneous_jobs:
-                            job_name = not_queued.pop()
-                            queued.add(job_name)
-                            await self.ioloop.run_in_executor(
-                                ex, self.scheduler.start_job, job_name
-                            )
-                            self.n_started += 1
-                        else:
-                            break
-                    if self.n_started > self.max_job_starts:
-                        raise MaxRestartsReached(
-                            "Too many jobs failed, your Python code probably has a bug."
-                        )
-                    await asyncio.sleep(self.interval)
-                except concurrent.futures.CancelledError:
-                    log.info("task was cancelled because of a CancelledError")
-                    raise
-                except MaxRestartsReached as e:
-                    log.exception(
-                        "too many jobs have failed, cancelling the job manager",
-                        n_started=self.n_started,
-                        max_fails_per_job=self.max_fails_per_job,
-                        max_job_starts=self.max_job_starts,
-                        exception=str(e),
+                        break
+                if self.n_started > self.max_job_starts:
+                    raise MaxRestartsReached(
+                        "Too many jobs failed, your Python code probably has a bug."
                     )
-                    raise
-                except Exception as e:
-                    log.exception("got exception when starting a job", exception=str(e))
-                    await asyncio.sleep(5)
+                await asyncio.sleep(self.interval)
+            except concurrent.futures.CancelledError:
+                log.info("task was cancelled because of a CancelledError")
+                raise
+            except MaxRestartsReached as e:
+                log.exception(
+                    "too many jobs have failed, cancelling the job manager",
+                    n_started=self.n_started,
+                    max_fails_per_job=self.max_fails_per_job,
+                    max_job_starts=self.max_job_starts,
+                    exception=str(e),
+                )
+                raise
+            except Exception as e:
+                log.exception("got exception when starting a job", exception=str(e))
+                await asyncio.sleep(5)
 
 
 def logs_with_string_or_condition(

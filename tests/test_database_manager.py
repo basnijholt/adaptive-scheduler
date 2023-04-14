@@ -4,7 +4,7 @@ import os
 import pytest
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.server_support import DatabaseManager, JobManager
+from adaptive_scheduler.server_support import DatabaseManager
 from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
 
 
@@ -19,12 +19,6 @@ async def test_database_manager_start_and_cancel(db_manager) -> None:
     assert result is not None
     with pytest.raises(asyncio.InvalidStateError):
         assert db_manager.task.result()
-
-
-@pytest.fixture
-def job_manager(db_manager: DatabaseManager, mock_scheduler) -> None:
-    job_names = ["job1", "job2"]
-    return JobManager(job_names, db_manager, mock_scheduler)
 
 
 def test_database_manager_n_done(db_manager) -> None:

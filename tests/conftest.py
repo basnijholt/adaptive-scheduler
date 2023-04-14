@@ -5,7 +5,11 @@ import zmq.asyncio
 from adaptive import Learner1D
 
 from adaptive_scheduler.scheduler import BaseScheduler
-from adaptive_scheduler.server_support import DatabaseManager, get_allowed_url
+from adaptive_scheduler.server_support import (
+    DatabaseManager,
+    JobManager,
+    get_allowed_url,
+)
 
 
 class MockScheduler(BaseScheduler):
@@ -14,7 +18,7 @@ class MockScheduler(BaseScheduler):
     _options_flag = "#MOCK"
     _cancel_cmd = "echo"
 
-    def __init__(self, **kw):
+    def __init__(self, **kw) -> None:
         super().__init__(**kw)
         self._queue_info = {
             "1": {"job_name": "MOCK_JOB-1", "state": "R"},
@@ -41,26 +45,33 @@ class MockScheduler(BaseScheduler):
     def start_job(self, name: str) -> None:
         print("Starting a mock job:", name)
         self._started_jobs.append(name)
+        self._queue_info[name] = {"job_name": name, "status": "R"}
 
     def cancel(
-        self, job_names: list[str], with_progress_bar: bool = True, max_tries: int = 5
+        self,
+        job_names: list[str],
+        with_progress_bar: bool = True,  # noqa: FBT001
+        max_tries: int = 5,  # noqa: FBT001
     ) -> None:
         print("Canceling mock jobs:", job_names)
         for job_name in job_names:
             self._queue_info.pop(job_name, None)
             self._started_jobs.remove(job_name)
 
-    def update_queue(self, job_name, status):
+    def update_queue(self, job_name: str, status: str) -> None:
         self._queue_info[job_name] = {"job_name": job_name, "status": status}
 
 
 @pytest.fixture
-def mock_scheduler():
+def mock_scheduler() -> MockScheduler:
     return MockScheduler(cores=8)
 
 
 @pytest.fixture
-def db_manager(mock_scheduler, learners_and_fnames):
+def db_manager(
+    mock_scheduler: MockScheduler,
+    learners_and_fnames: tuple[list[Learner1D], list[str]],
+):
     url = get_allowed_url()
     db_fname = "test_db.json"
     learners, fnames = learners_and_fnames
@@ -68,7 +79,7 @@ def db_manager(mock_scheduler, learners_and_fnames):
 
 
 @pytest.fixture
-def learners_and_fnames():
+def learners_and_fnames() -> tuple[list[Learner1D], list[str]]:
     def func(x):
         return x**2
 
@@ -80,9 +91,17 @@ def learners_and_fnames():
 
 
 @pytest.fixture(scope="function")
-def socket(db_manager):
+def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     ctx = zmq.asyncio.Context.instance()
     socket = ctx.socket(zmq.REQ)
     socket.connect(db_manager.url)
     yield socket
     socket.close()
+
+
+@pytest.fixture
+def job_manager(
+    db_manager: DatabaseManager, mock_scheduler: MockScheduler
+) -> JobManager:
+    job_names = ["job1", "job2"]
+    return JobManager(job_names, db_manager, mock_scheduler, interval=0.05)
