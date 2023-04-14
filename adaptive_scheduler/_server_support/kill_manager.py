@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import os
-from typing import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
-from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
     _remove_or_move_files,
 )
 
 from .base_manager import BaseManager
 from .common import log
-from .database_manager import DatabaseManager
+
+if TYPE_CHECKING:
+    from adaptive_scheduler.scheduler import BaseScheduler
+
+    from .database_manager import DatabaseManager
 
 
 def logs_with_string_or_condition(
@@ -42,19 +45,20 @@ def logs_with_string_or_condition(
     elif callable(error):
         has_error = error
     else:
-        raise ValueError("`error` can only be a `str` or `callable`.")
+        msg = "`error` can only be a `str` or `callable`."
+        raise TypeError(msg)
 
-    def file_has_error(fname):
-        if not os.path.exists(fname):
+    def file_has_error(fname: Path) -> bool:
+        if not fname.exists():
             return False
-        with open(fname, encoding="utf-8") as f:
+        with fname.open(encoding="utf-8") as f:
             lines = f.readlines()
         return has_error(lines)
 
     have_error = []
     for entry in database_manager.as_dicts():
         fnames = entry["output_logs"]
-        if entry["job_id"] is not None and any(file_has_error(f) for f in fnames):
+        if entry["job_id"] is not None and any(file_has_error(Path(f)) for f in fnames):
             all_fnames = [*fnames, entry["log_fname"]]
             have_error.append((entry["job_name"], all_fnames))
     return have_error
@@ -91,6 +95,7 @@ class KillManager(BaseManager):
         self,
         scheduler: BaseScheduler,
         database_manager: DatabaseManager,
+        *,
         error: str | Callable[[list[str]], bool] = "srun: error:",
         interval: int = 600,
         max_cancel_tries: int = 5,
@@ -138,6 +143,6 @@ class KillManager(BaseManager):
             except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.exception("got exception in kill manager", exception=str(e))
                 await asyncio.sleep(self.interval)
