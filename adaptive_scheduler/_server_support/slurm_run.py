@@ -112,7 +112,6 @@ def slurm_run(
     -------
     RunManager
     """
-    print("locals ", locals())
     if partition is None:
         partitions = slurm_partitions()
         partition, ncores = next(iter(partitions.items()))
