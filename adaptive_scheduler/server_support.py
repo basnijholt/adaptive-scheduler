@@ -545,7 +545,7 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
-def _is_dask_mpi_installed():
+def _is_dask_mpi_installed():  # pragma: no cover
     return find_spec("dask_mpi") is not None
 
 
