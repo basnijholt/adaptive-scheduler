@@ -20,15 +20,13 @@ class MockScheduler(BaseScheduler):
 
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
-        self._queue_info = {
-            "1": {"job_name": "MOCK_JOB-1", "state": "R"},
-            "2": {"job_name": "MOCK_JOB-2", "state": "Q"},
-        }
+        self._queue_info = {}
         self._started_jobs = []
         self._job_id = 0
 
     def queue(self, me_only: bool = True) -> dict[str, dict]:
         # Return a fake queue for demonstration purposes
+        print("Mock queue:", self._queue_info)
         return self._queue_info
 
     def job_script(self) -> str:
@@ -65,8 +63,8 @@ class MockScheduler(BaseScheduler):
 
 
 @pytest.fixture
-def mock_scheduler() -> MockScheduler:
-    return MockScheduler(cores=8)
+def mock_scheduler(tmpdir) -> MockScheduler:
+    return MockScheduler(log_folder=str(tmpdir), cores=8)
 
 
 @pytest.fixture
@@ -74,9 +72,10 @@ def db_manager(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
     fnames: list[str],
+    tmp_path,
 ):
     url = get_allowed_url()
-    db_fname = "test_db.json"
+    db_fname = str(tmp_path / "test_db.json")
     return DatabaseManager(url, mock_scheduler, db_fname, learners, fnames)
 
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import asyncio
-import concurrent.futures
 import datetime
 import glob
 import json
@@ -523,11 +522,12 @@ class KillManager(_BaseManager):
                 self.cancelled.extend(to_cancel)
                 self.deleted.extend(to_delete)
                 await asyncio.sleep(self.interval)
-            except concurrent.futures.CancelledError:
+            except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except Exception as e:
                 log.exception("got exception in kill manager", exception=str(e))
+                await asyncio.sleep(self.interval)
 
 
 def get_allowed_url() -> str:
