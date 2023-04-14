@@ -11,7 +11,6 @@ import jinja2
 from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
-
 def _is_dask_mpi_installed() -> bool:  # pragma: no cover
     return find_spec("dask_mpi") is not None
 
