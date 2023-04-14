@@ -13,6 +13,7 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Literal
 
@@ -544,6 +545,10 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
+def _is_dask_mpi_installed():
+    return find_spec("dask_mpi") is not None
+
+
 def _make_default_run_script(
     url: str,
     save_interval: int,
@@ -568,11 +573,9 @@ def _make_default_run_script(
         )
 
     if executor_type == "dask-mpi":
-        try:
-            import dask_mpi  # noqa: F401
-        except ModuleNotFoundError as e:
+        if not _is_dask_mpi_installed():
             msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
-            raise Exception(msg) from e
+            raise Exception(msg)
 
     with open(Path(__file__).parent / "run_script.py.j2", encoding="utf-8") as f:
         empty = "".join(f.readlines())
