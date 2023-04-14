@@ -345,9 +345,9 @@ def maybe_round(x: Any, sig_figs: int) -> Any:
 
     if try_is_nan_inf(x):
         return x
-    elif isinstance(x, (float, float)):
+    elif isinstance(x, float):
         return rnd(x)
-    elif isinstance(x, (complex, complex)):
+    elif isinstance(x, complex):
         return complex(rnd(x.real), rnd(x.imag))
     else:
         return x
