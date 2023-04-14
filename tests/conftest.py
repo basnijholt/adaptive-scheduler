@@ -2,6 +2,7 @@
 
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import pytest
 import zmq.asyncio
@@ -23,13 +24,17 @@ class MockScheduler(BaseScheduler):
     _options_flag = "#MOCK"
     _cancel_cmd = "echo"
 
-    def __init__(self, **kw) -> None:
+    def __init__(self, **kw: Any) -> None:
+        """Initialize the mock scheduler."""
         super().__init__(**kw)
         self._queue_info = {}
         self._started_jobs = []
         self._job_id = 0
 
-    def queue(self, me_only: bool = True) -> dict[str, dict]:
+    def queue(
+        self,
+        me_only: bool = True,  # noqa: FBT001, FBT002, ARG002
+    ) -> dict[str, dict]:
         """Return a fake queue for demonstration purposes."""
         print("Mock queue:", self._queue_info)
         return self._queue_info
@@ -61,8 +66,8 @@ class MockScheduler(BaseScheduler):
     def cancel(
         self,
         job_names: list[str],
-        with_progress_bar: bool = True,  # noqa: FBT001
-        max_tries: int = 5,
+        with_progress_bar: bool = True,  # noqa: FBT001, ARG002, FBT002
+        max_tries: int = 5,  # noqa: ARG002
     ) -> None:
         """Cancel mock jobs."""
         print("Canceling mock jobs:", job_names)
@@ -86,7 +91,7 @@ def db_manager(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
     fnames: list[str],
-    tmp_path,
+    tmp_path: Path,
 ) -> DatabaseManager:
     """Fixture for creating a DatabaseManager instance."""
     url = get_allowed_url()
@@ -104,15 +109,13 @@ def learners() -> list[Learner1D]:
     """Fixture for creating a list of Learner1D instances."""
     learner1 = Learner1D(func, bounds=(-1, 1))
     learner2 = Learner1D(func, bounds=(-1, 1))
-    learners = [learner1, learner2]
-    return learners
+    return [learner1, learner2]
 
 
 @pytest.fixture()
 def fnames(learners: list[Learner1D], tmp_path: Path) -> list[str]:
     """Fixture for creating a list of filenames for learners."""
-    fnames = [str(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
-    return fnames
+    return [str(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
 
 
 @pytest.fixture()
