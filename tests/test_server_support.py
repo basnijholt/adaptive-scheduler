@@ -24,6 +24,18 @@ def db_manager(mock_scheduler, learners_and_fnames):
     return DatabaseManager(url, mock_scheduler, db_fname, learners, fnames)
 
 
+@pytest.fixture
+def learners_and_fnames():
+    def func(x):
+        return x**2
+
+    learner1 = Learner1D(func, bounds=(-1, 1))
+    learner2 = Learner1D(func, bounds=(-1, 1))
+    learners = [learner1, learner2]
+    fnames = ["learner1.pkl", "learner2.pkl"]
+    return learners, fnames
+
+
 @pytest.mark.asyncio
 async def test_database_manager_start_and_cancel(db_manager):
     db_manager.start()
@@ -33,6 +45,15 @@ async def test_database_manager_start_and_cancel(db_manager):
     assert result is not None
     with pytest.raises(asyncio.InvalidStateError):
         assert db_manager.task.result()
+
+
+@pytest.fixture(scope="function")
+def socket(db_manager):
+    ctx = zmq.asyncio.Context.instance()
+    socket = ctx.socket(zmq.REQ)
+    socket.connect(db_manager.url)
+    yield socket
+    socket.close()
 
 
 def test_database_manager_n_done(db_manager):
@@ -47,18 +68,6 @@ def test_smart_goal(learners_and_fnames):
     assert not goal(learners[1])
     goal = smart_goal(0, learners)
     assert goal(learners[0])
-
-
-@pytest.fixture
-def learners_and_fnames():
-    def func(x):
-        return x**2
-
-    learner1 = Learner1D(func, bounds=(-1, 1))
-    learner2 = Learner1D(func, bounds=(-1, 1))
-    learners = [learner1, learner2]
-    fnames = ["learner1.pkl", "learner2.pkl"]
-    return learners, fnames
 
 
 def test_database_manager_create_empty_db(db_manager):
@@ -114,15 +123,6 @@ async def send_message(socket, message):
     await socket.send_serialized(message, _serialize)
     response = await socket.recv_serialized(_deserialize)
     return response
-
-
-@pytest.fixture(scope="function")
-def socket(db_manager):
-    ctx = zmq.asyncio.Context.instance()
-    socket = ctx.socket(zmq.REQ)
-    socket.connect(db_manager.url)
-    yield socket
-    socket.close()
 
 
 @pytest.mark.asyncio
