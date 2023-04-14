@@ -1,3 +1,4 @@
+"""Test log generation functions."""
 import asyncio
 import json
 import logging
@@ -9,7 +10,8 @@ from adaptive_scheduler import client_support
 
 
 @pytest.mark.asyncio()
-async def test_get_log_entry(learners):
+async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
+    """Test `client_support._get_log_entry`."""
     # Prepare the runner and the learner
     learner = learners[0]
     runner = adaptive.Runner(
@@ -17,7 +19,8 @@ async def test_get_log_entry(learners):
         npoints_goal=1000,
         executor=adaptive.runner.SequentialExecutor(),
     )
-    while learner.npoints < 100:
+    min_points = 100
+    while learner.npoints < min_points:
         learner.loss()  # populate cache
         await asyncio.sleep(0.05)
     result = client_support._get_log_entry(runner, 0)
@@ -35,7 +38,11 @@ async def test_get_log_entry(learners):
 
 
 @pytest.mark.asyncio()
-async def test_log_info(learners, caplog):
+async def test_log_info(
+    learners: list[adaptive.Learner1D],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test `client_support.log_info`."""
     # Prepare the runner and the learner
     learner = learners[0]
     runner = adaptive.Runner(learner, npoints_goal=1000)

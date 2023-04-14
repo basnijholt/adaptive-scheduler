@@ -73,7 +73,7 @@ async def test_job_manager_manage_start_max_simultaneous_jobs(
 @pytest.mark.asyncio()
 async def test_job_manager_manage_cancelled_error(
     job_manager: JobManager,
-    caplog: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test the JobManager when a CancelledError occurs."""
     caplog.set_level(logging.INFO)
@@ -110,7 +110,7 @@ async def test_job_manager_manage_n_done_equal_job_names(
 @pytest.mark.asyncio()
 async def test_job_manager_manage_generic_exception(
     job_manager: JobManager,
-    caplog: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test the JobManager when a generic exception occurs."""
 
