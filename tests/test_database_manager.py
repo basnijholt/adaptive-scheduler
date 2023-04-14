@@ -3,37 +3,10 @@ import os
 
 import pytest
 import zmq.asyncio
-from adaptive import Learner1D
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler._mock_scheduler import MockScheduler
-from adaptive_scheduler.server_support import DatabaseManager, get_allowed_url
+from adaptive_scheduler.server_support import DatabaseManager, JobManager
 from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
-
-
-@pytest.fixture
-def mock_scheduler():
-    return MockScheduler(url=get_allowed_url())
-
-
-@pytest.fixture
-def db_manager(mock_scheduler, learners_and_fnames):
-    url = get_allowed_url()
-    db_fname = "test_db.json"
-    learners, fnames = learners_and_fnames
-    return DatabaseManager(url, mock_scheduler, db_fname, learners, fnames)
-
-
-@pytest.fixture
-def learners_and_fnames():
-    def func(x):
-        return x**2
-
-    learner1 = Learner1D(func, bounds=(-1, 1))
-    learner2 = Learner1D(func, bounds=(-1, 1))
-    learners = [learner1, learner2]
-    fnames = ["learner1.pkl", "learner2.pkl"]
-    return learners, fnames
 
 
 @pytest.mark.asyncio
@@ -54,6 +27,12 @@ def socket(db_manager):
     socket.connect(db_manager.url)
     yield socket
     socket.close()
+
+
+@pytest.fixture
+def job_manager(db_manager, mock_scheduler):
+    job_names = ["job1", "job2"]
+    return JobManager(job_names, db_manager, mock_scheduler)
 
 
 def test_database_manager_n_done(db_manager):
