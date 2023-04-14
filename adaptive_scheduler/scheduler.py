@@ -18,7 +18,6 @@ from typing import Literal
 
 from rich.console import Console
 
-import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 console = Console()
@@ -82,15 +81,17 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def __init__(
         self,
         cores,
-        run_script,
-        python_executable,
-        log_folder,
-        mpiexec_executable,
-        executor_type: Literal["ipyparallel", "dask-mpi", "mpi4py", "process-pool"],
-        num_threads,
-        extra_scheduler,
-        extra_env_vars,
-        extra_script,
+        run_script="run_learner.py",
+        python_executable=None,
+        log_folder="",
+        mpiexec_executable=None,
+        executor_type: Literal[
+            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+        ] = "mpi4py",
+        num_threads=1,
+        extra_scheduler=None,
+        extra_env_vars=None,
+        extra_script=None,
     ):
         self.cores = cores
         self.run_script = run_script
@@ -809,6 +810,8 @@ class LocalMockScheduler(BaseScheduler):
         *,
         mock_scheduler_kwargs=None,
     ):
+        import adaptive_scheduler._mock_scheduler
+
         warnings.warn("The LocalMockScheduler currently doesn't work!")
         super().__init__(
             cores,

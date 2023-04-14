@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import asyncio
-import concurrent.futures
 import datetime
 import glob
 import json
@@ -14,6 +13,7 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Literal
 
@@ -87,7 +87,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         """Is run in the beginning of `self.start`."""
 
     @abc.abstractmethod
-    async def _manage(self) -> None:
+    async def _manage(self) -> None:  # pragma: no cover
         pass
 
 
@@ -351,7 +351,7 @@ class JobManager(_BaseManager):
         """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
         return self.max_fails_per_job * len(self.job_names)
 
-    def _queued(self, queue) -> set[str]:
+    def _queued(self, queue: dict[str, dict[str, Any]]) -> set[str]:
         return {
             job["job_name"]
             for job in queue.values()
@@ -359,55 +359,52 @@ class JobManager(_BaseManager):
         }
 
     async def _manage(self) -> None:
-        with concurrent.futures.ProcessPoolExecutor() as ex:
-            while True:
-                try:
-                    running = self.scheduler.queue(me_only=True)
-                    self.database_manager.update(running)  # in case some jobs died
+        while True:
+            try:
+                running = self.scheduler.queue(me_only=True)
+                self.database_manager.update(running)  # in case some jobs died
 
-                    queued = self._queued(running)  # running `job_name`s
-                    not_queued = set(self.job_names) - queued
+                queued = self._queued(running)  # running `job_name`s
+                not_queued = set(self.job_names) - queued
 
-                    n_done = self.database_manager.n_done()
-                    if n_done == len(self.job_names):
-                        # we are finished!
-                        self.database_manager.task.cancel()
-                        return
+                n_done = self.database_manager.n_done()
+
+                if n_done == len(self.job_names):
+                    # we are finished!
+                    self.database_manager.task.cancel()
+                    return
+                else:
+                    n_to_schedule = max(0, len(not_queued) - n_done)
+                    not_queued = set(list(not_queued)[:n_to_schedule])
+                while not_queued:
+                    # start new jobs
+                    if len(queued) < self.max_simultaneous_jobs:
+                        job_name = not_queued.pop()
+                        queued.add(job_name)
+                        await asyncio.to_thread(self.scheduler.start_job, job_name)
+                        self.n_started += 1
                     else:
-                        n_to_schedule = max(0, len(not_queued) - n_done)
-                        not_queued = set(list(not_queued)[:n_to_schedule])
-
-                    while not_queued:
-                        # start new jobs
-                        if len(queued) <= self.max_simultaneous_jobs:
-                            job_name = not_queued.pop()
-                            queued.add(job_name)
-                            await self.ioloop.run_in_executor(
-                                ex, self.scheduler.start_job, job_name
-                            )
-                            self.n_started += 1
-                        else:
-                            break
-                    if self.n_started > self.max_job_starts:
-                        raise MaxRestartsReached(
-                            "Too many jobs failed, your Python code probably has a bug."
-                        )
-                    await asyncio.sleep(self.interval)
-                except concurrent.futures.CancelledError:
-                    log.info("task was cancelled because of a CancelledError")
-                    raise
-                except MaxRestartsReached as e:
-                    log.exception(
-                        "too many jobs have failed, cancelling the job manager",
-                        n_started=self.n_started,
-                        max_fails_per_job=self.max_fails_per_job,
-                        max_job_starts=self.max_job_starts,
-                        exception=str(e),
+                        break
+                if self.n_started > self.max_job_starts:
+                    raise MaxRestartsReached(
+                        "Too many jobs failed, your Python code probably has a bug."
                     )
-                    raise
-                except Exception as e:
-                    log.exception("got exception when starting a job", exception=str(e))
-                    await asyncio.sleep(5)
+                await asyncio.sleep(self.interval)
+            except asyncio.CancelledError:
+                log.info("task was cancelled because of a CancelledError")
+                raise
+            except MaxRestartsReached as e:
+                log.exception(
+                    "too many jobs have failed, cancelling the job manager",
+                    n_started=self.n_started,
+                    max_fails_per_job=self.max_fails_per_job,
+                    max_job_starts=self.max_job_starts,
+                    exception=str(e),
+                )
+                raise
+            except Exception as e:
+                log.exception("got exception when starting a job", exception=str(e))
+                await asyncio.sleep(5)
 
 
 def logs_with_string_or_condition(
@@ -507,7 +504,6 @@ class KillManager(_BaseManager):
         while True:
             try:
                 self.database_manager.update()
-
                 failed_jobs = logs_with_string_or_condition(
                     self.error, self.database_manager
                 )
@@ -527,11 +523,12 @@ class KillManager(_BaseManager):
                 self.cancelled.extend(to_cancel)
                 self.deleted.extend(to_delete)
                 await asyncio.sleep(self.interval)
-            except concurrent.futures.CancelledError:
+            except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except Exception as e:
                 log.exception("got exception in kill manager", exception=str(e))
+                await asyncio.sleep(self.interval)
 
 
 def get_allowed_url() -> str:
@@ -546,6 +543,10 @@ def get_allowed_url() -> str:
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
     return f"tcp://{ip}:{port}"
+
+
+def _is_dask_mpi_installed():  # pragma: no cover
+    return find_spec("dask_mpi") is not None
 
 
 def _make_default_run_script(
@@ -572,11 +573,9 @@ def _make_default_run_script(
         )
 
     if executor_type == "dask-mpi":
-        try:
-            import dask_mpi  # noqa: F401
-        except ModuleNotFoundError as e:
+        if not _is_dask_mpi_installed():
             msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
-            raise Exception(msg) from e
+            raise Exception(msg)
 
     with open(Path(__file__).parent / "run_script.py.j2", encoding="utf-8") as f:
         empty = "".join(f.readlines())
