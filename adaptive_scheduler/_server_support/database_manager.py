@@ -1,16 +1,15 @@
+"""The DatabaseManager."""
 from __future__ import annotations
 
-import os
 import pickle
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-import adaptive
 import zmq
 import zmq.asyncio
 import zmq.ssh
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
     _deserialize,
     _serialize,
@@ -21,7 +20,17 @@ from adaptive_scheduler.utils import (
 from .base_manager import _BaseManager
 from .common import log
 
+if TYPE_CHECKING:
+    import adaptive
+
+    from adaptive_scheduler.scheduler import BaseScheduler
+
 ctx = zmq.asyncio.Context()
+
+
+class JobIDExistsInDbError(Exception):
+    """Raised when a job id already exists in the database."""
+
 
 class DatabaseManager(_BaseManager):
     """Database manager.
@@ -49,19 +58,20 @@ class DatabaseManager(_BaseManager):
         A list of entries that have failed and have been removed from the database.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         url: str,
         scheduler: BaseScheduler,
-        db_fname: str,
+        db_fname: str | Path,
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[list[str]],
+        *,
         overwrite_db: bool = True,
     ) -> None:
         super().__init__()
         self.url = url
         self.scheduler = scheduler
-        self.db_fname = db_fname
+        self.db_fname = Path(db_fname)
         self.learners = learners
         self.fnames = fnames
         self.overwrite_db = overwrite_db
@@ -79,7 +89,7 @@ class DatabaseManager(_BaseManager):
         self.failed: list[dict[str, Any]] = []
 
     def _setup(self) -> None:
-        if os.path.exists(self.db_fname) and not self.overwrite_db:
+        if self.db_fname.exists() and not self.overwrite_db:
             return
         self.create_empty_db()
         cloudpickle_learners(self.learners, self.fnames, with_progress_bar=True)
@@ -100,17 +110,18 @@ class DatabaseManager(_BaseManager):
             db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
     def n_done(self) -> int:
-        Entry = Query()
+        entry = Query()
         with TinyDB(self.db_fname) as db:
-            return db.count(Entry.is_done == True)  # noqa: E712
+            return db.count(entry.is_done == True)  # noqa: E712
 
     def create_empty_db(self) -> None:
-        """Create an empty database that keeps track of
-        ``fname -> (job_id, is_done, log_fname, job_name)``.
+        """Create an empty database.
+
+        It keeps track of ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
         entries = [dict(fname=fname, **self.defaults) for fname in self.fnames]
-        if os.path.exists(self.db_fname):
-            os.remove(self.db_fname)
+        if self.db_fname.exists():
+            self.db_fname.unlink()
         with TinyDB(self.db_fname) as db:
             db.insert_multiple(entries)
 
@@ -118,7 +129,7 @@ class DatabaseManager(_BaseManager):
         with TinyDB(self.db_fname) as db:
             return db.all()
 
-    def _output_logs(self, job_id: str, job_name: str):
+    def _output_logs(self, job_id: str, job_name: str) -> list[str]:
         job_id = self.scheduler.sanatize_job_id(job_id)
         output_fnames = self.scheduler.output_fnames(job_name)
         return [
@@ -126,19 +137,20 @@ class DatabaseManager(_BaseManager):
         ]
 
     def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str | None:
-        Entry = Query()
+        entry = Query()
         with TinyDB(self.db_fname) as db:
-            if db.contains(Entry.job_id == job_id):
-                entry = db.get(Entry.job_id == job_id)
+            if db.contains(entry.job_id == job_id):
+                entry = db.get(entry.job_id == job_id)
                 fname = entry["fname"]  # already running
-                raise Exception(
+                msg = (
                     f"The job_id {job_id} already exists in the database and "
                     f"runs {fname}. You might have forgotten to use the "
                     "`if __name__ == '__main__': ...` idom in your code. Read the "
                     "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation.",
                 )
+                raise JobIDExistsInDbError(msg)
             entry = db.get(
-                (Entry.job_id == None) & (Entry.is_done == False),  # noqa: E711,E712
+                (entry.job_id == None) & (entry.is_done == False),  # noqa: E711,E712
             )
             log.debug("choose fname", entry=entry)
             if entry is None:
@@ -156,13 +168,13 @@ class DatabaseManager(_BaseManager):
 
     def _stop_request(self, fname: str | list[str]) -> None:
         fname = maybe_lst(fname)  # if a BalancingLearner
-        Entry = Query()
+        entry = Query()
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             assert (
-                db.get(Entry.fname == fname) is not None
+                db.get(entry.fname == fname) is not None
             )  # make sure the entry exists
-            db.update(reset, Entry.fname == fname)
+            db.update(reset, entry.fname == fname)
 
     def _stop_requests(self, fnames: list[str | list[str]]) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
@@ -187,15 +199,16 @@ class DatabaseManager(_BaseManager):
                 # give the worker a job and send back the fname to the worker
                 fname = self._start_request(**kwargs)
                 if fname is None:
-                    raise RuntimeError("No more learners to run in the database.")
+                    msg = "No more learners to run in the database."
+                    raise RuntimeError(msg)  # noqa: TRY301
                 log.debug("choose a fname", fname=fname, **kwargs)
                 return fname
-            elif request_type == "stop":
+            if request_type == "stop":
                 fname = request_arg[0]  # workers send us the fname they were given
                 log.debug("got a stop request", fname=fname)
                 self._stop_request(fname)  # reset the job_id to None
                 return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return e
 
     async def _manage(self) -> None:
