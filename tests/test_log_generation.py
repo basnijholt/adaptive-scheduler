@@ -58,7 +58,9 @@ async def test_log_info(learners, caplog):
     assert len(caplog.records) > 0
     current_status_entries = 0
     for record in caplog.records:
-        log_entry = json.loads(record.getMessage())
+        msg = record.getMessage()
+        print(msg)
+        log_entry = json.loads(msg)
         if "current status" in log_entry["event"]:
             current_status_entries += 1
             expected_keys = [
