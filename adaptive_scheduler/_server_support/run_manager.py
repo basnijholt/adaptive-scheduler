@@ -4,6 +4,7 @@ import asyncio
 import shutil
 import time
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 import pandas as pd
@@ -36,6 +37,15 @@ if TYPE_CHECKING:
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
+
+
+def _maybe_path(fname: str | Path | None) -> Path | None:  # pragma: no cover
+    """Convert a string to a Path or return None."""
+    if fname is None:
+        return None
+    if isinstance(fname, str):
+        return Path(fname)
+    return fname
 
 
 class RunManager(BaseManager):
@@ -166,8 +176,8 @@ class RunManager(BaseManager):
         job_manager_interval: int = 60,
         kill_interval: int = 60,
         kill_on_error: str | Callable[[list[str]], bool] | None = "srun: error:",
-        move_old_logs_to: str | None = "old_logs",
-        db_fname: str | None = None,
+        move_old_logs_to: str | Path | None = "old_logs",
+        db_fname: str | Path | None = None,
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
@@ -207,8 +217,8 @@ class RunManager(BaseManager):
         self.job_manager_interval = job_manager_interval
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
-        self.move_old_logs_to = move_old_logs_to
-        self.db_fname = db_fname or f"{job_name}-database.json"
+        self.move_old_logs_to = _maybe_path(move_old_logs_to)
+        self.db_fname = _maybe_path(db_fname or f"{job_name}-database.json")
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
@@ -287,16 +297,16 @@ class RunManager(BaseManager):
 
     def _setup(self) -> None:
         _make_default_run_script(
-            self.url,
-            self.save_interval,
-            self.log_interval,
-            self.goal,
-            self.runner_kwargs,
-            self.scheduler.run_script,
-            self.scheduler.executor_type,
-            self.loky_start_method,
-            self.save_dataframe,
-            self.dataframe_format,
+            url=self.url,
+            save_interval=self.save_interval,
+            log_interval=self.log_interval,
+            goal=self.goal,
+            runner_kwargs=self.runner_kwargs,
+            run_script_fname=self.scheduler.run_script,
+            executor_type=self.scheduler.executor_type,
+            loky_start_method=self.loky_start_method,
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
         )
         self.database_manager.start()
         if self.check_goal_on_start:
@@ -495,7 +505,7 @@ def start_one_by_one(
     *run_managers: RunManager,
     goal: Callable[[RunManager], bool] = None,
     interval: int = 120,
-) -> tuple[asyncio.Task, list[asyncio.Task]]:
+) -> tuple[asyncio.Future, list[asyncio.Future]]:
     """Start a list of RunManagers after each other.
 
     Parameters
@@ -513,7 +523,7 @@ def start_one_by_one(
 
     Returns
     -------
-    tuple[asyncio.Task, list[asyncio.Task]]
+    tuple[asyncio.Future, list[asyncio.Future]]
         The first element is the grouped task that starts all RunManagers.
         The second element is a list of tasks that start each RunManager.
 

@@ -1,9 +1,22 @@
 """Tests for conftest module."""
-
+import os
 import textwrap
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 from adaptive_scheduler.scheduler import BaseScheduler
+
+
+@contextmanager
+def temporary_working_directory(path: Path) -> None:
+    """Context manager for temporarily changing the working directory."""
+    original_cwd = os.getcwd()  # noqa: PTH109
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(original_cwd)
 
 
 class MockScheduler(BaseScheduler):
@@ -63,7 +76,8 @@ class MockScheduler(BaseScheduler):
         print("Canceling mock jobs:", job_names)
         for job_name in job_names:
             self._queue_info.pop(job_name, None)
-            self._started_jobs.remove(job_name)
+            if job_name in self._started_jobs:
+                self._started_jobs.remove(job_name)
 
     def update_queue(self, job_name: str, status: str) -> None:
         """Update the queue with the given job_name and status."""

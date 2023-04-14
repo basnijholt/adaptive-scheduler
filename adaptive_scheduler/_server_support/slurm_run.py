@@ -66,8 +66,9 @@ def slurm_run(
         A list of filenames to save the learners.
     partition : str
         The partition to use. If None, then the default partition will be used.
-        (The one marked with a * in `sinfo`). Use `adaptive_scheduler.utils.slurm_partitions`
-        to see the available partitions.
+        (The one marked with a * in `sinfo`). Use
+        `adaptive_scheduler.scheduler.slurm_partitions` to see the
+        available partitions.
     nodes : int, default: 1
         The number of nodes to use.
     cores_per_node : int, default: None
@@ -116,8 +117,8 @@ def slurm_run(
         partition, ncores = next(iter(partitions.items()))
         console.log(
             f"Using default partition {partition} (The one marked"
-            " with a '*' in `sinfo`) with {ncores} cores."
-            " Use `adaptive_scheduler.utils.slurm_partitions`"
+            f" with a '*' in `sinfo`) with {ncores} cores."
+            " Use `adaptive_scheduler.scheduler.slurm_partitions`"
             " to see the available partitions.",
         )
     if executor_type == "process-pool" and nodes > 1:
