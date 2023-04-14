@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
-
-from adaptive_scheduler.scheduler import BaseScheduler
+from typing import TYPE_CHECKING, Any
 
 from .base_manager import BaseManager
 from .common import MaxRestartsReached, log
-from .database_manager import DatabaseManager
+
+if TYPE_CHECKING:
+    from adaptive_scheduler.scheduler import BaseScheduler
+
+    from .database_manager import DatabaseManager
 
 
 class JobManager(BaseManager):
@@ -89,9 +91,9 @@ class JobManager(BaseManager):
                     # we are finished!
                     self.database_manager.task.cancel()
                     return
-                else:
-                    n_to_schedule = max(0, len(not_queued) - n_done)
-                    not_queued = set(list(not_queued)[:n_to_schedule])
+
+                n_to_schedule = max(0, len(not_queued) - n_done)
+                not_queued = set(list(not_queued)[:n_to_schedule])
                 while not_queued:
                     # start new jobs
                     if len(queued) < self.max_simultaneous_jobs:
@@ -102,9 +104,8 @@ class JobManager(BaseManager):
                     else:
                         break
                 if self.n_started > self.max_job_starts:
-                    raise MaxRestartsReached(
-                        "Too many jobs failed, your Python code probably has a bug.",
-                    )
+                    msg = "Too many jobs failed, your Python code probably has a bug."
+                    raise MaxRestartsReached(msg)  # noqa: TRY301
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
@@ -118,6 +119,6 @@ class JobManager(BaseManager):
                     exception=str(e),
                 )
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.exception("got exception when starting a job", exception=str(e))
                 await asyncio.sleep(5)
