@@ -215,5 +215,58 @@ async def test_database_manager_start_stop(socket, db_manager: DatabaseManager):
         entry = db.get(Entry.fname == "learner1.pkl")
         assert entry["job_id"] is None
 
-    msg = await send_message(socket, start_message)
-    assert msg == "learner2.pkl"
+    # Start and stop the learner2
+    fname = await send_message(socket, start_message)
+    assert fname == "learner2.pkl"
+
+    # Send a stop message to the DatabaseManager
+    stop_message = ("stop", fname)
+    reply = await send_message(socket, stop_message)
+    assert reply is None
+
+    exception = await send_message(socket, start_message)
+    with pytest.raises(Exception, match="No more learners to run in the database"):
+        raise exception
+
+
+@pytest.mark.asyncio
+async def test_database_manager_stop_request_and_requests(
+    socket, db_manager: DatabaseManager
+):
+    db_manager.create_empty_db()
+    # Start the DatabaseManager
+    db_manager.start()
+    await asyncio.sleep(0.1)  # Give it some time to start
+    assert db_manager.task is not None
+
+    # Start a job for learner1
+    job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
+    start_message1 = ("start", job_id1, log_fname1, job_name1)
+    fname1 = await send_message(socket, start_message1)
+    assert fname1 == "learner1.pkl", fname1
+
+    # Start a job for learner2
+    job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
+    start_message2 = ("start", job_id2, log_fname2, job_name2)
+    fname2 = await send_message(socket, start_message2)
+    assert fname2 == "learner2.pkl", fname2
+
+    # Stop the job for learner1 using _stop_request
+    db_manager._stop_request(fname1)
+
+    with TinyDB(db_manager.db_fname) as db:
+        Entry = Query()
+        entry = db.get(Entry.fname == fname1)
+        assert entry["job_id"] is None
+        assert entry["is_done"] is True
+        assert entry["job_name"] is None
+
+    # Stop the job for learner2 using _stop_requests
+    db_manager._stop_requests([fname2])
+
+    with TinyDB(db_manager.db_fname) as db:
+        Entry = Query()
+        entry = db.get(Entry.fname == fname2)
+        assert entry["job_id"] is None
+        assert entry["is_done"] is True
+        assert entry["job_name"] is None
