@@ -182,6 +182,13 @@ async def test_database_manager_start_stop(socket, db_manager: DatabaseManager):
     job_id, log_fname, job_name = "1000", "log.log", "job_name"
     start_message = ("start", job_id, log_fname, job_name)
     fname = await send_message(socket, start_message)
+    # Try starting again:
+    exception = await send_message(socket, start_message)
+    with pytest.raises(
+        Exception,
+        match="The job_id 1000 already exists in the database and runs learner1.pkl.",
+    ):
+        raise exception
 
     # Check if the correct fname is returned
     assert fname == "learner1.pkl", fname
