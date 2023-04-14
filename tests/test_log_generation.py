@@ -29,14 +29,6 @@ async def test_get_log_entry(learners):
         "cpu_usage",
         "mem_usage",
     ]
-    {
-        "elapsed_time": "0:00:00.446113",
-        "overhead": 0,
-        "npoints": 0,
-        "cpu_usage": 36.7,
-        "mem_usage": 57.7,
-    }
-    print(result)
     assert all([key in result for key in expected_keys])
 
 
@@ -59,7 +51,6 @@ async def test_log_info(learners, caplog):
     current_status_entries = 0
     for record in caplog.records:
         msg = record.getMessage()
-        print(msg)
         log_entry = json.loads(msg)
         if "current status" in log_entry["event"]:
             current_status_entries += 1
@@ -71,7 +62,6 @@ async def test_log_info(learners, caplog):
                 "cpu_usage",
                 "mem_usage",
             ]
-            print(log_entry)
             assert all([key in log_entry for key in expected_keys])
 
     # Check if there were any "current status" log entries
