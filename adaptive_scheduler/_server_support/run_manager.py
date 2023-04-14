@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
 
 
-def _maybe_path(fname: str | Path | None) -> Path | None:
+def _maybe_path(fname: str | Path | None) -> Path | None:  # pragma: no cover
     """Convert a string to a Path or return None."""
     if fname is None:
         return None
