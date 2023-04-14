@@ -70,9 +70,17 @@ async def test_job_manager_manage_cancelled_error(
     caplog.set_level(logging.INFO)
     job_manager.database_manager.start()
     job_manager.start()
-    job_manager.task.cancel()
+
+    # Set a timeout for the task using asyncio.wait_for
+    timeout = 0.1  # Adjust this value as needed
+    try:
+        await asyncio.wait_for(job_manager.task, timeout=timeout)
+    except asyncio.TimeoutError:
+        job_manager.task.cancel()
+
     with pytest.raises(asyncio.CancelledError):
         await job_manager.task
+
     assert "task was cancelled because of a CancelledError" in caplog.text
 
 
