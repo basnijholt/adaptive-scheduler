@@ -12,8 +12,6 @@ import zmq
 import zmq.asyncio
 from toolz.dicttoolz import dissoc
 
-from adaptive_scheduler.scheduler import BaseScheduler
-
 ctx = zmq.asyncio.Context()
 
 logger = logging.getLogger("adaptive_scheduler._mock_scheduler")
@@ -23,7 +21,7 @@ log = structlog.wrap_logger(logger)
 DEFAULT_URL = "tcp://127.0.0.1:60547"
 
 
-class MockScheduler(BaseScheduler):
+class MockScheduler:
     f"""Emulates a HPC-like scheduler.
 
     Start an instance of `MockScheduler` and then you are able to do
@@ -46,16 +44,6 @@ class MockScheduler(BaseScheduler):
     url : str, optional
         The URL of the socket. Defaults to {DEFAULT_URL}.
     """
-    # Attributes that all schedulers need to have
-    _ext = ".batch"
-    # the "-k oe" flags with "qsub" writes the log output to
-    # files directly instead of at the end of the job. The downside
-    # is that the logfiles are put in the homefolder.
-    _submit_cmd = "bash"
-    _JOB_ID_VARIABLE = "mock"
-    _options_flag = "mock"
-    _cancel_cmd = "mock"
-    log_folder = "logs"
 
     def __init__(
         self,
@@ -174,9 +162,6 @@ class MockScheduler(BaseScheduler):
                 log.debug("got unknown request")
         except Exception as e:
             return e
-
-    def job_script(self) -> str:
-        return ""
 
 
 def _external_command(command: tuple[str, ...], url: str):
