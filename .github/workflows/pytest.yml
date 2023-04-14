@@ -16,6 +16,10 @@ jobs:
         with:
           cache-env: true
 
+      - name: Install adaptive-scheduler
+        run: |
+          pip install -e ".[test]"
+
       # Linux and macOS
       - name: Run Python
         shell: bash -l {0}
