@@ -1,5 +1,4 @@
 import os
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -7,7 +6,7 @@ import pytest
 from adaptive_scheduler.server_support import _make_default_run_script
 
 
-@pytest.fixture
+@pytest.fixture()
 def remove_run_script() -> None:
     yield
     run_script_fname = "run_learner.py"
@@ -16,7 +15,7 @@ def remove_run_script() -> None:
 
 
 @pytest.mark.parametrize(
-    "executor_type, expected_string",
+    ("executor_type", "expected_string"),
     [
         ("mpi4py", "mpi4py"),
         ("ipyparallel", "ipyparallel"),
@@ -28,10 +27,14 @@ def test_make_default_run_script(executor_type, expected_string, remove_run_scri
     url = "http://localhost:1234"
     save_interval = 10
     log_interval = 5
-    goal: Callable = lambda learner: learner.npoints >= 10
+
+    def goal(learner):
+        return learner.npoints >= 10
+
     runner_kwargs = {"max_npoints": 100}
     with patch(
-        "adaptive_scheduler.server_support._is_dask_mpi_installed", return_value=True
+        "adaptive_scheduler.server_support._is_dask_mpi_installed",
+        return_value=True,
     ):
         _make_default_run_script(
             url,
@@ -46,18 +49,18 @@ def test_make_default_run_script(executor_type, expected_string, remove_run_scri
         with patch(
             "adaptive_scheduler.server_support._is_dask_mpi_installed",
             return_value=False,
+        ), pytest.raises(
+            Exception,
+            match="You need to have 'dask-mpi' installed",
         ):
-            with pytest.raises(
-                Exception, match="You need to have 'dask-mpi' installed"
-            ):
-                _make_default_run_script(
-                    url,
-                    save_interval,
-                    log_interval,
-                    goal=goal,
-                    runner_kwargs=runner_kwargs,
-                    executor_type=executor_type,
-                )
+            _make_default_run_script(
+                url,
+                save_interval,
+                log_interval,
+                goal=goal,
+                runner_kwargs=runner_kwargs,
+                executor_type=executor_type,
+            )
 
     run_script_fname = "run_learner.py"
     assert os.path.exists(run_script_fname)
@@ -73,7 +76,10 @@ def test_make_default_run_script_invalid_executor_type(remove_run_script):
     url = "http://localhost:1234"
     save_interval = 10
     log_interval = 5
-    goal: Callable = lambda learner: learner.npoints >= 10
+
+    def goal(learner):
+        return learner.npoints >= 10
+
     runner_kwargs = {"max_npoints": 100}
 
     with pytest.raises(NotImplementedError):

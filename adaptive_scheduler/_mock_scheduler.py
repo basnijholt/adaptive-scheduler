@@ -5,7 +5,7 @@ import datetime
 import logging
 import os
 import subprocess
-from typing import Coroutine
+from collections.abc import Coroutine
 
 import structlog
 import zmq
@@ -52,7 +52,7 @@ class MockScheduler:
         refresh_interval=0.1,
         bash="bash",
         url=None,
-    ):
+    ) -> None:
         self._current_queue = {}
         self._job_id = 0
         self.max_running_jobs = max_running_jobs
@@ -93,7 +93,9 @@ class MockScheduler:
             # job_id could be cancelled before it started
             cmd = f"{self.bash} {fname}"
             proc = subprocess.Popen(
-                cmd.split(), stdout=subprocess.PIPE, env=dict(os.environ, JOB_ID=job_id)
+                cmd.split(),
+                stdout=subprocess.PIPE,
+                env=dict(os.environ, JOB_ID=job_id),
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
@@ -125,7 +127,7 @@ class MockScheduler:
                 print(e)
 
     def _refresh(self):
-        for job_id, info in self._current_queue.items():
+        for _job_id, info in self._current_queue.items():
             if info["state"] == "R" and info["proc"].poll() is not None:
                 info["state"] = "F"
 

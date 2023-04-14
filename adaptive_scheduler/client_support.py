@@ -41,7 +41,10 @@ def _add_log_file_handler(log_fname):
 
 
 def get_learner(
-    url: str, log_fname: str, job_id: str, job_name: str
+    url: str,
+    log_fname: str,
+    job_id: str,
+    job_name: str,
 ) -> tuple[BaseLearner, str | list[str]]:
     """Get a learner from the database running at `url` and this learner's
     process will be logged in `log_fname` and running under `job_id`.
@@ -67,7 +70,10 @@ def get_learner(
     """
     _add_log_file_handler(log_fname)
     log.info(
-        "trying to get learner", job_id=job_id, log_fname=log_fname, job_name=job_name
+        "trying to get learner",
+        job_id=job_id,
+        log_fname=log_fname,
+        job_name=job_name,
     )
     with ctx.socket(zmq.REQ) as socket:
         socket.setsockopt(zmq.LINGER, 0)

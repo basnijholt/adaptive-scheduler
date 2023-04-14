@@ -63,7 +63,6 @@ def test_parse_log_files(db_manager):
         f.flush()
 
         # Prepare the database manager, scheduler, and job names
-        # db_manager.scheduler.queue = MagicMock(return_value=[{"job_id": "1", "state": "running", "job_name": "test_job"}])
         job_name = "test_job"
         job_names = [job_name]
         db_manager.start()
@@ -73,7 +72,10 @@ def test_parse_log_files(db_manager):
 
         # Test parse_log_files
         df_result = parse_log_files(
-            job_names, db_manager, db_manager.scheduler, only_last=False
+            job_names,
+            db_manager,
+            db_manager.scheduler,
+            only_last=False,
         )
         # Check that the returned DataFrame has the expected columns
         expected_columns = [

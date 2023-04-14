@@ -38,7 +38,7 @@ class MockScheduler(BaseScheduler):
             {self.extra_script}
 
             {self._executor_specific("MOCK_JOB")}
-            """
+            """,
         )
 
     def start_job(self, name: str) -> None:
@@ -55,7 +55,7 @@ class MockScheduler(BaseScheduler):
         self,
         job_names: list[str],
         with_progress_bar: bool = True,  # noqa: FBT001
-        max_tries: int = 5,  # noqa: FBT001
+        max_tries: int = 5,
     ) -> None:
         print("Canceling mock jobs:", job_names)
         for job_name in job_names:
@@ -66,12 +66,12 @@ class MockScheduler(BaseScheduler):
         self._queue_info[job_name] = {"job_name": job_name, "status": status}
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_scheduler(tmpdir) -> MockScheduler:
     return MockScheduler(log_folder=str(tmpdir), cores=8)
 
 
-@pytest.fixture
+@pytest.fixture()
 def db_manager(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
@@ -87,7 +87,7 @@ def func(x):
     return x**2
 
 
-@pytest.fixture
+@pytest.fixture()
 def learners() -> list[Learner1D]:
     learner1 = Learner1D(func, bounds=(-1, 1))
     learner2 = Learner1D(func, bounds=(-1, 1))
@@ -95,13 +95,13 @@ def learners() -> list[Learner1D]:
     return learners
 
 
-@pytest.fixture
+@pytest.fixture()
 def fnames(learners, tmpdir) -> list[str]:
     fnames = [str(tmpdir / f"learner{i}.pkl") for i, _ in enumerate(learners)]
     return fnames
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     ctx = zmq.asyncio.Context.instance()
     socket = ctx.socket(zmq.REQ)
@@ -110,9 +110,10 @@ def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     socket.close()
 
 
-@pytest.fixture
+@pytest.fixture()
 def job_manager(
-    db_manager: DatabaseManager, mock_scheduler: MockScheduler
+    db_manager: DatabaseManager,
+    mock_scheduler: MockScheduler,
 ) -> JobManager:
     job_names = ["job1", "job2"]
     return JobManager(job_names, db_manager, mock_scheduler, interval=0.05)

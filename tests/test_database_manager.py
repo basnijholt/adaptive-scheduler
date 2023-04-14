@@ -8,7 +8,7 @@ from adaptive_scheduler.server_support import DatabaseManager
 from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_database_manager_start_and_cancel(db_manager) -> None:
     db_manager.start()
     await asyncio.sleep(0.1)  # Give it some time to start
@@ -64,9 +64,11 @@ def test_database_manager_as_dicts(db_manager, fnames) -> None:
     ]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_database_manager_dispatch_start_stop(
-    db_manager, learners, fnames
+    db_manager,
+    learners,
+    fnames,
 ) -> None:
     db_manager.learners, db_manager.fnames = learners, fnames
     db_manager.create_empty_db()
@@ -91,9 +93,11 @@ async def send_message(socket, message) -> None:
     return response
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_database_manager_start_and_update(
-    socket, db_manager: DatabaseManager, fnames: list[str]
+    socket,
+    db_manager: DatabaseManager,
+    fnames: list[str],
 ) -> None:
     db_manager.create_empty_db()
     db_manager.start()
@@ -138,9 +142,11 @@ async def test_database_manager_start_and_update(
         assert entry["job_id"] is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_database_manager_start_stop(
-    socket, db_manager: DatabaseManager, fnames: list[str]
+    socket,
+    db_manager: DatabaseManager,
+    fnames: list[str],
 ) -> None:
     db_manager.create_empty_db()
     # Start the DatabaseManager
@@ -199,9 +205,11 @@ async def test_database_manager_start_stop(
         raise exception
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_database_manager_stop_request_and_requests(
-    socket, db_manager: DatabaseManager, fnames: list[str]
+    socket,
+    db_manager: DatabaseManager,
+    fnames: list[str],
 ) -> None:
     db_manager.create_empty_db()
     # Start the DatabaseManager
