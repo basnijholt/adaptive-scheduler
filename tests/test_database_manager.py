@@ -9,7 +9,10 @@ import zmq
 import zmq.asyncio
 from tinydb import Query, TinyDB
 
-from adaptive_scheduler.server_support import DatabaseManager
+from adaptive_scheduler._server_support.database_manager import (
+    DatabaseManager,
+    _ensure_str,
+)
 from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
 
 MAGIC_VALUE = 2
@@ -259,3 +262,38 @@ async def test_database_manager_stop_request_and_requests(
         assert entry["job_id"] is None
         assert entry["is_done"] is True
         assert entry["job_name"] is None
+
+
+def test_ensure_str() -> None:
+    """Test the _ensure_str function."""
+    path1 = Path("path1")
+    path2 = Path("path2")
+    path3 = Path("path3")
+    path4 = Path("path4")
+
+    # Test with a list of strings
+    input_list = ["path1", "path2", "path3", "path4"]
+    output_list = _ensure_str(input_list)
+    assert output_list == input_list
+
+    # Test with a list of Path objects
+    input_list = [path1, path2, path3, path4]
+    output_list = _ensure_str(input_list)
+    assert output_list == ["path1", "path2", "path3", "path4"]
+
+    # Test with a list of lists of strings
+    input_list = [["path1", "path2"], ["path3", "path4"]]
+    output_list = _ensure_str(input_list)
+    assert output_list == input_list
+
+    # Test with a list of lists of Path objects
+    input_list = [[path1, path2], [path3, path4]]
+    output_list = _ensure_str(input_list)
+    assert output_list == [["path1", "path2"], ["path3", "path4"]]
+
+    # Test with an invalid input
+    with pytest.raises(ValueError, match="Invalid input: expected a list of strings"):
+        _ensure_str("invalid_input")
+
+    # Test empty
+    assert _ensure_str([]) == []
