@@ -25,6 +25,7 @@ class MockScheduler(BaseScheduler):
             "2": {"job_name": "MOCK_JOB-2", "state": "Q"},
         }
         self._started_jobs = []
+        self._job_id = 0
 
     def queue(self, me_only: bool = True) -> dict[str, dict]:
         # Return a fake queue for demonstration purposes
@@ -45,7 +46,8 @@ class MockScheduler(BaseScheduler):
     def start_job(self, name: str) -> None:
         print("Starting a mock job:", name)
         self._started_jobs.append(name)
-        self._queue_info[name] = {"job_name": name, "status": "R"}
+        self._queue_info[str(self._job_id)] = {"job_name": name, "status": "R"}
+        self._job_id += 1
 
     def cancel(
         self,
@@ -70,24 +72,29 @@ def mock_scheduler() -> MockScheduler:
 @pytest.fixture
 def db_manager(
     mock_scheduler: MockScheduler,
-    learners_and_fnames: tuple[list[Learner1D], list[str]],
+    learners: list[Learner1D],
+    fnames: list[str],
 ):
     url = get_allowed_url()
     db_fname = "test_db.json"
-    learners, fnames = learners_and_fnames
     return DatabaseManager(url, mock_scheduler, db_fname, learners, fnames)
 
 
 @pytest.fixture
-def learners_and_fnames() -> tuple[list[Learner1D], list[str]]:
+def learners() -> list[Learner1D]:
     def func(x):
         return x**2
 
     learner1 = Learner1D(func, bounds=(-1, 1))
     learner2 = Learner1D(func, bounds=(-1, 1))
     learners = [learner1, learner2]
-    fnames = ["learner1.pkl", "learner2.pkl"]
-    return learners, fnames
+    return learners
+
+
+@pytest.fixture
+def fnames(learners, tmpdir) -> list[str]:
+    fnames = [str(tmpdir / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    return fnames
 
 
 @pytest.fixture(scope="function")

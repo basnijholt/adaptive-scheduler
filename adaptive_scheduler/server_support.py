@@ -504,7 +504,6 @@ class KillManager(_BaseManager):
         while True:
             try:
                 self.database_manager.update()
-
                 failed_jobs = logs_with_string_or_condition(
                     self.error, self.database_manager
                 )

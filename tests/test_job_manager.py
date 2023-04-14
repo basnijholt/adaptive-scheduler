@@ -71,8 +71,7 @@ async def test_job_manager_manage_cancelled_error(
     job_manager.database_manager.start()
     job_manager.start()
 
-    # Set a timeout for the task using asyncio.wait_for
-    timeout = 0.1  # Adjust this value as needed
+    timeout = 0.1
     try:
         await asyncio.wait_for(job_manager.task, timeout=timeout)
     except asyncio.TimeoutError:
