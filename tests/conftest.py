@@ -44,7 +44,11 @@ class MockScheduler(BaseScheduler):
     def start_job(self, name: str) -> None:
         print("Starting a mock job:", name)
         self._started_jobs.append(name)
-        self._queue_info[str(self._job_id)] = {"job_name": name, "status": "R"}
+        self._queue_info[str(self._job_id)] = {
+            "job_name": name,
+            "status": "R",
+            "state": "RUNNING",
+        }
         self._job_id += 1
 
     def cancel(
