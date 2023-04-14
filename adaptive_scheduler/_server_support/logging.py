@@ -78,5 +78,4 @@ def parse_log_files(
             continue
         info_dict["state"] = info_from_queue["state"]
         info_dict["job_name"] = info_from_queue["job_name"]
-
     return pd.DataFrame(infos)

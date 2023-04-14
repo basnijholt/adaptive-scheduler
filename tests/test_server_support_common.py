@@ -1,6 +1,4 @@
 import asyncio
-import os
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -14,18 +12,7 @@ from adaptive_scheduler._server_support.common import (
     periodically_clean_ipython_profiles,
 )
 
-from .helpers import MockScheduler
-
-
-@contextmanager
-def temporary_working_directory(path: Path) -> None:
-    """Context manager for temporarily changing the working directory."""
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(path)
-        yield
-    finally:
-        os.chdir(original_cwd)
+from .helpers import MockScheduler, temporary_working_directory
 
 
 @pytest.mark.asyncio()

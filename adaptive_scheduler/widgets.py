@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
-    from ipywidgets import Checkbox, HBox, VBox
+    from ipywidgets import VBox
 
     from adaptive_scheduler.server_support import RunManager
 
@@ -413,7 +413,7 @@ def info(run_manager: RunManager) -> None:
     visualized in a Jupyter notebook.
     """
     from IPython.display import display
-    from ipywidgets import HTML, Button, Layout, VBox
+    from ipywidgets import HTML, Button, Checkbox, HBox, Layout, VBox
 
     status = HTML(value=_info_html(run_manager))
 
