@@ -32,6 +32,22 @@ class JobIDExistsInDbError(Exception):
     """Raised when a job id already exists in the database."""
 
 
+def _ensure_str(
+    fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
+) -> list[str] | list[list[str]]:
+    """Make sure that `pathlib.Path`s are converted to strings."""
+    if isinstance(fnames, list):
+        if len(fnames) == 0:
+            return []
+        if isinstance(fnames[0], (str, Path)):
+            return [str(f) for f in fnames]
+        if isinstance(fnames[0], list):
+            return [[str(f) for f in sublist] for sublist in fnames]
+    raise ValueError(
+        "Invalid input: expected a list of strings or a list of lists of strings/Paths.",
+    )
+
+
 class DatabaseManager(BaseManager):
     """Database manager.
 
@@ -64,7 +80,7 @@ class DatabaseManager(BaseManager):
         scheduler: BaseScheduler,
         db_fname: str | Path,
         learners: list[adaptive.BaseLearner],
-        fnames: list[str] | list[list[str]],
+        fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
         *,
         overwrite_db: bool = True,
     ) -> None:
@@ -73,7 +89,7 @@ class DatabaseManager(BaseManager):
         self.scheduler = scheduler
         self.db_fname = Path(db_fname)
         self.learners = learners
-        self.fnames = fnames
+        self.fnames = _ensure_str(fnames)
         self.overwrite_db = overwrite_db
 
         self.defaults = {
@@ -129,11 +145,12 @@ class DatabaseManager(BaseManager):
         with TinyDB(self.db_fname) as db:
             return db.all()
 
-    def _output_logs(self, job_id: str, job_name: str) -> list[str]:
+    def _output_logs(self, job_id: str, job_name: str) -> list[Path]:
         job_id = self.scheduler.sanatize_job_id(job_id)
         output_fnames = self.scheduler.output_fnames(job_name)
         return [
-            f.replace(self.scheduler._JOB_ID_VARIABLE, job_id) for f in output_fnames
+            f.with_name(f.name.replace(self.scheduler._JOB_ID_VARIABLE, job_id))
+            for f in output_fnames
         ]
 
     def _start_request(self, job_id: str, log_fname: str, job_name: str) -> str | None:
@@ -160,7 +177,7 @@ class DatabaseManager(BaseManager):
                     "job_id": job_id,
                     "log_fname": log_fname,
                     "job_name": job_name,
-                    "output_logs": self._output_logs(job_id, job_name),
+                    "output_logs": _ensure_str(self._output_logs(job_id, job_name)),
                 },
                 doc_ids=[entry.doc_id],
             )

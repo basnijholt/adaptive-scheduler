@@ -369,7 +369,7 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 def _remove_or_move_files(
     fnames: list[str],
     with_progress_bar: bool = True,
-    move_to: str | None = None,
+    move_to: str | Path | None = None,
     desc: str | None = None,
 ) -> None:
     """Remove files by filename.
@@ -380,7 +380,7 @@ def _remove_or_move_files(
         List of filenames.
     with_progress_bar : bool, default: True
         Display a progress bar using `tqdm`.
-    move_to : str, default None
+    move_to : str | Path, default None
         Move the file to a different directory.
         If None the file is removed.
     desc : str, default: None
@@ -388,15 +388,17 @@ def _remove_or_move_files(
     """
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, desc or "Removing files"):
+        fname = Path(fname)  # noqa: PLW2901
         try:
             if move_to is None:
-                os.remove(fname)
+                fname.unlink()
             else:
-                os.makedirs(move_to, exist_ok=True)
-                src = Path(fname).resolve()
-                dst = (Path(move_to) / src.name).resolve()
+                move_to = Path(move_to)
+                move_to.mkdir(parents=True, exist_ok=True)
+                src = fname.resolve()
+                dst = (move_to / src.name).resolve()
                 shutil.move(src, dst)  # overwrites old files
-        except Exception:
+        except Exception:  # noqa: BLE001
             n_failed += 1
 
     if n_failed:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import glob
+import itertools
 import logging
 import shutil
 import socket
@@ -53,21 +53,27 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
-def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> list[str]:
+def _get_matching_files(f: Path, variable: str) -> list[Path]:
+    modified_name = f.name.replace(variable, "*")
+    return list(f.parent.glob(modified_name))
+
+
+def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> set[Path]:
     log_fnames = [scheduler.log_fname(name) for name in job_names]
     output_fnames = [scheduler.output_fnames(name) for name in job_names]
-    output_fnames = sum(output_fnames, [])
+    output_fnames = list(itertools.chain(*output_fnames))
     batch_fnames = [scheduler.batch_fname(name) for name in job_names]
     fnames = log_fnames + output_fnames + batch_fnames
-    all_files = [glob.glob(f.replace(scheduler._JOB_ID_VARIABLE, "*")) for f in fnames]
-    all_files = sum(all_files, [])
-
+    all_files = []
+    for f in fnames:
+        matching_files = _get_matching_files(f, scheduler._JOB_ID_VARIABLE)
+        all_files.extend(matching_files)
     # For schedulers that use a single batch file
     name_prefix = job_names[0].rsplit("-", 1)[0]
     batch_file = scheduler.batch_fname(name_prefix)
     if batch_file.exists():
         all_files.append(batch_file)
-    return all_files
+    return set(all_files)
 
 
 def cleanup_scheduler_files(

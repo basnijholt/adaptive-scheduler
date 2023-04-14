@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.server_support import (
     DatabaseManager,
     KillManager,
@@ -18,13 +17,10 @@ INTERVAL = 0.05
 
 
 @pytest.fixture()
-def kill_manager(
-    mock_scheduler: BaseScheduler,
-    db_manager: DatabaseManager,
-) -> KillManager:
+def kill_manager(db_manager: DatabaseManager) -> KillManager:
     """Fixture for creating a KillManager instance."""
     return KillManager(
-        scheduler=mock_scheduler,
+        scheduler=db_manager.scheduler,
         database_manager=db_manager,
         error="srun: error:",
         interval=INTERVAL,
@@ -142,12 +138,8 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     """Test KillManager.manage method."""
     # The KillManager will read from the .out files, which are determined
     # from the scheduler.
-    output_file_path = kill_manager.scheduler.output_fnames("test_job")[0]
-    output_file_path = output_file_path.replace(
-        kill_manager.scheduler._JOB_ID_VARIABLE,
-        "0",
-    )
-    with Path(output_file_path).open("w") as f:
+    output_file_path = kill_manager.database_manager._output_logs("0", "test_job")[0]
+    with output_file_path.open("w") as f:
         f.write("srun: error: GPU on fire!\n")
 
     kill_manager.database_manager.start()  # creates empty db
@@ -157,7 +149,7 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     kill_manager.scheduler.start_job("test_job")
     await asyncio.sleep(0.1)  # Give it some time to start and cancel the job
     assert "test_job" in kill_manager.cancelled
-    assert output_file_path in kill_manager.deleted
+    assert str(output_file_path) in kill_manager.deleted
 
 
 @pytest.mark.asyncio()
