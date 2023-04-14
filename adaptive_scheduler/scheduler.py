@@ -14,6 +14,7 @@ import time
 import warnings
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
+from pathlib import Path
 from typing import Literal
 
 from rich.console import Console
@@ -149,9 +150,9 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             A job script that can be submitted to the scheduler.
         """
 
-    def batch_fname(self, name: str) -> str:
+    def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
-        return os.path.abspath(name + self.ext)
+        return Path(f"{name}{self.ext}")
 
     @staticmethod
     def sanatize_job_id(job_id):

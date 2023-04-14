@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import glob
 import logging
-import os
 import shutil
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 import zmq
@@ -15,22 +16,25 @@ import zmq.asyncio
 import zmq.ssh
 from rich.console import Console
 
-from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
     _progress,
     _remove_or_move_files,
 )
 
-console = Console()
+if TYPE_CHECKING:
+    from adaptive_scheduler.scheduler import BaseScheduler
 
+console = Console()
 
 logger = logging.getLogger("adaptive_scheduler.server")
 logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
 
-class MaxRestartsReached(Exception):
-    """Jobs can fail instantly because of a error in
+class MaxRestartsReachedError(Exception):
+    """Max restarts reached.
+
+    Jobs can fail instantly because of an error in
     your Python code which results jobs being started indefinitely.
     """
 
@@ -61,7 +65,7 @@ def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> list[str]:
     # For schedulers that use a single batch file
     name_prefix = job_names[0].rsplit("-", 1)[0]
     batch_file = scheduler.batch_fname(name_prefix)
-    if os.path.exists(batch_file):
+    if batch_file.exists():
         all_files.append(batch_file)
     return all_files
 
@@ -69,6 +73,7 @@ def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> list[str]:
 def cleanup_scheduler_files(
     job_names: list[str],
     scheduler: BaseScheduler,
+    *,
     with_progress_bar: bool = True,
     move_to: str | None = None,
 ) -> None:
@@ -98,8 +103,16 @@ def cleanup_scheduler_files(
     )
 
 
+IPYTHON_PROFILE_PATTERN = "profile_adaptive_scheduler_"
+
+
+def _ipython_profiles() -> list[Path]:
+    return list(Path("~/.ipython/").expanduser().glob(f"{IPYTHON_PROFILE_PATTERN}*"))
+
+
 def _delete_old_ipython_profiles(
     scheduler: BaseScheduler,
+    *,
     with_progress_bar: bool = True,
 ) -> None:
     if scheduler.executor_type != "ipyparallel":
@@ -107,14 +120,12 @@ def _delete_old_ipython_profiles(
     # We need the job_ids because only job_names wouldn't be
     # enough information. There might be other job_managers
     # running.
-    pattern = "profile_adaptive_scheduler_"
-    profile_folders = glob.glob(os.path.expanduser(f"~/.ipython/{pattern}*"))
 
     running_job_ids = set(scheduler.queue().keys())
     to_delete = [
         folder
-        for folder in profile_folders
-        if folder.split(pattern)[1] not in running_job_ids
+        for folder in _ipython_profiles()
+        if str(folder).split(IPYTHON_PROFILE_PATTERN)[1] not in running_job_ids
     ]
 
     with ThreadPoolExecutor(256) as ex:
@@ -126,7 +137,10 @@ def _delete_old_ipython_profiles(
             fut.result()
 
 
-def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
+def periodically_clean_ipython_profiles(
+    scheduler: BaseScheduler,
+    interval: int = 600,
+) -> asyncio.Task:
     """Periodically remove old IPython profiles.
 
     In the `RunManager.cleanup` method the profiles will be removed. However,
