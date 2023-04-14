@@ -1,3 +1,69 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "adaptive_scheduler"
+description = "Run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, `dask-mpi`, or `process-pool`."
+requires-python = ">=3.9"
+dynamic = ["version"]
+maintainers = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
+license = { text = "BSD-3" }
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Distributed Computing",
+]
+dependencies = [
+    "adaptive >= 0.14.1",
+    "cloudpickle",
+    "dill",
+    "ipyparallel",
+    "jinja2",
+    "loky",
+    "mpi4py",
+    "numpy",
+    "pandas",
+    "psutil",
+    "pyarrow",
+    "pyzmq",
+    "rich",
+    "structlog",
+    "tinydb",
+    "toolz",
+    "tqdm",
+]
+[project.optional-dependencies]
+all = [
+    "dask_mpi",
+]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "coverage",
+    "pytest-cov",
+]
+
+[project.urls]
+homepage = "https://adaptive-scheduler.readthedocs.io/"
+documentation = "https://adaptive-scheduler.readthedocs.io/"
+repository = "https://github.com/basnijholt/adaptive-scheduler"
+
+[project.readme]
+content-type = "text/x-rst"
+file = "README.rst"
+
+[tool.setuptools.packages.find]
+include = ["adaptive_scheduler.*", "adaptive_scheduler"]
 
 [tool.pytest.ini_options]
 addopts = """
