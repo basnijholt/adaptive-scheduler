@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
-import os
 import shutil
 import time
 from contextlib import suppress
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
-import adaptive
 import pandas as pd
 
-from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import (
     _require_adaptive,
     fname_to_learner_fname,
@@ -33,6 +29,13 @@ from .job_manager import JobManager
 from .kill_manager import KillManager
 from .logging import parse_log_files
 from .run_script import _make_default_run_script
+
+if TYPE_CHECKING:
+    import datetime
+
+    import adaptive
+
+    from adaptive_scheduler.scheduler import BaseScheduler
 
 
 class RunManager(BaseManager):
@@ -147,6 +150,7 @@ class RunManager(BaseManager):
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
         fnames: list[str],
+        *,
         goal: Callable[[adaptive.BaseLearner], bool]
         | int
         | float
@@ -217,10 +221,11 @@ class RunManager(BaseManager):
 
         for key in ["max_fails_per_job", "max_simultaneous_jobs"]:
             if key in self.job_manager_kwargs:
-                raise ValueError(
+                msg = (
                     f"The `{key}` argument is not allowed in `job_manager_kwargs`."
                     " Please specify it in `RunManager.__init__` instead.",
                 )
+                raise ValueError(msg)
 
         if self.save_dataframe:
             _require_adaptive("0.14.0", "save_dataframe")
@@ -247,7 +252,7 @@ class RunManager(BaseManager):
 
         if cleanup_first:
             self.scheduler.cancel(self.job_names)
-            self.cleanup(True)
+            self.cleanup(remove_old_logs_folder=True)
 
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
@@ -308,7 +313,7 @@ class RunManager(BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    def start(self, wait_for: RunManager | None = None):
+    def start(self, wait_for: RunManager | None = None) -> RunManager:
         """Start the RunManager and optionally wait for another RunManager to finish."""
         if wait_for is not None:
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
@@ -332,7 +337,7 @@ class RunManager(BaseManager):
         if self._start_one_by_one_task is not None:
             self._start_one_by_one_task[0].cancel()
 
-    def cleanup(self, remove_old_logs_folder: bool = False) -> None:
+    def cleanup(self, *, remove_old_logs_folder: bool = False) -> None:
         """Cleanup the log and batch files.
 
         If the `RunManager` is not running, the ``run_script.py`` file
@@ -340,12 +345,12 @@ class RunManager(BaseManager):
         """
         with suppress(FileNotFoundError):
             if self.status() != "running":
-                os.remove(self.scheduler.run_script)
+                self.scheduler.run_script.unlink()
 
         for fname in self.fnames:
             fname_cloudpickle = fname_to_learner_fname(fname)
             with suppress(FileNotFoundError):
-                os.remove(fname_cloudpickle)
+                fname_cloudpickle.unlink()
 
         _delete_old_ipython_profiles(self.scheduler)
 
@@ -423,7 +428,7 @@ class RunManager(BaseManager):
             status = "running"
         except asyncio.CancelledError:
             status = "cancelled"
-        except Exception:
+        except Exception:  # noqa: BLE001
             status = "failed"
             console.log("`JobManager` failed because of the following")
             console.print_exception(show_locals=True)
@@ -434,7 +439,7 @@ class RunManager(BaseManager):
             self.database_manager.task.result()
         except (asyncio.InvalidStateError, asyncio.CancelledError):
             pass
-        except Exception:
+        except Exception:  # noqa: BLE001
             status = "failed"
             console.log("`DatabaseManager` failed because of the following")
             console.print_exception(show_locals=True)
@@ -454,9 +459,9 @@ class RunManager(BaseManager):
     def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
-            raise ValueError("The `save_dataframe` option was not set to True.")
-        df = load_dataframes(self.fnames, format=self.dataframe_format)
-        return df
+            msg = "The `save_dataframe` option was not set to True."
+            raise ValueError(msg)
+        return load_dataframes(self.fnames, format=self.dataframe_format)
 
 
 async def _wait_for_finished(
@@ -464,7 +469,7 @@ async def _wait_for_finished(
     manager_second: RunManager,
     goal: Callable[[RunManager], bool] = None,
     interval: int = 120,
-):
+) -> None:
     if goal is None:
         await manager_first.task
     else:
@@ -480,7 +485,8 @@ def _start_after(
     interval: int = 120,
 ) -> asyncio.Task:
     if manager_second.is_started:
-        raise ValueError("The second manager must not be started yet.")
+        msg = "The second manager must not be started yet."
+        raise ValueError(msg)
     coro = _wait_for_finished(manager_first, manager_second, goal, interval)
     return asyncio.create_task(coro)
 
@@ -545,10 +551,11 @@ def start_one_by_one(
     uniques = ["job_name", "db_fname"]
     for u in uniques:
         if len({getattr(r, u) for r in run_managers}) != len(run_managers):
-            raise ValueError(
+            msg = (
                 f"All `RunManager`s must have a unique {u}."
                 " If using `slurm_run` these are controlled through the `name` argument.",
             )
+            raise ValueError(msg)
 
     tasks = [
         _start_after(run_managers[i], run_managers[i + 1], goal, interval)

@@ -82,23 +82,23 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def __init__(
         self,
         cores,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
         executor_type: Literal[
             "ipyparallel",
             "dask-mpi",
             "mpi4py",
             "process-pool",
         ] = "mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
+        num_threads: int = 1,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
     ) -> None:
         self.cores = cores
-        self.run_script = run_script
+        self.run_script = Path(run_script)
         self.python_executable = python_executable or sys.executable
         self.log_folder = log_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"

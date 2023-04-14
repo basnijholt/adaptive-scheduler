@@ -89,13 +89,12 @@ def get_learner(
             exception = RuntimeError(msg)
             log_exception(log, msg, exception)
             raise exception
-        elif isinstance(reply, Exception):
+        if isinstance(reply, Exception):
             log_exception(log, "got an exception", exception=reply)
             raise reply
-        else:
-            fname = reply
-            learner = fname_to_learner(fname)
-            log.info("got fname and loaded learner")
+        fname = reply
+        learner = fname_to_learner(fname)
+        log.info("got fname and loaded learner")
 
     log.info("picked a learner")
     return learner, maybe_lst(fname)

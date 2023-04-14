@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
-from typing import Any, Callable, Literal
-
-import adaptive
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from adaptive_scheduler.scheduler import SLURM, slurm_partitions
 from adaptive_scheduler.utils import _get_default_args
@@ -12,10 +9,16 @@ from adaptive_scheduler.utils import _get_default_args
 from .common import console
 from .run_manager import RunManager
 
+if TYPE_CHECKING:
+    import datetime
+
+    import adaptive
+
 
 def slurm_run(
     learners: list[adaptive.BaseLearner],
     fnames: list[str],
+    *,
     partition: str | None = None,
     nodes: int = 1,
     cores_per_node: int | None = None,
@@ -52,7 +55,7 @@ def slurm_run(
     ] = "process-pool",
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
-):
+) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
     Parameters
@@ -118,10 +121,11 @@ def slurm_run(
             " to see the available partitions.",
         )
     if executor_type == "process-pool" and nodes > 1:
-        raise ValueError(
+        msg = (
             "process-pool can maximally use a single node,"
             " use e.g., ipyparallel for multi node.",
         )
+        raise ValueError(msg)
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:

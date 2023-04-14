@@ -61,7 +61,7 @@ def test_make_default_run_script(
             "adaptive_scheduler._server_support.run_script._is_dask_mpi_installed",
             return_value=False,
         ), pytest.raises(
-            Exception,
+            ModuleNotFoundError,
             match="You need to have 'dask-mpi' installed",
         ):
             _make_default_run_script(

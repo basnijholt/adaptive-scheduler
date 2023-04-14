@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
-import adaptive
 import cloudpickle
 import jinja2
 
-from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+if TYPE_CHECKING:
+    import adaptive
+
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
 def _is_dask_mpi_installed() -> bool:  # pragma: no cover
@@ -19,6 +21,7 @@ def _make_default_run_script(
     url: str,
     save_interval: int,
     log_interval: int,
+    *,
     goal: Callable[[adaptive.BaseLearner], bool] | None = None,
     runner_kwargs: dict[str, Any] | None = None,
     run_script_fname: str = "run_learner.py",
@@ -38,17 +41,16 @@ def _make_default_run_script(
     serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
 
     if executor_type not in ("mpi4py", "ipyparallel", "dask-mpi", "process-pool"):
-        raise NotImplementedError(
-            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'.",
-        )
+        msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+        raise NotImplementedError(msg)
 
     if executor_type == "dask-mpi" and not _is_dask_mpi_installed():
         msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
-        raise Exception(msg)
-
-    with open(Path(__file__).parent / "run_script.py.j2", encoding="utf-8") as f:
+        raise ModuleNotFoundError(msg)
+    run_script_template = Path(__file__).parent / "run_script.py.j2"
+    with run_script_template.open(encoding="utf-8") as f:
         empty = "".join(f.readlines())
-
+    run_script_fname = Path(run_script_fname)
     template = jinja2.Template(empty).render(
         run_script_fname=run_script_fname,
         executor_type=executor_type,
@@ -61,5 +63,5 @@ def _make_default_run_script(
         dataframe_format=dataframe_format,
     )
 
-    with open(run_script_fname, "w", encoding="utf-8") as f:
+    with run_script_fname.open("w", encoding="utf-8") as f:
         f.write(template)

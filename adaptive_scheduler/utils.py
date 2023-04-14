@@ -674,23 +674,26 @@ def shared_memory_cache(cache_size: int = 128):
 def _prefix(fname: str | list[str] | tuple[str, ...]) -> str:
     if isinstance(fname, (tuple, list)):
         return f".{len(fname):08}_learners."
-    elif isinstance(fname, str):
+    if isinstance(fname, str):
         return ".learner."
-    else:
-        raise TypeError("Incorrect type for fname.")
+    raise TypeError("Incorrect type for fname.")
 
 
-def fname_to_learner_fname(fname: str | list[str] | tuple[str, ...]) -> str:
+def fname_to_learner_fname(
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+) -> Path:
     prefix = _prefix(fname)
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return str(p.with_stem(f"{prefix}{p.stem}"))
+    return p.with_stem(f"{prefix}{p.stem}")
 
 
-def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseLearner:
+def fname_to_learner(
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+) -> adaptive.BaseLearner:
     learner_name = fname_to_learner_fname(fname)
-    with open(learner_name, "rb") as f:
+    with learner_name.open("rb") as f:
         return cloudpickle.load(f)
 
 
@@ -721,8 +724,8 @@ def cloudpickle_learners(
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
             _require_adaptive("0.14.1", "empty_copies")
-            learner = learner.new()
-        with open(fname_learner, "wb") as f:
+            learner = learner.new()  # noqa: PLW2901
+        with fname_learner.open("wb") as f:
             cloudpickle.dump(learner, f)
 
 
