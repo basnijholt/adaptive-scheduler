@@ -21,7 +21,7 @@ from adaptive_scheduler.utils import (
 )
 from adaptive_scheduler.widgets import info
 
-from .base_manager import _BaseManager
+from .base_manager import BaseManager
 from .common import (
     _delete_old_ipython_profiles,
     cleanup_scheduler_files,
@@ -35,7 +35,7 @@ from .logging import parse_log_files
 from .run_script import _make_default_run_script
 
 
-class RunManager(_BaseManager):
+class RunManager(BaseManager):
     """A convenience tool that starts the job, database, and kill manager.
 
     Parameters
@@ -251,12 +251,12 @@ class RunManager(_BaseManager):
 
         self.url = url or get_allowed_url()
         self.database_manager = DatabaseManager(
-            self.url,
-            self.scheduler,
-            self.db_fname,
-            self.learners,
-            self.fnames,
-            self.overwrite_db,
+            url=self.url,
+            scheduler=self.scheduler,
+            db_fname=self.db_fname,
+            learners=self.learners,
+            fnames=self.fnames,
+            overwrite_db=self.overwrite_db,
         )
         self.job_manager = JobManager(
             self.job_names,

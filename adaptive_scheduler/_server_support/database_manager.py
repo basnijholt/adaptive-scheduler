@@ -17,7 +17,7 @@ from adaptive_scheduler.utils import (
     maybe_lst,
 )
 
-from .base_manager import _BaseManager
+from .base_manager import BaseManager
 from .common import log
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class JobIDExistsInDbError(Exception):
     """Raised when a job id already exists in the database."""
 
 
-class DatabaseManager(_BaseManager):
+class DatabaseManager(BaseManager):
     """Database manager.
 
     Parameters

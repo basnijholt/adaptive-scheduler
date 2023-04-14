@@ -5,12 +5,12 @@ from typing import Any
 
 from adaptive_scheduler.scheduler import BaseScheduler
 
-from .base_manager import _BaseManager
+from .base_manager import BaseManager
 from .common import MaxRestartsReached, log
 from .database_manager import DatabaseManager
 
 
-class JobManager(_BaseManager):
+class JobManager(BaseManager):
     """Job manager.
 
     Parameters

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ._server_support.base_manager import _BaseManager
+from ._server_support.base_manager import BaseManager
 from ._server_support.common import (
     MaxRestartsReached,
     _delete_old_ipython_profiles,
@@ -37,7 +37,7 @@ __all__ = [
     "_make_default_run_script",
     "_get_infos",
     "parse_log_files",
-    "_BaseManager",
+    "BaseManager",
     "log",
     "console",
     "MaxRestartsReached",

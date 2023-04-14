@@ -9,7 +9,7 @@ from adaptive_scheduler.utils import (
     _remove_or_move_files,
 )
 
-from .base_manager import _BaseManager
+from .base_manager import BaseManager
 from .common import log
 from .database_manager import DatabaseManager
 
@@ -60,7 +60,7 @@ def logs_with_string_or_condition(
     return have_error
 
 
-class KillManager(_BaseManager):
+class KillManager(BaseManager):
     """Kill manager.
 
     Automatically cancel jobs that contain an error (or other condition)
