@@ -986,5 +986,5 @@ def slurm_partitions(
     partitions = [partition.replace("*", "") for partition in partitions]
     if not with_ncores:
         return partitions
-    else:
-        return {partition: _get_ncores(partition) for partition in partitions}
+
+    return {partition: _get_ncores(partition) for partition in partitions}
