@@ -68,7 +68,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         self._coro: Coroutine | None = None
         self.task: asyncio.Task | None = None
 
-    def start(self):
+    def start(self) -> None:
         if self.is_started:
             raise Exception(f"{self.__class__} is already started!")
         self._setup()
@@ -86,7 +86,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
             return self.task.cancel()
         return None
 
-    def _setup(self):
+    def _setup(self) -> None:
         """Is run in the beginning of `self.start`."""
 
     @abc.abstractmethod
@@ -561,7 +561,7 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
-def _is_dask_mpi_installed():  # pragma: no cover
+def _is_dask_mpi_installed() -> bool:  # pragma: no cover
     return find_spec("dask_mpi") is not None
 
 
@@ -632,7 +632,7 @@ def _get_infos(fname: str, only_last: bool = True) -> list[str]:
 def parse_log_files(
     job_names: list[str],
     database_manager: DatabaseManager,
-    scheduler,
+    scheduler: BaseScheduler,
     only_last: bool = True,
 ) -> pd.DataFrame:
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
@@ -1057,7 +1057,7 @@ class RunManager(_BaseManager):
         if self._start_one_by_one_task is not None:
             self._start_one_by_one_task[0].cancel()
 
-    def cleanup(self, remove_old_logs_folder=False) -> None:
+    def cleanup(self, remove_old_logs_folder: bool = False) -> None:
         """Cleanup the log and batch files.
 
         If the `RunManager` is not running, the ``run_script.py`` file
@@ -1174,10 +1174,10 @@ class RunManager(_BaseManager):
     def _repr_html_(self) -> None:
         return info(self)
 
-    def info(self):
+    def info(self) -> None:
         return info(self)
 
-    def load_dataframes(self):
+    def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             raise ValueError("The `save_dataframe` option was not set to True.")
@@ -1203,7 +1203,7 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
     asyncio.Task
     """
 
-    async def clean(interval):
+    async def clean(interval: int) -> None:
         while True:
             with suppress(Exception):
                 _delete_old_ipython_profiles(scheduler, with_progress_bar=False)
