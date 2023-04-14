@@ -369,7 +369,7 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 def _remove_or_move_files(
     fnames: list[str],
     with_progress_bar: bool = True,
-    move_to: str | None = None,
+    move_to: str | Path | None = None,
     desc: str | None = None,
 ) -> None:
     """Remove files by filename.
@@ -380,7 +380,7 @@ def _remove_or_move_files(
         List of filenames.
     with_progress_bar : bool, default: True
         Display a progress bar using `tqdm`.
-    move_to : str, default None
+    move_to : str | Path, default None
         Move the file to a different directory.
         If None the file is removed.
     desc : str, default: None
@@ -388,15 +388,17 @@ def _remove_or_move_files(
     """
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, desc or "Removing files"):
+        fname = Path(fname)  # noqa: PLW2901
         try:
             if move_to is None:
-                os.remove(fname)
+                fname.unlink()
             else:
-                os.makedirs(move_to, exist_ok=True)
-                src = Path(fname).resolve()
-                dst = (Path(move_to) / src.name).resolve()
+                move_to = Path(move_to)
+                move_to.mkdir(parents=True, exist_ok=True)
+                src = fname.resolve()
+                dst = (move_to / src.name).resolve()
                 shutil.move(src, dst)  # overwrites old files
-        except Exception:
+        except Exception:  # noqa: BLE001
             n_failed += 1
 
     if n_failed:
@@ -674,23 +676,26 @@ def shared_memory_cache(cache_size: int = 128):
 def _prefix(fname: str | list[str] | tuple[str, ...]) -> str:
     if isinstance(fname, (tuple, list)):
         return f".{len(fname):08}_learners."
-    elif isinstance(fname, str):
+    if isinstance(fname, str):
         return ".learner."
-    else:
-        raise TypeError("Incorrect type for fname.")
+    raise TypeError("Incorrect type for fname.")
 
 
-def fname_to_learner_fname(fname: str | list[str] | tuple[str, ...]) -> str:
+def fname_to_learner_fname(
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+) -> Path:
     prefix = _prefix(fname)
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return str(p.with_stem(f"{prefix}{p.stem}"))
+    return p.with_stem(f"{prefix}{p.stem}")
 
 
-def fname_to_learner(fname: str | list[str] | tuple[str, ...]) -> adaptive.BaseLearner:
+def fname_to_learner(
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+) -> adaptive.BaseLearner:
     learner_name = fname_to_learner_fname(fname)
-    with open(learner_name, "rb") as f:
+    with learner_name.open("rb") as f:
         return cloudpickle.load(f)
 
 
@@ -721,8 +726,8 @@ def cloudpickle_learners(
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
             _require_adaptive("0.14.1", "empty_copies")
-            learner = learner.new()
-        with open(fname_learner, "wb") as f:
+            learner = learner.new()  # noqa: PLW2901
+        with fname_learner.open("wb") as f:
             cloudpickle.dump(learner, f)
 
 

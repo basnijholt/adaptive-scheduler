@@ -495,7 +495,7 @@ def info(run_manager: RunManager) -> None:
 
     def cleanup(include_old_logs):
         def _callable():
-            run_manager.cleanup(include_old_logs.value)
+            run_manager.cleanup(remove_old_logs_folder=include_old_logs.value)
             update(None)
 
         return _callable

@@ -1,14 +1,17 @@
+"""Test for the log parsing functions."""
 import json
 import os
 import tempfile
 
-from adaptive_scheduler.server_support import _get_infos, parse_log_files
+from adaptive_scheduler.server_support import (
+    DatabaseManager,
+    _get_infos,
+    parse_log_files,
+)
 
-# You can import your custom scheduler class, e.g., MyScheduler from adaptive_scheduler.scheduler
 
-
-# Test for _get_infos function
-def test_get_infos():
+def test_get_infos() -> None:
+    """Test for _get_infos function."""
     # Prepare sample data
     log_data = [
         {
@@ -38,12 +41,11 @@ def test_get_infos():
         assert len(result) == len(log_data)
         assert result == log_data[::-1]
 
-    os.remove(f.name)
+    os.remove(f.name)  # noqa: PTH107
 
 
-# Test for parse_log_files function
-def test_parse_log_files(db_manager):
-    # Prepare sample data
+def test_parse_log_files(db_manager: DatabaseManager) -> None:
+    """Test for parse_log_files function."""
     log_data = [
         {
             "event": "current status",
@@ -64,7 +66,6 @@ def test_parse_log_files(db_manager):
 
         # Prepare the database manager, scheduler, and job names
         job_name = "test_job"
-        job_names = [job_name]
         db_manager.start()
         # Add an entry in the database manager
         db_manager._start_request("0", f.name, job_name)
@@ -72,7 +73,6 @@ def test_parse_log_files(db_manager):
 
         # Test parse_log_files
         df_result = parse_log_files(
-            job_names,
             db_manager,
             db_manager.scheduler,
             only_last=False,
@@ -95,4 +95,4 @@ def test_parse_log_files(db_manager):
         # Check that the returned DataFrame has the expected number of rows
         assert len(df_result) == len(log_data)
 
-    os.remove(f.name)
+    os.remove(f.name)  # noqa: PTH107

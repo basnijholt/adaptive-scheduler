@@ -14,6 +14,7 @@ import time
 import warnings
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
+from pathlib import Path
 from typing import Literal
 
 from rich.console import Console
@@ -81,23 +82,23 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def __init__(
         self,
         cores,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
         executor_type: Literal[
             "ipyparallel",
             "dask-mpi",
             "mpi4py",
             "process-pool",
         ] = "mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
+        num_threads: int = 1,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
     ) -> None:
         self.cores = cores
-        self.run_script = run_script
+        self.run_script = Path(run_script)
         self.python_executable = python_executable or sys.executable
         self.log_folder = log_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"
@@ -149,12 +150,13 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             A job script that can be submitted to the scheduler.
         """
 
-    def batch_fname(self, name: str) -> str:
+    def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
-        return os.path.abspath(name + self.ext)
+        return Path(f"{name}{self.ext}")
 
     @staticmethod
-    def sanatize_job_id(job_id):
+    def sanatize_job_id(job_id: str) -> str:
+        """Sanatize the job_id."""
         return job_id
 
     def cancel(
@@ -252,30 +254,34 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
                 "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'.",
             )
 
-    def log_fname(self, name: str) -> str:
-        """The filename of the log."""
+    def log_fname(self, name: str) -> Path:
+        """The filename of the log (with JOB_ID_VARIABLE)."""
         if self.log_folder:
-            os.makedirs(self.log_folder, exist_ok=True)
-        return os.path.join(self.log_folder, f"{name}-{self._JOB_ID_VARIABLE}.log")
+            log_folder = Path(self.log_folder)
+            log_folder.mkdir(exist_ok=True)
+        else:
+            log_folder = Path.cwd()
+        return log_folder / f"{name}-{self._JOB_ID_VARIABLE}.log"
 
-    def output_fnames(self, name: str) -> list[str]:
+    def output_fnames(self, name: str) -> list[Path]:
+        """Scheduler output file names (with JOB_ID_VARIABLE)."""
         log_fname = self.log_fname(name)
-        return [log_fname.replace(".log", ".out")]
+        return [log_fname.with_suffix(".out")]
 
     @property
-    def extra_scheduler(self):
+    def extra_scheduler(self) -> str:
         """Scheduler options that go in the job script."""
         extra_scheduler = self._extra_scheduler or []
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     @property
-    def extra_env_vars(self):
+    def extra_env_vars(self) -> str:
         """Environment variables that need to exist in the job script."""
         extra_env_vars = self._extra_env_vars or []
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
     @property
-    def extra_script(self):
+    def extra_script(self) -> str:
         """Script that will be run before the main scheduler."""
         return str(self._extra_script) or ""
 
@@ -398,14 +404,12 @@ class PBS(BaseScheduler):
             else:
                 self.nnodes = int(self.nnodes)
 
-    def output_fnames(self, name: str) -> list[str]:
+    def output_fnames(self, name: str) -> list[Path]:
         # The "-k oe" flags with "qsub" writes the log output to
         # files directly instead of at the end of the job. The downside
-        # is that the logfiles are put in the homefolder.
-        home = os.path.expanduser("~/")
-        stdout, stderr = (
-            os.path.join(home, f"{name}.{x}{self._JOB_ID_VARIABLE}") for x in "oe"
-        )
+        # is that the logfiles are put in the home folder.
+        home = Path.home()
+        stdout, stderr = (home / f"{name}.{x}{self._JOB_ID_VARIABLE}" for x in "oe")
         return [stdout, stderr]
 
     def job_script(self) -> str:
@@ -458,7 +462,7 @@ class PBS(BaseScheduler):
         _run_submit(submit_cmd, name)
 
     @staticmethod
-    def _split_by_job(lines):
+    def _split_by_job(lines: list[str]) -> list[str]:
         jobs = [[]]
         for line in lines:
             line = line.strip()
@@ -587,25 +591,26 @@ class SLURM(BaseScheduler):
 
     def __init__(
         self,
+        *,
         cores: int | None = None,
         nodes: int | None = None,
         cores_per_node: int | None = None,
         partition: str | None = None,
         exclusive: bool = True,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
         executor_type: Literal[
             "ipyparallel",
             "dask-mpi",
             "mpi4py",
             "process-pool",
         ] = "mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
+        num_threads: int = 1,
+        extra_scheduler: list[str] = None,
+        extra_env_vars: list[str] = None,
+        extra_script: str = None,
     ) -> None:
         self._cores = cores
         self.nodes = nodes

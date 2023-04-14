@@ -1,21 +1,26 @@
+"""Test module for JobManager."""
+
 import asyncio
 import logging
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from adaptive_scheduler.server_support import JobManager, MaxRestartsReached
+from adaptive_scheduler.server_support import JobManager, MaxRestartsReachedError
 
 
 @pytest.mark.asyncio()
 async def test_job_manager_init(job_manager: JobManager) -> None:
+    """Test the initialization of JobManager."""
     job_manager.database_manager.start()
     job_manager.start()
     assert job_manager.task is not None
 
 
 @pytest.mark.asyncio()
-async def test_job_manager_queued(job_manager: JobManager):
+async def test_job_manager_queued(job_manager: JobManager) -> None:
+    """Test the _queued method of JobManager."""
     job_manager.scheduler.update_queue("job1", "running")
     job_manager.scheduler.update_queue("job2", "running")
     assert job_manager._queued(job_manager.scheduler.queue()) == {"job1", "job2"}
@@ -23,6 +28,7 @@ async def test_job_manager_queued(job_manager: JobManager):
 
 @pytest.mark.asyncio()
 async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) -> None:
+    """Test the JobManager when the maximum restarts are reached."""
     job_manager.n_started = 105
     # Should fail after n_started > n_learners * max_fails_per_job
     # Which is `105 > 2 * 50 = True`
@@ -31,7 +37,7 @@ async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) 
     job_manager.start()
     await asyncio.sleep(0.1)
     with pytest.raises(
-        MaxRestartsReached,
+        MaxRestartsReachedError,
         match="Too many jobs failed, your Python code probably has a bug",
     ):
         job_manager.task.result()
@@ -39,6 +45,7 @@ async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) 
 
 @pytest.mark.asyncio()
 async def test_job_manager_manage_start_jobs(job_manager: JobManager) -> None:
+    """Test the JobManager when managing the start of jobs."""
     job_manager.database_manager.n_done = MagicMock(return_value=0)
     job_manager.scheduler.queue_info = {}
     job_manager.max_simultaneous_jobs = 2
@@ -52,6 +59,7 @@ async def test_job_manager_manage_start_jobs(job_manager: JobManager) -> None:
 async def test_job_manager_manage_start_max_simultaneous_jobs(
     job_manager: JobManager,
 ) -> None:
+    """Test the JobManager when managing the maximum simultaneous jobs."""
     job_manager.database_manager.n_done = MagicMock(return_value=0)
     job_manager.scheduler.queue_info = {}
     job_manager.interval = 0.1
@@ -65,8 +73,9 @@ async def test_job_manager_manage_start_max_simultaneous_jobs(
 @pytest.mark.asyncio()
 async def test_job_manager_manage_cancelled_error(
     job_manager: JobManager,
-    caplog,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Test the JobManager when a CancelledError occurs."""
     caplog.set_level(logging.INFO)
     job_manager.database_manager.start()
     job_manager.start()
@@ -87,6 +96,7 @@ async def test_job_manager_manage_cancelled_error(
 async def test_job_manager_manage_n_done_equal_job_names(
     job_manager: JobManager,
 ) -> None:
+    """Test the JobManager when n_done equals the number of job names."""
     job_manager.database_manager.n_done = MagicMock(
         return_value=len(job_manager.job_names),
     )
@@ -100,10 +110,13 @@ async def test_job_manager_manage_n_done_equal_job_names(
 @pytest.mark.asyncio()
 async def test_job_manager_manage_generic_exception(
     job_manager: JobManager,
-    caplog,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    def raise_exception(*args, **kwargs):  # noqa: ANN003, ANN002
-        raise ValueError("Test exception")
+    """Test the JobManager when a generic exception occurs."""
+
+    def raise_exception(*_args: Any, **_kwargs: Any) -> None:
+        msg = "Test exception"
+        raise ValueError(msg)
 
     caplog.set_level(logging.ERROR)
     job_manager.scheduler.start_job = MagicMock(side_effect=raise_exception)

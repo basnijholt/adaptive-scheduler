@@ -1,17 +1,23 @@
-import os
+"""Tests for the run script functionality."""
+
+from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from adaptive_scheduler.server_support import _make_default_run_script
 
+RUN_SCRIPT_FNAME = "run_learner.py"
+MIN_POINTS = 10
+
 
 @pytest.fixture()
-def remove_run_script() -> None:
+def _remove_run_script() -> None:
+    """Remove the run script if it exists."""
     yield
-    run_script_fname = "run_learner.py"
-    if os.path.exists(run_script_fname):
-        os.remove(run_script_fname)
+    if Path(RUN_SCRIPT_FNAME).exists():
+        Path(RUN_SCRIPT_FNAME).unlink()
 
 
 @pytest.mark.parametrize(
@@ -23,17 +29,22 @@ def remove_run_script() -> None:
         ("process-pool", "loky"),
     ],
 )
-def test_make_default_run_script(executor_type, expected_string, remove_run_script):
+@pytest.mark.usefixtures("_remove_run_script")
+def test_make_default_run_script(
+    executor_type: str,
+    expected_string: str,
+) -> None:
+    """Test that the run script is created correctly."""
     url = "http://localhost:1234"
     save_interval = 10
     log_interval = 5
 
-    def goal(learner):
-        return learner.npoints >= 10
+    def goal(learner: Any) -> bool:
+        return learner.npoints >= MIN_POINTS
 
     runner_kwargs = {"max_npoints": 100}
     with patch(
-        "adaptive_scheduler.server_support._is_dask_mpi_installed",
+        "adaptive_scheduler._server_support.run_script._is_dask_mpi_installed",
         return_value=True,
     ):
         _make_default_run_script(
@@ -47,10 +58,10 @@ def test_make_default_run_script(executor_type, expected_string, remove_run_scri
 
     if executor_type == "dask-mpi":
         with patch(
-            "adaptive_scheduler.server_support._is_dask_mpi_installed",
+            "adaptive_scheduler._server_support.run_script._is_dask_mpi_installed",
             return_value=False,
         ), pytest.raises(
-            Exception,
+            ModuleNotFoundError,
             match="You need to have 'dask-mpi' installed",
         ):
             _make_default_run_script(
@@ -62,23 +73,24 @@ def test_make_default_run_script(executor_type, expected_string, remove_run_scri
                 executor_type=executor_type,
             )
 
-    run_script_fname = "run_learner.py"
-    assert os.path.exists(run_script_fname)
+    assert Path(RUN_SCRIPT_FNAME).exists()
 
-    with open(run_script_fname, encoding="utf-8") as f:
+    with Path(RUN_SCRIPT_FNAME).open(encoding="utf-8") as f:
         content = f.read()
 
     assert expected_string in content
     assert url in content
 
 
-def test_make_default_run_script_invalid_executor_type(remove_run_script):
+@pytest.mark.usefixtures("_remove_run_script")
+def test_make_default_run_script_invalid_executor_type() -> None:
+    """Test that an error is raised when an invalid executor type is given."""
     url = "http://localhost:1234"
     save_interval = 10
     log_interval = 5
 
-    def goal(learner):
-        return learner.npoints >= 10
+    def goal(learner: Any) -> bool:
+        return learner.npoints >= MIN_POINTS
 
     runner_kwargs = {"max_npoints": 100}
 
