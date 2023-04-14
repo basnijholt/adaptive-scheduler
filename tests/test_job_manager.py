@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from adaptive_scheduler.server_support import JobManager, MaxRestartsReached
+from adaptive_scheduler.server_support import JobManager, MaxRestartsReachedError
 
 
 @pytest.mark.asyncio()
@@ -31,7 +31,7 @@ async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) 
     job_manager.start()
     await asyncio.sleep(0.1)
     with pytest.raises(
-        MaxRestartsReached,
+        MaxRestartsReachedError,
         match="Too many jobs failed, your Python code probably has a bug",
     ):
         job_manager.task.result()

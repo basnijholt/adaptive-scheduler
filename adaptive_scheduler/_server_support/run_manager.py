@@ -359,7 +359,7 @@ class RunManager(BaseManager):
             with suppress(FileNotFoundError):
                 shutil.rmtree(self.move_old_logs_to)
 
-    def parse_log_files(self, only_last: bool = True) -> pd.DataFrame:
+    def parse_log_files(self, *, only_last: bool = True) -> pd.DataFrame:
         """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
         Parameters
@@ -373,10 +373,9 @@ class RunManager(BaseManager):
 
         """
         return parse_log_files(
-            self.job_names,
             self.database_manager,
             self.scheduler,
-            only_last,
+            only_last=only_last,
         )
 
     def task_status(self) -> None:

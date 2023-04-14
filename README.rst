@@ -134,7 +134,7 @@ In a Jupyter notebook we can start the "job manager" and the "database manager",
    job_manager.start()
 
 
-Then when the job have been running for a while you can check ``server_support.parse_log_files(job_names, database_manager, scheduler)``.
+Then when the job have been running for a while you can check ``server_support.parse_log_files(database_manager, scheduler)``.
 
 And use ``scheduler.cancel(job_names)`` to cancel the jobs.
 

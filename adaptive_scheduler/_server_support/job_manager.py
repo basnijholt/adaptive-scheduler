@@ -4,7 +4,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from .base_manager import BaseManager
-from .common import MaxRestartsReached, log
+from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -105,12 +105,12 @@ class JobManager(BaseManager):
                         break
                 if self.n_started > self.max_job_starts:
                     msg = "Too many jobs failed, your Python code probably has a bug."
-                    raise MaxRestartsReached(msg)  # noqa: TRY301
+                    raise MaxRestartsReachedError(msg)  # noqa: TRY301
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
-            except MaxRestartsReached as e:
+            except MaxRestartsReachedError as e:
                 log.exception(
                     "too many jobs have failed, cancelling the job manager",
                     n_started=self.n_started,

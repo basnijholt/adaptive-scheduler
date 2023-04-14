@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from ._server_support.base_manager import BaseManager
 from ._server_support.common import (
-    MaxRestartsReached,
     _delete_old_ipython_profiles,
     _get_all_files,
     cleanup_scheduler_files,
@@ -12,7 +11,7 @@ from ._server_support.common import (
     periodically_clean_ipython_profiles,
 )
 from ._server_support.database_manager import DatabaseManager
-from ._server_support.job_manager import JobManager
+from ._server_support.job_manager import JobManager, MaxRestartsReachedError
 from ._server_support.kill_manager import KillManager, logs_with_string_or_condition
 from ._server_support.logging import _get_infos, parse_log_files
 from ._server_support.run_manager import (
@@ -40,7 +39,7 @@ __all__ = [
     "BaseManager",
     "log",
     "console",
-    "MaxRestartsReached",
+    "MaxRestartsReachedError",
     "get_allowed_url",
     "_get_all_files",
     "cleanup_scheduler_files",

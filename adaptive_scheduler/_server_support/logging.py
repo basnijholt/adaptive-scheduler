@@ -4,17 +4,19 @@ import datetime
 import json
 import os
 from contextlib import suppress
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from adaptive_scheduler.scheduler import BaseScheduler
+if TYPE_CHECKING:
+    from adaptive_scheduler.scheduler import BaseScheduler
 
-from .database_manager import DatabaseManager
+    from .database_manager import DatabaseManager
 
 
-def _get_infos(fname: str, only_last: bool = True) -> list[str]:
+def _get_infos(fname: str, *, only_last: bool = True) -> list[str]:
     status_lines: list[str] = []
-    with open(fname, encoding="utf-8") as f:
+    with open(fname, encoding="utf-8") as f:  # noqa: PTH123
         lines = f.readlines()
         for line in reversed(lines):
             with suppress(Exception):
@@ -27,9 +29,9 @@ def _get_infos(fname: str, only_last: bool = True) -> list[str]:
 
 
 def parse_log_files(
-    job_names: list[str],
     database_manager: DatabaseManager,
     scheduler: BaseScheduler,
+    *,
     only_last: bool = True,
 ) -> pd.DataFrame:
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
@@ -58,11 +60,11 @@ def parse_log_files(
     infos = []
     for entry in database_manager.as_dicts():
         log_fname = entry["log_fname"]
-        if log_fname is None or not os.path.exists(log_fname):
+        if log_fname is None or not os.path.exists(log_fname):  # noqa: PTH110
             continue
-        for info_dict in _get_infos(log_fname, only_last):
+        for info_dict in _get_infos(log_fname, only_last=only_last):
             info_dict.pop("event")  # this is always "current status"
-            info_dict["timestamp"] = datetime.datetime.strptime(
+            info_dict["timestamp"] = datetime.datetime.strptime(  # noqa: DTZ007
                 info_dict["timestamp"],
                 "%Y-%m-%d %H:%M.%S",
             )

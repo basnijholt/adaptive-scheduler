@@ -160,7 +160,7 @@ async def test_kill_manager_manage_exception(kill_manager: KillManager, caplog) 
         await kill_manager.task
 
     assert "got exception in kill manager" in caplog.text
-    assert "ValueError" in caplog.text
+    assert "TypeError" in caplog.text
 
 
 @pytest.mark.asyncio()

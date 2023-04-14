@@ -66,7 +66,6 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
 
         # Prepare the database manager, scheduler, and job names
         job_name = "test_job"
-        job_names = [job_name]
         db_manager.start()
         # Add an entry in the database manager
         db_manager._start_request("0", f.name, job_name)
@@ -74,7 +73,6 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
 
         # Test parse_log_files
         df_result = parse_log_files(
-            job_names,
             db_manager,
             db_manager.scheduler,
             only_last=False,
