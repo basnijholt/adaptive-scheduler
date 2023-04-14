@@ -83,11 +83,12 @@ def db_manager(
     return DatabaseManager(url, mock_scheduler, db_fname, learners, fnames)
 
 
+def func(x):
+    return x**2
+
+
 @pytest.fixture
 def learners() -> list[Learner1D]:
-    def func(x):
-        return x**2
-
     learner1 = Learner1D(func, bounds=(-1, 1))
     learner2 = Learner1D(func, bounds=(-1, 1))
     learners = [learner1, learner2]
