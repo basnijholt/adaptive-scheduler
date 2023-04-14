@@ -1,6 +1,7 @@
 import textwrap
 
 import pytest
+import zmq.asyncio
 from adaptive import Learner1D
 
 from adaptive_scheduler.scheduler import BaseScheduler
@@ -76,3 +77,12 @@ def learners_and_fnames():
     learners = [learner1, learner2]
     fnames = ["learner1.pkl", "learner2.pkl"]
     return learners, fnames
+
+
+@pytest.fixture(scope="function")
+def socket(db_manager):
+    ctx = zmq.asyncio.Context.instance()
+    socket = ctx.socket(zmq.REQ)
+    socket.connect(db_manager.url)
+    yield socket
+    socket.close()

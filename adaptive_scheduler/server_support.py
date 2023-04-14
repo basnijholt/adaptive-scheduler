@@ -87,7 +87,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         """Is run in the beginning of `self.start`."""
 
     @abc.abstractmethod
-    async def _manage(self) -> None:
+    async def _manage(self) -> None:  # pragma: no cover
         pass
 
 

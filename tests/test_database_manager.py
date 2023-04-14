@@ -2,7 +2,6 @@ import asyncio
 import os
 
 import pytest
-import zmq.asyncio
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler.server_support import DatabaseManager, JobManager
@@ -10,36 +9,29 @@ from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
 
 
 @pytest.mark.asyncio
-async def test_database_manager_start_and_cancel(db_manager):
+async def test_database_manager_start_and_cancel(db_manager) -> None:
     db_manager.start()
     await asyncio.sleep(0.1)  # Give it some time to start
     assert db_manager.is_started
+    with pytest.raises(Exception, match="already started"):
+        db_manager.start()
     result = db_manager.cancel()
     assert result is not None
     with pytest.raises(asyncio.InvalidStateError):
         assert db_manager.task.result()
 
 
-@pytest.fixture(scope="function")
-def socket(db_manager):
-    ctx = zmq.asyncio.Context.instance()
-    socket = ctx.socket(zmq.REQ)
-    socket.connect(db_manager.url)
-    yield socket
-    socket.close()
-
-
 @pytest.fixture
-def job_manager(db_manager, mock_scheduler):
+def job_manager(db_manager: DatabaseManager, mock_scheduler) -> None:
     job_names = ["job1", "job2"]
     return JobManager(job_names, db_manager, mock_scheduler)
 
 
-def test_database_manager_n_done(db_manager):
+def test_database_manager_n_done(db_manager) -> None:
     assert db_manager.n_done() == 0
 
 
-def test_smart_goal(learners_and_fnames):
+def test_smart_goal(learners_and_fnames) -> None:
     """Test empty learners didn't reach the goal."""
     learners, fnames = learners_and_fnames
     goal = smart_goal(100, learners)
@@ -49,7 +41,7 @@ def test_smart_goal(learners_and_fnames):
     assert goal(learners[0])
 
 
-def test_database_manager_create_empty_db(db_manager):
+def test_database_manager_create_empty_db(db_manager) -> None:
     db_manager.create_empty_db()
     assert os.path.exists(db_manager.db_fname)
 
@@ -57,7 +49,7 @@ def test_database_manager_create_empty_db(db_manager):
         assert len(db.all()) == 2
 
 
-def test_database_manager_as_dicts(db_manager):
+def test_database_manager_as_dicts(db_manager) -> None:
     db_manager.create_empty_db()
     assert db_manager.as_dicts() == [
         {
@@ -80,7 +72,9 @@ def test_database_manager_as_dicts(db_manager):
 
 
 @pytest.mark.asyncio
-async def test_database_manager_dispatch_start_stop(db_manager, learners_and_fnames):
+async def test_database_manager_dispatch_start_stop(
+    db_manager, learners_and_fnames
+) -> None:
     db_manager.learners, db_manager.fnames = learners_and_fnames
     db_manager.create_empty_db()
 
@@ -98,14 +92,16 @@ async def test_database_manager_dispatch_start_stop(db_manager, learners_and_fna
         assert entry["is_done"] is True
 
 
-async def send_message(socket, message):
+async def send_message(socket, message) -> None:
     await socket.send_serialized(message, _serialize)
     response = await socket.recv_serialized(_deserialize)
     return response
 
 
 @pytest.mark.asyncio
-async def test_database_manager_start_and_update(socket, db_manager: DatabaseManager):
+async def test_database_manager_start_and_update(
+    socket, db_manager: DatabaseManager
+) -> None:
     db_manager.create_empty_db()
     db_manager.start()
     await asyncio.sleep(0.1)  # Give it some time to start
@@ -150,7 +146,7 @@ async def test_database_manager_start_and_update(socket, db_manager: DatabaseMan
 
 
 @pytest.mark.asyncio
-async def test_database_manager_start_stop(socket, db_manager: DatabaseManager):
+async def test_database_manager_start_stop(socket, db_manager: DatabaseManager) -> None:
     db_manager.create_empty_db()
     # Start the DatabaseManager
     db_manager.start()
@@ -211,7 +207,7 @@ async def test_database_manager_start_stop(socket, db_manager: DatabaseManager):
 @pytest.mark.asyncio
 async def test_database_manager_stop_request_and_requests(
     socket, db_manager: DatabaseManager
-):
+) -> None:
     db_manager.create_empty_db()
     # Start the DatabaseManager
     db_manager.start()
