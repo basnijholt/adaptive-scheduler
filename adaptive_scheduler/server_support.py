@@ -11,11 +11,12 @@ import pickle
 import shutil
 import socket
 import time
+from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Literal
+from typing import Any, Callable, Literal
 
 import adaptive
 import cloudpickle
@@ -57,7 +58,8 @@ log = structlog.wrap_logger(logger)
 
 class MaxRestartsReached(Exception):
     """Jobs can fail instantly because of a error in
-    your Python code which results jobs being started indefinitely."""
+    your Python code which results jobs being started indefinitely.
+    """
 
 
 class _BaseManager(metaclass=abc.ABCMeta):
@@ -66,7 +68,7 @@ class _BaseManager(metaclass=abc.ABCMeta):
         self._coro: Coroutine | None = None
         self.task: asyncio.Task | None = None
 
-    def start(self):
+    def start(self) -> None:
         if self.is_started:
             raise Exception(f"{self.__class__} is already started!")
         self._setup()
@@ -82,8 +84,9 @@ class _BaseManager(metaclass=abc.ABCMeta):
     def cancel(self) -> bool | None:
         if self.is_started:
             return self.task.cancel()
+        return None
 
-    def _setup(self):
+    def _setup(self) -> None:
         """Is run in the beginning of `self.start`."""
 
     @abc.abstractmethod
@@ -134,9 +137,13 @@ class DatabaseManager(_BaseManager):
         self.fnames = fnames
         self.overwrite_db = overwrite_db
 
-        self.defaults = dict(
-            job_id=None, is_done=False, log_fname=None, job_name=None, output_logs=[]
-        )
+        self.defaults = {
+            "job_id": None,
+            "is_done": False,
+            "log_fname": None,
+            "job_name": None,
+            "output_logs": [],
+        }
 
         self._last_reply: str | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
@@ -199,10 +206,10 @@ class DatabaseManager(_BaseManager):
                     f"The job_id {job_id} already exists in the database and "
                     f"runs {fname}. You might have forgotten to use the "
                     "`if __name__ == '__main__': ...` idom in your code. Read the "
-                    "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
+                    "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation.",
                 )
             entry = db.get(
-                (Entry.job_id == None) & (Entry.is_done == False)  # noqa: E711,E712
+                (Entry.job_id == None) & (Entry.is_done == False),  # noqa: E711,E712
             )
             log.debug("choose fname", entry=entry)
             if entry is None:
@@ -222,7 +229,7 @@ class DatabaseManager(_BaseManager):
         fname = maybe_lst(fname)  # if a BalancingLearner
         Entry = Query()
         with TinyDB(self.db_fname) as db:
-            reset = dict(job_id=None, is_done=True, job_name=None)
+            reset = {"job_id": None, "is_done": True, "job_name": None}
             assert (
                 db.get(Entry.fname == fname) is not None
             )  # make sure the entry exists
@@ -232,7 +239,7 @@ class DatabaseManager(_BaseManager):
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         fnames = {str(maybe_lst(fname)) for fname in fnames}
         with TinyDB(self.db_fname) as db:
-            reset = dict(job_id=None, is_done=True, job_name=None)
+            reset = {"job_id": None, "is_done": True, "job_name": None}
             doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames]
             db.update(reset, doc_ids=doc_ids)
 
@@ -243,7 +250,11 @@ class DatabaseManager(_BaseManager):
             if request_type == "start":
                 # workers send us their slurm ID for us to fill in
                 job_id, log_fname, job_name = request_arg
-                kwargs = dict(job_id=job_id, log_fname=log_fname, job_name=job_name)
+                kwargs = {
+                    "job_id": job_id,
+                    "log_fname": log_fname,
+                    "job_name": job_name,
+                }
                 # give the worker a job and send back the fname to the worker
                 fname = self._start_request(**kwargs)
                 if fname is None:
@@ -275,7 +286,7 @@ class DatabaseManager(_BaseManager):
                 except zmq.error.Again:
                     log.exception(
                         "socket.recv_serialized failed in the DatabaseManager"
-                        " with `zmq.error.Again`."
+                        " with `zmq.error.Again`.",
                     )
                 except pickle.UnpicklingError as e:
                     if r"\x03" in str(e):
@@ -285,7 +296,7 @@ class DatabaseManager(_BaseManager):
                     else:
                         log.exception(
                             "socket.recv_serialized failed in the DatabaseManager"
-                            " with `pickle.UnpicklingError` in _deserialize."
+                            " with `pickle.UnpicklingError` in _deserialize.",
                         )
                 else:
                     self._last_reply = self._dispatch(self._last_request)
@@ -335,7 +346,7 @@ class JobManager(_BaseManager):
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
-    ):
+    ) -> None:
         super().__init__()
         self.job_names = job_names
         self.database_manager = database_manager
@@ -348,7 +359,7 @@ class JobManager(_BaseManager):
 
     @property
     def max_job_starts(self) -> int:
-        """Equivalent to ``self.max_fails_per_job * len(self.job_names)``"""
+        """Equivalent to ``self.max_fails_per_job * len(self.job_names)``."""
         return self.max_fails_per_job * len(self.job_names)
 
     def _queued(self, queue: dict[str, dict[str, Any]]) -> set[str]:
@@ -387,7 +398,7 @@ class JobManager(_BaseManager):
                         break
                 if self.n_started > self.max_job_starts:
                     raise MaxRestartsReached(
-                        "Too many jobs failed, your Python code probably has a bug."
+                        "Too many jobs failed, your Python code probably has a bug.",
                     )
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
@@ -408,7 +419,8 @@ class JobManager(_BaseManager):
 
 
 def logs_with_string_or_condition(
-    error: str | Callable[[list[str]], bool], database_manager: DatabaseManager
+    error: str | Callable[[list[str]], bool],
+    database_manager: DatabaseManager,
 ) -> list[tuple[str, list[str]]]:
     """Get jobs that have `string` (or apply a callable) inside their log-file.
 
@@ -429,7 +441,6 @@ def logs_with_string_or_condition(
     has_string : dict
         A list ``(job_name, fnames)``, which have the string inside their log-file.
     """
-
     if isinstance(error, str):
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
     elif callable(error):
@@ -448,7 +459,7 @@ def logs_with_string_or_condition(
     for entry in database_manager.as_dicts():
         fnames = entry["output_logs"]
         if entry["job_id"] is not None and any(file_has_error(f) for f in fnames):
-            all_fnames = fnames + [entry["log_fname"]]
+            all_fnames = [*fnames, entry["log_fname"]]
             have_error.append((entry["job_name"], all_fnames))
     return have_error
 
@@ -488,7 +499,7 @@ class KillManager(_BaseManager):
         interval: int = 600,
         max_cancel_tries: int = 5,
         move_to: str | None = None,
-    ):
+    ) -> None:
         super().__init__()
         self.scheduler = scheduler
         self.database_manager = database_manager
@@ -505,7 +516,8 @@ class KillManager(_BaseManager):
             try:
                 self.database_manager.update()
                 failed_jobs = logs_with_string_or_condition(
-                    self.error, self.database_manager
+                    self.error,
+                    self.database_manager,
                 )
 
                 to_cancel: list[str] = []
@@ -515,10 +527,14 @@ class KillManager(_BaseManager):
                     to_delete.extend(fnames)
 
                 self.scheduler.cancel(
-                    to_cancel, with_progress_bar=False, max_tries=self.max_cancel_tries
+                    to_cancel,
+                    with_progress_bar=False,
+                    max_tries=self.max_cancel_tries,
                 )
                 _remove_or_move_files(
-                    to_delete, with_progress_bar=False, move_to=self.move_to
+                    to_delete,
+                    with_progress_bar=False,
+                    move_to=self.move_to,
                 )
                 self.cancelled.extend(to_cancel)
                 self.deleted.extend(to_delete)
@@ -545,7 +561,7 @@ def get_allowed_url() -> str:
     return f"tcp://{ip}:{port}"
 
 
-def _is_dask_mpi_installed():  # pragma: no cover
+def _is_dask_mpi_installed() -> bool:  # pragma: no cover
     return find_spec("dask_mpi") is not None
 
 
@@ -558,24 +574,27 @@ def _make_default_run_script(
     run_script_fname: str = "run_learner.py",
     executor_type: str = "mpi4py",
     loky_start_method: Literal[
-        "loky", "loky_int_main", "spawn", "fork", "forkserver"
+        "loky",
+        "loky_int_main",
+        "spawn",
+        "fork",
+        "forkserver",
     ] = "loky",
     save_dataframe: bool = False,
     dataframe_format: _DATAFRAME_FORMATS = "parquet",
 ) -> None:
-    default_runner_kwargs = dict(shutdown_executor=True)
+    default_runner_kwargs = {"shutdown_executor": True}
     runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
     serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
 
     if executor_type not in ("mpi4py", "ipyparallel", "dask-mpi", "process-pool"):
         raise NotImplementedError(
-            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+            "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'.",
         )
 
-    if executor_type == "dask-mpi":
-        if not _is_dask_mpi_installed():
-            msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
-            raise Exception(msg)
+    if executor_type == "dask-mpi" and not _is_dask_mpi_installed():
+        msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
+        raise Exception(msg)
 
     with open(Path(__file__).parent / "run_script.py.j2", encoding="utf-8") as f:
         empty = "".join(f.readlines())
@@ -613,7 +632,7 @@ def _get_infos(fname: str, only_last: bool = True) -> list[str]:
 def parse_log_files(
     job_names: list[str],
     database_manager: DatabaseManager,
-    scheduler,
+    scheduler: BaseScheduler,
     only_last: bool = True,
 ) -> pd.DataFrame:
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
@@ -636,7 +655,6 @@ def parse_log_files(
     -------
     `~pandas.core.frame.DataFrame`
     """
-
     _queue = scheduler.queue()
     database_manager.update(_queue)
 
@@ -648,7 +666,8 @@ def parse_log_files(
         for info_dict in _get_infos(log_fname, only_last):
             info_dict.pop("event")  # this is always "current status"
             info_dict["timestamp"] = datetime.datetime.strptime(
-                info_dict["timestamp"], "%Y-%m-%d %H:%M.%S"
+                info_dict["timestamp"],
+                "%Y-%m-%d %H:%M.%S",
             )
             info_dict["elapsed_time"] = pd.to_timedelta(info_dict["elapsed_time"])
             info_dict.update(entry)
@@ -703,16 +722,19 @@ def cleanup_scheduler_files(
     log_file_folder : str, default: ''
         The folder in which to delete the log-files.
     """
-
     to_rm = _get_all_files(job_names, scheduler)
 
     _remove_or_move_files(
-        to_rm, with_progress_bar, move_to, "Removing logs and batch files"
+        to_rm,
+        with_progress_bar,
+        move_to,
+        "Removing logs and batch files",
     )
 
 
 def _delete_old_ipython_profiles(
-    scheduler: BaseScheduler, with_progress_bar: bool = True
+    scheduler: BaseScheduler,
+    with_progress_bar: bool = True,
 ) -> None:
     if scheduler.executor_type != "ipyparallel":
         return
@@ -871,18 +893,28 @@ class RunManager(_BaseManager):
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
         loky_start_method: Literal[
-            "loky", "loky_int_main", "spawn", "fork", "forkserver"
+            "loky",
+            "loky_int_main",
+            "spawn",
+            "fork",
+            "forkserver",
         ] = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
         dataframe_format: Literal[
-            "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+            "parquet",
+            "csv",
+            "hdf",
+            "pickle",
+            "feather",
+            "excel",
+            "json",
         ] = "parquet",
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
-    ):
+    ) -> None:
         super().__init__()
 
         # Set from arguments
@@ -912,7 +944,7 @@ class RunManager(_BaseManager):
             if key in self.job_manager_kwargs:
                 raise ValueError(
                     f"The `{key}` argument is not allowed in `job_manager_kwargs`."
-                    " Please specify it in `RunManager.__init__` instead."
+                    " Please specify it in `RunManager.__init__` instead.",
                 )
 
         if self.save_dataframe:
@@ -922,7 +954,8 @@ class RunManager(_BaseManager):
         self.start_time: float | None = None
         self.end_time: float | None = None
         self._start_one_by_one_task: tuple[
-            asyncio.Task, list[asyncio.Task]
+            asyncio.Task,
+            list[asyncio.Task],
         ] | None = None
 
         # Set on init
@@ -1024,7 +1057,7 @@ class RunManager(_BaseManager):
         if self._start_one_by_one_task is not None:
             self._start_one_by_one_task[0].cancel()
 
-    def cleanup(self, remove_old_logs_folder=False) -> None:
+    def cleanup(self, remove_old_logs_folder: bool = False) -> None:
         """Cleanup the log and batch files.
 
         If the `RunManager` is not running, the ``run_script.py`` file
@@ -1065,7 +1098,10 @@ class RunManager(_BaseManager):
 
         """
         return parse_log_files(
-            self.job_names, self.database_manager, self.scheduler, only_last
+            self.job_names,
+            self.database_manager,
+            self.scheduler,
+            only_last,
         )
 
     def task_status(self) -> None:
@@ -1138,10 +1174,10 @@ class RunManager(_BaseManager):
     def _repr_html_(self) -> None:
         return info(self)
 
-    def info(self):
+    def info(self) -> None:
         return info(self)
 
-    def load_dataframes(self):
+    def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             raise ValueError("The `save_dataframe` option was not set to True.")
@@ -1167,7 +1203,7 @@ def periodically_clean_ipython_profiles(scheduler, interval: int = 600):
     asyncio.Task
     """
 
-    async def clean(interval):
+    async def clean(interval: int) -> None:
         while True:
             with suppress(Exception):
                 _delete_old_ipython_profiles(scheduler, with_progress_bar=False)
@@ -1198,13 +1234,22 @@ def slurm_run(
     cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: Literal[
-        "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+        "parquet",
+        "csv",
+        "hdf",
+        "pickle",
+        "feather",
+        "excel",
+        "json",
     ] = "parquet",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool = True,
     executor_type: Literal[
-        "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+        "ipyparallel",
+        "dask-mpi",
+        "mpi4py",
+        "process-pool",
     ] = "process-pool",
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
@@ -1271,12 +1316,12 @@ def slurm_run(
             f"Using default partition {partition} (The one marked"
             " with a '*' in `sinfo`) with {ncores} cores."
             " Use `adaptive_scheduler.utils.slurm_partitions`"
-            " to see the available partitions."
+            " to see the available partitions.",
         )
     if executor_type == "process-pool" and nodes > 1:
         raise ValueError(
             "process-pool can maximally use a single node,"
-            " use e.g., ipyparallel for multi node."
+            " use e.g., ipyparallel for multi node.",
         )
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
@@ -1406,7 +1451,7 @@ def start_one_by_one(
         if len({getattr(r, u) for r in run_managers}) != len(run_managers):
             raise ValueError(
                 f"All `RunManager`s must have a unique {u}."
-                " If using `slurm_run` these are controlled through the `name` argument."
+                " If using `slurm_run` these are controlled through the `name` argument.",
             )
 
     tasks = [

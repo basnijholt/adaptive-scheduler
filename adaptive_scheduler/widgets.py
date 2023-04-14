@@ -67,10 +67,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
 def _files_that_contain(fnames: list[Path], text: str):
     def contains(fname: Path, text: str):
         with fname.open("r", encoding="utf-8") as f:
-            for line in f:
-                if text in line:
-                    return True
-            return False
+            return any(text in line for line in f)
 
     return [fname for fname in fnames if contains(fname, text)]
 
@@ -182,7 +179,9 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             fnames = _get_fnames(run_manager, only_running_checkbox.value)
             if only_failed_checkbox.value:
                 fnames = _failed_job_logs(
-                    fnames, run_manager, only_running_checkbox.value
+                    fnames,
+                    run_manager,
+                    only_running_checkbox.value,
                 )
             if contains_text.value.strip() != "":
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
@@ -271,7 +270,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     fnames = _get_fnames(run_manager, only_running=False)
     # no need to sort `fnames` because the default sort_by option is alphabetical
     text = _read_file(fnames[0], run_manager.max_log_lines) if fnames else ""
-    textarea = Textarea(text, layout=dict(width="auto"), rows=20)
+    textarea = Textarea(text, layout={"width": "auto"}, rows=20)
     sort_by_dropdown = Dropdown(
         description="Sort by",
         options=["Alphabetical", "CPU %", "Mem %", "Last editted", "Loss", "npoints"],
@@ -280,14 +279,17 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     fname_dropdown = Dropdown(description="File name", options=fnames)
     fname_dropdown.observe(_on_dropdown_change(textarea))
     only_running_checkbox = Checkbox(
-        description="Only files of running jobs", indent=False
+        description="Only files of running jobs",
+        indent=False,
     )
     only_failed_checkbox = Checkbox(
         description="Only files of failed jobs (might include false positives)",
         indent=False,
     )
     update_button = Button(
-        description="update file list", button_style="info", icon="refresh"
+        description="update file list",
+        button_style="info",
+        icon="refresh",
     )
     update_button.on_click(
         _update_fname_dropdown(
@@ -297,7 +299,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             only_failed_checkbox,
             sort_by_dropdown,
             contains_text,
-        )
+        ),
     )
     sort_by_dropdown.observe(_click_button_on_change(update_button))
     only_running_checkbox.observe(_click_button_on_change(update_button))
@@ -311,7 +313,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             update_button,
             only_running_checkbox,
             only_failed_checkbox,
-        )
+        ),
     )
     title = HTML("<h2><tt>adaptive_scheduler.widgets.log_explorer</tt></h2>")
     return VBox(
@@ -418,7 +420,10 @@ def info(run_manager: RunManager) -> None:
     layout = Layout(width="200px")
 
     cancel_button = Button(
-        description="cancel jobs", layout=layout, button_style="danger", icon="stop"
+        description="cancel jobs",
+        layout=layout,
+        button_style="danger",
+        icon="stop",
     )
     cleanup_button = Button(
         description="cleanup log and batch files",
@@ -439,7 +444,10 @@ def info(run_manager: RunManager) -> None:
         icon="download",
     )
     show_logs_button = Button(
-        description="show logs", layout=layout, button_style="info", icon="book"
+        description="show logs",
+        layout=layout,
+        button_style="info",
+        icon="book",
     )
     widgets = {
         "update info": update_info_button,
@@ -498,16 +506,18 @@ def info(run_manager: RunManager) -> None:
 
     # Cancel button with confirm/deny option
     confirm_cancel_button = Button(
-        description="Confirm", button_style="success", icon="check"
+        description="Confirm",
+        button_style="success",
+        icon="check",
     )
     deny_cancel_button = Button(description="Deny", button_style="danger", icon="close")
 
     cancel_button.on_click(
-        switch_to(widgets["cancel"], confirm_cancel_button, deny_cancel_button)
+        switch_to(widgets["cancel"], confirm_cancel_button, deny_cancel_button),
     )
     deny_cancel_button.on_click(switch_to(widgets["cancel"], cancel_button))
     confirm_cancel_button.on_click(
-        switch_to(widgets["cancel"], cancel_button, _callable=cancel)
+        switch_to(widgets["cancel"], cancel_button, _callable=cancel),
     )
 
     # Cleanup button with confirm/deny option
@@ -517,21 +527,27 @@ def info(run_manager: RunManager) -> None:
         indent=False,
     )
     confirm_cleanup_button = Button(
-        description="Confirm", button_style="success", icon="check"
+        description="Confirm",
+        button_style="success",
+        icon="check",
     )
     deny_cleanup_button = Button(
-        description="Deny", button_style="danger", icon="close"
+        description="Deny",
+        button_style="danger",
+        icon="close",
     )
 
     cleanup_box = VBox(
-        [HBox([confirm_cleanup_button, deny_cleanup_button]), include_old_logs]
+        [HBox([confirm_cleanup_button, deny_cleanup_button]), include_old_logs],
     )
     cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_box))
     deny_cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_button))
     confirm_cleanup_button.on_click(
         switch_to(
-            widgets["cleanup"], cleanup_button, _callable=cleanup(include_old_logs)
-        )
+            widgets["cleanup"],
+            cleanup_button,
+            _callable=cleanup(include_old_logs),
+        ),
     )
 
     box.children = (status, *tuple(widgets.values()))

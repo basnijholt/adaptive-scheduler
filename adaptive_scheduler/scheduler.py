@@ -86,13 +86,16 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         log_folder="",
         mpiexec_executable=None,
         executor_type: Literal[
-            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+            "ipyparallel",
+            "dask-mpi",
+            "mpi4py",
+            "process-pool",
         ] = "mpi4py",
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
         extra_script=None,
-    ):
+    ) -> None:
         self.cores = cores
         self.run_script = run_script
         self.python_executable = python_executable or sys.executable
@@ -155,7 +158,10 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return job_id
 
     def cancel(
-        self, job_names: list[str], with_progress_bar: bool = True, max_tries: int = 5
+        self,
+        job_names: list[str],
+        with_progress_bar: bool = True,
+        max_tries: int = 5,
     ) -> None:
         """Cancel all jobs in `job_names`.
 
@@ -220,7 +226,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
             echo "Starting the Python script"
             {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """
+            """,
         )
 
     def _process_pool(self, name: str) -> str:
@@ -236,14 +242,14 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             if self.cores <= 1:
                 raise ValueError(
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
-                    " the rest of the cores for the engines, so use more than 1 core."
+                    " the rest of the cores for the engines, so use more than 1 core.",
                 )
             return self._ipyparallel(name)
         elif self.executor_type == "process-pool":
             return self._process_pool(name)
         else:
             raise NotImplementedError(
-                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'.",
             )
 
     def log_fname(self, name: str) -> str:
@@ -285,18 +291,18 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         _run_submit(submit_cmd)
 
     def __getstate__(self) -> dict:
-        return dict(
-            cores=self.cores,
-            run_script=self.run_script,
-            python_executable=self.python_executable,
-            log_folder=self.log_folder,
-            mpiexec_executable=self.mpiexec_executable,
-            executor_type=self.executor_type,
-            num_threads=self.num_threads,
-            extra_scheduler=self._extra_scheduler,
-            extra_env_vars=self._extra_env_vars,
-            extra_script=self._extra_script,
-        )
+        return {
+            "cores": self.cores,
+            "run_script": self.run_script,
+            "python_executable": self.python_executable,
+            "log_folder": self.log_folder,
+            "mpiexec_executable": self.mpiexec_executable,
+            "executor_type": self.executor_type,
+            "num_threads": self.num_threads,
+            "extra_scheduler": self._extra_scheduler,
+            "extra_env_vars": self._extra_env_vars,
+            "extra_script": self._extra_script,
+        }
 
     def __setstate__(self, state):
         self.__init__(**state)
@@ -311,7 +317,10 @@ class PBS(BaseScheduler):
         log_folder="",
         mpiexec_executable=None,
         executor_type: Literal[
-            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+            "ipyparallel",
+            "dask-mpi",
+            "mpi4py",
+            "process-pool",
         ] = "mpi4py",
         num_threads=1,
         extra_scheduler=None,
@@ -319,7 +328,7 @@ class PBS(BaseScheduler):
         extra_script=None,
         *,
         cores_per_node=None,
-    ):
+    ) -> None:
         super().__init__(
             cores,
             run_script,
@@ -407,7 +416,6 @@ class PBS(BaseScheduler):
         job_script : str
             A job script that can be submitted to PBS.
         """
-
         job_script = textwrap.dedent(
             f"""\
             #!/bin/sh
@@ -428,7 +436,7 @@ class PBS(BaseScheduler):
             {{extra_script}}
 
             {{executor_specific}}
-            """
+            """,
         )
 
         job_script = job_script.format(
@@ -589,13 +597,16 @@ class SLURM(BaseScheduler):
         log_folder="",
         mpiexec_executable=None,
         executor_type: Literal[
-            "ipyparallel", "dask-mpi", "mpi4py", "process-pool"
+            "ipyparallel",
+            "dask-mpi",
+            "mpi4py",
+            "process-pool",
         ] = "mpi4py",
         num_threads=1,
         extra_scheduler=None,
         extra_env_vars=None,
         extra_script=None,
-    ):
+    ) -> None:
         self._cores = cores
         self.nodes = nodes
         self.cores_per_node = cores_per_node
@@ -621,7 +632,7 @@ class SLURM(BaseScheduler):
         if partition is not None:
             if partition not in self.partitions:
                 raise ValueError(
-                    f"Invalid partition: {partition}, only {self.partitions} are available."
+                    f"Invalid partition: {partition}, only {self.partitions} are available.",
                 )
             extra_scheduler.append(f"--partition={partition}")
 
@@ -688,7 +699,7 @@ class SLURM(BaseScheduler):
 
             echo "Starting the Python script"
             srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {cores} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """
+            """,
         )
 
     def job_script(self) -> str:
@@ -715,7 +726,7 @@ class SLURM(BaseScheduler):
             {{extra_script}}
 
             {{executor_specific}}
-            """
+            """,
         )
 
         job_script = job_script.format(
@@ -809,7 +820,7 @@ class LocalMockScheduler(BaseScheduler):
         extra_script=None,
         *,
         mock_scheduler_kwargs=None,
-    ):
+    ) -> None:
         import adaptive_scheduler._mock_scheduler
 
         warnings.warn("The LocalMockScheduler currently doesn't work!")
@@ -828,7 +839,7 @@ class LocalMockScheduler(BaseScheduler):
         # LocalMockScheduler specific
         self.mock_scheduler_kwargs = mock_scheduler_kwargs or {}
         self.mock_scheduler = adaptive_scheduler._mock_scheduler.MockScheduler(
-            **self.mock_scheduler_kwargs
+            **self.mock_scheduler_kwargs,
         )
         mock_scheduler_file = adaptive_scheduler._mock_scheduler.__file__
         self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
@@ -842,7 +853,8 @@ class LocalMockScheduler(BaseScheduler):
     def __getstate__(self) -> dict:
         # LocalMockScheduler has one different argument from the BaseScheduler
         return dict(
-            **super().__getstate__(), mock_scheduler_kwargs=self.mock_scheduler_kwargs
+            **super().__getstate__(),
+            mock_scheduler_kwargs=self.mock_scheduler_kwargs,
         )
 
     def job_script(self) -> str:
@@ -859,7 +871,6 @@ class LocalMockScheduler(BaseScheduler):
         for example `ipengine ... &` will be detached and go on,
         normally a scheduler will take care of this.
         """
-
         job_script = textwrap.dedent(
             f"""\
             #!/bin/sh
@@ -873,7 +884,7 @@ class LocalMockScheduler(BaseScheduler):
             {{extra_script}}
 
             {{executor_specific}}
-            """
+            """,
         )
 
         job_script = job_script.format(
@@ -914,7 +925,6 @@ def _get_default_scheduler():
 
     By default it is "SLURM".
     """
-
     has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
     has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
@@ -925,7 +935,7 @@ def _get_default_scheduler():
         if scheduler_system not in ("PBS", "SLURM"):
             warnings.warn(
                 f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
-                f"Use SLURM or PBS. {default_msg}"
+                f"Use SLURM or PBS. {default_msg}",
             )
             return DEFAULT
         else:
@@ -954,11 +964,14 @@ def _get_ncores(partition):
 
 @lru_cache(maxsize=1)
 def slurm_partitions(
-    timeout: int = 5, with_ncores: bool = True
+    timeout: int = 5,
+    with_ncores: bool = True,
 ) -> list[str] | dict[str, int]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     output = subprocess.run(
-        ["sinfo", "-ahO", "partition"], capture_output=True, timeout=timeout
+        ["sinfo", "-ahO", "partition"],
+        capture_output=True,
+        timeout=timeout,
     )
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))

@@ -12,13 +12,14 @@ import random
 import shutil
 import time
 import warnings
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Callable, Literal
 
 import adaptive
 import cloudpickle
@@ -78,7 +79,8 @@ def split(seq: collections.abc.Iterable, n_parts: int):
 
     Returns
     -------
-    iterable of tuples"""
+    iterable of tuples
+    """
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
     return toolz.partition_all(n, lst)
@@ -118,7 +120,9 @@ def split_in_balancing_learners(
 
 
 def split_sequence_learner(
-    big_learner, n_learners: int, folder: str | Path = ""
+    big_learner,
+    n_learners: int,
+    folder: str | Path = "",
 ) -> tuple[list[adaptive.SequenceLearner], list[str]]:
     r"""Split a sinlge `~adaptive.SequenceLearner` into
     mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
@@ -222,7 +226,8 @@ def combine_sequence_learners(
     if big_learner is None:
         big_sequence = sum((list(learner.sequence) for learner in learners), [])
         big_learner = adaptive.SequenceLearner(
-            learners[0]._original_function, sequence=big_sequence
+            learners[0]._original_function,
+            sequence=big_sequence,
         )
 
     cnt = 0
@@ -237,7 +242,8 @@ def combine_sequence_learners(
 
 
 def copy_from_sequence_learner(
-    learner_from: adaptive.SequenceLearner, learner_to: adaptive.SequenceLearner
+    learner_from: adaptive.SequenceLearner,
+    learner_to: adaptive.SequenceLearner,
 ) -> None:
     """Convinience function to copy the data from a `~adaptive.SequenceLearner`
     into a different `~adaptive.SequenceLearner`.
@@ -268,7 +274,9 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
 
 
 def _progress(
-    seq: collections.abc.Iterable, with_progress_bar: bool = True, desc: str = ""
+    seq: collections.abc.Iterable,
+    with_progress_bar: bool = True,
+    desc: str = "",
 ):
     if not with_progress_bar:
         return seq
@@ -280,7 +288,9 @@ def _progress(
 
 
 def combo_to_fname(
-    combo: dict[str, Any], folder: str | None = None, ext: str | None = ".pickle"
+    combo: dict[str, Any],
+    folder: str | None = None,
+    ext: str | None = ".pickle",
 ) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
@@ -297,7 +307,8 @@ def combo2fname(
 ) -> str:
     """Converts a dict into a human readable filename.
 
-    Improved version of `combo_to_fname`."""
+    Improved version of `combo_to_fname`.
+    """
     name_parts = [f"{k}_{maybe_round(v, sig_figs)}" for k, v in sorted(combo.items())]
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
@@ -313,7 +324,7 @@ def add_constant_to_fname(
     sig_figs: int = 8,
     dry_run: bool = True,
 ):
-    for k in constant.keys():
+    for k in constant:
         combo.pop(k, None)
     old_fname = combo2fname(combo, folder, ext, sig_figs)
     combo.update(constant)
@@ -334,9 +345,9 @@ def maybe_round(x: Any, sig_figs: int) -> Any:
 
     if try_is_nan_inf(x):
         return x
-    elif isinstance(x, (np.float, float)):
+    elif isinstance(x, float):
         return rnd(x)
-    elif isinstance(x, (complex, np.complex)):
+    elif isinstance(x, complex):
         return complex(rnd(x.real), rnd(x.imag))
     else:
         return x
@@ -556,7 +567,7 @@ def _deserialize(frames):
             # `\x03  ^C    (End of text)`
             # TODO: Not sure why this happens.
             console.log(
-                r"pickle.UnpicklingError in _deserialize: Received an empty frame (\x03)."
+                r"pickle.UnpicklingError in _deserialize: Received an empty frame (\x03).",
             )
             console.print_exception(show_locals=True)
         raise
@@ -579,7 +590,7 @@ class LRUCachedCallable(Callable[..., Any]):
         function: Callable[..., Any],
         max_size: int = 128,
         with_cloudpickle: bool = False,
-    ):
+    ) -> None:
         self.max_size = max_size
         self.function = function
         self._with_cloudpickle = with_cloudpickle
@@ -703,7 +714,9 @@ def cloudpickle_learners(
     _ensure_folder_exists(fnames)
 
     for learner, fname in _progress(
-        zip(learners, fnames), with_progress_bar, desc="Cloudpickling learners"
+        zip(learners, fnames),
+        with_progress_bar,
+        desc="Cloudpickling learners",
     ):
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
@@ -714,7 +727,8 @@ def cloudpickle_learners(
 
 
 def fname_to_dataframe(
-    fname: str | list[str] | tuple[str, ...], format: str = "parquet"
+    fname: str | list[str] | tuple[str, ...],
+    format: str = "parquet",
 ) -> str | list[str]:
     if format == "excel":
         format = "xlsx"
@@ -761,7 +775,13 @@ def save_dataframe(
 
 
 _DATAFRAME_FORMATS = Literal[
-    "parquet", "csv", "hdf", "pickle", "feather", "excel", "json"
+    "parquet",
+    "csv",
+    "hdf",
+    "pickle",
+    "feather",
+    "excel",
+    "json",
 ]
 
 
@@ -835,12 +855,12 @@ def _require_adaptive(version: str, name: str) -> None:
     if current < required:
         raise RuntimeError(
             f"`{name}` requires adaptive version "
-            f"of at least {required}, currently using {current}."
+            f"of at least {required}, currently using {current}.",
         )
 
 
 class _TimeGoal:
-    def __init__(self, dt: timedelta | datetime):
+    def __init__(self, dt: timedelta | datetime) -> None:
         self.dt = dt
         self.start_time = None
 

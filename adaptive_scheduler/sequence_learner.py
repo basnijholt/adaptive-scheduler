@@ -27,10 +27,10 @@ def ensure_hashable(x):
 
 
 class SequenceLearner(BaseLearner):
-    def __init__(self, function, sequence):
+    def __init__(self, function, sequence) -> None:
         warnings.warn("Use `adaptive.SequenceLearner` from adaptive>=0.9!")
         print(
-            "I am going to sleep for 10 seconds to annoy you into updating your code!"
+            "I am going to sleep for 10 seconds to annoy you into updating your code!",
         )
         for i in range(10, -1, -1):
             _print_same_line(f"Sleeping for {i} seconds more.", new_line_end=(i == 0))

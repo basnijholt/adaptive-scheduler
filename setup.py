@@ -9,13 +9,7 @@
 # https://github.com/basnijholt/adaptive-scheduler/graphs/contributors.
 
 
-import sys
-
 from setuptools import find_packages, setup
-
-if sys.version_info < (3, 8):
-    print("adaptive-scheduler requires Python 3.8 or above.")
-    sys.exit(1)
 
 
 def get_version_and_cmdclass(package_name):
@@ -40,7 +34,7 @@ setup(
     name="adaptive_scheduler",
     version=version,
     cmdclass=cmdclass,
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     packages=find_packages(),
     include_package_data=True,
     maintainer="Bas Nijholt",

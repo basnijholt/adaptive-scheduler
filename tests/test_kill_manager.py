@@ -11,7 +11,7 @@ from adaptive_scheduler.server_support import (
 )
 
 
-@pytest.fixture
+@pytest.fixture()
 def kill_manager(mock_scheduler, db_manager: DatabaseManager) -> KillManager:
     return KillManager(
         scheduler=mock_scheduler,
@@ -23,7 +23,7 @@ def kill_manager(mock_scheduler, db_manager: DatabaseManager) -> KillManager:
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_kill_manager_init(kill_manager: KillManager) -> None:
     assert kill_manager.scheduler is not None
     assert kill_manager.database_manager is not None
@@ -52,7 +52,7 @@ def test_logs_with_string_or_condition_string_error(tmp_path):
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
-        }
+        },
     ]
 
     error = "Something went wrong"
@@ -73,7 +73,7 @@ def test_logs_with_string_or_condition_callable_error(tmp_path):
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
-        }
+        },
     ]
 
     def custom_error(lines):
@@ -96,7 +96,7 @@ def test_logs_with_string_or_condition_no_error(tmp_path):
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
-        }
+        },
     ]
 
     error = "Something went wrong"
@@ -113,7 +113,7 @@ def test_logs_with_string_or_condition_missing_file():
             "job_name": "test_job",
             "output_logs": ["non_existent_file.txt"],
             "log_fname": "log_file.log",
-        }
+        },
     ]
 
     error = "Something went wrong"
@@ -121,13 +121,14 @@ def test_logs_with_string_or_condition_missing_file():
     assert len(result) == 0
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     # The KillManager will read from the .out files, which are determined
     # from the scheduler.
     output_file_path = kill_manager.scheduler.output_fnames("test_job")[0]
     output_file_path = output_file_path.replace(
-        kill_manager.scheduler._JOB_ID_VARIABLE, "0"
+        kill_manager.scheduler._JOB_ID_VARIABLE,
+        "0",
     )
     with open(output_file_path, "w") as f:
         f.write("srun: error: GPU on fire!\n")
@@ -142,7 +143,7 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     assert output_file_path in kill_manager.deleted
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_kill_manager_manage_exception(kill_manager: KillManager, caplog) -> None:
     kill_manager.error = 12345  # This will cause a ValueError when calling `_manage`
     kill_manager.database_manager.start()  # creates empty db
@@ -162,7 +163,7 @@ async def test_kill_manager_manage_exception(kill_manager: KillManager, caplog) 
     assert "ValueError" in caplog.text
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_kill_manager_manage_canceled(kill_manager: KillManager, caplog) -> None:
     caplog.set_level(logging.INFO)
     kill_manager.error = "never going to happen"

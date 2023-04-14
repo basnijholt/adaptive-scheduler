@@ -10,7 +10,7 @@ from setuptools.command.sdist import sdist as sdist_orig
 Version = namedtuple("Version", ("release", "dev", "labels"))
 
 # No public API
-__all__ = []
+__all__ = ["cmdclass"]
 
 package_root = os.path.dirname(os.path.realpath(__file__))
 package_name = os.path.basename(package_root)
@@ -56,7 +56,7 @@ def pep440_format(version_info):
 
     version_parts = [release]
     if dev:
-        if release.endswith("-dev") or release.endswith(".dev"):
+        if release.endswith(("-dev", ".dev")):
             version_parts.append(dev)
         else:  # prefer PEP440 over strict adhesion to semver
             version_parts.append(f".dev{dev}")
@@ -77,14 +77,14 @@ def get_version_from_git():
             stderr=subprocess.PIPE,
         )
     except OSError:
-        return
+        return None
     if p.wait() != 0:
-        return
+        return None
     if not os.path.samefile(p.communicate()[0].decode().rstrip("\n"), distr_root):
         # The top-level directory of the current Git repository is not the same
         # as the root directory of the distribution: do not extract the
         # version from Git.
-        return
+        return None
 
     # git describe --first-parent does not take into account tags from branches
     # that were merged-in. The '--long' flag gets us the 'dev' version and
@@ -92,17 +92,17 @@ def get_version_from_git():
     for opts in [["--first-parent"], []]:
         try:
             p = subprocess.Popen(
-                ["git", "describe", "--long", "--always", "--tags"] + opts,
+                ["git", "describe", "--long", "--always", "--tags", *opts],
                 cwd=distr_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
         except OSError:
-            return
+            return None
         if p.wait() == 0:
             break
     else:
-        return
+        return None
 
     description = (
         p.communicate()[0]
@@ -183,7 +183,7 @@ def _write_version(fname):
     with open(fname, "w", encoding="utf-8") as f:
         f.write(
             "# This file has been created by setup.py.\n"
-            "version = '{}'\n".format(__version__)
+            "version = '{}'\n".format(__version__),
         )
 
 
@@ -196,11 +196,12 @@ class _build_py(build_py_orig):
 class _sdist(sdist_orig):
     def make_release_tree(self, base_dir, files):
         super().make_release_tree(base_dir, files)
-        if _package_root_inside_src:
-            p = os.path.join("src", package_name)
-        else:
-            p = package_name
+        p = (
+            os.path.join("src", package_name)
+            if _package_root_inside_src
+            else package_name
+        )
         _write_version(os.path.join(base_dir, p, STATIC_VERSION_FILE))
 
 
-cmdclass = dict(sdist=_sdist, build_py=_build_py)
+cmdclass = {"sdist": _sdist, "build_py": _build_py}
