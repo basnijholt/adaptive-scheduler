@@ -44,7 +44,7 @@ def test_make_default_run_script(
 
     runner_kwargs = {"max_npoints": 100}
     with patch(
-        "adaptive_scheduler.server_support._is_dask_mpi_installed",
+        "adaptive_scheduler._server_support.run_script._is_dask_mpi_installed",
         return_value=True,
     ):
         _make_default_run_script(
@@ -58,7 +58,7 @@ def test_make_default_run_script(
 
     if executor_type == "dask-mpi":
         with patch(
-            "adaptive_scheduler.server_support._is_dask_mpi_installed",
+            "adaptive_scheduler._server_support.run_script._is_dask_mpi_installed",
             return_value=False,
         ), pytest.raises(
             Exception,
