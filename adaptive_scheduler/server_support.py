@@ -390,7 +390,7 @@ class JobManager(_BaseManager):
                         "Too many jobs failed, your Python code probably has a bug."
                     )
                 await asyncio.sleep(self.interval)
-            except concurrent.futures.CancelledError:
+            except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except MaxRestartsReached as e:
