@@ -18,7 +18,6 @@ from typing import Literal
 
 from rich.console import Console
 
-import adaptive_scheduler._mock_scheduler
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 console = Console()
@@ -809,6 +808,8 @@ class LocalMockScheduler(BaseScheduler):
         *,
         mock_scheduler_kwargs=None,
     ):
+        import adaptive_scheduler._mock_scheduler
+
         warnings.warn("The LocalMockScheduler currently doesn't work!")
         super().__init__(
             cores,
