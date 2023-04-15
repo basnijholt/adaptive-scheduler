@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
+    from typing import Any, Callable
+
     from ipywidgets import VBox
 
     from adaptive_scheduler.server_support import RunManager
@@ -39,18 +41,17 @@ def _failed_job_logs(
     run_manager: RunManager,
     *,
     only_running: bool,
-):
+) -> list[Path]:
     running = {
         Path(e["log_fname"]).stem
         for e in run_manager.database_manager.as_dicts()
         if e["log_fname"] is not None
     }
-
-    fnames = {
+    fnames_set = {
         fname.stem for fname in fnames if fname.suffix != run_manager.scheduler.ext
     }
-    failed = fnames - running
-    failed = [Path(f) for stem in failed for f in glob(f"{stem}*")]
+    failed_set = fnames_set - running
+    failed = [Path(f) for stem in failed_set for f in glob(f"{stem}*")]
 
     def maybe_append(fname: str, other_dir: Path, lst: list[Path]) -> None:
         p = Path(fname)
@@ -82,12 +83,12 @@ def _sort_fnames(
     sort_by: str,
     run_manager: RunManager,
     fnames: list[Path],
-) -> list[Path]:
-    def _try_transform(f):
-        def _f(x):
+) -> list[Path] | list[tuple[str, Path]]:
+    def _try(f: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        def _f(x: Any) -> Any:
             try:
                 return f(x)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return x
 
         return _f
@@ -99,7 +100,7 @@ def _sort_fnames(
         return float(x), fname
 
     mapping = {
-        "Alphabetical": (None, lambda x: ""),
+        "Alphabetical": (None, lambda _: ""),
         "CPU %": ("cpu_usage", lambda x: f"{x:.1f}%"),
         "Mem %": ("mem_usage", lambda x: f"{x:.1f}%"),
         "Last editted": (
@@ -111,9 +112,9 @@ def _sort_fnames(
         "Elapsed time": ("elapsed_time", lambda x: f"{x / 1e9}s"),
     }
 
-    def extract(df: pd.DateOffset, fname: Path, key: str):
+    def extract(df: pd.DataFrame, fname: Path, key: str) -> Any | str:
         df_sel = df[df.log_fname.str.contains(fname.name)]
-        values = df_sel[key].values
+        values = df_sel[key].to_numpy()
         if values:
             return values[0]
         return "?"
@@ -128,13 +129,14 @@ def _sort_fnames(
             return fnames
         log_fnames = set(df.log_fname.apply(Path))
         df_key, transform = mapping[sort_by]
+        assert df_key is not None  # for mypy
         stems = [fname.stem for fname in log_fnames]
         vals = [extract(df, fname, df_key) for fname in log_fnames]
         val_stem = sorted(zip(vals, stems), key=_sort_key, reverse=True)
 
-        result = []
+        result: list[tuple[str, Path]] = []
         for val, stem in val_stem:
-            val = _try_transform(transform)(val)  # noqa: PLW2901
+            val = _try(transform)(val)  # noqa: PLW2901
             for fname in fname_mapping[stem]:
                 result.append((f"{val}: {fname.name}", fname))
 
@@ -159,11 +161,12 @@ def _read_file(fname: Path, max_lines: int = 500) -> str:
             return "".join(lines)
     except UnicodeDecodeError:
         return f"Could not decode file ({fname})!"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return f"Exception with trying to read {fname}:\n{e}."
 
 
-def log_explorer(run_manager) -> VBox:  # noqa: C901
+def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
+    """Log explorer widget."""
     from ipywidgets import (
         HTML,
         Button,
@@ -175,15 +178,15 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
         VBox,
     )
 
-    def _update_fname_dropdown(
-        run_manager,
-        fname_dropdown,
-        only_running_checkbox,
-        only_failed_checkbox,
-        sort_by_dropdown,
-        contains_text,
-    ):
-        def on_click(_):
+    def _update_fname_dropdown(  # noqa: PLR0913
+        run_manager: RunManager,
+        fname_dropdown: Dropdown,
+        only_running_checkbox: Checkbox,
+        only_failed_checkbox: Checkbox,
+        sort_by_dropdown: Dropdown,
+        contains_text: Text,
+    ) -> Callable[[Any], None]:
+        def on_click(_: Any) -> None:
             current_value = fname_dropdown.value
             fnames = _get_fnames(run_manager, only_running=only_running_checkbox.value)
             if only_failed_checkbox.value:
@@ -192,7 +195,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
                     run_manager,
                     only_running=only_running_checkbox.value,
                 )
-            if contains_text.value.strip() != "":
+            if not contains_text.value.strip():
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
             fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
             fname_dropdown.options = fnames
@@ -209,31 +212,31 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
             return -1.0
 
     async def _tail_log(fname: Path, textarea: Textarea) -> None:
-        T = -2.0  # to make sure the update always triggers
+        t = -2.0  # to make sure the update always triggers
         while True:
             await asyncio.sleep(2)
             try:
-                T_new = _last_editted(fname)
-                if T_new > T:
+                t_new = _last_editted(fname)
+                if t_new > t:
                     textarea.value = _read_file(fname, run_manager.max_log_lines)
-                    T = T_new
+                    t = t_new
             except asyncio.CancelledError:
                 return
-            except Exception:
+            except Exception:  # noqa: S110, BLE001
                 pass
 
-    def _tail(
-        dropdown,
-        tail_button,
-        textarea,
-        update_button,
-        only_running_checkbox,
-        only_failed_checkbox,
-    ):
+    def _tail(  # noqa: PLR0913
+        dropdown: Dropdown,
+        tail_button: Button,
+        textarea: Textarea,
+        update_button: Button,
+        only_running_checkbox: Checkbox,
+        only_failed_checkbox: Checkbox,
+    ) -> Callable[[Any], None]:
         tail_task = None
         ioloop = asyncio.get_running_loop()
 
-        def on_click(_):
+        def on_click(_: Any) -> None:
             nonlocal tail_task
             if tail_task is None:
                 fname = dropdown.options[dropdown.index]
@@ -258,8 +261,8 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
 
         return on_click
 
-    def _on_dropdown_change(textarea):
-        def on_change(change):
+    def _on_dropdown_change(textarea: Textarea) -> Callable[[dict[str, Any]], None]:
+        def on_change(change: dict[str, Any]) -> None:
             if (
                 change["type"] == "change"
                 and change["name"] == "value"
@@ -269,8 +272,8 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
 
         return on_change
 
-    def _click_button_on_change(button):
-        def on_change(change):
+    def _click_button_on_change(button: Button) -> Callable[[dict[str, Any]], None]:
+        def on_change(change: dict[str, Any]) -> None:
             if change["type"] == "change" and change["name"] == "value":
                 button.click()
 
@@ -341,7 +344,7 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     )
 
 
-def _info_html(run_manager) -> str:
+def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
     run_manager.database_manager.update(queue)
     jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
@@ -360,7 +363,7 @@ def _info_html(run_manager) -> str:
         "finished": "green",
     }[status]
 
-    def _table_row(i, key, value):
+    def _table_row(i: int, key: str, value: Any) -> str:
         """Style the rows of a table. Based on the default Jupyterlab table style."""
         style = "text-align: right; padding: 0.5em 0.5em; line-height: 1.0;"
         if i % 2 == 1:
@@ -415,7 +418,7 @@ def _info_html(run_manager) -> str:
     """
 
 
-def info(run_manager: RunManager) -> None:
+def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     """Display information about the `RunManager`.
 
     Returns an interactive ipywidget that can be
@@ -466,8 +469,12 @@ def info(run_manager: RunManager) -> None:
         "show logs": show_logs_button,
     }
 
-    def switch_to(box, *buttons, _callable=None):
-        def on_click(_):
+    def switch_to(
+        box: HBox,
+        *buttons: Button,
+        _callable: Callable[[], None] | None = None,
+    ) -> Callable[[Any], None]:
+        def on_click(_: Any) -> None:
             box.children = tuple(buttons)
             if _callable is not None:
                 _callable()
@@ -478,13 +485,13 @@ def info(run_manager: RunManager) -> None:
 
     log_widget = None
 
-    def update(_):
+    def update(_: Any) -> None:
         status.value = _info_html(run_manager)
 
-    def load_learners(_):
+    def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
-    def toggle_logs(_):
+    def toggle_logs(_: Any) -> None:
         nonlocal log_widget
 
         if log_widget is None:
@@ -502,8 +509,8 @@ def info(run_manager: RunManager) -> None:
         run_manager.cancel()
         update(None)
 
-    def cleanup(include_old_logs: bool):
-        def _callable():
+    def cleanup(*, include_old_logs: Checkbox) -> Callable[[], None]:
+        def _callable() -> None:
             run_manager.cleanup(remove_old_logs_folder=include_old_logs.value)
             update(None)
 
@@ -555,7 +562,7 @@ def info(run_manager: RunManager) -> None:
         switch_to(
             widgets["cleanup"],
             cleanup_button,
-            _callable=cleanup(include_old_logs),
+            _callable=cleanup(include_old_logs=include_old_logs),
         ),
     )
 

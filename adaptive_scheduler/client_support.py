@@ -5,12 +5,11 @@ import datetime
 import logging
 import socket
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import structlog
 import zmq
-from adaptive import AsyncRunner, BaseLearner
 
 from adaptive_scheduler.utils import (
     _deserialize,
@@ -20,6 +19,10 @@ from adaptive_scheduler.utils import (
     log_exception,
     maybe_lst,
 )
+
+if TYPE_CHECKING:
+    from adaptive import AsyncRunner, BaseLearner
+
 
 ctx = zmq.Context()
 logger = logging.getLogger("adaptive_scheduler.client")
@@ -130,7 +133,7 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)
     if npoints is not None:
-        info["npoints"] = _get_npoints(learner)
+        info["npoints"] = npoints
         Δnpoints = npoints - npoints_start
         with suppress(ZeroDivisionError):
             # Δt.seconds could be zero if the job is done when starting
@@ -140,7 +143,7 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     with suppress(AttributeError):
         info["nlearners"] = len(learner.learners)
         if "npoints" in info:
-            info["npoints/learner"] = info["npoints"] / info["nlearners"]
+            info["npoints/learner"] = info["npoints"] / info["nlearners"]  # type: ignore[operator]
     info["cpu_usage"] = psutil.cpu_percent()
     info["mem_usage"] = psutil.virtual_memory().percent
     return info

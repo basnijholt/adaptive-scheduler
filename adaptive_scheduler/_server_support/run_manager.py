@@ -467,7 +467,7 @@ class RunManager(BaseManager):
         if not self.save_dataframe:
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
-        return load_dataframes(self.fnames, format=self.dataframe_format)
+        return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
 
 
 async def _wait_for_finished(
@@ -477,6 +477,7 @@ async def _wait_for_finished(
     interval: int = 120,
 ) -> None:
     if goal is None:
+        assert manager_first.task is not None  # for mpypy
         await manager_first.task
     else:
         while not goal(manager_first):
@@ -487,7 +488,7 @@ async def _wait_for_finished(
 def _start_after(
     manager_first: RunManager,
     manager_second: RunManager,
-    goal: Callable[[RunManager], bool] = None,
+    goal: Callable[[RunManager], bool] | None = None,
     interval: int = 120,
 ) -> asyncio.Task:
     if manager_second.is_started:
@@ -499,7 +500,7 @@ def _start_after(
 
 def start_one_by_one(
     *run_managers: RunManager,
-    goal: Callable[[RunManager], bool] = None,
+    goal: Callable[[RunManager], bool] | None = None,
     interval: int = 120,
 ) -> tuple[asyncio.Future, list[asyncio.Task]]:
     """Start a list of RunManagers after each other.

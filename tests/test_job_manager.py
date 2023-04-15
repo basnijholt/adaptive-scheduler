@@ -100,7 +100,7 @@ async def test_job_manager_manage_n_done_equal_job_names(
     job_manager: JobManager,
 ) -> None:
     """Test the JobManager when n_done equals the number of job names."""
-    job_manager.database_manager.n_done = MagicMock(
+    job_manager.database_manager.n_done = MagicMock(  # type: ignore[method-assign]
         return_value=len(job_manager.job_names),
     )
     job_manager.database_manager.start()
@@ -123,7 +123,7 @@ async def test_job_manager_manage_generic_exception(
         raise ValueError(msg)
 
     caplog.set_level(logging.ERROR)
-    job_manager.scheduler.start_job = MagicMock(side_effect=raise_exception)
+    job_manager.scheduler.start_job = MagicMock(side_effect=raise_exception)  # type: ignore[method-assign]
     job_manager.database_manager.start()
     job_manager.start()
     assert job_manager.task is not None

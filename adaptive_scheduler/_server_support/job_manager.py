@@ -89,7 +89,7 @@ class JobManager(BaseManager):
 
                 if n_done == len(self.job_names):
                     # we are finished!
-                    self.database_manager.task.cancel()
+                    self.database_manager.task.cancel()  # type: ignore[union-attr]
                     return
 
                 n_to_schedule = max(0, len(not_queued) - n_done)
