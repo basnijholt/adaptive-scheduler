@@ -41,6 +41,7 @@ dependencies = [
     "tinydb",
     "toolz",
     "tqdm",
+    "versioningit",
 ]
 [project.optional-dependencies]
 all = ["dask_mpi"]
