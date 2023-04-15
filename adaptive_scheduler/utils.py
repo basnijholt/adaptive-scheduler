@@ -828,7 +828,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    for col, val in df.iloc[0].iteritems():
+    for col, val in df.iloc[0].items():
         if isinstance(val, dict):
             prefix = f"{col}."
             x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
