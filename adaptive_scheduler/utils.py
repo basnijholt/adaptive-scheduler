@@ -30,7 +30,6 @@ from rich.console import Console
 from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
-    import collections.abc
     from collections.abc import Iterable, Sequence
 
 console = Console()
@@ -66,7 +65,7 @@ def hash_anything(x: Any) -> str:
         return hashlib.md5(pickle.dumps(x)).hexdigest()  # noqa: S324
 
 
-def split(seq: collections.abc.Iterable, n_parts: int) -> Iterable[tuple]:
+def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
     """Split up a sequence into ``n_parts``.
 
     Parameters
@@ -275,10 +274,10 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
 
 
 def _progress(
-    seq: collections.abc.Iterable,
+    seq: Iterable,
     with_progress_bar: bool = True,  # noqa: FBT001, FBT002
     desc: str = "",
-) -> collections.abc.Iterable | tqdm:
+) -> Iterable | tqdm:
     if not with_progress_bar:
         return seq
     if in_ipynb():
