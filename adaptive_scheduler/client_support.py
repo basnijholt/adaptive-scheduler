@@ -1,3 +1,4 @@
+"""Client support for Adaptive Scheduler."""
 from __future__ import annotations
 
 import asyncio
@@ -21,6 +22,8 @@ from adaptive_scheduler.utils import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from adaptive import AsyncRunner, BaseLearner
 
 
@@ -38,7 +41,7 @@ log = structlog.wrap_logger(
 )
 
 
-def _add_log_file_handler(log_fname):
+def _add_log_file_handler(log_fname: str | Path) -> None:
     fh = logging.FileHandler(log_fname)
     logger.addHandler(fh)
 
@@ -49,8 +52,10 @@ def get_learner(
     job_id: str,
     job_name: str,
 ) -> tuple[BaseLearner, str | list[str]]:
-    """Get a learner from the database running at `url` and this learner's
-    process will be logged in `log_fname` and running under `job_id`.
+    """Get a learner from the database (running at `url`).
+
+    This learner's process will be logged in `log_fname`
+    and running under `job_id`.
 
     Parameters
     ----------
@@ -128,13 +133,13 @@ def tell_done(url: str, fname: str) -> None:
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
     info: dict[str, int | float | str] = {}
-    Δt = datetime.timedelta(seconds=runner.elapsed_time())
+    Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)
     if npoints is not None:
         info["npoints"] = npoints
-        Δnpoints = npoints - npoints_start
+        Δnpoints = npoints - npoints_start  # noqa: N806
         with suppress(ZeroDivisionError):
             # Δt.seconds could be zero if the job is done when starting
             info["npoints/s"] = Δnpoints / Δt.seconds
@@ -149,12 +154,13 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     return info
 
 
-def log_info(runner: AsyncRunner, interval=300) -> asyncio.Task:
+def log_info(runner: AsyncRunner, interval: int = 300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
     ----------
     runner : `adaptive.Runner` instance
+        Adaptive Runner instance.
     interval : int, default: 300
         Time in seconds between log entries.
 
@@ -163,10 +169,11 @@ def log_info(runner: AsyncRunner, interval=300) -> asyncio.Task:
     asyncio.Task
     """
 
-    async def coro(runner, interval):
-        log.info(f"started logger on hostname {socket.gethostname()}")
+    async def coro(runner: AsyncRunner, interval: int) -> None:
+        log.info("started logger on hostname %s", socket.gethostname())
         learner = runner.learner
         npoints_start = _get_npoints(learner)
+        assert npoints_start is not None
         log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
             await asyncio.sleep(interval)

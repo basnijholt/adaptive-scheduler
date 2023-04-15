@@ -6,11 +6,15 @@ import logging
 import os
 import subprocess
 from collections.abc import Coroutine
+from typing import TYPE_CHECKING
 
 import structlog
 import zmq
 import zmq.asyncio
 from toolz.dicttoolz import dissoc
+
+if TYPE_CHECKING:
+    from typing import Any
 
 ctx = zmq.asyncio.Context()
 
@@ -53,7 +57,7 @@ class MockScheduler:
         bash="bash",
         url=None,
     ) -> None:
-        self._current_queue = {}
+        self._current_queue: dict[str, dict[str, Any]] = {}
         self._job_id = 0
         self.max_running_jobs = max_running_jobs
         self.startup_delay = startup_delay
@@ -166,7 +170,7 @@ class MockScheduler:
             return e
 
 
-def _external_command(command: tuple[str, ...], url: str):
+def _external_command(command: tuple[str, ...], url: str) -> Any:
     async def _coro(command, url) -> None:
         with ctx.socket(zmq.REQ) as socket:
             socket.setsockopt(zmq.RCVTIMEO, 2000)
@@ -185,7 +189,7 @@ def queue(url: str = DEFAULT_URL):
     return _external_command(("queue",), url)
 
 
-def submit(job_name: str, fname: str, url: str = DEFAULT_URL) -> None:
+def submit(job_name: str, fname: str, url: str = DEFAULT_URL) -> Any:
     return _external_command(("submit", job_name, fname), url)
 
 
