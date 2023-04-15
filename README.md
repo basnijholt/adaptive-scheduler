@@ -1,4 +1,4 @@
-# Asynchronous Job Scheduler for Adaptive 🚀
+# Asynchronous Job Scheduler for Adaptive :rocket:
 
 [![PyPI](https://img.shields.io/pypi/v/adaptive-scheduler.svg)](https://pypi.python.org/pypi/adaptive-scheduler)
 [![Conda](https://img.shields.io/conda/v/conda-forge/adaptive-scheduler.svg?label=conda-forge)](https://anaconda.org/conda-forge/adaptive-scheduler)
@@ -9,18 +9,15 @@
 
 This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python-adaptive/adaptive/), designed to run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `distributed`.
 
-## 📚 Table of Contents
+## :books: Table of Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [What is this?](#what-is-this)
-- [Design Goals](#design-goals)
-- [How does it work?](#how-does-it-work)
-- [But how does it *really* work?](#but-how-does-it-really-work)
-- [Jupyter Notebook Example](#jupyter-notebook-example)
-- [Installation](#installation)
-- [Development](#development)
-- [Limitations](#limitations)
 
-## 🤔 What is this?
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
+## :thinking: What is this?
 
 The Adaptive scheduler is designed to solve the problem of running more learners than you can run with a single runner and/or can use >1k cores.
 
@@ -30,7 +27,7 @@ Our approach is to schedule a different job for each `adaptive.Learner`. The cre
 
 The computation is designed to be maximally local. This means that if one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (thanks to Adaptive's periodic saving functionality). Even if the central \"job manager\" dies, the jobs will continue to run (although no new jobs will be scheduled).
 
-## 🎯 Design Goals
+## :dart: Design Goals
 
 1. Needs to be able to run efficiently on >30k cores.
 2. Works seamlessly with the Adaptive package.
@@ -43,7 +40,7 @@ The computation is designed to be maximally local. This means that if one of the
 7. Separates the simulation definition code from the code that runs the simulation.
 8. Maximizes computation locality, jobs continue to run when the main process dies.
 
-## 🧪 How does it work?
+## :test_tube: How does it work?
 
 You create a bunch of `learners` and corresponding `fnames` so they can be loaded, like:
 
@@ -89,7 +86,7 @@ That's it! You can run `run_manager.info()` which will display an interactive `i
 
 ![Widget demo](http://files.nijho.lt/info.gif)
 
-## 🔍 But how does it *really* work?
+## :mag: But how does it *really* work?
 
 The `adaptive_scheduler.server_support.RunManager` basically does the following:
 
@@ -141,11 +138,11 @@ And use `scheduler.cancel(job_names)` to cancel the jobs.
 
 You don't actually ever have to leave the Jupyter notebook; take a look at the [`example notebook`](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
 
-## 📓 Jupyter Notebook Example
+## :notebook: Jupyter Notebook Example
 
 See [`example.ipynb`](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
 
-## 💻 Installation
+## :computer: Installation
 
 **WARNING:** This is still in the pre-alpha development stage.
 
@@ -175,7 +172,7 @@ cd adaptive-scheduler
 pip install -e .
 ```
 
-## 🛠️ Development
+## :hammer_and_wrench: Development
 
 In order not to pollute the history with the output of the notebooks, please set up the git filter by executing:
 
@@ -193,6 +190,7 @@ pre-commit install
 
 in the repository.
 
-## ⚠️ Limitations
+## :warning: Limitations
 
-Currently, `adaptive_scheduler` only works for SLURM and PBS. However, only a class like [`adaptive_scheduler/scheduler.py`](https://github.com/basnijholt/adaptive-scheduler/blob/master/adaptive_scheduler/scheduler.py#L471) would have to be implemented for another type of scheduler. Also, there are **no tests** at all!
+Currently, `adaptive_scheduler` only works for SLURM and PBS.
+However, only a class like [`adaptive_scheduler/scheduler.py`](https://github.com/basnijholt/adaptive-scheduler/blob/master/adaptive_scheduler/scheduler.py#L471) would have to be implemented for another type of scheduler.
