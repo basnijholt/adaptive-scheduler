@@ -749,7 +749,7 @@ class SLURM(BaseScheduler):
 
             echo "Starting the Python script"
             srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {cores} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """,
+            """,  # noqa: E501
         )
 
     def job_script(self) -> str:
