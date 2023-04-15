@@ -1,3 +1,4 @@
+"""Tests for `adaptive_scheduler.utils`."""
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,7 +49,7 @@ def test_split_in_balancing_learners() -> None:
         n_parts,
     )
     assert len(new_learners) == n_parts
-    assert all(isinstance(l, adaptive.BalancingLearner) for l in new_learners)
+    assert all(isinstance(lrn, adaptive.BalancingLearner) for lrn in new_learners)
     assert new_fnames == [(fnames[0], fnames[1]), (fnames[2],)]
 
 
@@ -58,11 +59,13 @@ def test_split_sequence_learner() -> None:
     n_learners = 3
     new_learners, new_fnames = utils.split_sequence_learner(big_learner, n_learners)
     assert len(new_learners) == n_learners
-    assert all(isinstance(l, adaptive.SequenceLearner) for l in new_learners)
+    assert all(isinstance(lrn, adaptive.SequenceLearner) for lrn in new_learners)
 
 
 def test_split_sequence_in_sequence_learners() -> None:
-    def function(x):
+    """Test `utils.split_sequence_in_sequence_learners`."""
+
+    def function(x: int) -> int:
         return x
 
     sequence = list(range(10))
@@ -73,7 +76,7 @@ def test_split_sequence_in_sequence_learners() -> None:
         n_learners,
     )
     assert len(new_learners) == n_learners
-    assert all(isinstance(l, adaptive.SequenceLearner) for l in new_learners)
+    assert all(isinstance(lrn, adaptive.SequenceLearner) for lrn in new_learners)
     assert len(new_fnames) == n_learners
 
 
@@ -140,18 +143,18 @@ def test_add_constant_to_fname() -> None:
 
 def test_maybe_round() -> None:
     """Test `utils.maybe_round`."""
-    assert utils.maybe_round(3.14159265, 3) == 3.14
+    assert utils.maybe_round(3.14159265, 3) == 3.14  # noqa: PLR2004
     assert utils.maybe_round(1 + 2j, 3) == 1 + 2j
     assert utils.maybe_round("test", 3) == "test"
 
 
 def test_round_sigfigs() -> None:
     """Test `utils.round_sigfigs`."""
-    assert utils.round_sigfigs(3.14159265, 3) == 3.14
-    assert utils.round_sigfigs(123456789, 3) == 123000000
+    assert utils.round_sigfigs(3.14159265, 3) == 3.14  # noqa: PLR2004
+    assert utils.round_sigfigs(123456789, 3) == 123000000  # noqa: PLR2004
 
 
-def test_remove_or_move_files(tmp_path: Path):
+def test_remove_or_move_files(tmp_path: Path) -> None:
     """Test `utils._remove_or_move_files`."""
     test_file = tmp_path / "test.txt"
     test_file.write_text("test content")
@@ -174,7 +177,7 @@ def test_load_parallel(tmp_path: Path) -> None:
     for learner, fname in zip(learners, fnames):
         learner.save(fname)
 
-    loaded_learners = [l.new() for l in learners]
+    loaded_learners = [lrn.new() for lrn in learners]
     utils.load_parallel(loaded_learners, fnames, with_progress_bar=False)
 
     for learner, loaded_learner in zip(learners, loaded_learners):
@@ -197,11 +200,14 @@ def test_save_parallel(tmp_path: Path) -> None:
 
 def test_connect_to_ipyparallel() -> None:
     """Test `utils.connect_to_ipyparallel`."""
-    with pytest.raises(Exception, match="Not all .* connected after .* seconds."):
+    with pytest.raises(
+        OSError,
+        match="You have attempted to connect to an IPython Cluster",
+    ):
         utils.connect_to_ipyparallel(n=1, profile="non_existent_profile", timeout=1)
 
 
-def test_LRUCachedCallable() -> None:
+def test_lru_cached_callable() -> None:
     """Test `utils.LRUCachedCallable`."""
 
     @utils.shared_memory_cache(cache_size=5)
@@ -219,45 +225,51 @@ def test_smart_goal() -> None:
     """Test `utils.smart_goal`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
 
-    goal_callable = utils.smart_goal(lambda l: l.npoints >= 10, [learner])
-    assert goal_callable(learner) is False
-    learner.ask(10)
-    learner.tell(10, 42)
-    assert goal_callable(learner) is False
-    learner.ask(10)
-    learner.tell(10, 42)
-    assert goal_callable(learner) is True
+    goal_callable = utils.smart_goal(
+        lambda lrn: lrn.npoints >= 10,
+        [learner],
+    )
+    assert not goal_callable(learner)
+    adaptive.runner.simple(learner, npoints_goal=5)
+    assert not goal_callable(learner)
+    adaptive.runner.simple(learner, npoints_goal=11)
+    assert goal_callable(learner)
 
     goal_int = utils.smart_goal(10, [learner])
-    assert goal_int(learner) is True
+    assert goal_int(learner)
 
     goal_float = utils.smart_goal(0.1, [learner])
-    assert goal_float(learner) is True
+    adaptive.runner.simple(learner, loss_goal=0.09)
+    assert goal_float(learner)
 
-    goal_timedelta = utils.smart_goal(timedelta(seconds=1), [learner])
-    assert goal_timedelta(learner) is False
-    time.sleep(1)
-    assert goal_timedelta(learner) is True
+    goal_timedelta = utils.smart_goal(timedelta(milliseconds=50), [learner])
+    assert not goal_timedelta(learner)
+    time.sleep(0.1)
+    assert goal_timedelta(learner)
 
-    goal_datetime = utils.smart_goal(datetime.now() + timedelta(seconds=1), [learner])
-    assert goal_datetime(learner) is False
-    time.sleep(1)
-    assert goal_datetime(learner) is True
+    goal_datetime = utils.smart_goal(
+        datetime.now() + timedelta(milliseconds=50),  # noqa: DTZ005
+        [learner],
+    )
+    assert not goal_datetime(learner)
+    time.sleep(0.1)
+    assert goal_datetime(learner)
 
     goal_none = utils.smart_goal(None, [learner])
-    assert goal_none(learner) is False
-    learner.sequence = list(range(10))
-    goal_none = utils.smart_goal(None, [learner])
-    assert goal_none(learner) == adaptive.SequenceLearner.done(learner)
+    assert not goal_none(learner)
+
+    seq_learner = adaptive.SequenceLearner(lambda x: x, sequence=list(range(10)))
+    goal_none = utils.smart_goal(None, [seq_learner])
+    assert goal_none(seq_learner) == adaptive.SequenceLearner.done(seq_learner)
 
 
 def test_time_goal() -> None:
     """Test `utils._TimeGoal`."""
     time_goal = utils._TimeGoal(timedelta(seconds=1))
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    assert time_goal(learner) is False
+    assert not time_goal(learner)
     time.sleep(1)
-    assert time_goal(learner) is True
+    assert time_goal(learner)
 
 
 def test_fname_to_learner_fname() -> None:
@@ -270,8 +282,8 @@ def test_fname_to_learner_fname() -> None:
 def test_fname_to_learner(tmp_path: Path) -> None:
     """Test `utils.fname_to_learner`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / ("test.pickle"))
-    learner.save(fname)
+    fname = tmp_path / "test.pickle"
+    utils.cloudpickle_learners([learner], [fname], with_progress_bar=False)
 
     loaded_learner = utils.fname_to_learner(fname)
     assert isinstance(loaded_learner, adaptive.Learner1D)
@@ -279,7 +291,7 @@ def test_fname_to_learner(tmp_path: Path) -> None:
 
 def test_ensure_folder_exists(tmp_path: Path) -> None:
     """Test `utils._ensure_folder_exists`."""
-    fnames = [str(tmp_path / "test1.pickle"), str(tmp_path / "test2.pickle")]
+    fnames = [tmp_path / "test1.pickle", tmp_path / "test2.pickle"]
 
     for fname in fnames:
         assert not Path(fname).exists()
@@ -287,7 +299,7 @@ def test_ensure_folder_exists(tmp_path: Path) -> None:
     utils._ensure_folder_exists(fnames)
 
     for fname in fnames:
-        assert Path(fname).exists()
+        assert Path(fname.parent).exists()
 
 
 def test_cloudpickle_learners(tmp_path: Path) -> None:
@@ -296,12 +308,13 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
         adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
     ]
-    fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
+    fnames = [tmp_path / "learner1.pickle", tmp_path / "learner2.pickle"]
 
     utils.cloudpickle_learners(learners, fnames, with_progress_bar=False)
 
     for fname in fnames:
-        assert Path(fname).exists()
+        fname_learner = utils.fname_to_learner_fname(fname)
+        assert fname_learner.exists()
 
 
 def test_save_dataframe(tmp_path: Path) -> None:
@@ -321,7 +334,7 @@ def test_save_dataframe(tmp_path: Path) -> None:
 def test_load_dataframes(tmp_path: Path) -> None:
     """Test `utils.load_dataframes`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / ("test.pickle"))
+    fname = str(tmp_path / "test.pickle")
     save_df = utils.save_dataframe(fname)
 
     learner.ask(10)
@@ -348,16 +361,17 @@ def test_expand_dict_columns() -> None:
 
 def test_remove_or_move_files_move(tmp_path: Path) -> None:
     """Test `utils._remove_or_move_files` with `move_to`."""
-    test_file = tmp_path / ("test.txt")
+    test_file = tmp_path / "test.txt"
     test_file.write_text("test content")
-    new_folder = (tmp_path / "new_folder").mkdir()
+    new_folder = tmp_path / "new_folder"
+    new_folder.mkdir()
 
     assert test_file.exists()
 
     utils._remove_or_move_files(
-        [str(test_file)],
+        [test_file],
         with_progress_bar=False,
-        move_to=str(new_folder),
+        move_to=new_folder,
     )
 
     assert not test_file.exists()
