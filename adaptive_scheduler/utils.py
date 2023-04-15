@@ -276,8 +276,7 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
 
 def _progress(
     seq: collections.abc.Iterable,
-    *,
-    with_progress_bar: bool = True,
+    with_progress_bar: bool = True,  # noqa: FBT001, FBT002
     desc: str = "",
 ) -> collections.abc.Iterable | tqdm:
     if not with_progress_bar:
