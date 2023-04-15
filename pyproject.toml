@@ -30,7 +30,6 @@ dependencies = [
     "ipyparallel",
     "jinja2",
     "loky",
-    "mpi4py",
     "numpy",
     "pandas",
     "psutil",
@@ -44,7 +43,7 @@ dependencies = [
     "versioningit",
 ]
 [project.optional-dependencies]
-all = ["dask_mpi"]
+all = ["dask-mpi", "mpi4py"]
 test = ["pytest", "pytest-asyncio", "coverage", "pytest-cov"]
 
 [project.urls]

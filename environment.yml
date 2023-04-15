@@ -5,6 +5,7 @@ channels:
 
 dependencies:
   - python
+  # Required deps from pyproject.toml
   - adaptive >=0.14.1
   - cloudpickle
   - dill
@@ -24,3 +25,11 @@ dependencies:
   - toolz
   - tqdm
   - versioningit
+  # optional-dependencies: all
+  - dask-mpi
+  - mpi4py
+  # optional-dependencies: test
+  - pytest
+  - pytest-asyncio
+  - coverage
+  - pytest-cov
