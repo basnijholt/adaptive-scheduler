@@ -170,7 +170,7 @@ def log_info(runner: AsyncRunner, interval: int = 300) -> asyncio.Task:
     """
 
     async def coro(runner: AsyncRunner, interval: int) -> None:
-        log.info("started logger on hostname %s", socket.gethostname())
+        log.info(f"started logger on hostname {socket.gethostname()}")  # noqa: G004
         learner = runner.learner
         npoints_start = _get_npoints(learner)
         assert npoints_start is not None
