@@ -1,7 +1,7 @@
 An asynchronous job scheduler for `Adaptive <https://github.com/python-adaptive/adaptive/>`_
 ============================================================================================
 
-|PyPI|  |Conda|  |Downloads|  |Build Status| |Documentation Status|
+|PyPI|  |codecov|  |Conda|  |Downloads|  |Build Status| |Documentation Status|
 
 Run many ``adaptive.Learner``\ s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `distributed`.
 
@@ -211,7 +211,7 @@ Also there are **no tests** at all!
 .. |PyPI| image:: https://img.shields.io/pypi/v/adaptive-scheduler.svg
    :target: https://pypi.python.org/pypi/adaptive-scheduler
    :alt: PyPI
-.. |Conda| image:: https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg
+.. |Conda| image:: https://img.shields.io/conda/v/conda-forge/adaptive-scheduler.svg?label=conda-forge
    :target: https://anaconda.org/conda-forge/adaptive-scheduler
    :alt: Conda
 .. |Downloads| image:: https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg
@@ -223,4 +223,7 @@ Also there are **no tests** at all!
 .. |Documentation Status| image:: https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest
    :target: https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
+.. |CodeCov| image:: https://codecov.io/gh/basnijholt/adaptive-scheduler/branch/main/graph/badge.svg
+   :target: https://codecov.io/gh/basnijholt/adaptive-scheduler
+   :alt: Code Coverage
 .. references-end
