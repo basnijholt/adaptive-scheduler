@@ -368,7 +368,7 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 
 
 def _remove_or_move_files(
-    fnames: Sequence[str],
+    fnames: Sequence[str] | set[str] | Sequence[Path] | set[Path],
     *,
     with_progress_bar: bool = True,
     move_to: str | Path | None = None,

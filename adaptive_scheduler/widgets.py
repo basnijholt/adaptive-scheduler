@@ -197,11 +197,11 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
                 )
             if not contains_text.value.strip():
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
-            fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
-            fname_dropdown.options = fnames
+            sorted_fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
+            fname_dropdown.options = sorted_fnames
             with suppress(Exception):
                 fname_dropdown.value = current_value
-            fname_dropdown.disabled = not fnames
+            fname_dropdown.disabled = not sorted_fnames
 
         return on_click
 
@@ -350,7 +350,7 @@ def _info_html(run_manager: RunManager) -> str:
     jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
     n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
     n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
-    n_done = sum(job["is_done"] for job in run_manager.database_manager.as_dicts())
+    n_done = sum(1 for job in run_manager.database_manager.as_dicts() if job["is_done"])
     n_failed = len(run_manager.database_manager.failed)
     n_failed_color = "red" if n_failed > 0 else "black"
 
