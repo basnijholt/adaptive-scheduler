@@ -1,19 +1,21 @@
 """Tests for the BaseScheduler class."""
 import textwrap
 
+import pytest
+
 from .helpers import MockScheduler
 
 
 def test_base_scheduler_job_script() -> None:
     """Test the BaseScheduler.job_script method."""
-    self = MockScheduler(
+    s = MockScheduler(
         cores=4,
         extra_scheduler=["--exclusive=user", "--time=1"],
         extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
         extra_script="echo 'YOLO'",
     )
-    job_script = self.job_script()
-    log_fname = self.log_fname("${NAME}")
+    job_script = s.job_script()
+    log_fname = s.log_fname("${NAME}")
     assert job_script == textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -31,8 +33,8 @@ def test_base_scheduler_job_script() -> None:
 
         echo 'YOLO'
 
-        {self.mpiexec_executable} \\
-            -n 4 {self.python_executable} \\
+        {s.mpiexec_executable} \\
+            -n 4 {s.python_executable} \\
             -m mpi4py.futures run_learner.py \\
             --log-fname {log_fname} \\
             --job-id ${{JOB_ID}} \\
@@ -82,3 +84,68 @@ def test_update_queue() -> None:
     queue_info = scheduler.queue()
     assert len(queue_info) == 2  # noqa: PLR2004
     assert queue_info["1"]["status"] == "COMPLETED"
+
+
+def test_ipyparallel() -> None:
+    """Test that the ipyparallel raises."""
+    s = MockScheduler(cores=1, executor_type="ipyparallel")
+    with pytest.raises(
+        ValueError,
+        match="`ipyparalllel` uses 1 cores of the `adaptive.Runner`",
+    ):
+        s._executor_specific("")
+
+
+def test_getstate_setstate() -> None:
+    """Test that the getstate and setstate methods work."""
+    s = MockScheduler(cores=4)
+    state = s.__getstate__()
+    s2 = MockScheduler(cores=2)
+    s2.__setstate__(state)
+    assert s.cores == s2.cores
+
+
+def test_base_scheduler_ipyparallel() -> None:
+    """Test the BaseScheduler.job_script method."""
+    s = MockScheduler(
+        cores=4,
+        extra_scheduler=["--exclusive=user", "--time=1"],
+        extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
+        extra_script="echo 'YOLO'",
+        executor_type="ipyparallel",
+    )
+    ipy = s._ipyparallel("TEST")
+    log_fname = s.log_fname("TEST")
+    print(ipy)
+    assert (
+        ipy.strip()
+        == textwrap.dedent(
+            f"""\
+        profile=adaptive_scheduler_${{JOB_ID}}
+
+        echo "Creating profile ${{profile}}"
+        ipython profile create ${{profile}}
+
+        echo "Launching controller"
+        ipcontroller --ip="*" --profile=${{profile}} --log-to-file &
+        sleep 10
+
+        echo "Launching engines"
+        mpiexec \\
+            -n 3 \\
+            ipengine \\
+            --profile=${{profile}} \\
+            --mpi \\
+            --cluster-id='' \\
+            --log-to-file &
+
+        echo "Starting the Python script"
+        {s.python_executable} run_learner.py \\
+            --profile ${{profile}} \\
+            --n 3 \\
+            --log-fname {log_fname} \\
+            --job-id ${{JOB_ID}} \\
+            --name TEST
+        """,
+        ).strip()
+    )

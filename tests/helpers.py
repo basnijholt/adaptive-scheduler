@@ -114,3 +114,11 @@ class MockScheduler(BaseScheduler):
     def update_queue(self, job_name: str, status: str) -> None:
         """Update the queue with the given job_name and status."""
         self._queue_info[job_name] = {"job_name": job_name, "status": status}
+
+
+PARTITIONS = {
+    "hb120v2-low": 120,
+    "hb60-high": 60,
+    "nc24-low": 24,
+    "nd40v2-mpi": 40,
+}

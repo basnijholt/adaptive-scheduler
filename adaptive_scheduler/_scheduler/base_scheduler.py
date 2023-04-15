@@ -236,20 +236,20 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             sleep 10
 
             echo "Launching engines"
-            {self.mpiexec_executable} \
-                -n {self.cores-1} \
-                ipengine \
-                --profile={profile} \
-                --mpi \
-                --cluster-id='' \
+            {self.mpiexec_executable} \\
+                -n {self.cores-1} \\
+                ipengine \\
+                --profile={profile} \\
+                --mpi \\
+                --cluster-id='' \\
                 --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} \
-                --profile {profile} \
-                --n {self.cores-1} \
-                --log-fname {log_fname} \
-                --job-id {job_id} \
+            {self.python_executable} {self.run_script} \\
+                --profile {profile} \\
+                --n {self.cores-1} \\
+                --log-fname {log_fname} \\
+                --job-id {job_id} \\
                 --name {name}
             """,
         )

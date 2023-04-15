@@ -13,7 +13,7 @@ from adaptive_scheduler.server_support import (
     get_allowed_url,
 )
 
-from .helpers import MockScheduler
+from .helpers import PARTITIONS, MockScheduler
 
 
 @pytest.fixture()
@@ -104,11 +104,3 @@ def mock_slurm_queue() -> None:  # noqa: PT004
     ) as queue:
         queue.return_value = {}
         yield
-
-
-PARTITIONS = {
-    "hb120v2-low": 120,
-    "hb60-high": 60,
-    "nc24-low": 24,
-    "nd40v2-mpi": 40,
-}

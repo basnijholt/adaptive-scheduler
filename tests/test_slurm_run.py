@@ -5,37 +5,9 @@ from typing import Any
 import pytest
 from adaptive import Learner1D
 
-import adaptive_scheduler
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
 from adaptive_scheduler.scheduler import SLURM
-
-PARTITIONS = {
-    "hb120v2-low": 120,
-    "hb60-high": 60,
-    "nc24-low": 24,
-    "nd40v2-mpi": 40,
-}
-
-
-@pytest.mark.usefixtures("mock_slurm_partitions_output")
-def test_slurm_partitions() -> None:
-    """Test slurm_partitions function."""
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=False)
-    assert partitions == [
-        "nc24-low",
-        "hb120v2-low",
-        "hb60-high",
-        "nd40v2-mpi",
-    ]
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=True)
-    assert partitions == PARTITIONS
-
-
-@pytest.mark.usefixtures("mock_slurm_partitions")
-def test_slurm_partitions_mock() -> None:
-    """Test slurm_partitions function."""
-    assert adaptive_scheduler._scheduler.slurm.slurm_partitions() == PARTITIONS
 
 
 @pytest.fixture()
