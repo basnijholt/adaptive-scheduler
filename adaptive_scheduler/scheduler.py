@@ -81,7 +81,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def __init__(
         self,
-        cores,
+        cores: int,
         run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -110,7 +110,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
-    def queue(self, me_only: bool) -> dict[str, dict]:
+    def queue(self, *, me_only: bool) -> dict[str, dict]:
         """Get the current running and pending jobs.
 
         Parameters
@@ -465,7 +465,7 @@ class PBS(BaseScheduler):
     def _split_by_job(lines: list[str]) -> list[str]:
         jobs = [[]]
         for line in lines:
-            line = line.strip()
+            line = line.strip()  # noqa: PLW2901
             if line:
                 jobs[-1].append(line)
             else:
@@ -473,7 +473,7 @@ class PBS(BaseScheduler):
         return [j for j in jobs if j]
 
     @staticmethod
-    def _fix_line_cuts(raw_info):
+    def _fix_line_cuts(raw_info: list[str]) -> list[str]:
         info = []
         for line in raw_info:
             if " = " in line:
@@ -482,7 +482,8 @@ class PBS(BaseScheduler):
                 info[-1] += line
         return info
 
-    def queue(self, me_only: bool = True) -> dict[str, dict]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict]:
+        """Get the status of all jobs in the queue."""
         cmd = ["qstat", "-f"]
 
         proc = subprocess.run(
@@ -623,9 +624,8 @@ class SLURM(BaseScheduler):
         if cores is None:
             if nodes is None or cores_per_node is None:
                 raise ValueError(msg)
-        else:
-            if nodes is not None or cores_per_node is not None:
-                raise ValueError(msg)
+        elif nodes is not None or cores_per_node is not None:
+            raise ValueError(msg)
 
         if extra_scheduler is None:
             extra_scheduler = []
@@ -636,9 +636,8 @@ class SLURM(BaseScheduler):
 
         if partition is not None:
             if partition not in self.partitions:
-                raise ValueError(
-                    f"Invalid partition: {partition}, only {self.partitions} are available.",
-                )
+                msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                raise ValueError(msg)
             extra_scheduler.append(f"--partition={partition}")
 
         if exclusive:
@@ -755,7 +754,7 @@ class SLURM(BaseScheduler):
         )
         _run_submit(submit_cmd, name)
 
-    def queue(self, me_only: bool = True) -> dict[str, dict[str, str]]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict[str, str]]:
         python_format = {
             "jobid": 100,
             "name": 100,
@@ -901,7 +900,7 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script
 
-    def queue(self, me_only: bool = True) -> dict[str, dict]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict]:
         return self.mock_scheduler.queue()
 
     def start_job(self, name: str) -> None:

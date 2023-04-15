@@ -36,7 +36,8 @@ class MockScheduler(BaseScheduler):
 
     def queue(
         self,
-        me_only: bool = True,  # noqa: FBT001, FBT002, ARG002
+        *,
+        me_only: bool = True,  # noqa: ARG002
     ) -> dict[str, dict]:
         """Return a fake queue for demonstration purposes."""
         print("Mock queue:", self._queue_info)

@@ -114,6 +114,7 @@ def slurm_run(
     """
     if partition is None:
         partitions = slurm_partitions()
+        assert isinstance(partitions, dict)
         partition, ncores = next(iter(partitions.items()))
         console.log(
             f"Using default partition {partition} (The one marked"
