@@ -31,6 +31,7 @@ from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+    from multiprocessing.managers import ListProxy
 
 console = Console()
 
@@ -39,7 +40,7 @@ _NONE_RETURN_STR = "__ReturnsNone__"
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
-    required_attributes = []
+    required_attributes: list[str] = []
 
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         obj = super().__call__(*args, **kwargs)
@@ -225,7 +226,10 @@ def combine_sequence_learners(
         Big `~adaptive.SequenceLearner` with data from ``learners``.
     """
     if big_learner is None:
-        big_sequence = sum((list(learner.sequence) for learner in learners), [])
+        big_sequence: list[Any] = sum(
+            (list(learner.sequence) for learner in learners),
+            [],
+        )
         big_learner = adaptive.SequenceLearner(
             learners[0]._original_function,
             sequence=big_sequence,
@@ -271,10 +275,11 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
     with suppress(AttributeError):
         # If the Learner is a BalancingLearner
         return sum(learner.npoints for learner in learner.learners)
+    return None
 
 
 def _progress(
-    seq: Iterable,
+    seq: Iterable[Any],
     with_progress_bar: bool = True,  # noqa: FBT001, FBT002
     desc: str = "",
 ) -> Iterable | tqdm:
@@ -288,7 +293,7 @@ def _progress(
 def combo_to_fname(
     combo: dict[str, Any],
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
 ) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
@@ -300,7 +305,7 @@ def combo_to_fname(
 def combo2fname(
     combo: dict[str, Any],
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
     sig_figs: int = 8,
 ) -> str:
     """Converts a dict into a human readable filename.
@@ -319,9 +324,8 @@ def add_constant_to_fname(
     constant: dict[str, Any],
     *,
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
     sig_figs: int = 8,
-    dry_run: bool = True,
 ) -> tuple[str, str]:
     """Add a constant to a filename."""
     for k in constant:
@@ -329,8 +333,6 @@ def add_constant_to_fname(
     old_fname = combo2fname(combo, folder, ext, sig_figs)
     combo.update(constant)
     new_fname = combo2fname(combo, folder, ext, sig_figs)
-    if not dry_run:
-        old_fname.rename(new_fname)
     return old_fname, new_fname
 
 
@@ -366,7 +368,7 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 
 
 def _remove_or_move_files(
-    fnames: list[str],
+    fnames: Sequence[str],
     *,
     with_progress_bar: bool = True,
     move_to: str | Path | None = None,
@@ -586,7 +588,7 @@ def _deserialize(frames: list) -> Any:
         raise
 
 
-class LRUCachedCallable(Callable[..., Any]):
+class LRUCachedCallable:
     """Wraps a function to become cached.
 
     Parameters
@@ -636,7 +638,7 @@ class LRUCachedCallable(Callable[..., Any]):
             found = False
         return found, value
 
-    def _insert_into_cache(self, key: str, value: Any) -> list:
+    def _insert_into_cache(self, key: str, value: Any) -> ListProxy[Any]:
         """Insert a key value pair into the cache."""
         if value is None:
             value = _NONE_RETURN_STR
@@ -722,23 +724,26 @@ def fname_to_learner(
 
 def _ensure_folder_exists(
     fnames: list[str]
-    | tuple[str, ...]
-    | list[list[str]]
     | list[Path]
+    | tuple[str, ...]
+    | tuple[Path, ...]
+    | list[list[str]]
     | list[list[Path]],
 ) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
+            assert isinstance(_fnames, (tuple, list))
             _ensure_folder_exists(_fnames)
     else:
-        folders = {Path(fname).parent for fname in fnames}
+        assert isinstance(fnames[0], (str, Path))
+        folders = {Path(fname).parent for fname in fnames}  # type: ignore[arg-type]
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
 
 
 def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fnames: list[str] | list[Path] | list[list[str]] | list[list[Path]],
     *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
@@ -762,7 +767,7 @@ def cloudpickle_learners(
 def fname_to_dataframe(
     fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
     format: str = "parquet",  # noqa: A002
-) -> str | list[str]:
+) -> str:
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
@@ -793,6 +798,7 @@ def save_dataframe(
         elif format == "csv":
             df.to_csv(fname_df, **save_kwargs)
         elif format == "hdf":
+            assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
             df.to_hdf(fname_df, **save_kwargs)
@@ -830,7 +836,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     for col, val in df.iloc[0].items():
         if isinstance(val, dict):
             prefix = f"{col}."
-            x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
+            x = pd.json_normalize(df.pop(col)).add_prefix(prefix)  # type: ignore[arg-type]
             x.index = df.index
             for _col in x:
                 assert _col not in df, f"{_col=} already exists in df."
@@ -903,7 +909,7 @@ def _require_adaptive(version: str, name: str) -> None:
 class _TimeGoal:
     def __init__(self, dt: timedelta | datetime) -> None:
         self.dt = dt
-        self.start_time = None
+        self.start_time: datetime | None = None
 
     def __call__(self, learner: adaptive.BaseLearner) -> bool:  # noqa: ARG002
         if isinstance(self.dt, timedelta):

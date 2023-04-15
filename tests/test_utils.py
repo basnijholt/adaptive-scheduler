@@ -136,7 +136,7 @@ def test_add_constant_to_fname() -> None:
     """Test `utils.add_constant_to_fname`."""
     combo = {"x": 1, "y": 2, "z": 3}
     constant = {"a": 42}
-    old_fname, new_fname = utils.add_constant_to_fname(combo, constant, dry_run=True)
+    old_fname, new_fname = utils.add_constant_to_fname(combo, constant)
     assert old_fname == "x_1__y_2__z_3.pickle"
     assert new_fname == "a_42__x_1__y_2__z_3.pickle"
 
@@ -403,7 +403,6 @@ def test_add_constant_to_fname_with_folder() -> None:
         combo,
         constant,
         folder=folder,
-        dry_run=True,
     )
     assert old_fname == f"{folder}/x_1__y_2__z_3.pickle"
     assert new_fname == f"{folder}/a_42__x_1__y_2__z_3.pickle"

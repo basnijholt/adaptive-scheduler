@@ -9,13 +9,15 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from adaptive_scheduler.scheduler import BaseScheduler
 
     from .database_manager import DatabaseManager
 
 
-def _get_infos(fname: str, *, only_last: bool = True) -> list[str]:
-    status_lines: list[str] = []
+def _get_infos(fname: str, *, only_last: bool = True) -> list[dict[str, Any]]:
+    status_lines: list[dict[str, Any]] = []
     with open(fname, encoding="utf-8") as f:  # noqa: PTH123
         lines = f.readlines()
         for line in reversed(lines):

@@ -24,7 +24,7 @@ def _make_default_run_script(
     *,
     goal: Callable[[adaptive.BaseLearner], bool] | None = None,
     runner_kwargs: dict[str, Any] | None = None,
-    run_script_fname: str = "run_learner.py",
+    run_script_fname: str | Path = "run_learner.py",
     executor_type: str = "mpi4py",
     loky_start_method: Literal[
         "loky",

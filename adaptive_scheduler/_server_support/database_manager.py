@@ -38,14 +38,15 @@ def _ensure_str(
     """Make sure that `pathlib.Path`s are converted to strings."""
     if isinstance(fnames, list):
         if len(fnames) == 0:
-            return []
+            return []  # type: ignore[return-value]
         if isinstance(fnames[0], (str, Path)):
             return [str(f) for f in fnames]
         if isinstance(fnames[0], list):
-            return [[str(f) for f in sublist] for sublist in fnames]
-    raise ValueError(
-        "Invalid input: expected a list of strings or a list of lists of strings/Paths.",
+            return [[str(f) for f in sublist] for sublist in fnames]  # type: ignore[union-attr]
+    msg = (
+        "Invalid input: expected a list of strings or a list of lists of strings/Paths."
     )
+    raise ValueError(msg)
 
 
 class DatabaseManager(BaseManager):
@@ -92,7 +93,7 @@ class DatabaseManager(BaseManager):
         self.fnames = _ensure_str(fnames)
         self.overwrite_db = overwrite_db
 
-        self.defaults = {
+        self.defaults: dict[str, Any] = {
             "job_id": None,
             "is_done": False,
             "log_fname": None,
@@ -193,7 +194,7 @@ class DatabaseManager(BaseManager):
             )  # make sure the entry exists
             db.update(reset, entry.fname == fname)
 
-    def _stop_requests(self, fnames: list[str | list[str]]) -> None:
+    def _stop_requests(self, fnames: list[str] | list[list[str]]) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         fnames = {str(maybe_lst(fname)) for fname in fnames}
         with TinyDB(self.db_fname) as db:
@@ -258,6 +259,7 @@ class DatabaseManager(BaseManager):
                             " with `pickle.UnpicklingError` in _deserialize.",
                         )
                 else:
+                    assert self._last_request is not None  # for mypy
                     self._last_reply = self._dispatch(self._last_request)
                     await socket.send_serialized(self._last_reply, _serialize)
         finally:

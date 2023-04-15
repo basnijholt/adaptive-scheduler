@@ -144,6 +144,7 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
 
     kill_manager.database_manager.start()  # creates empty db
     kill_manager.start()
+    assert kill_manager.task is not None
     # Marks the job as running, and sets the job_id, job_name, and log_fname
     kill_manager.database_manager._start_request("0", "log_fname.log", "test_job")
     kill_manager.scheduler.start_job("test_job")
@@ -161,6 +162,7 @@ async def test_kill_manager_manage_exception(
     kill_manager.error = 12345  # This will cause a ValueError when calling `_manage`
     kill_manager.database_manager.start()  # creates empty db
     kill_manager.start()
+    assert kill_manager.task is not None
     await asyncio.sleep(0.2)  # Give it some time to start and raise the exception
 
     timeout = 0.1
@@ -186,6 +188,7 @@ async def test_kill_manager_manage_canceled(
     kill_manager.error = "never going to happen"
     kill_manager.database_manager.start()  # creates empty db
     kill_manager.start()
+    assert kill_manager.task is not None
     await asyncio.sleep(0.1)  # Give it some time to start and raise the exception
     kill_manager.task.cancel()
 

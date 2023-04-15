@@ -64,8 +64,8 @@ class MockScheduler:
         self.url = url or DEFAULT_URL
         self.command_listener_task = self.ioloop.create_task(self._command_listener())
 
-    def queue(self, only_me: bool = True):
-        # only_me doesn't do anything, but the argument is there
+    def queue(self, *, me_only: bool = True):
+        # me_only doesn't do anything, but the argument is there
         # because it is in the other schedulers.
 
         # remove the "proc" entries because they aren't pickable

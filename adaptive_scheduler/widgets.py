@@ -1,3 +1,4 @@
+"""Adaptive Scheduler notebook widgets."""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from adaptive_scheduler.server_support import RunManager
 
 
-def _get_fnames(run_manager, only_running: bool) -> list[Path]:
+def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
     if only_running:
         fnames = []
         for entry in run_manager.database_manager.as_dicts():
@@ -33,7 +34,12 @@ def _get_fnames(run_manager, only_running: bool) -> list[Path]:
     return sorted(logs)
 
 
-def _failed_job_logs(fnames, run_manager, only_running):
+def _failed_job_logs(
+    fnames: list[Path],
+    run_manager: RunManager,
+    *,
+    only_running: bool,
+):
     running = {
         Path(e["log_fname"]).stem
         for e in run_manager.database_manager.as_dicts()
@@ -46,7 +52,7 @@ def _failed_job_logs(fnames, run_manager, only_running):
     failed = fnames - running
     failed = [Path(f) for stem in failed for f in glob(f"{stem}*")]
 
-    def maybe_append(fname: str, other_dir: Path, lst: list[Path]):
+    def maybe_append(fname: str, other_dir: Path, lst: list[Path]) -> None:
         p = Path(fname)
         p_other = other_dir / p.name
         if p.exists():
@@ -64,15 +70,19 @@ def _failed_job_logs(fnames, run_manager, only_running):
     return failed
 
 
-def _files_that_contain(fnames: list[Path], text: str):
-    def contains(fname: Path, text: str):
+def _files_that_contain(fnames: list[Path], text: str) -> list[Path]:
+    def contains(fname: Path, text: str) -> bool:
         with fname.open("r", encoding="utf-8") as f:
             return any(text in line for line in f)
 
     return [fname for fname in fnames if contains(fname, text)]
 
 
-def _sort_fnames(sort_by, run_manager, fnames):
+def _sort_fnames(
+    sort_by: str,
+    run_manager: RunManager,
+    fnames: list[Path],
+) -> list[Path]:
     def _try_transform(f):
         def _f(x):
             try:
@@ -82,7 +92,7 @@ def _sort_fnames(sort_by, run_manager, fnames):
 
         return _f
 
-    def _sort_key(value):
+    def _sort_key(value: tuple[float | str, str]) -> tuple[float | int, str]:
         x, fname = value
         if isinstance(x, str):
             return -1, fname
@@ -94,20 +104,19 @@ def _sort_fnames(sort_by, run_manager, fnames):
         "Mem %": ("mem_usage", lambda x: f"{x:.1f}%"),
         "Last editted": (
             "timestamp",
-            lambda x: f"{(np.datetime64(datetime.now()) - x) / 1e9}s ago",
+            lambda x: f"{(np.datetime64(datetime.now()) - x) / 1e9}s ago",  # noqa: DTZ005
         ),
         "Loss": ("latest_loss", lambda x: f"{x:.2f}"),
         "npoints": ("npoints", lambda x: f"{x} pnts"),
         "Elapsed time": ("elapsed_time", lambda x: f"{x / 1e9}s"),
     }
 
-    def extract(df, fname, key):
+    def extract(df: pd.DateOffset, fname: Path, key: str):
         df_sel = df[df.log_fname.str.contains(fname.name)]
         values = df_sel[key].values
         if values:
             return values[0]
-        else:
-            return "?"
+        return "?"
 
     if sort_by != "Alphabetical":
         fname_mapping = defaultdict(list)
@@ -125,7 +134,7 @@ def _sort_fnames(sort_by, run_manager, fnames):
 
         result = []
         for val, stem in val_stem:
-            val = _try_transform(transform)(val)
+            val = _try_transform(transform)(val)  # noqa: PLW2901
             for fname in fname_mapping[stem]:
                 result.append((f"{val}: {fname.name}", fname))
 
@@ -176,12 +185,12 @@ def log_explorer(run_manager) -> VBox:  # noqa: C901
     ):
         def on_click(_):
             current_value = fname_dropdown.value
-            fnames = _get_fnames(run_manager, only_running_checkbox.value)
+            fnames = _get_fnames(run_manager, only_running=only_running_checkbox.value)
             if only_failed_checkbox.value:
                 fnames = _failed_job_logs(
                     fnames,
                     run_manager,
-                    only_running_checkbox.value,
+                    only_running=only_running_checkbox.value,
                 )
             if contains_text.value.strip() != "":
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
@@ -489,11 +498,11 @@ def info(run_manager: RunManager) -> None:
             b.description = "show logs"
             box.children = box.children[:-1]
 
-    def cancel():
+    def cancel() -> None:
         run_manager.cancel()
         update(None)
 
-    def cleanup(include_old_logs):
+    def cleanup(include_old_logs: bool):
         def _callable():
             run_manager.cleanup(remove_old_logs_folder=include_old_logs.value)
             update(None)

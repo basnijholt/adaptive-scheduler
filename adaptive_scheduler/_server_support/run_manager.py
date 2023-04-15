@@ -21,6 +21,7 @@ from adaptive_scheduler.widgets import info
 from .base_manager import BaseManager
 from .common import (
     _delete_old_ipython_profiles,
+    _maybe_path,
     cleanup_scheduler_files,
     console,
     get_allowed_url,
@@ -37,15 +38,6 @@ if TYPE_CHECKING:
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
-
-
-def _maybe_path(fname: str | Path | None) -> Path | None:  # pragma: no cover
-    """Convert a string to a Path or return None."""
-    if fname is None:
-        return None
-    if isinstance(fname, str):
-        return Path(fname)
-    return fname
 
 
 class RunManager(BaseManager):
@@ -218,7 +210,7 @@ class RunManager(BaseManager):
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = _maybe_path(move_old_logs_to)
-        self.db_fname = _maybe_path(db_fname or f"{job_name}-database.json")
+        self.db_fname = Path(db_fname or f"{job_name}-database.json")
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
@@ -244,7 +236,7 @@ class RunManager(BaseManager):
         self.start_time: float | None = None
         self.end_time: float | None = None
         self._start_one_by_one_task: tuple[
-            asyncio.Task,
+            asyncio.Future,
             list[asyncio.Task],
         ] | None = None
 
@@ -282,7 +274,7 @@ class RunManager(BaseManager):
             max_simultaneous_jobs=self.max_simultaneous_jobs,
             **self.job_manager_kwargs,
         )
-
+        self.kill_manager: KillManager | None
         if self.kill_on_error is not None:
             self.kill_manager = KillManager(
                 scheduler=self.scheduler,
@@ -323,7 +315,7 @@ class RunManager(BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    def start(self, wait_for: RunManager | None = None) -> RunManager:
+    def start(self, wait_for: RunManager | None = None) -> RunManager:  # type: ignore[override]
         """Start the RunManager and optionally wait for another RunManager to finish."""
         if wait_for is not None:
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
@@ -332,6 +324,7 @@ class RunManager(BaseManager):
         return self
 
     async def _manage(self) -> None:
+        assert self.job_manager.task is not None
         await self.job_manager.task
         self.end_time = time.time()
 
@@ -339,7 +332,8 @@ class RunManager(BaseManager):
         """Cancel the manager tasks and the jobs in the queue."""
         self.database_manager.cancel()
         self.job_manager.cancel()
-        self.kill_manager.cancel()
+        if self.kill_manager is not None:
+            self.kill_manager.cancel()
         self.scheduler.cancel(self.job_names)
         if self.task is not None:
             self.task.cancel()
@@ -370,7 +364,7 @@ class RunManager(BaseManager):
             with_progress_bar=True,
             move_to=self.move_old_logs_to,
         )
-        if remove_old_logs_folder:
+        if remove_old_logs_folder and self.move_old_logs_to is not None:
             with suppress(FileNotFoundError):
                 shutil.rmtree(self.move_old_logs_to)
 
@@ -399,12 +393,12 @@ class RunManager(BaseManager):
             self.job_manager.task.print_stack()
         if self.database_manager.task is not None:
             self.database_manager.task.print_stack()
-        if self.kill_manager.task is not None:
+        if self.kill_manager is not None and self.kill_manager.task is not None:
             self.kill_manager.task.print_stack()
         if self.task is not None:
             self.task.print_stack()
 
-    def get_database(self) -> list[dict[str, Any]]:
+    def get_database(self) -> pd.DataFrame:
         """Get the database as a `pandas.DataFrame`."""
         return pd.DataFrame(self.database_manager.as_dicts())
 
@@ -416,7 +410,7 @@ class RunManager(BaseManager):
         """Total time elapsed since the `RunManager` was started."""
         if not self.is_started:
             return 0
-
+        assert self.job_manager.task is not None  # for mypy
         if self.job_manager.task.done():
             end_time = self.end_time
             if end_time is None:
@@ -425,7 +419,7 @@ class RunManager(BaseManager):
                 return 0
         else:
             end_time = time.time()
-        return end_time - self.start_time
+        return end_time - self.start_time  # type: ignore[operator]
 
     def status(self) -> str:
         """Return the current status of the `RunManager`."""
@@ -433,6 +427,7 @@ class RunManager(BaseManager):
             return "not yet started"
 
         try:
+            assert self.job_manager.task is not None
             self.job_manager.task.result()
         except asyncio.InvalidStateError:
             status = "running"
@@ -446,6 +441,7 @@ class RunManager(BaseManager):
             status = "finished"
 
         try:
+            assert self.database_manager.task is not None  # for mypy
             self.database_manager.task.result()
         except (asyncio.InvalidStateError, asyncio.CancelledError):
             pass
@@ -477,7 +473,7 @@ class RunManager(BaseManager):
 async def _wait_for_finished(
     manager_first: RunManager,
     manager_second: RunManager,
-    goal: Callable[[RunManager], bool] = None,
+    goal: Callable[[RunManager], bool] | None = None,
     interval: int = 120,
 ) -> None:
     if goal is None:
@@ -505,7 +501,7 @@ def start_one_by_one(
     *run_managers: RunManager,
     goal: Callable[[RunManager], bool] = None,
     interval: int = 120,
-) -> tuple[asyncio.Future, list[asyncio.Future]]:
+) -> tuple[asyncio.Future, list[asyncio.Task]]:
     """Start a list of RunManagers after each other.
 
     Parameters

@@ -1,15 +1,21 @@
 """Tests for conftest module."""
+from __future__ import annotations
+
 import os
 import textwrap
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from adaptive_scheduler.scheduler import BaseScheduler
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+    from pathlib import Path
+    from typing import Any, ClassVar
+
 
 @contextmanager
-def temporary_working_directory(path: Path) -> None:
+def temporary_working_directory(path: Path) -> Generator[None, None, None]:
     """Context manager for temporarily changing the working directory."""
     original_cwd = os.getcwd()  # noqa: PTH109
     try:
@@ -22,21 +28,22 @@ def temporary_working_directory(path: Path) -> None:
 class MockScheduler(BaseScheduler):
     """A mock scheduler for testing purposes."""
 
-    _ext = ".mock"
-    _submit_cmd = "echo"
-    _options_flag = "#MOCK"
-    _cancel_cmd = "echo"
+    _ext: ClassVar[str] = ".mock"
+    _submit_cmd: ClassVar[str] = "echo"
+    _options_flag: ClassVar[str] = "#MOCK"
+    _cancel_cmd: ClassVar[str] = "echo"
 
     def __init__(self, **kw: Any) -> None:
         """Initialize the mock scheduler."""
         super().__init__(**kw)
-        self._queue_info = {}
-        self._started_jobs = []
+        self._queue_info: dict[str, dict[str, Any]] = {}
+        self._started_jobs: list[str] = []
         self._job_id = 0
 
     def queue(
         self,
-        me_only: bool = True,  # noqa: FBT001, FBT002, ARG002
+        *,
+        me_only: bool = True,  # noqa: ARG002
     ) -> dict[str, dict]:
         """Return a fake queue for demonstration purposes."""
         print("Mock queue:", self._queue_info)

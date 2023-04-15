@@ -1,3 +1,4 @@
+"""Scheduler classes for Adaptive Scheduler."""
 from __future__ import annotations
 
 import abc
@@ -15,16 +16,20 @@ import warnings
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from typing import Any, ClassVar, Literal
+
 console = Console()
 
 
-def _run_submit(cmd, name=None):
+def _run_submit(cmd: str, name: str | None = None) -> None:
     env = os.environ.copy()
     if name is not None:
         env["NAME"] = name
@@ -33,7 +38,7 @@ def _run_submit(cmd, name=None):
         if proc.returncode == 0:
             return
         stderr = proc.stderr.decode()
-        if stderr != "":
+        if not stderr:
             console.log(f"Error: {stderr}")
         time.sleep(0.5)
 
@@ -77,11 +82,17 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     `BaseScheduler` object.
     """
 
+    _ext: ClassVar[str]
+    _submit_cmd: ClassVar[str]
+    _options_flag: ClassVar[str]
+    _cancel_cmd: ClassVar[str]
+
     required_attributes = ["_ext", "_submit_cmd", "_options_flag", "_cancel_cmd"]
 
     def __init__(
         self,
-        cores,
+        cores: int,
+        *,
         run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -97,6 +108,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
     ) -> None:
+        """Initialize the scheduler."""
         self.cores = cores
         self.run_script = Path(run_script)
         self.python_executable = python_executable or sys.executable
@@ -110,7 +122,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
-    def queue(self, me_only: bool) -> dict[str, dict]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict]:
         """Get the current running and pending jobs.
 
         Parameters
@@ -162,6 +174,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def cancel(
         self,
         job_names: list[str],
+        *,
         with_progress_bar: bool = True,
         max_tries: int = 5,
     ) -> None:
@@ -177,23 +190,27 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             Maximum number of attempts to cancel a job.
         """
 
-        def to_cancel(job_names):
+        def to_cancel(job_names: Iterable[str]) -> list[str]:
             return [
                 job_id
                 for job_id, info in self.queue().items()
                 if info["job_name"] in job_names
             ]
 
-        def cancel_jobs(job_ids):
+        def cancel_jobs(job_ids: list[str]) -> None:
             for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
                 cmd = f"{self._cancel_cmd} {job_id}".split()
                 returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
                 if returncode != 0:
-                    warnings.warn(f"Couldn't cancel '{job_id}'.", UserWarning)
+                    warnings.warn(
+                        f"Couldn't cancel '{job_id}'.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
 
-        job_names = set(job_names)
+        job_names_set = set(job_names)
         for _ in range(max_tries):
-            job_ids = to_cancel(job_names)
+            job_ids = to_cancel(job_names_set)
             if not job_ids:
                 # no more running jobs
                 break
@@ -202,11 +219,24 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def _mpi4py(self, name: str) -> str:
         log_fname = self.log_fname(name)
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} -m mpi4py.futures {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+        return (
+            f"{self.mpiexec_executable}"
+            f" -n {self.cores} {self.python_executable}"
+            f" -m mpi4py.futures {self.run_script}"
+            f" --log-fname {log_fname}"
+            f" --job-id {self._JOB_ID_VARIABLE}"
+            f" --name {name}"
+        )
 
     def _dask_mpi(self, name: str) -> str:
         log_fname = self.log_fname(name)
-        return f"{self.mpiexec_executable} -n {self.cores} {self.python_executable} {self.run_script} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+        return (
+            f"{self.mpiexec_executable}"
+            f" -n {self.cores} {self.python_executable} {self.run_script}"
+            f" --log-fname {log_fname}"
+            f" --job-id {self._JOB_ID_VARIABLE}"
+            f" --name {name}"
+        )
 
     def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
@@ -238,21 +268,20 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def _executor_specific(self, name: str) -> str:
         if self.executor_type == "mpi4py":
             return self._mpi4py(name)
-        elif self.executor_type == "dask-mpi":
+        if self.executor_type == "dask-mpi":
             return self._dask_mpi(name)
-        elif self.executor_type == "ipyparallel":
+        if self.executor_type == "ipyparallel":
             if self.cores <= 1:
-                raise ValueError(
+                msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     " the rest of the cores for the engines, so use more than 1 core.",
                 )
+                raise ValueError(msg)
             return self._ipyparallel(name)
-        elif self.executor_type == "process-pool":
+        if self.executor_type == "process-pool":
             return self._process_pool(name)
-        else:
-            raise NotImplementedError(
-                "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'.",
-            )
+        msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+        raise NotImplementedError(msg)
 
     def log_fname(self, name: str) -> Path:
         """The filename of the log (with JOB_ID_VARIABLE)."""
@@ -286,7 +315,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return str(self._extra_script) or ""
 
     def write_job_script(self, name: str) -> None:
-        with open(self.batch_fname(name), "w", encoding="utf-8") as f:
+        """Writes a job script."""
+        with self.batch_fname(name).open("w", encoding="utf-8") as f:
             job_script = self.job_script()
             f.write(job_script)
 
@@ -296,7 +326,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         submit_cmd = f"{self.submit_cmd} {self.batch_fname(name)}"
         _run_submit(submit_cmd)
 
-    def __getstate__(self) -> dict:
+    def __getstate__(self) -> dict[str, Any]:
+        """Return the state of the scheduler."""
         return {
             "cores": self.cores,
             "run_script": self.run_script,
@@ -310,69 +341,78 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             "extra_script": self._extra_script,
         }
 
-    def __setstate__(self, state):
-        self.__init__(**state)
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Set the state of the scheduler."""
+        self.__init__(**state)  # type: ignore[misc]
 
 
 class PBS(BaseScheduler):
+    """PBS scheduler."""
+
+    # Attributes that all schedulers need to have
+    _ext = ".batch"
+    # the "-k oe" flags with "qsub" writes the log output to
+    # files directly instead of at the end of the job. The downside
+    # is that the logfiles are put in the homefolder.
+    _submit_cmd = "qsub -k oe"
+    _JOB_ID_VARIABLE = "${PBS_JOBID}"
+    _options_flag = "PBS"
+    _cancel_cmd = "qdel"
+
     def __init__(
         self,
-        cores,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
+        cores: int,
+        *,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
         executor_type: Literal[
             "ipyparallel",
             "dask-mpi",
             "mpi4py",
             "process-pool",
         ] = "mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
-        *,
-        cores_per_node=None,
+        num_threads: int = 1,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
+        # Extra PBS specific arguments
+        cores_per_node: int | None = None,
     ) -> None:
+        """Initialize the PBS scheduler."""
         super().__init__(
             cores,
-            run_script,
-            python_executable,
-            log_folder,
-            mpiexec_executable,
-            executor_type,
-            num_threads,
-            extra_scheduler,
-            extra_env_vars,
-            extra_script,
+            run_script=run_script,
+            python_executable=python_executable,
+            log_folder=log_folder,
+            mpiexec_executable=mpiexec_executable,
+            executor_type=executor_type,
+            num_threads=num_threads,
+            extra_scheduler=extra_scheduler,
+            extra_env_vars=extra_env_vars,
+            extra_script=extra_script,
         )
-        # Attributes that all schedulers need to have
-        self._ext = ".batch"
-        # the "-k oe" flags with "qsub" writes the log output to
-        # files directly instead of at the end of the job. The downside
-        # is that the logfiles are put in the homefolder.
-        self._submit_cmd = "qsub -k oe"
-        self._JOB_ID_VARIABLE = "${PBS_JOBID}"
-        self._options_flag = "PBS"
-        self._cancel_cmd = "qdel"
-
         # PBS specific
         self.cores_per_node = cores_per_node
         self._calculate_nnodes()
         if cores != self.cores:
-            warnings.warn(f"`self.cores` changed from {cores} to {self.cores}")
+            warnings.warn(
+                f"`self.cores` changed from {cores} to {self.cores}",
+                stacklevel=2,
+            )
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
+        """Return the state of the scheduler."""
         # PBS has one different argument from the BaseScheduler
         return dict(**super().__getstate__(), cores_per_node=self.cores_per_node)
 
     @staticmethod
-    def sanatize_job_id(job_id):
+    def sanatize_job_id(job_id: str) -> str:
         """Changes '91722.hpc05.hpc' into '91722'."""
         return job_id.split(".")[0]
 
-    def _calculate_nnodes(self):
+    def _calculate_nnodes(self) -> None:
         if self.cores_per_node is None:
             partial_msg = "Use set `cores_per_node=...` before passing the scheduler."
             try:
@@ -385,26 +425,27 @@ class PBS(BaseScheduler):
                     f" `cores_per_node={self.cores_per_node}`."
                     f" You might want to change this. {partial_msg}"
                 )
-                warnings.warn(msg)
+                warnings.warn(msg, stacklevel=2)
                 self.cores = self.nnodes * self.cores_per_node
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 msg = (
                     f"Got an error: {e}."
                     " Couldn't guess `cores_per_node`, this argument is required"
                     f" for PBS. {partial_msg}"
                     " We set `cores_per_node=1`!"
                 )
-                warnings.warn(msg)
+                warnings.warn(msg, stacklevel=2)
                 self.nnodes = self.cores
                 self.cores_per_nodes = 1
         else:
-            self.nnodes = self.cores / self.cores_per_node
+            self.nnodes = self.cores / self.cores_per_node  # type: ignore[assignment]
             if not float(self.nnodes).is_integer():
-                raise ValueError("cores / cores_per_node must be an integer!")
-            else:
-                self.nnodes = int(self.nnodes)
+                msg = "cores / cores_per_node must be an integer!"
+                raise ValueError(msg)
+            self.nnodes = int(self.nnodes)
 
     def output_fnames(self, name: str) -> list[Path]:
+        """Get the output filenames."""
         # The "-k oe" flags with "qsub" writes the log output to
         # files directly instead of at the end of the job. The downside
         # is that the logfiles are put in the home folder.
@@ -462,10 +503,10 @@ class PBS(BaseScheduler):
         _run_submit(submit_cmd, name)
 
     @staticmethod
-    def _split_by_job(lines: list[str]) -> list[str]:
-        jobs = [[]]
+    def _split_by_job(lines: list[str]) -> list[list[str]]:
+        jobs: list[list[str]] = [[]]
         for line in lines:
-            line = line.strip()
+            line = line.strip()  # noqa: PLW2901
             if line:
                 jobs[-1].append(line)
             else:
@@ -473,7 +514,7 @@ class PBS(BaseScheduler):
         return [j for j in jobs if j]
 
     @staticmethod
-    def _fix_line_cuts(raw_info):
+    def _fix_line_cuts(raw_info: list[str]) -> list[str]:
         info = []
         for line in raw_info:
             if " = " in line:
@@ -482,7 +523,8 @@ class PBS(BaseScheduler):
                 info[-1] += line
         return info
 
-    def queue(self, me_only: bool = True) -> dict[str, dict]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict]:
+        """Get the status of all jobs in the queue."""
         cmd = ["qstat", "-f"]
 
         proc = subprocess.run(
@@ -494,7 +536,8 @@ class PBS(BaseScheduler):
         output = proc.stdout
 
         if proc.returncode != 0:
-            raise RuntimeError("qstat is not responding.")
+            msg = "qstat is not responding."
+            raise RuntimeError(msg)
 
         jobs = self._split_by_job(output.replace("\n\t", "").split("\n"))
 
@@ -521,22 +564,22 @@ class PBS(BaseScheduler):
 
         return running
 
-    def _qnodes(self):
+    def _qnodes(self) -> dict[str, dict[str, str]]:
         proc = subprocess.run(["qnodes"], text=True, capture_output=True)
         output = proc.stdout
 
         if proc.returncode != 0:
-            raise RuntimeError("qnodes is not responding.")
+            msg = "qnodes is not responding."
+            raise RuntimeError(msg)
 
         jobs = self._split_by_job(output.replace("\n\t", "").split("\n"))
 
-        nodes = {
+        return {
             node: dict([line.split(" = ") for line in self._fix_line_cuts(raw_info)])
             for node, *raw_info in jobs
         }
-        return nodes
 
-    def _guess_cores_per_node(self):
+    def _guess_cores_per_node(self) -> int:
         nodes = self._qnodes()
         cntr = collections.Counter([int(info["np"]) for info in nodes.values()])
         ncores, freq = cntr.most_common(1)[0]
@@ -589,6 +632,13 @@ class SLURM(BaseScheduler):
         but before the main scheduler is run.
     """
 
+    # Attributes that all schedulers need to have
+    _ext = ".sbatch"
+    _submit_cmd = "sbatch"
+    _JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
+    _options_flag = "SBATCH"
+    _cancel_cmd = "scancel"
+
     def __init__(
         self,
         *,
@@ -608,10 +658,11 @@ class SLURM(BaseScheduler):
             "process-pool",
         ] = "mpi4py",
         num_threads: int = 1,
-        extra_scheduler: list[str] = None,
-        extra_env_vars: list[str] = None,
-        extra_script: str = None,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
     ) -> None:
+        """Initialize the scheduler."""
         self._cores = cores
         self.nodes = nodes
         self.cores_per_node = cores_per_node
@@ -623,50 +674,43 @@ class SLURM(BaseScheduler):
         if cores is None:
             if nodes is None or cores_per_node is None:
                 raise ValueError(msg)
-        else:
-            if nodes is not None or cores_per_node is not None:
-                raise ValueError(msg)
+        elif nodes is not None or cores_per_node is not None:
+            raise ValueError(msg)
 
         if extra_scheduler is None:
             extra_scheduler = []
 
         if cores_per_node is not None:
             extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            assert nodes is not None
             cores = nodes * cores_per_node
 
         if partition is not None:
             if partition not in self.partitions:
-                raise ValueError(
-                    f"Invalid partition: {partition}, only {self.partitions} are available.",
-                )
+                msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                raise ValueError(msg)
             extra_scheduler.append(f"--partition={partition}")
 
         if exclusive:
             extra_scheduler.append("--exclusive")
-
+        assert cores is not None
         super().__init__(
             cores,
-            run_script,
-            python_executable,
-            log_folder,
-            mpiexec_executable,
-            executor_type,
-            num_threads,
-            extra_scheduler,
-            extra_env_vars,
-            extra_script,
+            run_script=run_script,
+            python_executable=python_executable,
+            log_folder=log_folder,
+            mpiexec_executable=mpiexec_executable,
+            executor_type=executor_type,
+            num_threads=num_threads,
+            extra_scheduler=extra_scheduler,
+            extra_env_vars=extra_env_vars,
+            extra_script=extra_script,
         )
-        # Attributes that all schedulers need to have
-        self._ext = ".sbatch"
-        self._submit_cmd = "sbatch"
-        self._JOB_ID_VARIABLE = "${SLURM_JOB_ID}"
-        self._options_flag = "SBATCH"
-        self._cancel_cmd = "scancel"
-
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
-    def __getstate__(self) -> dict:
+    def __getstate__(self) -> dict[str, Any]:
+        """Get the state of the SLURM scheduler."""
         state = super().__getstate__()
         state["cores"] = self._cores
         state["nodes"] = self.nodes
@@ -676,8 +720,9 @@ class SLURM(BaseScheduler):
         state["extra_scheduler"] = self.__extra_scheduler
         return state
 
-    def __setstate__(self, state):
-        self.__init__(**state)
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Set the state of the SLURM scheduler."""
+        self.__init__(**state)  # type: ignore[misc]
 
     def _ipyparallel(self, name: str) -> str:
         log_fname = self.log_fname(name)
@@ -747,7 +792,10 @@ class SLURM(BaseScheduler):
         name_prefix = name.rsplit("-", 1)[0]
         self.write_job_script(name_prefix)
 
-        output_fname = self.output_fnames(name)[0].replace(self._JOB_ID_VARIABLE, "%A")
+        output_fname = str(self.output_fnames(name)[0]).replace(
+            self._JOB_ID_VARIABLE,
+            "%A",
+        )
         output_opt = f"--output {output_fname}"
         name_opt = f"--job-name {name}"
         submit_cmd = (
@@ -755,7 +803,8 @@ class SLURM(BaseScheduler):
         )
         _run_submit(submit_cmd, name)
 
-    def queue(self, me_only: bool = True) -> dict[str, dict[str, str]]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict[str, str]]:
+        """Get the queue of jobs."""
         python_format = {
             "jobid": 100,
             "name": 100,
@@ -782,14 +831,15 @@ class SLURM(BaseScheduler):
             or "slurm_load_jobs error" in output
             or proc.returncode != 0
         ):
-            raise RuntimeError("SLURM is not responding.")
+            msg = "SLURM is not responding."
+            raise RuntimeError(msg)
 
-        def line_to_dict(line):
-            line = list(line)
+        def line_to_dict(line: str) -> dict[str, str]:
+            chars = list(line)
             info = {}
             for k, v in python_format.items():
-                info[k] = "".join(line[:v]).strip()
-                line = line[v:]
+                info[k] = "".join(chars[:v]).strip()
+                chars = chars[v:]
             return info
 
         squeue = [line_to_dict(line) for line in output.split("\n")]
@@ -801,8 +851,9 @@ class SLURM(BaseScheduler):
         return running
 
     @cached_property
-    def partitions(self):
-        return slurm_partitions()
+    def partitions(self) -> dict[str, int]:
+        """Get the partitions of the SLURM scheduler."""
+        return slurm_partitions()  # type: ignore[return-value]
 
 
 class LocalMockScheduler(BaseScheduler):
@@ -811,35 +862,46 @@ class LocalMockScheduler(BaseScheduler):
     CANCELLING DOESN'T WORK ATM, ALSO LEAVES ZOMBIE PROCESSES!
     """
 
+    # Attributes that all schedulers need to have
+    _ext = ".batch"
+    _JOB_ID_VARIABLE = "${JOB_ID}"
+
     def __init__(
         self,
-        cores,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
-        executor_type="mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
+        cores: int,
         *,
-        mock_scheduler_kwargs=None,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
+        executor_type: Literal[
+            "ipyparallel",
+            "dask-mpi",
+            "mpi4py",
+            "process-pool",
+        ] = "mpi4py",
+        num_threads: int = 1,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
+        # LocalMockScheduler specific
+        mock_scheduler_kwargs: dict[str, Any] | None = None,
     ) -> None:
+        """Initialize the LocalMockScheduler."""
         import adaptive_scheduler._mock_scheduler
 
-        warnings.warn("The LocalMockScheduler currently doesn't work!")
+        warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
-            run_script,
-            python_executable,
-            log_folder,
-            mpiexec_executable,
-            executor_type,
-            num_threads,
-            extra_scheduler,
-            extra_env_vars,
-            extra_script,
+            run_script=run_script,
+            python_executable=python_executable,
+            log_folder=log_folder,
+            mpiexec_executable=mpiexec_executable,
+            executor_type=executor_type,
+            num_threads=num_threads,
+            extra_scheduler=extra_scheduler,
+            extra_env_vars=extra_env_vars,
+            extra_script=extra_script,
         )
         # LocalMockScheduler specific
         self.mock_scheduler_kwargs = mock_scheduler_kwargs or {}
@@ -850,12 +912,11 @@ class LocalMockScheduler(BaseScheduler):
         self.base_cmd = f"{self.python_executable} {mock_scheduler_file}"
 
         # Attributes that all schedulers need to have
-        self._ext = ".batch"
-        self._submit_cmd = f"{self.base_cmd} --submit"
-        self._JOB_ID_VARIABLE = "${JOB_ID}"
-        self._cancel_cmd = f"{self.base_cmd} --cancel"
+        self._submit_cmd = f"{self.base_cmd} --submit"  # type: ignore[misc]
+        self._cancel_cmd = f"{self.base_cmd} --cancel"  # type: ignore[misc]
 
-    def __getstate__(self) -> dict:
+    def __getstate__(self) -> dict[str, Any]:
+        """Get the state of the scheduler."""
         # LocalMockScheduler has one different argument from the BaseScheduler
         return dict(
             **super().__getstate__(),
@@ -901,20 +962,24 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script
 
-    def queue(self, me_only: bool = True) -> dict[str, dict]:
+    def queue(self, *, me_only: bool = True) -> dict[str, dict]:  # noqa: ARG002
+        """Get the queue of the scheduler."""
         return self.mock_scheduler.queue()
 
     def start_job(self, name: str) -> None:
+        """Start a job."""
         self.write_job_script(name)
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         _run_submit(submit_cmd, name)
 
     @property
-    def extra_scheduler(self):
-        raise NotImplementedError("extra_scheduler is not implemented.")
+    def extra_scheduler(self) -> str:
+        """Get the extra scheduler options."""
+        msg = "extra_scheduler is not implemented."
+        raise NotImplementedError(msg)
 
 
-def _get_default_scheduler():
+def _get_default_scheduler() -> type[BaseScheduler]:
     """Determine which scheduler system is being used.
 
     It tries to determine it by running both PBS and SLURM commands.
@@ -933,36 +998,35 @@ def _get_default_scheduler():
     has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
     has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
 
-    DEFAULT = SLURM
-    default_msg = f"We set DefaultScheduler to '{DEFAULT}'."
+    default = SLURM
+    default_msg = f"We set DefaultScheduler to '{default}'."
     scheduler_system = os.environ.get("SCHEDULER_SYSTEM", "").upper()
     if scheduler_system:
         if scheduler_system not in ("PBS", "SLURM"):
             warnings.warn(
                 f"SCHEDULER_SYSTEM={scheduler_system} is not implemented."
                 f"Use SLURM or PBS. {default_msg}",
+                stacklevel=2,
             )
-            return DEFAULT
-        else:
-            return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]
-    elif has_slurm and has_pbs:
+            return default
+        return {"SLURM": SLURM, "PBS": PBS}[scheduler_system]  # type: ignore[return-value]
+    if has_slurm and has_pbs:
         msg = f"Both SLURM and PBS are detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
-    elif has_pbs:
+        warnings.warn(msg, stacklevel=2)
+        return default
+    if has_pbs:
         return PBS
-    elif has_slurm:
+    if has_slurm:
         return SLURM
-    else:
-        msg = f"No scheduler system could be detected. {default_msg}"
-        warnings.warn(msg)
-        return DEFAULT
+    msg = f"No scheduler system could be detected. {default_msg}"
+    warnings.warn(msg, stacklevel=2)
+    return default
 
 
 DefaultScheduler = _get_default_scheduler()
 
 
-def _get_ncores(partition):
+def _get_ncores(partition: str) -> int:
     numbers = re.findall(r"\d+", partition)
     return int(numbers[0])
 
