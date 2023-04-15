@@ -10,25 +10,6 @@
 
 
 from setuptools import setup
+from versioningit import get_cmdclasses
 
-
-def get_version_and_cmdclass(package_name: str):  # noqa: ANN201
-    """Get the version and cmdclass using miniver."""
-    import os
-    from importlib.util import module_from_spec, spec_from_file_location
-
-    spec = spec_from_file_location(
-        "version",
-        os.path.join(package_name, "_version.py"),  # noqa: PTH118
-    )
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.__version__, module.cmdclass
-
-
-version, cmdclass = get_version_and_cmdclass("adaptive_scheduler")
-
-setup(
-    version=version,
-    cmdclass=cmdclass,
-)
+setup(cmdclass=get_cmdclasses())

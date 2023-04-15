@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "wheel", "versioningit"]
 
 [project]
 name = "adaptive_scheduler"
@@ -41,17 +41,11 @@ dependencies = [
     "tinydb",
     "toolz",
     "tqdm",
+    "versioningit",
 ]
 [project.optional-dependencies]
-all = [
-    "dask_mpi",
-]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "coverage",
-    "pytest-cov",
-]
+all = ["dask_mpi"]
+test = ["pytest", "pytest-asyncio", "coverage", "pytest-cov"]
 
 [project.urls]
 homepage = "https://adaptive-scheduler.readthedocs.io/"
@@ -61,6 +55,12 @@ repository = "https://github.com/basnijholt/adaptive-scheduler"
 [project.readme]
 content-type = "text/x-rst"
 file = "README.rst"
+
+[tool.versioningit]
+
+[tool.versioningit.onbuild]
+build-file = "adaptive_scheduler/_version.py"
+source-file = "adaptive_scheduler/_version.py"
 
 [tool.setuptools.packages.find]
 include = ["adaptive_scheduler.*", "adaptive_scheduler"]
