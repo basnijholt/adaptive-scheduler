@@ -1,7 +1,7 @@
+"""Utility functions for adaptive_scheduler."""
 from __future__ import annotations
 
 import abc
-import collections.abc
 import functools
 import hashlib
 import inspect
@@ -12,14 +12,13 @@ import random
 import shutil
 import time
 import warnings
-from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 import adaptive
 import cloudpickle
@@ -30,6 +29,9 @@ from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
 from tqdm import tqdm, tqdm_notebook
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
 console = Console()
 
 MAX_LINE_LENGTH = 100
@@ -39,35 +41,31 @@ _NONE_RETURN_STR = "__ReturnsNone__"
 class _RequireAttrsABCMeta(abc.ABCMeta):
     required_attributes = []
 
-    def __call__(self, *args, **kwargs):
+    def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         obj = super().__call__(*args, **kwargs)
         for name in obj.required_attributes:
             if not hasattr(obj, name):
-                raise ValueError(f"Required attribute {name} not set in __init__.")
+                msg = f"Required attribute {name} not set in __init__."
+                raise ValueError(msg)
         return obj
 
 
-def shuffle_list(*lists, seed=0):
+def shuffle_list(*lists: list, seed: int | None = 0) -> zip | zip:
     """Shuffle multiple lists in the same order."""
     combined = list(zip(*lists))
     random.Random(seed).shuffle(combined)
     return zip(*combined)
 
 
-def hash_anything(x):
+def hash_anything(x: Any) -> str:
+    """Hash anything."""
     try:
-        return hashlib.md5(x).hexdigest()
+        return hashlib.md5(x).hexdigest()  # noqa: S324
     except TypeError:
-        return hashlib.md5(pickle.dumps(x)).hexdigest()
+        return hashlib.md5(pickle.dumps(x)).hexdigest()  # noqa: S324
 
 
-def _split(seq: collections.abc.Iterable, n_parts: int):
-    # TODO: remove this in v1.0.0
-    s = "adaptive_scheduler.utils."
-    raise Exception(f"`{s}_split` is renamed to {s}split`.")
-
-
-def split(seq: collections.abc.Iterable, n_parts: int):
+def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
     """Split up a sequence into ``n_parts``.
 
     Parameters
@@ -120,18 +118,20 @@ def split_in_balancing_learners(
 
 
 def split_sequence_learner(
-    big_learner,
+    big_learner: adaptive.SequenceLearner,
     n_learners: int,
     folder: str | Path = "",
 ) -> tuple[list[adaptive.SequenceLearner], list[str]]:
-    r"""Split a sinlge `~adaptive.SequenceLearner` into
-    mutiple `adaptive.SequenceLearner`\s (with the data loaded) and fnames.
+    r"""Split a sinlge `~adaptive.SequenceLearner` into many.
+
+    Split into mutiple `adaptive.SequenceLearner`\s
+    (with the data loaded) and fnames.
 
     See also `split_sequence_in_sequence_learners`.
 
     Parameters
     ----------
-    big_learner : callable
+    big_learner
         A `~adaptive.SequenceLearner` instance
     n_learners : int
         Total number of `~adaptive.SequenceLearner`\s.
@@ -206,8 +206,9 @@ def combine_sequence_learners(
     learners: list[adaptive.SequenceLearner],
     big_learner: adaptive.SequenceLearner | None = None,
 ) -> adaptive.SequenceLearner:
-    r"""Combine several `~adaptive.SequenceLearner`\s into a single
-    `~adaptive.SequenceLearner` any copy over the data.
+    r"""Combine several `~adaptive.SequenceLearner`\s into a single one.
+
+    Also copy over the data.
 
     Assumes that all ``learners`` take the same function.
 
@@ -245,8 +246,7 @@ def copy_from_sequence_learner(
     learner_from: adaptive.SequenceLearner,
     learner_to: adaptive.SequenceLearner,
 ) -> None:
-    """Convinience function to copy the data from a `~adaptive.SequenceLearner`
-    into a different `~adaptive.SequenceLearner`.
+    """Copy the data from a `~adaptive.SequenceLearner` into a different one.
 
     Parameters
     ----------
@@ -274,29 +274,27 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
 
 
 def _progress(
-    seq: collections.abc.Iterable,
-    with_progress_bar: bool = True,
+    seq: Iterable,
+    with_progress_bar: bool = True,  # noqa: FBT001, FBT002
     desc: str = "",
-):
+) -> Iterable | tqdm:
     if not with_progress_bar:
         return seq
-    else:
-        if in_ipynb():
-            return tqdm_notebook(list(seq), desc=desc)
-        else:
-            return tqdm(list(seq), desc=desc)
+    if in_ipynb():
+        return tqdm_notebook(list(seq), desc=desc)
+    return tqdm(list(seq), desc=desc)
 
 
 def combo_to_fname(
     combo: dict[str, Any],
-    folder: str | None = None,
+    folder: str | Path | None = None,
     ext: str | None = ".pickle",
 ) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
     if folder is None:
         return fname
-    return os.path.join(folder, fname)
+    return str(Path(folder) / fname)
 
 
 def combo2fname(
@@ -319,11 +317,13 @@ def combo2fname(
 def add_constant_to_fname(
     combo: dict[str, Any],
     constant: dict[str, Any],
+    *,
     folder: str | Path | None = None,
     ext: str | None = ".pickle",
     sig_figs: int = 8,
     dry_run: bool = True,
-):
+) -> tuple[str, str]:
+    """Add a constant to a filename."""
     for k in constant:
         combo.pop(k, None)
     old_fname = combo2fname(combo, folder, ext, sig_figs)
@@ -335,22 +335,22 @@ def add_constant_to_fname(
 
 
 def maybe_round(x: Any, sig_figs: int) -> Any:
+    """Round to specified number of sigfigs if x is a float or complex."""
     rnd = functools.partial(round_sigfigs, sig_figs=sig_figs)
 
-    def try_is_nan_inf(x):
+    def try_is_nan_inf(x: Any) -> bool:
         try:
             return np.isnan(x) or np.isinf(x)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     if try_is_nan_inf(x):
         return x
-    elif isinstance(x, float):
+    if isinstance(x, float):
         return rnd(x)
-    elif isinstance(x, complex):
+    if isinstance(x, complex):
         return complex(rnd(x.real), rnd(x.imag))
-    else:
-        return x
+    return x
 
 
 def round_sigfigs(num: float, sig_figs: int) -> float:
@@ -362,12 +362,12 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
     num = float(num)
     if num != 0:
         return round(num, -int(math.floor(math.log10(abs(num))) - (sig_figs - 1)))
-    else:
-        return 0.0  # Can't take the log of 0
+    return 0.0  # Can't take the log of 0
 
 
 def _remove_or_move_files(
     fnames: list[str],
+    *,
     with_progress_bar: bool = True,
     move_to: str | Path | None = None,
     desc: str | None = None,
@@ -402,7 +402,10 @@ def _remove_or_move_files(
             n_failed += 1
 
     if n_failed:
-        warnings.warn(f"Failed to remove (or move) {n_failed}/{len(fnames)} files.")
+        warnings.warn(
+            f"Failed to remove (or move) {n_failed}/{len(fnames)} files.",
+            stacklevel=2,
+        )
 
 
 def load_parallel(
@@ -427,7 +430,7 @@ def load_parallel(
         If ``None``, use the maximum number of threads that is possible.
     """
 
-    def load(learner, fname):
+    def load(learner: adaptive.BaseLearner, fname: str) -> None:
         learner.load(fname)
 
     with ThreadPoolExecutor(max_workers) as ex:
@@ -456,7 +459,7 @@ def save_parallel(
         Display a progress bar using `tqdm`.
     """
 
-    def save(learner, fname):
+    def save(learner: adaptive.BaseLearner, fname: str) -> None:
         learner.save(fname)
 
     with ThreadPoolExecutor() as ex:
@@ -467,7 +470,7 @@ def save_parallel(
             fut.result()
 
 
-def _print_same_line(msg: str, new_line_end: bool = False):
+def _print_same_line(msg: str, *, new_line_end: bool = False) -> None:
     msg = msg.strip()
     global MAX_LINE_LENGTH
     MAX_LINE_LENGTH = max(len(msg), MAX_LINE_LENGTH)
@@ -475,7 +478,11 @@ def _print_same_line(msg: str, new_line_end: bool = False):
     print(msg + empty_space, end="\r" if not new_line_end else "\n")
 
 
-def _wait_for_successful_ipyparallel_client_start(client, n: int, timeout: int):
+def _wait_for_successful_ipyparallel_client_start(
+    client: Any,
+    n: int,
+    timeout: int,
+) -> Any:
     from ipyparallel.error import NoEnginesRegistered
 
     n_engines_old = 0
@@ -490,8 +497,8 @@ def _wait_for_successful_ipyparallel_client_start(client, n: int, timeout: int):
             return dview
         n_engines_old = n_engines
         time.sleep(1)
-
-    raise Exception(f"Not all ({n_engines}/{n}) connected after {timeout} seconds.")
+    msg = f"Not all ({n_engines}/{n}) connected after {timeout} seconds."
+    raise Exception(msg)  # noqa: TRY002
 
 
 def connect_to_ipyparallel(
@@ -499,8 +506,8 @@ def connect_to_ipyparallel(
     profile: str,
     timeout: int = 300,
     folder: str | None = None,
-    client_kwargs=None,
-):
+    client_kwargs: dict | None = None,
+) -> Any:
     """Connect to an `ipcluster` on the cluster headnode.
 
     Parameters
@@ -513,6 +520,8 @@ def connect_to_ipyparallel(
         Time for which we try to connect to get all the engines.
     folder : str, optional
         Folder that is added to the path of the engines, e.g. ``"~/Work/my_current_project"``.
+    client_kwargs
+        Keyword arguments passed to `ipyparallel.Client`.
 
     Returns
     -------
@@ -542,25 +551,27 @@ def _get_default_args(func: Callable) -> dict[str, str]:
     }
 
 
-def log_exception(log, msg, exception):
+def log_exception(log: Any, msg: str, exception: Exception) -> None:
+    """Log an exception with a message."""
     try:
-        raise exception
+        raise exception  # noqa: TRY301
     except Exception:
-        log.exception(msg, exc_info=True)
+        log.exception(msg)
 
 
-def maybe_lst(fname: list[str] | str):
+def maybe_lst(fname: str | list[str]) -> str | list[str]:
+    """Convert a string to a list if it is not already a list."""
     if isinstance(fname, tuple):
         # TinyDB converts tuples to lists
-        fname = list(fname)
+        return list(fname)
     return fname
 
 
-def _serialize(msg):
+def _serialize(msg: Any) -> list:
     return [cloudpickle.dumps(msg)]
 
 
-def _deserialize(frames):
+def _deserialize(frames: list) -> Any:
     try:
         return cloudpickle.loads(frames[0])
     except pickle.UnpicklingError as e:
@@ -590,9 +601,11 @@ class LRUCachedCallable(Callable[..., Any]):
     def __init__(
         self,
         function: Callable[..., Any],
+        *,
         max_size: int = 128,
         with_cloudpickle: bool = False,
     ) -> None:
+        """Initialize the cache."""
         self.max_size = max_size
         self.function = function
         self._with_cloudpickle = with_cloudpickle
@@ -604,7 +617,7 @@ class LRUCachedCallable(Callable[..., Any]):
         self._cache_queue = manager.list()
         self._cache_lock = manager.Lock()
 
-    def _get_from_cache(self, key: str) -> Any | None:
+    def _get_from_cache(self, key: str) -> tuple[bool, Any]:
         """Get a value from the cache by key."""
         if self.max_size == 0:
             value = None
@@ -623,7 +636,7 @@ class LRUCachedCallable(Callable[..., Any]):
             found = False
         return found, value
 
-    def _insert_into_cache(self, key: str, value: Any):
+    def _insert_into_cache(self, key: str, value: Any) -> list:
         """Insert a key value pair into the cache."""
         if value is None:
             value = _NONE_RETURN_STR
@@ -641,11 +654,12 @@ class LRUCachedCallable(Callable[..., Any]):
             return self._cache_queue
 
     @property
-    def cache_dict(self):
+    def cache_dict(self) -> dict:
         """Returns a copy of the cache."""
         return dict(self._cache_dict.items())
 
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Call the wrapped function and cache the result."""
         bound_args = self._signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
         if self.max_size == 0:
@@ -659,16 +673,18 @@ class LRUCachedCallable(Callable[..., Any]):
         return ret
 
 
-def shared_memory_cache(cache_size: int = 128):
-    """Create a cache similar to `functools.lru_cache.
+def shared_memory_cache(cache_size: int = 128) -> Callable:
+    """Create a cache similar to `functools.lru_cache`.
 
     This will actually cache the return values of the function, whereas
     `functools.lru_cache` will pickle the decorated function each time
     with an empty cache.
     """
 
-    def cache_decorator(function):
-        return functools.wraps(function)(LRUCachedCallable(function, cache_size))
+    def cache_decorator(function: Callable[..., Any]) -> Callable[..., Any]:
+        return functools.wraps(function)(
+            LRUCachedCallable(function, max_size=cache_size),
+        )
 
     return cache_decorator
 
@@ -680,12 +696,14 @@ def _prefix(
         return f".{len(fname):08}_learners."
     if isinstance(fname, (str, Path)):
         return ".learner."
-    raise TypeError("Incorrect type for fname.")
+    msg = "Incorrect type for fname."
+    raise TypeError(msg)
 
 
 def fname_to_learner_fname(
     fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
 ) -> Path:
+    """Convert a learner filename (data) to a filename is used to cloudpickle the learner."""
     prefix = _prefix(fname)
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
@@ -696,13 +714,18 @@ def fname_to_learner_fname(
 def fname_to_learner(
     fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
 ) -> adaptive.BaseLearner:
+    """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
     with learner_name.open("rb") as f:
         return cloudpickle.load(f)
 
 
 def _ensure_folder_exists(
-    fnames: list[str] | tuple[str, ...] | list[Path] | tuple[Path, ...],
+    fnames: list[str]
+    | tuple[str, ...]
+    | list[list[str]]
+    | list[Path]
+    | list[list[Path]],
 ) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
@@ -716,9 +739,10 @@ def _ensure_folder_exists(
 def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
     fnames: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
-):
+) -> None:
     """Save a list of learners to disk using cloudpickle."""
     _ensure_folder_exists(fnames)
 
@@ -739,6 +763,7 @@ def fname_to_dataframe(
     fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
     format: str = "parquet",  # noqa: A002
 ) -> str | list[str]:
+    """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
     if isinstance(fname, (tuple, list)):
@@ -750,14 +775,15 @@ def fname_to_dataframe(
 def save_dataframe(
     fname: str | list[str] | tuple[str, ...],
     *,
-    format: _DATAFRAME_FORMATS = "parquet",
+    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
+    """Save the learner's data to disk as pandas.DataFrame."""
     save_kwargs = save_kwargs or {}
 
-    def save(learner):
+    def save(learner: adaptive.BaseLearner) -> None:
         df = learner.to_dataframe(**to_dataframe_kwargs)
         if expand_dicts:
             df = expand_dict_columns(df)
@@ -779,7 +805,8 @@ def save_dataframe(
         elif format == "json":
             df.to_json(fname_df, **save_kwargs)
         else:
-            raise ValueError(f"Unknown format {format}.")
+            msg = f"Unknown format {format}."
+            raise ValueError(msg)
 
     return save
 
@@ -796,6 +823,7 @@ _DATAFRAME_FORMATS = Literal[
 
 
 def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Expand dict columns in a dataframe."""
     if df.empty:
         return df
 
@@ -804,24 +832,25 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
             prefix = f"{col}."
             x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
             x.index = df.index
-            for col in x:
-                assert col not in df, f"{col=} already exists in df."
+            for _col in x:
+                assert _col not in df, f"{_col=} already exists in df."
             df = df.join(x)
     return df
 
 
-def load_dataframes(
+def load_dataframes(  # noqa: PLR0912
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
     format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
 ) -> pd.DataFrame | list[pd.DataFrame]:
+    """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
-        if not os.path.exists(fn_df):
+        if not os.path.exists(fn_df):  # noqa: PTH110
             continue
         try:
             if format == "parquet":
@@ -842,7 +871,7 @@ def load_dataframes(
                 df = pd.read_json(fn_df, **read_kwargs)
             else:
                 msg = f"Unknown format {format}."
-                raise ValueError(msg)
+                raise ValueError(msg)  # noqa: TRY301
         except Exception:  # noqa: BLE001
             msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
             console.print(msg)
@@ -864,10 +893,11 @@ def _require_adaptive(version: str, name: str) -> None:
     v_clean = ".".join(v.split(".")[:3])  # remove the dev0 or other suffix
     current = pkg_resources.parse_version(v_clean)
     if current < required:
-        raise RuntimeError(
+        msg = (
             f"`{name}` requires adaptive version "
             f"of at least {required}, currently using {current}.",
         )
+        raise RuntimeError(msg)
 
 
 class _TimeGoal:
@@ -875,15 +905,15 @@ class _TimeGoal:
         self.dt = dt
         self.start_time = None
 
-    def __call__(self, learner: adaptive.BaseLearner):
+    def __call__(self, learner: adaptive.BaseLearner) -> bool:  # noqa: ARG002
         if isinstance(self.dt, timedelta):
             if self.start_time is None:
-                self.start_time = datetime.now()
-            return datetime.now() - self.start_time > self.dt
-        elif isinstance(self.dt, datetime):
-            return datetime.now() > self.dt
-        else:
-            raise TypeError(f"{self.dt=} is not a datetime or timedelta.")
+                self.start_time = datetime.now()  # noqa: DTZ005
+            return datetime.now() - self.start_time > self.dt  # noqa: DTZ005
+        if isinstance(self.dt, datetime):
+            return datetime.now() > self.dt  # noqa: DTZ005
+        msg = f"{self.dt=} is not a datetime or timedelta."
+        raise TypeError(msg)
 
 
 def smart_goal(
@@ -894,7 +924,7 @@ def smart_goal(
     | timedelta
     | None,
     learners: list[adaptive.BaseLearner],
-):
+) -> Callable[[adaptive.BaseLearner], bool]:
     """Extract a goal from the learners.
 
     Parameters
@@ -912,19 +942,23 @@ def smart_goal(
     """
     if callable(goal):
         return goal
-    elif isinstance(goal, int):
+    if isinstance(goal, int):
         return lambda learner: learner.npoints >= goal
-    elif isinstance(goal, float):
+    if isinstance(goal, float):
         return lambda learner: learner.loss() <= goal
-    elif isinstance(goal, (timedelta, datetime)):
+    if isinstance(goal, (timedelta, datetime)):
         return _TimeGoal(goal)
-    elif goal is None:
+    if goal is None:
         learner_types = {type(learner) for learner in learners}
         if len(learner_types) > 1:
-            raise TypeError("Multiple learner types found.")
+            msg = "Multiple learner types found."
+            raise TypeError(msg)
         if isinstance(learners[0], adaptive.SequenceLearner):
             return adaptive.SequenceLearner.done
-        warnings.warn("Goal is None which means the learners continue forever!")
+        warnings.warn(
+            "Goal is None which means the learners continue forever!",
+            stacklevel=2,
+        )
         return lambda _: False
-    else:
-        raise ValueError("goal must be `callable | int | float | None`")
+    msg = "goal must be `callable | int | float | None`"
+    raise ValueError(msg)

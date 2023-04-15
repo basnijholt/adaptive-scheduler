@@ -103,9 +103,9 @@ def cleanup_scheduler_files(
 
     _remove_or_move_files(
         to_rm,
-        with_progress_bar,
-        move_to,
-        "Removing logs and batch files",
+        with_progress_bar=with_progress_bar,
+        move_to=move_to,
+        desc="Removing logs and batch files",
     )
 
 
