@@ -43,9 +43,10 @@ def _ensure_str(
             return [str(f) for f in fnames]
         if isinstance(fnames[0], list):
             return [[str(f) for f in sublist] for sublist in fnames]
-    raise ValueError(
-        "Invalid input: expected a list of strings or a list of lists of strings/Paths.",
+    msg = (
+        "Invalid input: expected a list of strings or a list of lists of strings/Paths."
     )
+    raise ValueError(msg)
 
 
 class DatabaseManager(BaseManager):

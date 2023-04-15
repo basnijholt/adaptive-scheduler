@@ -609,8 +609,8 @@ class SLURM(BaseScheduler):
             "process-pool",
         ] = "mpi4py",
         num_threads: int = 1,
-        extra_scheduler: list[str] = None,
-        extra_env_vars: list[str] = None,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
         extra_script: str = None,
     ) -> None:
         self._cores = cores
@@ -632,6 +632,7 @@ class SLURM(BaseScheduler):
 
         if cores_per_node is not None:
             extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            assert nodes is not None
             cores = nodes * cores_per_node
 
         if partition is not None:
@@ -812,16 +813,21 @@ class LocalMockScheduler(BaseScheduler):
 
     def __init__(
         self,
-        cores,
-        run_script="run_learner.py",
-        python_executable=None,
-        log_folder="",
-        mpiexec_executable=None,
-        executor_type="mpi4py",
-        num_threads=1,
-        extra_scheduler=None,
-        extra_env_vars=None,
-        extra_script=None,
+        cores: int,
+        run_script: str | Path = "run_learner.py",
+        python_executable: str | None = None,
+        log_folder: str | Path = "",
+        mpiexec_executable: str | None = None,
+        executor_type: Literal[
+            "ipyparallel",
+            "dask-mpi",
+            "mpi4py",
+            "process-pool",
+        ] = "mpi4py",
+        num_threads: int = 1,
+        extra_scheduler: list[str] | None = None,
+        extra_env_vars: list[str] | None = None,
+        extra_script: str | None = None,
         *,
         mock_scheduler_kwargs=None,
     ) -> None:

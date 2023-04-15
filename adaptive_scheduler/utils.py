@@ -17,6 +17,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
+from multiprocessing.managers import ListProxy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
@@ -39,7 +40,7 @@ _NONE_RETURN_STR = "__ReturnsNone__"
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
-    required_attributes = []
+    required_attributes: list[str] = []
 
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         obj = super().__call__(*args, **kwargs)
@@ -225,7 +226,10 @@ def combine_sequence_learners(
         Big `~adaptive.SequenceLearner` with data from ``learners``.
     """
     if big_learner is None:
-        big_sequence = sum((list(learner.sequence) for learner in learners), [])
+        big_sequence: list[Any] = sum(
+            (list(learner.sequence) for learner in learners),
+            [],
+        )
         big_learner = adaptive.SequenceLearner(
             learners[0]._original_function,
             sequence=big_sequence,
@@ -271,6 +275,7 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
     with suppress(AttributeError):
         # If the Learner is a BalancingLearner
         return sum(learner.npoints for learner in learner.learners)
+    return None
 
 
 def _progress(
@@ -288,7 +293,7 @@ def _progress(
 def combo_to_fname(
     combo: dict[str, Any],
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
 ) -> str:
     """Converts a dict into a human readable filename."""
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
@@ -300,7 +305,7 @@ def combo_to_fname(
 def combo2fname(
     combo: dict[str, Any],
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
     sig_figs: int = 8,
 ) -> str:
     """Converts a dict into a human readable filename.
@@ -319,9 +324,8 @@ def add_constant_to_fname(
     constant: dict[str, Any],
     *,
     folder: str | Path | None = None,
-    ext: str | None = ".pickle",
+    ext: str = ".pickle",
     sig_figs: int = 8,
-    dry_run: bool = True,
 ) -> tuple[str, str]:
     """Add a constant to a filename."""
     for k in constant:
@@ -329,8 +333,6 @@ def add_constant_to_fname(
     old_fname = combo2fname(combo, folder, ext, sig_figs)
     combo.update(constant)
     new_fname = combo2fname(combo, folder, ext, sig_figs)
-    if not dry_run:
-        old_fname.rename(new_fname)
     return old_fname, new_fname
 
 
@@ -586,7 +588,7 @@ def _deserialize(frames: list) -> Any:
         raise
 
 
-class LRUCachedCallable(Callable[..., Any]):
+class LRUCachedCallable:
     """Wraps a function to become cached.
 
     Parameters
@@ -636,7 +638,7 @@ class LRUCachedCallable(Callable[..., Any]):
             found = False
         return found, value
 
-    def _insert_into_cache(self, key: str, value: Any) -> list:
+    def _insert_into_cache(self, key: str, value: Any) -> ListProxy[Any]:
         """Insert a key value pair into the cache."""
         if value is None:
             value = _NONE_RETURN_STR
@@ -722,13 +724,15 @@ def fname_to_learner(
 
 def _ensure_folder_exists(
     fnames: list[str]
-    | tuple[str, ...]
-    | list[list[str]]
     | list[Path]
+    | tuple[str, ...]
+    | tuple[Path, ...]
+    | list[list[str]]
     | list[list[Path]],
 ) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
+            assert isinstance(_fnames, (tuple, list))
             _ensure_folder_exists(_fnames)
     else:
         folders = {Path(fname).parent for fname in fnames}

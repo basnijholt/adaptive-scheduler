@@ -218,7 +218,7 @@ class RunManager(BaseManager):
         self.kill_interval = kill_interval
         self.kill_on_error = kill_on_error
         self.move_old_logs_to = _maybe_path(move_old_logs_to)
-        self.db_fname = _maybe_path(db_fname or f"{job_name}-database.json")
+        self.db_fname = Path(db_fname or f"{job_name}-database.json")
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}

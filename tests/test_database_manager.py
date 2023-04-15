@@ -102,7 +102,7 @@ async def test_database_manager_dispatch_start_stop(
         assert entry["is_done"] is True
 
 
-async def send_message(socket: zmq.asyncio.Socket, message: Any) -> None:
+async def send_message(socket: zmq.asyncio.Socket, message: Any) -> Any:
     """Send a message to the socket and return the response."""
     await socket.send_serialized(message, _serialize)
     return await socket.recv_serialized(_deserialize)
@@ -293,7 +293,7 @@ def test_ensure_str() -> None:
 
     # Test with an invalid input
     with pytest.raises(ValueError, match="Invalid input: expected a list of strings"):
-        _ensure_str("invalid_input")
+        _ensure_str("invalid_input")  # type: ignore[arg-type]
 
     # Test empty
     assert _ensure_str([]) == []
