@@ -219,3 +219,51 @@ def test_base_scheduler_job_script_ipyparallel() -> None:
         """,
         ).strip()
     )
+
+
+@pytest.mark.usefixtures("mock_slurm_partitions")
+def test_base_scheduler_ipyparallel() -> None:
+    """Test the BaseScheduler.job_script method."""
+    s = SLURM(
+        extra_scheduler=["--exclusive=user", "--time=1"],
+        extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
+        extra_script="echo 'YOLO'",
+        executor_type="ipyparallel",
+        nodes=999,
+        cores_per_node=24,
+        partition="nc24-low",
+        exclusive=True,
+    )
+    assert s.cores == 999 * 24
+    ipy = s._ipyparallel("TEST")
+    log_fname = s.log_fname("TEST")
+    print(ipy)
+    assert (
+        ipy.strip()
+        == textwrap.dedent(
+            f"""\
+        profile=adaptive_scheduler_${{JOB_ID}}
+
+        echo "Creating profile ${{profile}}"
+        ipython profile create ${{profile}}
+
+        echo "Launching controller"
+        ipcontroller --ip="*" --profile=${{profile}} --log-to-file &
+        sleep 10
+
+        echo "Launching engines"
+        srun --ntasks 23975 ipengine \\
+            --profile=${{profile}} \\
+            --cluster-id='' \\
+            --log-to-file &
+
+        echo "Starting the Python script"
+        srun --ntasks 1 {s.python_executable} run_learner.py \\
+            --profile ${{profile}} \\
+            --n 23975 \\
+            --log-fname {log_fname} \\
+            --job-id ${{JOB_ID}} \\
+            --name TEST
+        """,
+        ).strip()
+    )
