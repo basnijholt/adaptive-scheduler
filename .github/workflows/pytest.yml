@@ -29,3 +29,6 @@ jobs:
         run: |
           python -c "import adaptive_scheduler; print(adaptive_scheduler.__version__)"
           pytest
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
