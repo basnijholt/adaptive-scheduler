@@ -226,7 +226,7 @@ def test_smart_goal() -> None:
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
 
     goal_callable = utils.smart_goal(
-        lambda lrn: lrn.npoints >= 10,
+        lambda lrn: lrn.npoints >= 10,  # noqa: PLR2004
         [learner],
     )
     assert not goal_callable(learner)
