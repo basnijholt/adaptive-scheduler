@@ -22,6 +22,7 @@ t=$(git describe --abbrev=0); echo Commits since $t; git shortlog -s $t..
 ### Tag the release
 
 Make an **annotated, signed** tag for the release. The tag must have the name:
+
 ```
 git tag -s v<version> -m "version <version>"
 ```
@@ -30,7 +31,7 @@ git tag -s v<version> -m "version <version>"
 
 ```
 rm -fr build dist
-python setup.py sdist bdist_wheel
+python -m build
 ```
 
 ### Create an empty commit for new development and tag it
