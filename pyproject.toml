@@ -67,6 +67,7 @@ include = ["adaptive_scheduler.*", "adaptive_scheduler"]
 
 [tool.pytest.ini_options]
 addopts = """
+    -vvv
     --cov=adaptive_scheduler
     --cov-report term
     --cov-report html
