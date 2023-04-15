@@ -211,7 +211,7 @@ Also there are **no tests** at all!
 .. |PyPI| image:: https://img.shields.io/pypi/v/adaptive-scheduler.svg
    :target: https://pypi.python.org/pypi/adaptive-scheduler
    :alt: PyPI
-.. |Conda| image:: https://anaconda.org/conda-forge/adaptive-scheduler/badges/installer/conda.svg
+.. |Conda| image:: https://img.shields.io/conda/v/conda-forge/adaptive-scheduler.svg?label=conda-forge
    :target: https://anaconda.org/conda-forge/adaptive-scheduler
    :alt: Conda
 .. |Downloads| image:: https://anaconda.org/conda-forge/adaptive-scheduler/badges/downloads.svg
