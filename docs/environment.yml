@@ -5,17 +5,24 @@ channels:
 
 dependencies:
   - python
-  - adaptive
+  - adaptive >=0.14.1
+  - cloudpickle
   - dill
   - ipyparallel
-  - mpich
+  - jinja2
+  - loky
   - mpi4py
+  - mpich
+  - numpy
   - pandas
   - psutil
+  - pyarrow
   - pyzmq
+  - rich
   - structlog
   - tinydb
   - toolz
   - tqdm
+  - versioningit
   - pip:
       - m2r @ git+https://github.com/crossnox/m2r@dev#egg=m2r  # https://github.com/sphinx-doc/sphinx/issues/7420#issuecomment-610958327
