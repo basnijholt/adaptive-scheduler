@@ -969,6 +969,7 @@ def _get_ncores(partition):
 
 @lru_cache(maxsize=1)
 def slurm_partitions(
+    *,
     timeout: int = 5,
     with_ncores: bool = True,
 ) -> list[str] | dict[str, int]:

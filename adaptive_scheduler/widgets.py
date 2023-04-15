@@ -522,7 +522,7 @@ def info(run_manager: RunManager) -> None:
 
     # Cleanup button with confirm/deny option
     include_old_logs = Checkbox(
-        False,
+        value=False,
         description=f"Remove {run_manager.move_old_logs_to}/ folder",
         indent=False,
     )

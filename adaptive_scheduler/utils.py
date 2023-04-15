@@ -312,7 +312,7 @@ def combo2fname(
     name_parts = [f"{k}_{maybe_round(v, sig_figs)}" for k, v in sorted(combo.items())]
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
-        return fname
+        return str(fname)
     return str(folder / fname)
 
 
