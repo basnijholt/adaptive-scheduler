@@ -7,7 +7,6 @@ import warnings
 from distutils.spawn import find_executable
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
-from adaptive_scheduler._scheduler.common import console, run_submit
 from adaptive_scheduler._scheduler.local import LocalMockScheduler
 from adaptive_scheduler._scheduler.pbs import PBS
 from adaptive_scheduler._scheduler.slurm import SLURM, slurm_partitions
@@ -18,8 +17,7 @@ __all__ = [
     "SLURM",
     "slurm_partitions",
     "BaseScheduler",
-    "console",
-    "run_submit",
+    "DefaultScheduler",
 ]
 
 
