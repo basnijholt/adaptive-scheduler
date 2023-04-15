@@ -131,7 +131,7 @@ def slurm_run(
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:
-        cores_per_node = slurm_partitions()[partition]
+        cores_per_node = slurm_partitions()[partition]  # type: ignore[call-overload]
     kw = dict(
         _get_default_args(SLURM),
         nodes=nodes,
