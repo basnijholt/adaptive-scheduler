@@ -21,7 +21,7 @@ jobs:
       - name: Install adaptive-scheduler
         shell: bash -l {0}
         run: |
-          pip install -e ".[test]"
+          pip install -e ".[test,all]"
 
       # Linux and macOS
       - name: Run Python
