@@ -17,7 +17,6 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
-from multiprocessing.managers import ListProxy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
@@ -32,6 +31,7 @@ from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+    from multiprocessing.managers import ListProxy
 
 console = Console()
 
@@ -735,6 +735,7 @@ def _ensure_folder_exists(
             assert isinstance(_fnames, (tuple, list))
             _ensure_folder_exists(_fnames)
     else:
+        assert isinstance(fnames[0], (str, Path))
         folders = {Path(fname).parent for fname in fnames}
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
@@ -742,7 +743,7 @@ def _ensure_folder_exists(
 
 def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fnames: list[str] | tuple[str, ...] | list[Path] | tuple[Path, ...],
     *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,

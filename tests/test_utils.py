@@ -403,7 +403,6 @@ def test_add_constant_to_fname_with_folder() -> None:
         combo,
         constant,
         folder=folder,
-        dry_run=True,
     )
     assert old_fname == f"{folder}/x_1__y_2__z_3.pickle"
     assert new_fname == f"{folder}/a_42__x_1__y_2__z_3.pickle"

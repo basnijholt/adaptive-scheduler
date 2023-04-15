@@ -36,8 +36,8 @@ class MockScheduler(BaseScheduler):
     def __init__(self, **kw: Any) -> None:
         """Initialize the mock scheduler."""
         super().__init__(**kw)
-        self._queue_info = {}
-        self._started_jobs = []
+        self._queue_info: dict[str, dict[str, Any]] = {}
+        self._started_jobs: list[str] = []
         self._job_id = 0
 
     def queue(

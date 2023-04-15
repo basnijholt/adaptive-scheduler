@@ -111,3 +111,4 @@ max-complexity = 18
 
 [tool.mypy]
 python_version = "3.9"
+exclude = ["tests", "ipynb_filter.py"]
