@@ -312,7 +312,7 @@ def combo2fname(
     name_parts = [f"{k}_{maybe_round(v, sig_figs)}" for k, v in sorted(combo.items())]
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
-        return fname
+        return str(fname)
     return str(folder / fname)
 
 
@@ -673,10 +673,12 @@ def shared_memory_cache(cache_size: int = 128):
     return cache_decorator
 
 
-def _prefix(fname: str | list[str] | tuple[str, ...]) -> str:
+def _prefix(
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+) -> str:
     if isinstance(fname, (tuple, list)):
         return f".{len(fname):08}_learners."
-    if isinstance(fname, str):
+    if isinstance(fname, (str, Path)):
         return ".learner."
     raise TypeError("Incorrect type for fname.")
 
@@ -699,7 +701,9 @@ def fname_to_learner(
         return cloudpickle.load(f)
 
 
-def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]) -> None:
+def _ensure_folder_exists(
+    fnames: list[str] | tuple[str, ...] | list[Path] | tuple[Path, ...],
+) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
             _ensure_folder_exists(_fnames)
@@ -710,8 +714,8 @@ def _ensure_folder_exists(fnames: list[str | list[str] | tuple[str, ...]]) -> No
 
 
 def cloudpickle_learners(
-    learners,
-    fnames: list[str | list[str] | tuple[str, ...]],
+    learners: list[adaptive.BaseLearner],
+    fnames: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
     with_progress_bar: bool = False,
     empty_copies: bool = True,
 ):
@@ -732,11 +736,11 @@ def cloudpickle_learners(
 
 
 def fname_to_dataframe(
-    fname: str | list[str] | tuple[str, ...],
-    format: str = "parquet",
+    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    format: str = "parquet",  # noqa: A002
 ) -> str | list[str]:
     if format == "excel":
-        format = "xlsx"
+        format = "xlsx"  # noqa: A001
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
@@ -745,6 +749,7 @@ def fname_to_dataframe(
 
 def save_dataframe(
     fname: str | list[str] | tuple[str, ...],
+    *,
     format: _DATAFRAME_FORMATS = "parquet",
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
@@ -794,7 +799,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    for col, val in df.iloc[0].iteritems():
+    for col, val in df.iloc[0].items():
         if isinstance(val, dict):
             prefix = f"{col}."
             x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
@@ -806,16 +811,17 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_dataframes(
-    fnames: list[str] | list[list[str]],
+    fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
+    *,
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
-    format: _DATAFRAME_FORMATS = "parquet",
+    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
 ) -> pd.DataFrame | list[pd.DataFrame]:
     read_kwargs = read_kwargs or {}
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
-        if not os.path.exists(fn):
+        if not os.path.exists(fn_df):
             continue
         try:
             if format == "parquet":
@@ -827,7 +833,7 @@ def load_dataframes(
                     read_kwargs["key"] = "data"
                 df = pd.read_hdf(fn_df, **read_kwargs)
             elif format == "pickle":
-                df = pd.read_pickle(fn_df, **read_kwargs)
+                df = pd.read_pickle(fn_df, **read_kwargs)  # noqa: S301
             elif format == "feather":
                 df = pd.read_feather(fn_df, **read_kwargs)
             elif format == "excel":
@@ -835,19 +841,19 @@ def load_dataframes(
             elif format == "json":
                 df = pd.read_json(fn_df, **read_kwargs)
             else:
-                raise ValueError(f"Unknown format {format}.")
-        except Exception:
-            print(f"`{fn}`'s DataFrame ({fn_df}) could not be read.")
+                msg = f"Unknown format {format}."
+                raise ValueError(msg)
+        except Exception:  # noqa: BLE001
+            msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
+            console.print(msg)
             continue
         df["fname"] = len(df) * [fn]
         dfs.append(df)
     if concat:
         if dfs:
             return pd.concat(dfs, axis=0)
-        else:
-            return pd.DataFrame()
-    else:
-        return dfs
+        return pd.DataFrame()
+    return dfs
 
 
 def _require_adaptive(version: str, name: str) -> None:
