@@ -279,7 +279,7 @@ def _get_npoints(learner: adaptive.BaseLearner) -> int | None:
 
 
 def _progress(
-    seq: Iterable,
+    seq: Iterable[Any],
     with_progress_bar: bool = True,  # noqa: FBT001, FBT002
     desc: str = "",
 ) -> Iterable | tqdm:
@@ -368,7 +368,7 @@ def round_sigfigs(num: float, sig_figs: int) -> float:
 
 
 def _remove_or_move_files(
-    fnames: list[str],
+    fnames: Sequence[str],
     *,
     with_progress_bar: bool = True,
     move_to: str | Path | None = None,
@@ -736,14 +736,14 @@ def _ensure_folder_exists(
             _ensure_folder_exists(_fnames)
     else:
         assert isinstance(fnames[0], (str, Path))
-        folders = {Path(fname).parent for fname in fnames}
+        folders = {Path(fname).parent for fname in fnames}  # type: ignore[arg-type]
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
 
 
 def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str] | tuple[str, ...] | list[Path] | tuple[Path, ...],
+    fnames: list[str] | list[Path] | list[list[str]] | list[list[Path]],
     *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
@@ -767,7 +767,7 @@ def cloudpickle_learners(
 def fname_to_dataframe(
     fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
     format: str = "parquet",  # noqa: A002
-) -> str | list[str]:
+) -> str:
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
@@ -798,6 +798,7 @@ def save_dataframe(
         elif format == "csv":
             df.to_csv(fname_df, **save_kwargs)
         elif format == "hdf":
+            assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
             df.to_hdf(fname_df, **save_kwargs)
@@ -835,7 +836,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     for col, val in df.iloc[0].items():
         if isinstance(val, dict):
             prefix = f"{col}."
-            x = pd.json_normalize(df.pop(col)).add_prefix(prefix)
+            x = pd.json_normalize(df.pop(col)).add_prefix(prefix)  # type: ignore[arg-type]
             x.index = df.index
             for _col in x:
                 assert _col not in df, f"{_col=} already exists in df."
@@ -908,7 +909,7 @@ def _require_adaptive(version: str, name: str) -> None:
 class _TimeGoal:
     def __init__(self, dt: timedelta | datetime) -> None:
         self.dt = dt
-        self.start_time = None
+        self.start_time: datetime | None = None
 
     def __call__(self, learner: adaptive.BaseLearner) -> bool:  # noqa: ARG002
         if isinstance(self.dt, timedelta):

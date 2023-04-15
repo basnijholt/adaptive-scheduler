@@ -9,7 +9,7 @@ from adaptive_scheduler.utils import (
 )
 
 from .base_manager import BaseManager
-from .common import log
+from .common import _maybe_path, log
 
 if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -99,7 +99,7 @@ class KillManager(BaseManager):
         error: str | Callable[[list[str]], bool] = "srun: error:",
         interval: int = 600,
         max_cancel_tries: int = 5,
-        move_to: str | None = None,
+        move_to: str | Path | None = None,
     ) -> None:
         super().__init__()
         self.scheduler = scheduler
@@ -107,7 +107,7 @@ class KillManager(BaseManager):
         self.error = error
         self.interval = interval
         self.max_cancel_tries = max_cancel_tries
-        self.move_to = move_to
+        self.move_to = _maybe_path(move_to)
 
         self.cancelled: list[str] = []
         self.deleted: list[str] = []

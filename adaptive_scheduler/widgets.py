@@ -116,8 +116,7 @@ def _sort_fnames(
         values = df_sel[key].values
         if values:
             return values[0]
-        else:
-            return "?"
+        return "?"
 
     if sort_by != "Alphabetical":
         fname_mapping = defaultdict(list)
@@ -499,11 +498,11 @@ def info(run_manager: RunManager) -> None:
             b.description = "show logs"
             box.children = box.children[:-1]
 
-    def cancel():
+    def cancel() -> None:
         run_manager.cancel()
         update(None)
 
-    def cleanup(include_old_logs):
+    def cleanup(include_old_logs: bool):
         def _callable():
             run_manager.cleanup(remove_old_logs_folder=include_old_logs.value)
             update(None)

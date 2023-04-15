@@ -21,4 +21,9 @@ repos:
     rev: "v1.2.0"
     hooks:
       - id: mypy
-        additional_dependencies: ["types-setuptools"]
+        exclude: ^tests/.*|ipynb_filter.py
+        additional_dependencies:
+          - types-setuptools
+          - types-tqdm
+          - pandas-stubs
+          - types-psutil

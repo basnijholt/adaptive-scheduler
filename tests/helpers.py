@@ -4,13 +4,13 @@ from __future__ import annotations
 import os
 import textwrap
 from contextlib import contextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler.scheduler import BaseScheduler
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
     from typing import Any, ClassVar
 
 

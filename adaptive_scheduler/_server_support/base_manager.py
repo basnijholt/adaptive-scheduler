@@ -18,7 +18,7 @@ class BaseManager(metaclass=abc.ABCMeta):
         self._coro: Coroutine | None = None
         self.task: asyncio.Task | None = None
 
-    def start(self) -> None:
+    def start(self) -> BaseManager:
         if self.is_started:
             msg = f"{self.__class__} is already started!"
             raise ManagerAlreadyStartedError(msg)
@@ -34,6 +34,7 @@ class BaseManager(metaclass=abc.ABCMeta):
 
     def cancel(self) -> bool | None:
         if self.is_started:
+            assert self.task is not None  # for mypy
             return self.task.cancel()
         return None
 

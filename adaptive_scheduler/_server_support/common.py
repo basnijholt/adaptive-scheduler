@@ -60,8 +60,8 @@ def _get_matching_files(f: Path, variable: str) -> list[Path]:
 
 def _get_all_files(job_names: list[str], scheduler: BaseScheduler) -> set[Path]:
     log_fnames = [scheduler.log_fname(name) for name in job_names]
-    output_fnames = [scheduler.output_fnames(name) for name in job_names]
-    output_fnames = list(itertools.chain(*output_fnames))
+    _output_fnames = [scheduler.output_fnames(name) for name in job_names]
+    output_fnames: list[Path] = list(itertools.chain(*_output_fnames))
     batch_fnames = [scheduler.batch_fname(name) for name in job_names]
     fnames = log_fnames + output_fnames + batch_fnames
     all_files = []
@@ -81,7 +81,7 @@ def cleanup_scheduler_files(
     scheduler: BaseScheduler,
     *,
     with_progress_bar: bool = True,
-    move_to: str | None = None,
+    move_to: str | Path | None = None,
 ) -> None:
     """Cleanup the scheduler log-files files.
 
@@ -173,3 +173,12 @@ def periodically_clean_ipython_profiles(
     ioloop = asyncio.get_event_loop()
     coro = clean(interval)
     return ioloop.create_task(coro)
+
+
+def _maybe_path(fname: str | Path | None) -> Path | None:  # pragma: no cover
+    """Convert a string to a Path or return None."""
+    if fname is None:
+        return None
+    if isinstance(fname, str):
+        return Path(fname)
+    return fname
