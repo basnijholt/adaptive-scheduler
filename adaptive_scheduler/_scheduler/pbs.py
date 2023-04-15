@@ -12,7 +12,7 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from adaptive_scheduler._scheduler.base import BaseScheduler
+from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:

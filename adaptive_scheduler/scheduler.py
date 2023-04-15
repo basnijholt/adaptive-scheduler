@@ -6,7 +6,7 @@ import os.path
 import warnings
 from distutils.spawn import find_executable
 
-from adaptive_scheduler._scheduler.base import BaseScheduler
+from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import console, run_submit
 from adaptive_scheduler._scheduler.local import LocalMockScheduler
 from adaptive_scheduler._scheduler.pbs import PBS
