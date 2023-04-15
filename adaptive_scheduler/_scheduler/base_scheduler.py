@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar, Literal
 
 
+_MULTI_LINE_BREAK = " \\\n    "
+
+
 class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     """Base object for a Scheduler.
 
@@ -194,23 +197,27 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def _mpi4py(self, name: str) -> str:
         log_fname = self.log_fname(name)
-        return (
-            f"{self.mpiexec_executable}"
-            f" -n {self.cores} {self.python_executable}"
-            f" -m mpi4py.futures {self.run_script}"
-            f" --log-fname {log_fname}"
-            f" --job-id {self._JOB_ID_VARIABLE}"
-            f" --name {name}"
+        return _MULTI_LINE_BREAK.join(
+            (
+                f"{self.mpiexec_executable}",
+                f"-n {self.cores} {self.python_executable}",
+                f"-m mpi4py.futures {self.run_script}",
+                f"--log-fname {log_fname}",
+                f"--job-id {self._JOB_ID_VARIABLE}",
+                f"--name {name}",
+            ),
         )
 
     def _dask_mpi(self, name: str) -> str:
         log_fname = self.log_fname(name)
-        return (
-            f"{self.mpiexec_executable}"
-            f" -n {self.cores} {self.python_executable} {self.run_script}"
-            f" --log-fname {log_fname}"
-            f" --job-id {self._JOB_ID_VARIABLE}"
-            f" --name {name}"
+        return _MULTI_LINE_BREAK.join(
+            (
+                f"{self.mpiexec_executable}",
+                f"-n {self.cores} {self.python_executable} {self.run_script}",
+                f"--log-fname {log_fname}",
+                f"--job-id {self._JOB_ID_VARIABLE}",
+                f"--name {name}",
+            ),
         )
 
     def _ipyparallel(self, name: str) -> str:
@@ -229,10 +236,21 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             sleep 10
 
             echo "Launching engines"
-            {self.mpiexec_executable} -n {self.cores-1} ipengine --profile={profile} --mpi --cluster-id='' --log-to-file &
+            {self.mpiexec_executable} \\
+                -n {self.cores-1} \\
+                ipengine \\
+                --profile={profile} \\
+                --mpi \\
+                --cluster-id='' \\
+                --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} --profile {profile} --n {self.cores-1} --log-fname {log_fname} --job-id {job_id} --name {name}
+            {self.python_executable} {self.run_script} \\
+                --profile {profile} \\
+                --n {self.cores-1} \\
+                --log-fname {log_fname} \\
+                --job-id {job_id} \\
+                --name {name}
             """,
         )
 

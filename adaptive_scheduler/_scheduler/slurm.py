@@ -175,11 +175,19 @@ class SLURM(BaseScheduler):
             sleep 10
 
             echo "Launching engines"
-            srun --ntasks {cores} ipengine --profile={profile} --cluster-id='' --log-to-file &
+            srun --ntasks {cores} ipengine \\
+                --profile={profile} \\
+                --cluster-id='' \\
+                --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} --profile {profile} --n {cores} --log-fname {log_fname} --job-id {job_id} --name {name}
-            """,  # noqa: E501
+            srun --ntasks 1 {self.python_executable} {self.run_script} \\
+                --profile {profile} \\
+                --n {cores} \\
+                --log-fname {log_fname} \\
+                --job-id {job_id} \\
+                --name {name}
+            """,
         )
 
     def job_script(self) -> str:

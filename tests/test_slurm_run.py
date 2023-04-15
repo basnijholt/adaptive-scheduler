@@ -1,75 +1,13 @@
 """Tests for the slurm_run function."""
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 from adaptive import Learner1D
 
-import adaptive_scheduler
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
 from adaptive_scheduler.scheduler import SLURM
-
-
-@pytest.fixture()
-def mock_slurm_partitions_output() -> None:  # noqa: PT004
-    """Mock `slurm_partitions` function."""
-    mock_output = "hb120v2-low\nhb60-high\nnc24-low*\nnd40v2-mpi\n"
-    with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(stdout=mock_output.encode("utf-8"))
-        yield
-
-
-PARTITIONS = {
-    "hb120v2-low": 120,
-    "hb60-high": 60,
-    "nc24-low": 24,
-    "nd40v2-mpi": 40,
-}
-
-
-@pytest.fixture()
-def mock_slurm_partitions() -> None:  # noqa: PT004
-    """Mock `slurm_partitions` function."""
-    with patch(
-        "adaptive_scheduler._scheduler.slurm.slurm_partitions",
-    ) as slurm_partitions, patch(
-        "adaptive_scheduler._server_support.slurm_run.slurm_partitions",
-    ) as slurm_partitions_imported:
-        slurm_partitions.return_value = PARTITIONS
-        slurm_partitions_imported.return_value = PARTITIONS
-        yield
-
-
-@pytest.fixture()
-def mock_slurm_queue() -> None:  # noqa: PT004
-    """Mock `SLURM.queue` function."""
-    with patch(
-        "adaptive_scheduler._scheduler.slurm.SLURM.queue",
-    ) as queue:
-        queue.return_value = {}
-        yield
-
-
-@pytest.mark.usefixtures("mock_slurm_partitions_output")
-def test_slurm_partitions() -> None:
-    """Test slurm_partitions function."""
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=False)
-    assert partitions == [
-        "nc24-low",
-        "hb120v2-low",
-        "hb60-high",
-        "nd40v2-mpi",
-    ]
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=True)
-    assert partitions == PARTITIONS
-
-
-@pytest.mark.usefixtures("mock_slurm_partitions")
-def test_slurm_partitions_mock() -> None:
-    """Test slurm_partitions function."""
-    assert adaptive_scheduler._scheduler.slurm.slurm_partitions() == PARTITIONS
 
 
 @pytest.fixture()

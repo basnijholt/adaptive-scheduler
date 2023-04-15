@@ -1,6 +1,7 @@
 """Tests for conftest module."""
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import zmq.asyncio
@@ -12,7 +13,7 @@ from adaptive_scheduler.server_support import (
     get_allowed_url,
 )
 
-from .helpers import MockScheduler
+from .helpers import PARTITIONS, MockScheduler
 
 
 @pytest.fixture()
@@ -71,3 +72,35 @@ def job_manager(
     """Fixture for creating a JobManager instance."""
     job_names = ["job1", "job2"]
     return JobManager(job_names, db_manager, mock_scheduler, interval=0.05)
+
+
+@pytest.fixture()
+def mock_slurm_partitions_output() -> None:  # noqa: PT004
+    """Mock `slurm_partitions` function."""
+    mock_output = "hb120v2-low\nhb60-high\nnc24-low*\nnd40v2-mpi\n"
+    with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout=mock_output.encode("utf-8"))
+        yield
+
+
+@pytest.fixture()
+def mock_slurm_partitions() -> None:  # noqa: PT004
+    """Mock `slurm_partitions` function."""
+    with patch(
+        "adaptive_scheduler._scheduler.slurm.slurm_partitions",
+    ) as slurm_partitions, patch(
+        "adaptive_scheduler._server_support.slurm_run.slurm_partitions",
+    ) as slurm_partitions_imported:
+        slurm_partitions.return_value = PARTITIONS
+        slurm_partitions_imported.return_value = PARTITIONS
+        yield
+
+
+@pytest.fixture()
+def mock_slurm_queue() -> None:  # noqa: PT004
+    """Mock `SLURM.queue` function."""
+    with patch(
+        "adaptive_scheduler._scheduler.slurm.SLURM.queue",
+    ) as queue:
+        queue.return_value = {}
+        yield

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from adaptive_scheduler.scheduler import BaseScheduler
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Iterable
     from pathlib import Path
     from typing import Any, ClassVar
 
@@ -51,16 +51,31 @@ class MockScheduler(BaseScheduler):
 
     def job_script(self) -> str:
         """Return a job script for the mock scheduler."""
-        return textwrap.dedent(
+        job_script = textwrap.dedent(
             f"""\
-            {self.extra_scheduler}
-            {self.extra_env_vars}
+            #!/bin/bash
+            #MOCK --cores {self.cores}
+            {{extra_scheduler}}
 
-            {self.extra_script}
+            export MKL_NUM_THREADS={self.num_threads}
+            export OPENBLAS_NUM_THREADS={self.num_threads}
+            export OMP_NUM_THREADS={self.num_threads}
+            export NUMEXPR_NUM_THREADS={self.num_threads}
 
-            {self._executor_specific("MOCK_JOB")}
+            {{extra_env_vars}}
+
+            {{extra_script}}
+
+            {{executor_specific}}
             """,
         )
+        job_script = job_script.format(
+            extra_scheduler=self.extra_scheduler,
+            extra_env_vars=self.extra_env_vars,
+            extra_script=self.extra_script,
+            executor_specific=self._executor_specific("${NAME}"),
+        )
+        return job_script
 
     def start_job(self, name: str) -> None:
         """Start a mock job."""
@@ -81,11 +96,29 @@ class MockScheduler(BaseScheduler):
     ) -> None:
         """Cancel mock jobs."""
         print("Canceling mock jobs:", job_names)
+
+        def to_cancel(job_names: Iterable[str]) -> list[str]:
+            return [
+                job_id
+                for job_id, info in self.queue().items()
+                if info["job_name"] in job_names
+            ]
+
+        for job_id in to_cancel(job_names):
+            self._queue_info.pop(job_id, None)
+
         for job_name in job_names:
-            self._queue_info.pop(job_name, None)
             if job_name in self._started_jobs:
                 self._started_jobs.remove(job_name)
 
     def update_queue(self, job_name: str, status: str) -> None:
         """Update the queue with the given job_name and status."""
         self._queue_info[job_name] = {"job_name": job_name, "status": status}
+
+
+PARTITIONS = {
+    "hb120v2-low": 120,
+    "hb60-high": 60,
+    "nc24-low": 24,
+    "nd40v2-mpi": 40,
+}
