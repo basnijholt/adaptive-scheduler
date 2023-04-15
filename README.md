@@ -33,7 +33,7 @@ The Adaptive scheduler is designed to solve the problem of running more learners
 
 Our approach is to schedule a different job for each `adaptive.Learner`. The creation and running of these jobs are managed by `adaptive-scheduler`. This means that your calculation will definitely run, even though the cluster might be fully occupied at the moment. Because of this approach, there is almost no limit to how many cores you want to use. You can either use 10 nodes for 1 job (`learner`) or 1 core for 1 job (`learner`) while scheduling hundreds of jobs.
 
-The computation is designed to be maximally local. This means that if one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (thanks to Adaptive's periodic saving functionality). Even if the central \"job manager\" dies, the jobs will continue to run (although no new jobs will be scheduled).
+The computation is designed to be maximally local. This means that if one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (thanks to Adaptive's periodic saving functionality). Even if the central "job manager" dies, the jobs will continue to run (although no new jobs will be scheduled).
 
 ## :dart: Design Goals
 
@@ -66,7 +66,7 @@ combos = adaptive.utils.named_product(
 
 learners = [adaptive.Learner1D(partial(h, **combo),
             bounds=(-1, 1)) for combo in combos]
-fnames = [f\"data/{combo}\" for combo in combos]
+fnames = [f"data/{combo}" for combo in combos]
 ```
 
 Then you start a process that creates and submits as many job-scripts as there are learners, like:
@@ -99,21 +99,21 @@ That's it! You can run `run_manager.info()` which will display an interactive `i
 The `adaptive_scheduler.server_support.RunManager` basically does the following:
 
 - *You* need to create `N` `learners` and `fnames` (like in the section above).
-- Then a \"job manager\" writes and submits `max(N, max_simultaneous_jobs)` job scripts but *doesn't know* which learner it is going to run!
-- This is the responsibility of the \"database manager\", which keeps a database of `job_id <--> learner`.
+- Then a "job manager" writes and submits `max(N, max_simultaneous_jobs)` job scripts but *doesn't know* which learner it is going to run!
+- This is the responsibility of the "database manager", which keeps a database of `job_id <--> learner`.
 - The job script starts a Python file `run_learner.py` in which the learner is run.
 
-In a Jupyter notebook, you can start the \"job manager\" and the \"database manager\", and create the `run_learner.py` like:
+In a Jupyter notebook, you can start the "job manager" and the "database manager", and create the `run_learner.py` like:
 
 ```python
 import adaptive_scheduler
 from adaptive_scheduler import server_support
 
 # create a scheduler
-scheduler = adaptive_scheduler.scheduler.SLURM(cores=10, run_script=\"run_learner.py\",)
+scheduler = adaptive_scheduler.scheduler.SLURM(cores=10, run_script="run_learner.py",)
 
 # create a new database that keeps track of job <-> learner
-db_fname = \"running.json\"
+db_fname = "running.json"
 url = (
    server_support.get_allowed_url()
 )  # get a url where we can run the database_manager
@@ -134,7 +134,7 @@ server_support._make_default_run_script(
 
 # create unique names for the jobs
 n_jobs = len(learners)
-job_names = [f\"test-job-{i}\" for i in range(n_jobs)]
+job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
 job_manager = server_support.JobManager(job_names, database_manager, scheduler)
 job_manager.start()
