@@ -31,7 +31,4 @@ jobs:
           pytest
 
       - name: Upload coverage to Codecov
-        shell: bash -l {0}
-        run: |
-          pip install codecov
-          codecov --token=${{ secrets.CODECOV_TOKEN }} # Set the token as a secret in your repository settings
+        uses: codecov/codecov-action@v3
