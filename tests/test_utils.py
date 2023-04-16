@@ -37,7 +37,9 @@ def test_split() -> None:
 
 
 def test_split_in_balancing_learners(
-    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test `utils.split_in_balancing_learners`."""

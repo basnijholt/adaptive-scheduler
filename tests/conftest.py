@@ -31,7 +31,9 @@ def mock_scheduler(tmp_path: Path) -> MockScheduler:
 @pytest.fixture()
 def db_manager(
     mock_scheduler: MockScheduler,
-    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> DatabaseManager:
@@ -46,10 +48,16 @@ def func(x: float) -> float:
     return x**2
 
 
-@pytest.fixture(params=[adaptive.Learner1D, adaptive.BalancingLearner])
+@pytest.fixture(
+    params=[adaptive.Learner1D, adaptive.BalancingLearner, adaptive.SequenceLearner],
+)
 def learners(
     request: pytest.FixtureRequest,
-) -> list[adaptive.Learner1D] | list[adaptive.BalancingLearner]:
+) -> (
+    list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner]
+):
     """Fixture for creating a list of adaptive.Learner1D instances."""
     learner_class = request.param
     if learner_class is adaptive.Learner1D:
@@ -65,19 +73,25 @@ def learners(
             adaptive.BalancingLearner([learner1, learner2]),
             adaptive.BalancingLearner([learner3, learner4]),
         ]
-    msg = "learner_class should be adaptive.Learner1D or adaptive.BalancingLearner."
-    raise TypeError(msg)
+    if learner_class is adaptive.SequenceLearner:
+        learner1 = adaptive.SequenceLearner(func, sequence=list(range(200)))
+        learner2 = adaptive.SequenceLearner(func, sequence=list(range(200)))
+        return [learner1, learner2]
+    msg = f"Learner type '{type(learner_class)}' not implemented"
+    raise NotImplementedError(msg)
 
 
 @pytest.fixture(params=[Path, str])
 def fnames(
     request: pytest.FixtureRequest,
-    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     tmp_path: Path,
 ) -> list[Path] | list[str] | list[list[Path]] | list[list[str]]:
     """Fixture for creating a list of filenames for learners."""
     type_ = request.param
-    if isinstance(learners[0], adaptive.Learner1D):
+    if isinstance(learners[0], (adaptive.Learner1D, adaptive.SequenceLearner)):
         return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
     if isinstance(learners[0], adaptive.BalancingLearner):
         return [
@@ -87,10 +101,8 @@ def fnames(
             ]
             for i, learner in enumerate(learners)
         ]
-    msg = (
-        "learners should be a list of adaptive.Learner1D or adaptive.BalancingLearner."
-    )
-    raise TypeError(msg)
+    msg = f"Learner type '{type(learners[0])}' not implemented"
+    raise NotImplementedError(msg)
 
 
 @pytest.fixture()

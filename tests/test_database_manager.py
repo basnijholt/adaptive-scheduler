@@ -88,7 +88,9 @@ def test_database_manager_as_dicts(
 @pytest.mark.asyncio()
 async def test_database_manager_dispatch_start_stop(
     db_manager: DatabaseManager,
-    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and stopping jobs using the dispatch method."""

@@ -9,10 +9,15 @@ import adaptive
 import pytest
 
 from adaptive_scheduler import client_support
+from adaptive_scheduler.utils import _at_least_adaptive_version
 
 
 @pytest.mark.asyncio()
-async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
+async def test_get_log_entry(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+) -> None:
     """Test `client_support._get_log_entry`."""
     # Prepare the runner and the learner
     learner = learners[0]
@@ -32,16 +37,24 @@ async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
         "elapsed_time",
         "overhead",
         "npoints",
-        "latest_loss",
         "cpu_usage",
         "mem_usage",
     ]
-    assert all(key in result for key in expected_keys)
+    if not _at_least_adaptive_version("0.16.0", raises=False) and not isinstance(
+        learner,
+        adaptive.SequenceLearner,
+    ):
+        # The loss cache for SequenceLearner was introduced in adaptive 0.16.0
+        # see https://github.com/python-adaptive/adaptive/pull/411
+        expected_keys.append("latest_loss")
+    assert all(key in result for key in expected_keys), list(result.keys())
 
 
 @pytest.mark.asyncio()
 async def test_log_info(
-    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test `client_support.log_info`."""
@@ -55,7 +68,7 @@ async def test_log_info(
     _ = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
-    await asyncio.sleep(2)
+    await asyncio.sleep(0.5)
 
     # Filter the captured log records based on level and logger name
     filtered_records = [

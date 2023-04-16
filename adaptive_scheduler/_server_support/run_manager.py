@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 import pandas as pd
 
 from adaptive_scheduler.utils import (
-    _require_adaptive,
+    _at_least_adaptive_version,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -230,7 +230,7 @@ class RunManager(BaseManager):
                 raise ValueError(msg)
 
         if self.save_dataframe:
-            _require_adaptive("0.14.0", "save_dataframe")
+            _at_least_adaptive_version("0.14.0", "save_dataframe")
 
         # Set in methods
         self.start_time: float | None = None

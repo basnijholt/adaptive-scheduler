@@ -758,7 +758,7 @@ def cloudpickle_learners(
     ):
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
-            _require_adaptive("0.14.1", "empty_copies")
+            _at_least_adaptive_version("0.14.1", "empty_copies")
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
             cloudpickle.dump(learner, f)
@@ -891,7 +891,12 @@ def load_dataframes(  # noqa: PLR0912
     return dfs
 
 
-def _require_adaptive(version: str, name: str) -> None:
+def _at_least_adaptive_version(
+    version: str,
+    name: str = "",
+    *,
+    raises: bool = True,
+) -> bool:
     import pkg_resources
 
     required = pkg_resources.parse_version(version)
@@ -899,11 +904,14 @@ def _require_adaptive(version: str, name: str) -> None:
     v_clean = ".".join(v.split(".")[:3])  # remove the dev0 or other suffix
     current = pkg_resources.parse_version(v_clean)
     if current < required:
-        msg = (
-            f"`{name}` requires adaptive version "
-            f"of at least {required}, currently using {current}.",
-        )
-        raise RuntimeError(msg)
+        if raises:
+            msg = (
+                f"`{name}` requires adaptive version "
+                f"of at least {required}, currently using {current}.",
+            )
+            raise RuntimeError(msg)
+        return False
+    return True
 
 
 class _TimeGoal:
