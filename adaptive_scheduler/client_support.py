@@ -154,6 +154,12 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     return info
 
 
+def log_now(runner: AsyncRunner, npoints_start: int) -> None:
+    """Create a log message now."""
+    info = _get_log_entry(runner, npoints_start)
+    log.info("current status", **info)
+
+
 def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
@@ -177,8 +183,7 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
             await asyncio.sleep(interval)
-            info = _get_log_entry(runner, npoints_start)
-            log.info("current status", **info)
+            log_now(runner, npoints_start)
         log.info("runner status changed", status=runner.status())
         log.info("current status", **_get_log_entry(runner, npoints_start))
 
