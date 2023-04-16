@@ -19,6 +19,6 @@ self
 :hidden: true
 :maxdepth: 2
 
-FAQdocs
+FAQ
 reference/adaptive_scheduler
 ```
