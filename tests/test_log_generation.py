@@ -41,7 +41,7 @@ async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
 
 @pytest.mark.asyncio()
 async def test_log_info(
-    learners: list[adaptive.Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test `client_support.log_info`."""

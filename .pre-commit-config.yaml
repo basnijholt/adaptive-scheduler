@@ -28,4 +28,3 @@ repos:
           - types-tqdm
           - pandas-stubs
           - types-psutil
-          - versioningit

@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import adaptive
 import pytest
 from tinydb import Query, TinyDB
 
@@ -17,7 +18,6 @@ from adaptive_scheduler.utils import smart_goal
 from .helpers import send_message
 
 if TYPE_CHECKING:
-    import adaptive
     import zmq
 
 
@@ -67,7 +67,7 @@ def test_database_manager_as_dicts(
     db_manager.create_empty_db()
     assert db_manager.as_dicts() == [
         {
-            "fname": str(fnames[0]),
+            "fname": _ensure_str(fnames[0]),
             "is_done": False,
             "job_id": None,
             "job_name": None,
@@ -75,7 +75,7 @@ def test_database_manager_as_dicts(
             "output_logs": [],
         },
         {
-            "fname": str(fnames[1]),
+            "fname": _ensure_str(fnames[1]),
             "is_done": False,
             "job_id": None,
             "job_name": None,
@@ -88,7 +88,7 @@ def test_database_manager_as_dicts(
 @pytest.mark.asyncio()
 async def test_database_manager_dispatch_start_stop(
     db_manager: DatabaseManager,
-    learners: list[adaptive.Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and stopping jobs using the dispatch method."""
@@ -98,7 +98,11 @@ async def test_database_manager_dispatch_start_stop(
     start_request = ("start", "1000", "log_1000.txt", "test_job")
     fname = db_manager._dispatch(start_request)
     assert fname in _ensure_str(db_manager.fnames)
-    assert isinstance(fname, str)
+    if isinstance(learners[0], adaptive.BalancingLearner):
+        assert isinstance(fname, list)
+        assert isinstance(fname[0], str)
+    else:
+        assert isinstance(fname, str)
 
     stop_request = ("stop", fname)
     db_manager._dispatch(stop_request)
@@ -127,7 +131,7 @@ async def test_database_manager_start_and_update(
     fname = await send_message(socket, start_message)
 
     # Check if the correct fname is returned
-    assert fname == str(fnames[0]), fname
+    assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
     with TinyDB(db_manager.db_fname) as db:
@@ -183,7 +187,7 @@ async def test_database_manager_start_stop(
         match="The job_id 1000 already exists in the database and runs",
     ):
         raise exception
-    assert fname == str(fnames[0]), fname
+    assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
     with TinyDB(db_manager.db_fname) as db:
@@ -204,12 +208,12 @@ async def test_database_manager_start_stop(
 
     with TinyDB(db_manager.db_fname) as db:
         query = Query()
-        entry = db.get(query.fname == str(fnames[0]))
+        entry = db.get(query.fname == _ensure_str(fnames[0]))
         assert entry["job_id"] is None
 
     # Start and stop the learner2
     fname = await send_message(socket, start_message)
-    assert fname == str(fnames[1])
+    assert fname == _ensure_str(fnames[1])
 
     # Send a stop message to the DatabaseManager
     stop_message = ("stop", fname)
@@ -237,13 +241,13 @@ async def test_database_manager_stop_request_and_requests(
     job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
     start_message1 = ("start", job_id1, log_fname1, job_name1)
     fname1 = await send_message(socket, start_message1)
-    assert fname1 == str(fnames[0]), fname1
+    assert fname1 == _ensure_str(fnames[0]), fname1
 
     # Start a job for learner2
     job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
     start_message2 = ("start", job_id2, log_fname2, job_name2)
     fname2 = await send_message(socket, start_message2)
-    assert fname2 == str(fnames[1]), fname2
+    assert fname2 == _ensure_str(fnames[1]), fname2
 
     # Stop the job for learner1 using _stop_request
     db_manager._stop_request(fname1)

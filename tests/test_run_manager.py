@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import adaptive
 import pytest
-from adaptive import Learner1D
 from ipywidgets import VBox
 
 from adaptive_scheduler._server_support.run_manager import (
@@ -28,7 +27,7 @@ if TYPE_CHECKING:
 
 def test_run_manager_init(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test the initialization of RunManager."""
@@ -39,7 +38,7 @@ def test_run_manager_init(
 @pytest.mark.asyncio()
 async def test_run_manager_start_and_cancel(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test starting the RunManager."""
@@ -53,7 +52,7 @@ async def test_run_manager_start_and_cancel(
 
 def test_run_manager_cleanup(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> None:
@@ -68,7 +67,7 @@ def test_run_manager_cleanup(
 
 def test_run_manager_parse_log_files(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test parsing log files in RunManager."""
@@ -79,7 +78,7 @@ def test_run_manager_parse_log_files(
 
 def test_run_manager_load_learners(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test loading learners in RunManager."""
@@ -95,7 +94,7 @@ def test_run_manager_load_learners(
 @pytest.mark.asyncio()
 async def test_run_manager_elapsed_time(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test elapsed time in RunManager."""
@@ -112,7 +111,7 @@ async def test_run_manager_elapsed_time(
 @pytest.mark.asyncio()
 async def test_run_manager_status(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test the status of RunManager."""
@@ -128,7 +127,7 @@ async def test_run_manager_status(
 
 def test_run_manager_repr_html(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test the _repr_html_ method of RunManager."""
@@ -140,7 +139,7 @@ def test_run_manager_repr_html(
 
 def test_run_manager_info(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test the info method of RunManager."""
@@ -156,7 +155,7 @@ def test_run_manager_info(
 
 def test_run_manager_load_dataframes(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test loading dataframes in RunManager."""
@@ -171,7 +170,7 @@ def test_run_manager_load_dataframes(
 @pytest.mark.asyncio()
 async def test_start_one_by_one(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test starting RunManagers one by one."""
@@ -201,7 +200,7 @@ async def test_start_one_by_one(
 @pytest.mark.asyncio()
 async def test_run_manager_auto_restart(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
 ) -> None:
     """Test starting the RunManager."""

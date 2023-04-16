@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-from adaptive import Learner1D
+from adaptive import BalancingLearner, Learner1D
 
 from adaptive_scheduler.server_support import (
     DatabaseManager,
@@ -31,7 +31,7 @@ def mock_scheduler(tmp_path: Path) -> MockScheduler:
 @pytest.fixture()
 def db_manager(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
+    learners: list[Learner1D] | list[BalancingLearner],
     fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> DatabaseManager:
@@ -46,23 +46,49 @@ def func(x: float) -> float:
     return x**2
 
 
-@pytest.fixture()
-def learners() -> list[Learner1D]:
+@pytest.fixture(params=[Learner1D, BalancingLearner])
+def learners(
+    request: pytest.FixtureRequest,
+) -> list[Learner1D] | list[BalancingLearner]:
     """Fixture for creating a list of Learner1D instances."""
-    learner1 = Learner1D(func, bounds=(-1, 1))
-    learner2 = Learner1D(func, bounds=(-1, 1))
-    return [learner1, learner2]
+    learner_class = request.param
+    if learner_class is Learner1D:
+        learner1 = Learner1D(func, bounds=(-1, 1))
+        learner2 = Learner1D(func, bounds=(-1, 1))
+        return [learner1, learner2]
+    if learner_class is BalancingLearner:
+        learner1 = Learner1D(func, bounds=(-1, 1))
+        learner2 = Learner1D(func, bounds=(-1, 1))
+        learner3 = Learner1D(func, bounds=(-1, 1))
+        learner4 = Learner1D(func, bounds=(-1, 1))
+        return [
+            BalancingLearner([learner1, learner2]),
+            BalancingLearner([learner3, learner4]),
+        ]
+    msg = "learner_class should be Learner1D or BalancingLearner."
+    raise TypeError(msg)
 
 
 @pytest.fixture(params=[Path, str])
 def fnames(
     request: pytest.FixtureRequest,
-    learners: list[Learner1D],
+    learners: list[Learner1D] | list[BalancingLearner],
     tmp_path: Path,
-) -> list[Path]:
+) -> list[Path] | list[str] | list[list[Path]] | list[list[str]]:
     """Fixture for creating a list of filenames for learners."""
     type_ = request.param
-    return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    if isinstance(learners[0], Learner1D):
+        return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    if isinstance(learners[0], BalancingLearner):
+        return [
+            [
+                type_(tmp_path / f"bal_learner{j}_{i}.json")
+                for j, _ in enumerate(learner.learners)
+            ]
+            for i, learner in enumerate(learners)
+        ]
+    msg = "learners should be a list of Learner1D or BalancingLearner."
+    raise TypeError(msg)
 
 
 @pytest.fixture()
