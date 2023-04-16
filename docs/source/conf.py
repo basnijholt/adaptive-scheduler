@@ -12,15 +12,15 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 package_path = Path("../..").resolve()
 # Insert into sys.path so that we can import adaptive here
 sys.path.insert(0, str(package_path))
 # Insert into PYTHONPATH so that jupyter-sphinx will pick it up
 os.environ["PYTHONPATH"] = ":".join(
-    (str(package_path), os.environ.get("PYTHONPATH", ""))
+    (str(package_path), os.environ.get("PYTHONPATH", "")),
 )
 # Insert `docs/` such that we can run the logo scripts
 docs_path = Path("..").resolve()
@@ -73,7 +73,7 @@ master_doc = "index"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -117,7 +117,8 @@ nb_execution_timeout = 180
 nb_execution_raise_on_error = True
 
 
-def replace_named_emojis(input_file: Path, output_file: Path):
+def replace_named_emojis(input_file: Path, output_file: Path) -> None:
+    """Replace named emojis in a file with unicode emojis."""
     import emoji
 
     with input_file.open("r") as infile:

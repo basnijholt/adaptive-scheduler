@@ -1,5 +1,6 @@
 """Tests for the run script functionality."""
 
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -13,7 +14,7 @@ MIN_POINTS = 10
 
 
 @pytest.fixture()
-def _remove_run_script() -> None:
+def _remove_run_script() -> Generator[None, None, None]:
     """Remove the run script if it exists."""
     yield
     if Path(RUN_SCRIPT_FNAME).exists():

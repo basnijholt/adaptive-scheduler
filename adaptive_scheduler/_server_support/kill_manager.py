@@ -97,7 +97,7 @@ class KillManager(BaseManager):
         database_manager: DatabaseManager,
         *,
         error: str | Callable[[list[str]], bool] = "srun: error:",
-        interval: int = 600,
+        interval: int | float = 600,
         max_cancel_tries: int = 5,
         move_to: str | Path | None = None,
     ) -> None:

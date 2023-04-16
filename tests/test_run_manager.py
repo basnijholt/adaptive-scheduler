@@ -50,6 +50,7 @@ def test_run_manager_cleanup(
     """Test the cleanup method of RunManager."""
     with temporary_working_directory(tmp_path):
         rm = RunManager(mock_scheduler, learners, fnames)
+        assert rm.move_old_logs_to is not None
         rm.move_old_logs_to.mkdir(parents=True, exist_ok=True)
         rm.cleanup(remove_old_logs_folder=True)
         assert not rm.move_old_logs_to.exists()

@@ -8,6 +8,7 @@ from adaptive import Learner1D
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
 from adaptive_scheduler.scheduler import SLURM
+from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
 @pytest.fixture()
@@ -22,8 +23,8 @@ def extra_scheduler_kwargs() -> dict[str, Any]:
     return {"mpiexec_executable": "mpiexec"}
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_default_arguments(
     learners: list[Learner1D],
     fnames: list[str],
@@ -48,8 +49,8 @@ def goal_example(learner: Learner1D) -> bool:
     ("partition", "nodes", "cores_per_node"),
     [("hb120v2-low", 2, 120), ("hb60-high", 3, 30)],
 )
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_partition_nodes_and_cores(
     learners: list[Learner1D],
     fnames: list[str],
@@ -73,8 +74,8 @@ def test_slurm_run_with_custom_partition_nodes_and_cores(
     assert rm.scheduler.cores_per_node == cores_per_node
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_goal(
     learners: list[Learner1D],
     fnames: list[str],
@@ -85,8 +86,8 @@ def test_slurm_run_with_custom_goal(
     assert rm.goal == goal_example
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_folder_and_name(
     learners: list[Learner1D],
     fnames: list[str],
@@ -102,8 +103,8 @@ def test_slurm_run_with_custom_folder_and_name(
     assert rm.job_name == name
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_num_threads(
     learners: list[Learner1D],
     fnames: list[str],
@@ -115,8 +116,8 @@ def test_slurm_run_with_custom_num_threads(
     assert rm.scheduler.num_threads == num_threads
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_extra_run_manager_kwargs(
     learners: list[Learner1D],
     fnames: list[str],
@@ -129,13 +130,13 @@ def test_slurm_run_with_extra_run_manager_kwargs(
         assert getattr(rm, key) == value
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 @pytest.mark.parametrize("dataframe_format", ["csv", "json", "pickle"])
 def test_slurm_run_with_custom_dataframe_format(
     learners: list[Learner1D],
     fnames: list[str],
-    dataframe_format: str,
+    dataframe_format: _DATAFRAME_FORMATS,
 ) -> None:
     """Test slurm_run function with custom dataframe_format."""
     rm = slurm_run(learners, fnames, dataframe_format=dataframe_format)
@@ -143,8 +144,8 @@ def test_slurm_run_with_custom_dataframe_format(
     assert rm.dataframe_format == dataframe_format
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_max_fails_and_jobs(
     learners: list[Learner1D],
     fnames: list[str],
@@ -163,8 +164,8 @@ def test_slurm_run_with_custom_max_fails_and_jobs(
     assert rm.max_simultaneous_jobs == max_simultaneous_jobs
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_extra_scheduler_kwargs(
     learners: list[Learner1D],
     fnames: list[str],
@@ -177,8 +178,8 @@ def test_slurm_run_with_extra_scheduler_kwargs(
         assert getattr(rm.scheduler, key) == value
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 @pytest.mark.parametrize("executor_type", ["ipyparallel", "dask-mpi", "mpi4py"])
 def test_slurm_run_with_custom_executor_type(
     learners: list[Learner1D],
@@ -186,13 +187,17 @@ def test_slurm_run_with_custom_executor_type(
     executor_type: str,
 ) -> None:
     """Test slurm_run function with custom executor_type."""
-    rm = slurm_run(learners, fnames, executor_type=executor_type)
+    rm = slurm_run(
+        learners,
+        fnames,
+        executor_type=executor_type,  # type: ignore[arg-type]
+    )
     assert isinstance(rm, RunManager)
     assert rm.scheduler.executor_type == executor_type
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
-@pytest.mark.usefixtures("mock_slurm_queue")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_invalid_nodes_and_executor_type(
     learners: list[Learner1D],
     fnames: list[str],

@@ -19,8 +19,8 @@ def _is_dask_mpi_installed() -> bool:  # pragma: no cover
 
 def _make_default_run_script(
     url: str,
-    save_interval: int,
-    log_interval: int,
+    save_interval: int | float,
+    log_interval: int | float,
     *,
     goal: Callable[[adaptive.BaseLearner], bool] | None = None,
     runner_kwargs: dict[str, Any] | None = None,

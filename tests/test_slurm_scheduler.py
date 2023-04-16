@@ -20,7 +20,7 @@ def test_init_cores() -> None:
         SLURM(cores=4, nodes=2, cores_per_node=2)
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_init_partition() -> None:
     """Test that the partition is set correctly."""
     with pytest.raises(ValueError, match="Invalid partition: nonexistent"):
@@ -44,7 +44,7 @@ def test_slurm_scheduler() -> None:
     assert s.cores_per_node is None
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_slurm_scheduler_nodes_cores_per_node() -> None:
     """Test that the nodes and cores_per_node are set correctly."""
     s = SLURM(nodes=2, cores_per_node=2, partition="nc24-low")
@@ -77,7 +77,7 @@ def test_job_script() -> None:
     assert "NUMEXPR_NUM_THREADS=1" in job_script
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_start_job(tmp_path: Path) -> None:
     """Test the SLURM.start_job method."""
     s = SLURM(cores=4, partition="nc24-low")
@@ -96,7 +96,7 @@ def test_start_job(tmp_path: Path) -> None:
         assert "#SBATCH --ntasks 4" in lines
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_slurm_job_script_default() -> None:
     """Test the SLURM.job_script method with default arguments."""
     """Test the SLURM.job_script method with default arguments."""
@@ -112,7 +112,7 @@ def test_slurm_job_script_default() -> None:
     assert "export NUMEXPR_NUM_THREADS=1" in job_script
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_slurm_job_script_custom() -> None:
     """Test the SLURM.job_script method with custom arguments."""
     extra_scheduler = ["--time=1", "--mem=4G"]
@@ -143,7 +143,7 @@ def test_slurm_job_script_custom() -> None:
     assert "#SBATCH --partition=nc24-low" in job_script
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions_output")
+@pytest.mark.usefixtures("_mock_slurm_partitions_output")
 def test_slurm_partitions() -> None:
     """Test slurm_partitions function."""
     partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=False)
@@ -157,7 +157,7 @@ def test_slurm_partitions() -> None:
     assert partitions == PARTITIONS
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_slurm_partitions_mock() -> None:
     """Test slurm_partitions function."""
     assert adaptive_scheduler._scheduler.slurm.slurm_partitions() == PARTITIONS
@@ -221,7 +221,7 @@ def test_base_scheduler_job_script_ipyparallel() -> None:
     )
 
 
-@pytest.mark.usefixtures("mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_base_scheduler_ipyparallel() -> None:
     """Test the BaseScheduler.job_script method."""
     s = SLURM(

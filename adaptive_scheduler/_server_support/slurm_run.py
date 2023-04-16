@@ -31,8 +31,8 @@ def slurm_run(
     folder: str | Path = "",
     name: str = "adaptive",
     num_threads: int = 1,
-    save_interval: int = 300,
-    log_interval: int = 300,
+    save_interval: int | float = 300,
+    log_interval: int | float = 300,
     cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: Literal[
