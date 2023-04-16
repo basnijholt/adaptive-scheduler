@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def slurm_run(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     *,
     partition: str | None = None,
     nodes: int = 1,

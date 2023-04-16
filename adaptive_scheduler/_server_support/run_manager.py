@@ -151,7 +151,7 @@ class RunManager(BaseManager):
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
-        fnames: list[str],
+        fnames: list[str] | list[Path],
         *,
         goal: Callable[[adaptive.BaseLearner], bool]
         | int
@@ -309,7 +309,7 @@ class RunManager(BaseManager):
                 for fname, learner in zip(self.fnames, self.learners)
                 if self.goal(learner)
             ]
-            self.database_manager._stop_requests(done_fnames)
+            self.database_manager._stop_requests(done_fnames)  # type: ignore[arg-type]
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()

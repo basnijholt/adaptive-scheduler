@@ -87,7 +87,7 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
 
 def split_in_balancing_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     n_parts: int,
     strategy: str = "npoints",
 ) -> tuple[list[adaptive.BaseLearner], list[str]]:
@@ -412,7 +412,7 @@ def _remove_or_move_files(
 
 def load_parallel(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     *,
     with_progress_bar: bool = True,
     max_workers: int | None = None,
@@ -445,7 +445,7 @@ def load_parallel(
 
 def save_parallel(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     *,
     with_progress_bar: bool = True,
 ) -> None:

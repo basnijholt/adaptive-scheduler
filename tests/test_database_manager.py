@@ -114,7 +114,7 @@ async def test_database_manager_dispatch_start_stop(
 async def test_database_manager_start_and_update(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and updating jobs."""
     db_manager.create_empty_db()
@@ -164,7 +164,7 @@ async def test_database_manager_start_and_update(
 async def test_database_manager_start_stop(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and stopping jobs."""
     db_manager.create_empty_db()
@@ -225,7 +225,7 @@ async def test_database_manager_start_stop(
 async def test_database_manager_stop_request_and_requests(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test stopping jobs using stop_request and stop_requests methods."""
     db_manager.create_empty_db()

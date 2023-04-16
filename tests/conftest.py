@@ -32,7 +32,7 @@ def mock_scheduler(tmp_path: Path) -> MockScheduler:
 def db_manager(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> DatabaseManager:
     """Fixture for creating a DatabaseManager instance."""

@@ -36,14 +36,11 @@ def test_split() -> None:
     assert result == [(0, 1, 2, 3), (4, 5, 6, 7), (8, 9)]
 
 
-def test_split_in_balancing_learners() -> None:
+def test_split_in_balancing_learners(
+    learners: list[adaptive.Learner1D],
+    fnames: list[str] | list[Path],
+) -> None:
     """Test `utils.split_in_balancing_learners`."""
-    learners = [
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-    ]
-    fnames = ["learner1.pickle", "learner2.pickle", "learner3.pickle"]
     n_parts = 2
     new_learners, new_fnames = utils.split_in_balancing_learners(
         learners,
@@ -52,7 +49,7 @@ def test_split_in_balancing_learners() -> None:
     )
     assert len(new_learners) == n_parts
     assert all(isinstance(lrn, adaptive.BalancingLearner) for lrn in new_learners)
-    assert new_fnames == [(fnames[0], fnames[1]), (fnames[2],)]
+    assert new_fnames == [(fnames[0],), (fnames[1],)]
 
 
 def test_split_sequence_learner() -> None:

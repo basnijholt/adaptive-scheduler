@@ -192,14 +192,14 @@ class DatabaseManager(BaseManager):
         return entry["fname"]
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
-        fname = _ensure_str(fname)  # type: ignore[assignment]
+        fname_str = _ensure_str(fname)
         entry = Query()
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             assert (
-                db.get(entry.fname == fname) is not None
+                db.get(entry.fname == fname_str) is not None
             )  # make sure the entry exists
-            db.update(reset, entry.fname == fname)
+            db.update(reset, entry.fname == fname_str)
 
     def _stop_requests(self, fnames: FnamesTypes) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once

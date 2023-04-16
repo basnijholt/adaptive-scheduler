@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 def test_run_manager_init(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test the initialization of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -40,7 +40,7 @@ def test_run_manager_init(
 async def test_run_manager_start_and_cancel(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting the RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -54,7 +54,7 @@ async def test_run_manager_start_and_cancel(
 def test_run_manager_cleanup(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> None:
     """Test the cleanup method of RunManager."""
@@ -69,7 +69,7 @@ def test_run_manager_cleanup(
 def test_run_manager_parse_log_files(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test parsing log files in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -80,7 +80,7 @@ def test_run_manager_parse_log_files(
 def test_run_manager_load_learners(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test loading learners in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -96,7 +96,7 @@ def test_run_manager_load_learners(
 async def test_run_manager_elapsed_time(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test elapsed time in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -113,7 +113,7 @@ async def test_run_manager_elapsed_time(
 async def test_run_manager_status(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test the status of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -129,7 +129,7 @@ async def test_run_manager_status(
 def test_run_manager_repr_html(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test the _repr_html_ method of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -141,7 +141,7 @@ def test_run_manager_repr_html(
 def test_run_manager_info(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test the info method of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
@@ -157,7 +157,7 @@ def test_run_manager_info(
 def test_run_manager_load_dataframes(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test loading dataframes in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames, save_dataframe=False)
@@ -172,7 +172,7 @@ def test_run_manager_load_dataframes(
 async def test_start_one_by_one(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting RunManagers one by one."""
 
@@ -202,7 +202,7 @@ async def test_start_one_by_one(
 async def test_run_manager_auto_restart(
     mock_scheduler: MockScheduler,
     learners: list[Learner1D],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting the RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames, job_manager_interval=0.1)
