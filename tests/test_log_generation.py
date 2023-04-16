@@ -68,7 +68,10 @@ async def test_log_info(
     _ = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
-    await asyncio.sleep(0.5)
+    for _ in range(50):
+        await asyncio.sleep(0.1)
+        if len(caplog.records) > 5:  # noqa: PLR2004
+            break
 
     # Filter the captured log records based on level and logger name
     filtered_records = [
