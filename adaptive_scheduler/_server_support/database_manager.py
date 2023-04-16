@@ -48,7 +48,8 @@ def _ensure_str(
         if isinstance(fnames[0], list):
             return [[str(f) for f in sublist] for sublist in fnames]  # type: ignore[union-attr]
     msg = (
-        "Invalid input: expected a list of strings or a list of lists of strings/Paths."
+        "Invalid input: expected a  string/Path, or list of"
+        " strings/Paths, a list of lists of strings/Paths."
     )
     raise ValueError(msg)
 

@@ -1,6 +1,7 @@
 """Tests for conftest module."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -17,7 +18,6 @@ from .helpers import PARTITIONS, MockScheduler, get_socket
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-    from pathlib import Path
 
     import zmq.asyncio
 
@@ -54,10 +54,15 @@ def learners() -> list[Learner1D]:
     return [learner1, learner2]
 
 
-@pytest.fixture()
-def fnames(learners: list[Learner1D], tmp_path: Path) -> list[str]:
+@pytest.fixture(params=[Path, str])
+def fnames(
+    request: pytest.FixtureRequest,
+    learners: list[Learner1D],
+    tmp_path: Path,
+) -> list[Path]:
     """Fixture for creating a list of filenames for learners."""
-    return [str(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    type_ = request.param
+    return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
 
 
 @pytest.fixture()
