@@ -90,7 +90,7 @@ class DatabaseManager(BaseManager):
         self.scheduler = scheduler
         self.db_fname = Path(db_fname)
         self.learners = learners
-        self.fnames = _ensure_str(fnames)
+        self.fnames = fnames
         self.overwrite_db = overwrite_db
 
         self.defaults: dict[str, Any] = {
@@ -136,7 +136,9 @@ class DatabaseManager(BaseManager):
 
         It keeps track of ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
-        entries = [dict(fname=fname, **self.defaults) for fname in self.fnames]
+        entries = [
+            dict(fname=fname, **self.defaults) for fname in _ensure_str(self.fnames)
+        ]
         if self.db_fname.exists():
             self.db_fname.unlink()
         with TinyDB(self.db_fname) as db:
