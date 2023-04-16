@@ -20,7 +20,10 @@ async def test_periodically_clean_ipython_profiles(
     mock_scheduler: MockScheduler,
 ) -> None:
     """Test that the periodic cleaning of IPython profiles works."""
-    task = periodically_clean_ipython_profiles(mock_scheduler, interval=0.1)
+    task = periodically_clean_ipython_profiles(
+        mock_scheduler,
+        interval=0.1,  # type: ignore[arg-type]
+    )
     await asyncio.sleep(0.2)
     task.cancel()
 

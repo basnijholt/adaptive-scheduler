@@ -49,7 +49,7 @@ class JobManager(BaseManager):
         job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
-        interval: int = 30,
+        interval: int | float = 30,
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,

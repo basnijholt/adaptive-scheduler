@@ -154,14 +154,14 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     return info
 
 
-def log_info(runner: AsyncRunner, interval: int = 300) -> asyncio.Task:
+def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
     ----------
     runner : `adaptive.Runner` instance
         Adaptive Runner instance.
-    interval : int, default: 300
+    interval : int | float, default: 300
         Time in seconds between log entries.
 
     Returns
@@ -169,7 +169,7 @@ def log_info(runner: AsyncRunner, interval: int = 300) -> asyncio.Task:
     asyncio.Task
     """
 
-    async def coro(runner: AsyncRunner, interval: int) -> None:
+    async def coro(runner: AsyncRunner, interval: int | float) -> None:
         log.info(f"started logger on hostname {socket.gethostname()}")  # noqa: G004
         learner = runner.learner
         npoints_start = _get_npoints(learner)

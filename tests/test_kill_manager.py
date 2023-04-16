@@ -46,7 +46,7 @@ def test_logs_with_string_or_condition_invalid_error() -> None:
     """Test logs_with_string_or_condition with invalid error type."""
     database_manager = MagicMock(spec=DatabaseManager)
     with pytest.raises(TypeError, match="`error` can only be a `str` or `callable`."):
-        logs_with_string_or_condition(123, database_manager)
+        logs_with_string_or_condition(123, database_manager)  # type: ignore[arg-type]
 
 
 def test_logs_with_string_or_condition_string_error(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_logs_with_string_or_condition_callable_error(tmp_path: Path) -> None:
         },
     ]
 
-    def custom_error(lines: str) -> bool:
+    def custom_error(lines: list[str]) -> bool:
         return "Error" in "".join(lines)
 
     result = logs_with_string_or_condition(custom_error, database_manager)
@@ -159,7 +159,8 @@ async def test_kill_manager_manage_exception(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test KillManager.manage method with an exception."""
-    kill_manager.error = 12345  # This will cause a ValueError when calling `_manage`
+    # This will cause a ValueError when calling `_manage`
+    kill_manager.error = 12345  # type: ignore[assignment]
     kill_manager.database_manager.start()  # creates empty db
     kill_manager.start()
     assert kill_manager.task is not None

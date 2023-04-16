@@ -22,7 +22,7 @@ repos:
     rev: "v1.2.0"
     hooks:
       - id: mypy
-        exclude: ^tests/.*|ipynb_filter.py|docs/source/conf.py
+        exclude: ipynb_filter.py|docs/source/conf.py
         additional_dependencies:
           - types-setuptools
           - types-tqdm

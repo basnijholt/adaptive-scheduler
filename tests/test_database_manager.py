@@ -1,12 +1,12 @@
 """Tests for DatabaseManager."""
+from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import zmq
-import zmq.asyncio
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler._server_support.database_manager import (
@@ -15,7 +15,8 @@ from adaptive_scheduler._server_support.database_manager import (
 )
 from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
 
-MAGIC_VALUE = 2
+if TYPE_CHECKING:
+    import zmq.asyncio
 
 
 @pytest.mark.asyncio()
@@ -28,7 +29,8 @@ async def test_database_manager_start_and_cancel(db_manager: DatabaseManager) ->
         db_manager.start()
     result = db_manager.cancel()
     assert result is not None
-    with pytest.raises(asyncio.InvalidStateError):
+    with pytest.raises(asyncio.InvalidStateError):  # noqa: PT012
+        assert db_manager.task is not None
         assert db_manager.task.result()
 
 
@@ -50,9 +52,9 @@ def test_database_manager_create_empty_db(db_manager: DatabaseManager) -> None:
     """Test creating an empty database."""
     db_manager.create_empty_db()
     assert Path(db_manager.db_fname).exists()
-
+    n_learners = 2
     with TinyDB(db_manager.db_fname) as db:
-        assert len(db.all()) == MAGIC_VALUE
+        assert len(db.all()) == n_learners
 
 
 def test_database_manager_as_dicts(db_manager: DatabaseManager, fnames: list) -> None:
@@ -91,6 +93,7 @@ async def test_database_manager_dispatch_start_stop(
     start_request = ("start", "1000", "log_1000.txt", "test_job")
     fname = db_manager._dispatch(start_request)
     assert fname in db_manager.fnames
+    assert isinstance(fname, str)
 
     stop_request = ("stop", fname)
     db_manager._dispatch(stop_request)
@@ -264,36 +267,47 @@ async def test_database_manager_stop_request_and_requests(
         assert entry["job_name"] is None
 
 
-def test_ensure_str() -> None:
+@pytest.mark.parametrize(
+    ("input_list", "expected_output"),
+    [
+        # Test with a list of strings
+        (["path1", "path2", "path3", "path4"], ["path1", "path2", "path3", "path4"]),
+        # Test with a list of Path objects
+        (
+            [Path("path1"), Path("path2"), Path("path3"), Path("path4")],
+            ["path1", "path2", "path3", "path4"],
+        ),
+        # Test with a list of lists of strings
+        (
+            [["path1", "path2"], ["path3", "path4"]],
+            [["path1", "path2"], ["path3", "path4"]],
+        ),
+        # Test with a list of lists of Path objects
+        (
+            [[Path("path1"), Path("path2")], [Path("path3"), Path("path4")]],
+            [["path1", "path2"], ["path3", "path4"]],
+        ),
+        # Test empty
+        ([], []),
+    ],
+)
+def test_ensure_str(
+    input_list: list[str] | list[list[str]] | list[Path] | list[list[Path]],
+    expected_output: list[str] | list[list[str]],
+) -> None:
     """Test the _ensure_str function."""
-    path1 = Path("path1")
-    path2 = Path("path2")
-    path3 = Path("path3")
-    path4 = Path("path4")
-
-    # Test with a list of strings
-    input_list = ["path1", "path2", "path3", "path4"]
     output_list = _ensure_str(input_list)
-    assert output_list == input_list
+    assert output_list == expected_output
 
-    # Test with a list of Path objects
-    input_list = [path1, path2, path3, path4]
-    output_list = _ensure_str(input_list)
-    assert output_list == ["path1", "path2", "path3", "path4"]
 
-    # Test with a list of lists of strings
-    input_list = [["path1", "path2"], ["path3", "path4"]]
-    output_list = _ensure_str(input_list)
-    assert output_list == input_list
-
-    # Test with a list of lists of Path objects
-    input_list = [[path1, path2], [path3, path4]]
-    output_list = _ensure_str(input_list)
-    assert output_list == [["path1", "path2"], ["path3", "path4"]]
-
-    # Test with an invalid input
+@pytest.mark.parametrize(
+    "invalid_input",
+    [
+        # Test with an invalid input
+        "invalid_input",
+    ],
+)
+def test_ensure_str_invalid_input(invalid_input: list[str]) -> None:
+    """Test the _ensure_str function with an invalid input."""
     with pytest.raises(ValueError, match="Invalid input: expected a list of strings"):
-        _ensure_str("invalid_input")  # type: ignore[arg-type]
-
-    # Test empty
-    assert _ensure_str([]) == []
+        _ensure_str(invalid_input)  # type: ignore[arg-type]

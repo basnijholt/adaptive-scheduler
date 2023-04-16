@@ -1,6 +1,7 @@
 """Tests for conftest module."""
+from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,6 +15,10 @@ from adaptive_scheduler.server_support import (
 )
 
 from .helpers import PARTITIONS, MockScheduler
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -75,7 +80,7 @@ def job_manager(
 
 
 @pytest.fixture()
-def mock_slurm_partitions_output() -> None:  # noqa: PT004
+def _mock_slurm_partitions_output() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
     mock_output = "hb120v2-low\nhb60-high\nnc24-low*\nnd40v2-mpi\n"
     with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
@@ -84,7 +89,7 @@ def mock_slurm_partitions_output() -> None:  # noqa: PT004
 
 
 @pytest.fixture()
-def mock_slurm_partitions() -> None:  # noqa: PT004
+def _mock_slurm_partitions() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
     with patch(
         "adaptive_scheduler._scheduler.slurm.slurm_partitions",
@@ -97,7 +102,7 @@ def mock_slurm_partitions() -> None:  # noqa: PT004
 
 
 @pytest.fixture()
-def mock_slurm_queue() -> None:  # noqa: PT004
+def _mock_slurm_queue() -> Generator[None, None, None]:
     """Mock `SLURM.queue` function."""
     with patch(
         "adaptive_scheduler._scheduler.slurm.SLURM.queue",
