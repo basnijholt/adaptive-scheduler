@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import adaptive
 import pytest
 from tinydb import Query, TinyDB
 
@@ -58,12 +59,15 @@ def test_database_manager_create_empty_db(db_manager: DatabaseManager) -> None:
         assert len(db.all()) == n_learners
 
 
-def test_database_manager_as_dicts(db_manager: DatabaseManager, fnames: list) -> None:
+def test_database_manager_as_dicts(
+    db_manager: DatabaseManager,
+    fnames: list[Path] | list[str],
+) -> None:
     """Test getting the database as a list of dictionaries."""
     db_manager.create_empty_db()
     assert db_manager.as_dicts() == [
         {
-            "fname": fnames[0],
+            "fname": _ensure_str(fnames[0]),
             "is_done": False,
             "job_id": None,
             "job_name": None,
@@ -71,7 +75,7 @@ def test_database_manager_as_dicts(db_manager: DatabaseManager, fnames: list) ->
             "output_logs": [],
         },
         {
-            "fname": fnames[1],
+            "fname": _ensure_str(fnames[1]),
             "is_done": False,
             "job_id": None,
             "job_name": None,
@@ -84,8 +88,10 @@ def test_database_manager_as_dicts(db_manager: DatabaseManager, fnames: list) ->
 @pytest.mark.asyncio()
 async def test_database_manager_dispatch_start_stop(
     db_manager: DatabaseManager,
-    learners: list,
-    fnames: list,
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and stopping jobs using the dispatch method."""
     db_manager.learners, db_manager.fnames = learners, fnames
@@ -93,8 +99,12 @@ async def test_database_manager_dispatch_start_stop(
 
     start_request = ("start", "1000", "log_1000.txt", "test_job")
     fname = db_manager._dispatch(start_request)
-    assert fname in db_manager.fnames
-    assert isinstance(fname, str)
+    assert fname in _ensure_str(db_manager.fnames)
+    if isinstance(learners[0], adaptive.BalancingLearner):
+        assert isinstance(fname, list)
+        assert isinstance(fname[0], str)
+    else:
+        assert isinstance(fname, str)
 
     stop_request = ("stop", fname)
     db_manager._dispatch(stop_request)
@@ -110,7 +120,7 @@ async def test_database_manager_dispatch_start_stop(
 async def test_database_manager_start_and_update(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and updating jobs."""
     db_manager.create_empty_db()
@@ -123,7 +133,7 @@ async def test_database_manager_start_and_update(
     fname = await send_message(socket, start_message)
 
     # Check if the correct fname is returned
-    assert fname == fnames[0], fname
+    assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
     with TinyDB(db_manager.db_fname) as db:
@@ -160,7 +170,7 @@ async def test_database_manager_start_and_update(
 async def test_database_manager_start_stop(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test starting and stopping jobs."""
     db_manager.create_empty_db()
@@ -179,12 +189,12 @@ async def test_database_manager_start_stop(
         match="The job_id 1000 already exists in the database and runs",
     ):
         raise exception
-    assert fname == fnames[0], fname
+    assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
     with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname)
+        query = Query()
+        entry = db.get(query.fname == fname)
         assert entry["job_id"] == job_id
         assert entry["log_fname"] == log_fname
         assert entry["job_name"] == job_name
@@ -199,13 +209,13 @@ async def test_database_manager_start_stop(
     assert reply is None
 
     with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fnames[0])
+        query = Query()
+        entry = db.get(query.fname == _ensure_str(fnames[0]))
         assert entry["job_id"] is None
 
     # Start and stop the learner2
     fname = await send_message(socket, start_message)
-    assert fname == fnames[1]
+    assert fname == _ensure_str(fnames[1])
 
     # Send a stop message to the DatabaseManager
     stop_message = ("stop", fname)
@@ -221,7 +231,7 @@ async def test_database_manager_start_stop(
 async def test_database_manager_stop_request_and_requests(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
-    fnames: list[str],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test stopping jobs using stop_request and stop_requests methods."""
     db_manager.create_empty_db()
@@ -233,13 +243,13 @@ async def test_database_manager_stop_request_and_requests(
     job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
     start_message1 = ("start", job_id1, log_fname1, job_name1)
     fname1 = await send_message(socket, start_message1)
-    assert fname1 == fnames[0], fname1
+    assert fname1 == _ensure_str(fnames[0]), fname1
 
     # Start a job for learner2
     job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
     start_message2 = ("start", job_id2, log_fname2, job_name2)
     fname2 = await send_message(socket, start_message2)
-    assert fname2 == fnames[1], fname2
+    assert fname2 == _ensure_str(fnames[1]), fname2
 
     # Stop the job for learner1 using _stop_request
     db_manager._stop_request(fname1)
@@ -299,10 +309,12 @@ def test_ensure_str(
     "invalid_input",
     [
         # Test with an invalid input
-        "invalid_input",
+        {1, 2},
+        10,
+        10.0,
     ],
 )
 def test_ensure_str_invalid_input(invalid_input: list[str]) -> None:
     """Test the _ensure_str function with an invalid input."""
-    with pytest.raises(ValueError, match="Invalid input: expected a list of strings"):
+    with pytest.raises(ValueError, match="Invalid input:"):
         _ensure_str(invalid_input)  # type: ignore[arg-type]

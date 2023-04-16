@@ -1,12 +1,12 @@
 """Tests for conftest module."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import adaptive
 import pytest
-import zmq.asyncio
-from adaptive import Learner1D
 
 from adaptive_scheduler.server_support import (
     DatabaseManager,
@@ -14,11 +14,12 @@ from adaptive_scheduler.server_support import (
     get_allowed_url,
 )
 
-from .helpers import PARTITIONS, MockScheduler
+from .helpers import PARTITIONS, MockScheduler, get_socket
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-    from pathlib import Path
+
+    import zmq.asyncio
 
 
 @pytest.fixture()
@@ -30,8 +31,10 @@ def mock_scheduler(tmp_path: Path) -> MockScheduler:
 @pytest.fixture()
 def db_manager(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> DatabaseManager:
     """Fixture for creating a DatabaseManager instance."""
@@ -45,28 +48,68 @@ def func(x: float) -> float:
     return x**2
 
 
-@pytest.fixture()
-def learners() -> list[Learner1D]:
-    """Fixture for creating a list of Learner1D instances."""
-    learner1 = Learner1D(func, bounds=(-1, 1))
-    learner2 = Learner1D(func, bounds=(-1, 1))
-    return [learner1, learner2]
+@pytest.fixture(
+    params=[adaptive.Learner1D, adaptive.BalancingLearner, adaptive.SequenceLearner],
+)
+def learners(
+    request: pytest.FixtureRequest,
+) -> (
+    list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner]
+):
+    """Fixture for creating a list of adaptive.Learner1D instances."""
+    learner_class = request.param
+    if learner_class is adaptive.Learner1D:
+        learner1 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner2 = adaptive.Learner1D(func, bounds=(-1, 1))
+        return [learner1, learner2]
+    if learner_class is adaptive.BalancingLearner:
+        learner1 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner2 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner3 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner4 = adaptive.Learner1D(func, bounds=(-1, 1))
+        return [
+            adaptive.BalancingLearner([learner1, learner2]),
+            adaptive.BalancingLearner([learner3, learner4]),
+        ]
+    if learner_class is adaptive.SequenceLearner:
+        learner1 = adaptive.SequenceLearner(func, sequence=list(range(200)))
+        learner2 = adaptive.SequenceLearner(func, sequence=list(range(200)))
+        return [learner1, learner2]
+    msg = f"Learner type '{type(learner_class)}' not implemented"
+    raise NotImplementedError(msg)
 
 
-@pytest.fixture()
-def fnames(learners: list[Learner1D], tmp_path: Path) -> list[str]:
+@pytest.fixture(params=[Path, str])
+def fnames(
+    request: pytest.FixtureRequest,
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    tmp_path: Path,
+) -> list[Path] | list[str] | list[list[Path]] | list[list[str]]:
     """Fixture for creating a list of filenames for learners."""
-    return [str(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    type_ = request.param
+    if isinstance(learners[0], (adaptive.Learner1D, adaptive.SequenceLearner)):
+        return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
+    if isinstance(learners[0], adaptive.BalancingLearner):
+        return [
+            [
+                type_(tmp_path / f"bal_learner{j}_{i}.json")
+                for j, _ in enumerate(learner.learners)
+            ]
+            for i, learner in enumerate(learners)
+        ]
+    msg = f"Learner type '{type(learners[0])}' not implemented"
+    raise NotImplementedError(msg)
 
 
 @pytest.fixture()
 def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     """Fixture for creating a ZMQ socket."""
-    ctx = zmq.asyncio.Context.instance()
-    socket = ctx.socket(zmq.REQ)
-    socket.connect(db_manager.url)
-    yield socket
-    socket.close()
+    with get_socket(db_manager) as socket:
+        yield socket
 
 
 @pytest.fixture()

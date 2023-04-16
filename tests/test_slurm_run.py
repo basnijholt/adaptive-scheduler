@@ -1,14 +1,20 @@
 """Tests for the slurm_run function."""
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from adaptive import Learner1D
 
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
 from adaptive_scheduler.scheduler import SLURM
-from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import adaptive
+
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
 @pytest.fixture()
@@ -26,8 +32,10 @@ def extra_scheduler_kwargs() -> dict[str, Any]:
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_default_arguments(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with default arguments."""
     rm = slurm_run(learners, fnames)
@@ -40,7 +48,7 @@ def test_slurm_run_with_default_arguments(
     assert rm.scheduler.exclusive is True
 
 
-def goal_example(learner: Learner1D) -> bool:
+def goal_example(learner: adaptive.Learner1D) -> bool:
     """Example goal function for testing."""
     return len(learner.data) >= 10  # noqa: PLR2004
 
@@ -52,8 +60,10 @@ def goal_example(learner: Learner1D) -> bool:
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_partition_nodes_and_cores(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     partition: str,
     nodes: int,
     cores_per_node: int,
@@ -77,8 +87,10 @@ def test_slurm_run_with_custom_partition_nodes_and_cores(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_goal(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with custom goal."""
     rm = slurm_run(learners, fnames, goal=goal_example)
@@ -89,8 +101,10 @@ def test_slurm_run_with_custom_goal(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_folder_and_name(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> None:
     """Test slurm_run function with custom folder and name."""
@@ -106,8 +120,10 @@ def test_slurm_run_with_custom_folder_and_name(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_num_threads(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with custom num_threads."""
     num_threads = 4
@@ -119,8 +135,10 @@ def test_slurm_run_with_custom_num_threads(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_extra_run_manager_kwargs(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     extra_run_manager_kwargs: dict[str, Any],
 ) -> None:
     """Test slurm_run function with extra_run_manager_kwargs."""
@@ -134,8 +152,10 @@ def test_slurm_run_with_extra_run_manager_kwargs(
 @pytest.mark.usefixtures("_mock_slurm_queue")
 @pytest.mark.parametrize("dataframe_format", ["csv", "json", "pickle"])
 def test_slurm_run_with_custom_dataframe_format(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     dataframe_format: _DATAFRAME_FORMATS,
 ) -> None:
     """Test slurm_run function with custom dataframe_format."""
@@ -147,8 +167,10 @@ def test_slurm_run_with_custom_dataframe_format(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_custom_max_fails_and_jobs(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with custom max_fails_per_job and max_simultaneous_jobs."""
     max_fails_per_job = 100
@@ -167,8 +189,10 @@ def test_slurm_run_with_custom_max_fails_and_jobs(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_extra_scheduler_kwargs(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     extra_scheduler_kwargs: dict[str, Any],
 ) -> None:
     """Test slurm_run function with extra_scheduler_kwargs."""
@@ -182,8 +206,10 @@ def test_slurm_run_with_extra_scheduler_kwargs(
 @pytest.mark.usefixtures("_mock_slurm_queue")
 @pytest.mark.parametrize("executor_type", ["ipyparallel", "dask-mpi", "mpi4py"])
 def test_slurm_run_with_custom_executor_type(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
     executor_type: str,
 ) -> None:
     """Test slurm_run function with custom executor_type."""
@@ -199,8 +225,10 @@ def test_slurm_run_with_custom_executor_type(
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_invalid_nodes_and_executor_type(
-    learners: list[Learner1D],
-    fnames: list[str],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with invalid nodes and executor_type."""
     with pytest.raises(

@@ -1,4 +1,6 @@
 """Tests for `adaptive_scheduler.utils`."""
+from __future__ import annotations
+
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,14 +36,13 @@ def test_split() -> None:
     assert result == [(0, 1, 2, 3), (4, 5, 6, 7), (8, 9)]
 
 
-def test_split_in_balancing_learners() -> None:
+def test_split_in_balancing_learners(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+) -> None:
     """Test `utils.split_in_balancing_learners`."""
-    learners = [
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-    ]
-    fnames = ["learner1.pickle", "learner2.pickle", "learner3.pickle"]
     n_parts = 2
     new_learners, new_fnames = utils.split_in_balancing_learners(
         learners,
@@ -50,7 +51,7 @@ def test_split_in_balancing_learners() -> None:
     )
     assert len(new_learners) == n_parts
     assert all(isinstance(lrn, adaptive.BalancingLearner) for lrn in new_learners)
-    assert new_fnames == [(fnames[0], fnames[1]), (fnames[2],)]
+    assert new_fnames == [(fnames[0],), (fnames[1],)]
 
 
 def test_split_sequence_learner() -> None:
@@ -328,7 +329,7 @@ def test_save_dataframe(tmp_path: Path) -> None:
 
     save_df(learner)
 
-    assert Path(utils.fname_to_dataframe(fname)).exists()
+    assert utils.fname_to_dataframe(fname).exists()
 
 
 def test_load_dataframes(tmp_path: Path) -> None:
@@ -412,7 +413,7 @@ def test_fname_to_dataframe_with_folder() -> None:
     """Test `utils.fname_to_dataframe` with `folder`."""
     fname = "test_folder/test.pickle"
     df_fname = utils.fname_to_dataframe(fname)
-    assert df_fname == "test_folder/dataframe.test.parquet"
+    assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
 def test_load_dataframes_with_folder(tmp_path: Path) -> None:
@@ -432,3 +433,13 @@ def test_load_dataframes_with_folder(tmp_path: Path) -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
+
+
+def test_at_least_adaptive_version() -> None:
+    """Test `utils._at_least_adaptive_version`."""
+    assert utils._at_least_adaptive_version("0.0.0", raises=False)
+    assert utils._at_least_adaptive_version("0.0.0")
+    assert not utils._at_least_adaptive_version("100000.0.0", raises=False)
+    with pytest.raises(RuntimeError, match="requires adaptive version"):
+        assert utils._at_least_adaptive_version("100000.0.0", raises=True)
+    utils._at_least_adaptive_version(adaptive.__version__)

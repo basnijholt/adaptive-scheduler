@@ -1,4 +1,6 @@
 """Test log generation functions."""
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -7,10 +9,35 @@ import adaptive
 import pytest
 
 from adaptive_scheduler import client_support
+from adaptive_scheduler.utils import _at_least_adaptive_version
+
+
+def expected_log_keys(learner: adaptive.BaseLearner) -> list[str]:
+    """Return the expected keys for the log entry."""
+    # Check if the result contains the expected keys
+    expected_keys = [
+        "elapsed_time",
+        "overhead",
+        "npoints",
+        "cpu_usage",
+        "mem_usage",
+    ]
+    if not _at_least_adaptive_version("0.16.0", raises=False) and not isinstance(
+        learner,
+        adaptive.SequenceLearner,
+    ):
+        # The loss cache for SequenceLearner was introduced in adaptive 0.16.0
+        # see https://github.com/python-adaptive/adaptive/pull/411
+        expected_keys.append("latest_loss")
+    return expected_keys
 
 
 @pytest.mark.asyncio()
-async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
+async def test_get_log_entry(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+) -> None:
     """Test `client_support._get_log_entry`."""
     # Prepare the runner and the learner
     learner = learners[0]
@@ -26,20 +53,15 @@ async def test_get_log_entry(learners: list[adaptive.Learner1D]) -> None:
     result = client_support._get_log_entry(runner, 0)
 
     # Check if the result contains the expected keys
-    expected_keys = [
-        "elapsed_time",
-        "overhead",
-        "npoints",
-        "latest_loss",
-        "cpu_usage",
-        "mem_usage",
-    ]
+    expected_keys = expected_log_keys(learner)
     assert all(key in result for key in expected_keys)
 
 
 @pytest.mark.asyncio()
 async def test_log_info(
-    learners: list[adaptive.Learner1D],
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test `client_support.log_info`."""
@@ -53,7 +75,10 @@ async def test_log_info(
     _ = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
-    await asyncio.sleep(2)
+    for _ in range(50):
+        await asyncio.sleep(0.1)
+        if len(caplog.records) > 5:  # noqa: PLR2004
+            break
 
     # Filter the captured log records based on level and logger name
     filtered_records = [
@@ -70,14 +95,8 @@ async def test_log_info(
         log_entry = json.loads(msg)
         if "current status" in log_entry["event"]:
             current_status_entries += 1
-            expected_keys = [
-                "elapsed_time",
-                "overhead",
-                "npoints",
-                "latest_loss",
-                "cpu_usage",
-                "mem_usage",
-            ]
+            # Check if the result contains the expected keys
+            expected_keys = expected_log_keys(learner)
             assert all(key in log_entry for key in expected_keys)
 
     # Check if there were any "current status" log entries

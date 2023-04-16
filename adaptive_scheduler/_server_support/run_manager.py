@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 import pandas as pd
 
 from adaptive_scheduler.utils import (
-    _require_adaptive,
+    _at_least_adaptive_version,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -151,7 +151,7 @@ class RunManager(BaseManager):
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
-        fnames: list[str],
+        fnames: list[str] | list[Path],
         *,
         goal: Callable[[adaptive.BaseLearner], bool]
         | int
@@ -230,7 +230,7 @@ class RunManager(BaseManager):
                 raise ValueError(msg)
 
         if self.save_dataframe:
-            _require_adaptive("0.14.0", "save_dataframe")
+            _at_least_adaptive_version("0.14.0", "save_dataframe")
 
         # Set in methods
         self.start_time: float | None = None
@@ -246,9 +246,9 @@ class RunManager(BaseManager):
 
         if isinstance(self.fnames[0], (list, tuple)):
             # For a BalancingLearner
-            assert isinstance(self.fnames[0][0], str)
+            assert isinstance(self.fnames[0][0], (str, Path))
         else:
-            assert isinstance(self.fnames[0], str)
+            assert isinstance(self.fnames[0], (str, Path))
 
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
 
@@ -309,7 +309,7 @@ class RunManager(BaseManager):
                 for fname, learner in zip(self.fnames, self.learners)
                 if self.goal(learner)
             ]
-            self.database_manager._stop_requests(done_fnames)
+            self.database_manager._stop_requests(done_fnames)  # type: ignore[arg-type]
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()

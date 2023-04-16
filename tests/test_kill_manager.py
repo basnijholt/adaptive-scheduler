@@ -1,8 +1,9 @@
 """Tests for the KillManager module."""
+from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +13,10 @@ from adaptive_scheduler.server_support import (
     KillManager,
     logs_with_string_or_condition,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 INTERVAL = 0.05
 

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, Union
 
 import adaptive
 import cloudpickle
@@ -37,6 +37,7 @@ console = Console()
 
 MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
+FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
@@ -87,10 +88,10 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
 
 def split_in_balancing_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     n_parts: int,
     strategy: str = "npoints",
-) -> tuple[list[adaptive.BaseLearner], list[str]]:
+) -> tuple[list[adaptive.BaseLearner], list[list[str]] | list[list[Path]]]:
     r"""Split a list of learners and fnames into `adaptive.BalancingLearner`\s.
 
     Parameters
@@ -412,7 +413,7 @@ def _remove_or_move_files(
 
 def load_parallel(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     *,
     with_progress_bar: bool = True,
     max_workers: int | None = None,
@@ -445,7 +446,7 @@ def load_parallel(
 
 def save_parallel(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str],
+    fnames: list[str] | list[Path],
     *,
     with_progress_bar: bool = True,
 ) -> None:
@@ -692,7 +693,7 @@ def shared_memory_cache(cache_size: int = 128) -> Callable:
 
 
 def _prefix(
-    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fname: str | list[str] | Path | list[Path],
 ) -> str:
     if isinstance(fname, (tuple, list)):
         return f".{len(fname):08}_learners."
@@ -703,7 +704,7 @@ def _prefix(
 
 
 def fname_to_learner_fname(
-    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fname: str | list[str] | Path | list[Path],
 ) -> Path:
     """Convert a learner filename (data) to a filename is used to cloudpickle the learner."""
     prefix = _prefix(fname)
@@ -714,7 +715,7 @@ def fname_to_learner_fname(
 
 
 def fname_to_learner(
-    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fname: str | list[str] | Path | list[Path],
 ) -> adaptive.BaseLearner:
     """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
@@ -723,12 +724,7 @@ def fname_to_learner(
 
 
 def _ensure_folder_exists(
-    fnames: list[str]
-    | list[Path]
-    | tuple[str, ...]
-    | tuple[Path, ...]
-    | list[list[str]]
-    | list[list[Path]],
+    fnames: FnamesTypes,
 ) -> None:
     if isinstance(fnames[0], (tuple, list)):
         for _fnames in fnames:
@@ -743,7 +739,7 @@ def _ensure_folder_exists(
 
 def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
-    fnames: list[str] | list[Path] | list[list[str]] | list[list[Path]],
+    fnames: FnamesTypes,
     *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
@@ -758,27 +754,27 @@ def cloudpickle_learners(
     ):
         fname_learner = fname_to_learner_fname(fname)
         if empty_copies:
-            _require_adaptive("0.14.1", "empty_copies")
+            _at_least_adaptive_version("0.14.1", "empty_copies")
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
             cloudpickle.dump(learner, f)
 
 
 def fname_to_dataframe(
-    fname: str | list[str] | tuple[str, ...] | Path | list[Path] | tuple[Path, ...],
+    fname: str | list[str] | Path | list[Path],
     format: str = "parquet",  # noqa: A002
-) -> str:
+) -> Path:
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return str(p.with_stem(f"dataframe.{p.stem}").with_suffix(f".{format}"))
+    return p.with_stem(f"dataframe.{p.stem}").with_suffix(f".{format}")
 
 
 def save_dataframe(
-    fname: str | list[str] | tuple[str, ...],
+    fname: str | list[str],
     *,
     format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
@@ -891,7 +887,12 @@ def load_dataframes(  # noqa: PLR0912
     return dfs
 
 
-def _require_adaptive(version: str, name: str) -> None:
+def _at_least_adaptive_version(
+    version: str,
+    name: str = "",
+    *,
+    raises: bool = True,
+) -> bool:
     import pkg_resources
 
     required = pkg_resources.parse_version(version)
@@ -899,11 +900,14 @@ def _require_adaptive(version: str, name: str) -> None:
     v_clean = ".".join(v.split(".")[:3])  # remove the dev0 or other suffix
     current = pkg_resources.parse_version(v_clean)
     if current < required:
-        msg = (
-            f"`{name}` requires adaptive version "
-            f"of at least {required}, currently using {current}.",
-        )
-        raise RuntimeError(msg)
+        if raises:
+            msg = (
+                f"`{name}` requires adaptive version "
+                f"of at least {required}, currently using {current}.",
+            )
+            raise RuntimeError(msg)
+        return False
+    return True
 
 
 class _TimeGoal:

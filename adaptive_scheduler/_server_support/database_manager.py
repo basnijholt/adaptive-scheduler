@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import zmq
 import zmq.asyncio
@@ -14,7 +14,6 @@ from adaptive_scheduler.utils import (
     _deserialize,
     _serialize,
     cloudpickle_learners,
-    maybe_lst,
 )
 
 from .base_manager import BaseManager
@@ -27,16 +26,21 @@ if TYPE_CHECKING:
 
 ctx = zmq.asyncio.Context()
 
+FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
+
 
 class JobIDExistsInDbError(Exception):
     """Raised when a job id already exists in the database."""
 
 
 def _ensure_str(
-    fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
-) -> list[str] | list[list[str]]:
+    fnames: str | Path | FnamesTypes,
+) -> str | list[str] | list[list[str]]:
     """Make sure that `pathlib.Path`s are converted to strings."""
-    if isinstance(fnames, list):
+    if isinstance(fnames, (str, Path)):
+        return str(fnames)
+
+    if isinstance(fnames, (list, tuple)):
         if len(fnames) == 0:
             return []  # type: ignore[return-value]
         if isinstance(fnames[0], (str, Path)):
@@ -44,7 +48,8 @@ def _ensure_str(
         if isinstance(fnames[0], list):
             return [[str(f) for f in sublist] for sublist in fnames]  # type: ignore[union-attr]
     msg = (
-        "Invalid input: expected a list of strings or a list of lists of strings/Paths."
+        "Invalid input: expected a  string/Path, or list of"
+        " strings/Paths, a list of lists of strings/Paths."
     )
     raise ValueError(msg)
 
@@ -81,7 +86,7 @@ class DatabaseManager(BaseManager):
         scheduler: BaseScheduler,
         db_fname: str | Path,
         learners: list[adaptive.BaseLearner],
-        fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
+        fnames: FnamesTypes,
         *,
         overwrite_db: bool = True,
     ) -> None:
@@ -90,7 +95,7 @@ class DatabaseManager(BaseManager):
         self.scheduler = scheduler
         self.db_fname = Path(db_fname)
         self.learners = learners
-        self.fnames = _ensure_str(fnames)
+        self.fnames = fnames
         self.overwrite_db = overwrite_db
 
         self.defaults: dict[str, Any] = {
@@ -136,7 +141,9 @@ class DatabaseManager(BaseManager):
 
         It keeps track of ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
-        entries = [dict(fname=fname, **self.defaults) for fname in self.fnames]
+        entries = [
+            dict(fname=_ensure_str(fname), **self.defaults) for fname in self.fnames
+        ]
         if self.db_fname.exists():
             self.db_fname.unlink()
         with TinyDB(self.db_fname) as db:
@@ -184,19 +191,19 @@ class DatabaseManager(BaseManager):
             )
         return entry["fname"]
 
-    def _stop_request(self, fname: str | list[str]) -> None:
-        fname = maybe_lst(fname)  # if a BalancingLearner
+    def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
+        fname_str = _ensure_str(fname)
         entry = Query()
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             assert (
-                db.get(entry.fname == fname) is not None
+                db.get(entry.fname == fname_str) is not None
             )  # make sure the entry exists
-            db.update(reset, entry.fname == fname)
+            db.update(reset, entry.fname == fname_str)
 
-    def _stop_requests(self, fnames: list[str] | list[list[str]]) -> None:
+    def _stop_requests(self, fnames: FnamesTypes) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
-        fnames_str = {str(maybe_lst(fname)) for fname in fnames}
+        fnames_str = {str(fname) for fname in _ensure_str(fnames)}
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames_str]

@@ -14,7 +14,6 @@ from adaptive_scheduler._scheduler.common import run_submit
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from typing import Any, ClassVar, Literal
 
 
@@ -149,6 +148,16 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Sanatize the job_id."""
         return job_id
 
+    def job_names_to_job_ids(self, *job_names: str) -> list[str]:
+        """Get the job_ids from the job_names in the queue."""
+        queue = self.queue()
+        job_name_to_id = {info["job_name"]: job_id for job_id, info in queue.items()}
+        return [
+            job_name_to_id[job_name]
+            for job_name in job_names
+            if job_name in job_name_to_id
+        ]
+
     def cancel(
         self,
         job_names: list[str],
@@ -168,13 +177,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             Maximum number of attempts to cancel a job.
         """
 
-        def to_cancel(job_names: Iterable[str]) -> list[str]:
-            return [
-                job_id
-                for job_id, info in self.queue().items()
-                if info["job_name"] in job_names
-            ]
-
         def cancel_jobs(job_ids: list[str]) -> None:
             for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
                 cmd = f"{self._cancel_cmd} {job_id}".split()
@@ -188,7 +190,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
         job_names_set = set(job_names)
         for _ in range(max_tries):
-            job_ids = to_cancel(job_names_set)
+            job_ids = self.job_names_to_job_ids(*job_names_set)
             if not job_ids:
                 # no more running jobs
                 break

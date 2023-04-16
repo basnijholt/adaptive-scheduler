@@ -1,4 +1,6 @@
 """Tests for the BaseScheduler class."""
+from __future__ import annotations
+
 import textwrap
 
 import pytest
@@ -79,11 +81,12 @@ def test_update_queue() -> None:
     scheduler = MockScheduler(cores=2)
     scheduler.start_job("test_job1")
     scheduler.start_job("test_job2")
-    scheduler.update_queue("1", "COMPLETED")
+    j1, _ = scheduler.job_names_to_job_ids("test_job1", "test_job2")
+    scheduler.update_queue("test_job1", "COMPLETED")
 
     queue_info = scheduler.queue()
     assert len(queue_info) == 2  # noqa: PLR2004
-    assert queue_info["1"]["status"] == "COMPLETED"
+    assert queue_info[j1]["status"] == "COMPLETED"
 
 
 def test_ipyparallel() -> None:
