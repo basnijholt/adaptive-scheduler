@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-import zmq.asyncio
 from adaptive import Learner1D
 
 from adaptive_scheduler.server_support import (
@@ -14,11 +13,13 @@ from adaptive_scheduler.server_support import (
     get_allowed_url,
 )
 
-from .helpers import PARTITIONS, MockScheduler
+from .helpers import PARTITIONS, MockScheduler, get_socket
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
+
+    import zmq.asyncio
 
 
 @pytest.fixture()
@@ -62,11 +63,8 @@ def fnames(learners: list[Learner1D], tmp_path: Path) -> list[str]:
 @pytest.fixture()
 def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     """Fixture for creating a ZMQ socket."""
-    ctx = zmq.asyncio.Context.instance()
-    socket = ctx.socket(zmq.REQ)
-    socket.connect(db_manager.url)
-    yield socket
-    socket.close()
+    with get_socket(db_manager) as socket:
+        yield socket
 
 
 @pytest.fixture()

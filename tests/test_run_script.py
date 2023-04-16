@@ -1,13 +1,17 @@
 """Tests for the run script functionality."""
+from __future__ import annotations
 
-from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
 
 from adaptive_scheduler.server_support import _make_default_run_script
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 
 RUN_SCRIPT_FNAME = "run_learner.py"
 MIN_POINTS = 10

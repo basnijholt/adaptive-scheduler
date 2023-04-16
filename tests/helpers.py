@@ -6,15 +6,17 @@ import textwrap
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+import zmq.asyncio
+
 from adaptive_scheduler.scheduler import BaseScheduler
 from adaptive_scheduler.utils import _deserialize, _serialize
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterable
+    from collections.abc import Generator
     from pathlib import Path
     from typing import Any, ClassVar
 
-    import zmq.asyncio
+    from adaptive_scheduler._server_support.database_manager import DatabaseManager
 
 
 @contextmanager
@@ -100,14 +102,7 @@ class MockScheduler(BaseScheduler):
         """Cancel mock jobs."""
         print("Canceling mock jobs:", job_names)
 
-        def to_cancel(job_names: Iterable[str]) -> list[str]:
-            return [
-                job_id
-                for job_id, info in self.queue().items()
-                if info["job_name"] in job_names
-            ]
-
-        for job_id in to_cancel(job_names):
+        for job_id in self.job_names_to_job_ids(*job_names):
             self._queue_info.pop(job_id, None)
 
         for job_name in job_names:
@@ -116,7 +111,10 @@ class MockScheduler(BaseScheduler):
 
     def update_queue(self, job_name: str, status: str) -> None:
         """Update the queue with the given job_name and status."""
-        self._queue_info[job_name] = {"job_name": job_name, "status": status}
+        job_ids = self.job_names_to_job_ids(job_name)
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            self._queue_info[job_id] = {"job_name": job_name, "status": status}
 
 
 PARTITIONS = {
@@ -131,3 +129,13 @@ async def send_message(socket: zmq.asyncio.Socket, message: Any) -> Any:
     """Send a message to the socket and return the response."""
     await socket.send_serialized(message, _serialize)
     return await socket.recv_serialized(_deserialize)
+
+
+@contextmanager
+def get_socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
+    """Get ZMQ socket of a DatabaseManager."""
+    ctx = zmq.asyncio.Context.instance()
+    socket = ctx.socket(zmq.REQ)
+    socket.connect(db_manager.url)
+    yield socket
+    socket.close()

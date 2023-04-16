@@ -246,9 +246,9 @@ class RunManager(BaseManager):
 
         if isinstance(self.fnames[0], (list, tuple)):
             # For a BalancingLearner
-            assert isinstance(self.fnames[0][0], str)
+            assert isinstance(self.fnames[0][0], (str, Path))
         else:
-            assert isinstance(self.fnames[0], str)
+            assert isinstance(self.fnames[0], (str, Path))
 
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
 

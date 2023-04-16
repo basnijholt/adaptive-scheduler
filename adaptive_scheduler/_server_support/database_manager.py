@@ -33,10 +33,13 @@ class JobIDExistsInDbError(Exception):
 
 
 def _ensure_str(
-    fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
-) -> list[str] | list[list[str]]:
+    fnames: str | Path | list[str] | list[Path] | list[list[str]] | list[list[Path]],
+) -> str | list[str] | list[list[str]]:
     """Make sure that `pathlib.Path`s are converted to strings."""
-    if isinstance(fnames, list):
+    if isinstance(fnames, (str, Path)):
+        return str(fnames)
+
+    if isinstance(fnames, (list, tuple)):
         if len(fnames) == 0:
             return []  # type: ignore[return-value]
         if isinstance(fnames[0], (str, Path)):
@@ -186,7 +189,8 @@ class DatabaseManager(BaseManager):
             )
         return entry["fname"]
 
-    def _stop_request(self, fname: str | list[str]) -> None:
+    def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
+        fname = _ensure_str(fname)
         fname = maybe_lst(fname)  # if a BalancingLearner
         entry = Query()
         with TinyDB(self.db_fname) as db:
@@ -198,7 +202,7 @@ class DatabaseManager(BaseManager):
 
     def _stop_requests(self, fnames: list[str] | list[list[str]]) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
-        fnames_str = {str(maybe_lst(fname)) for fname in fnames}
+        fnames_str = {str(maybe_lst(fname)) for fname in _ensure_str(fnames)}
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames_str]

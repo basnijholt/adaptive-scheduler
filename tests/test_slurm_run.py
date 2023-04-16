@@ -1,14 +1,20 @@
 """Tests for the slurm_run function."""
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from adaptive import Learner1D
 
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
 from adaptive_scheduler.scheduler import SLURM
-from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from adaptive import Learner1D
+
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
 @pytest.fixture()

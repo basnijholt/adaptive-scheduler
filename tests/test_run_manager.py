@@ -1,6 +1,8 @@
 """Test the RunManager class."""
+from __future__ import annotations
+
 import asyncio
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import adaptive
@@ -13,7 +15,15 @@ from adaptive_scheduler._server_support.run_manager import (
     start_one_by_one,
 )
 
-from .helpers import MockScheduler, temporary_working_directory
+from .helpers import (
+    MockScheduler,
+    get_socket,
+    send_message,
+    temporary_working_directory,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_run_manager_init(
@@ -186,3 +196,101 @@ async def test_start_one_by_one(
     tasks[1][0].cancel()
     rm1.cancel()
     rm2.cancel()
+
+
+@pytest.mark.asyncio()
+async def test_run_manager_auto_restart(
+    mock_scheduler: MockScheduler,
+    learners: list[Learner1D],
+    fnames: list[str],
+) -> None:
+    """Test starting the RunManager."""
+    rm = RunManager(mock_scheduler, learners, fnames, job_manager_interval=0.1)
+    rm.start()
+    await asyncio.sleep(0.1)
+    assert rm.status() == "running"
+    q = rm.scheduler.queue()
+    assert "0" in q
+    assert "1" in q
+    # Note: we don't know whether it is:
+    # This: "0": {"job_name": "adaptive-scheduler-0"}, "1": {"job_name": "adaptive-scheduler-1"}
+    # or:   "1": {"job_name": "adaptive-scheduler-0"}, "0": {"job_name": "adaptive-scheduler-1"}
+    job_name0, job_name1 = "adaptive-scheduler-0", "adaptive-scheduler-1"
+    job_id0, job_id1 = rm.scheduler.job_names_to_job_ids(job_name0, job_name1)
+
+    db = rm.database_manager.as_dicts()
+    assert db[0]["job_id"] is None  # no jobs are started yet
+
+    # Send a start message to the DatabaseManager
+    # This is coming from the client
+    jobs = [
+        (job_id0, "log0.log", job_name0),
+        (job_id1, "log1.log", job_name1),
+    ]
+
+    with get_socket(rm.database_manager) as socket:
+        for job_id, log_fname, job_name in jobs:
+            start_message = ("start", job_id, log_fname, job_name)
+            await send_message(socket, start_message)
+
+    db = rm.database_manager.as_dicts()
+    for i, (job_id, _, job_name) in enumerate(jobs):
+        assert db[i]["job_id"] == job_id
+        assert db[i]["job_name"] == job_name
+        assert not db[i]["is_done"]
+
+    # Mark the first job as cancelled
+    rm.scheduler.update_queue(job_name0, "C")  # type: ignore[attr-defined]
+    assert rm.scheduler.queue() == {
+        job_id0: {"job_name": job_name0, "status": "C"},
+        job_id1: {
+            "job_name": "adaptive-scheduler-1",
+            "status": "R",
+            "state": "RUNNING",
+        },
+    }
+    rm.scheduler._queue_info.pop(job_id0)
+    await asyncio.sleep(0.15)
+    # Check that the job is restarted automatically with a new job_id:
+    q = rm.scheduler.queue()
+    assert q["2"] == {"job_name": job_name0, "state": "RUNNING", "status": "R"}
+
+    # Start the job "from the client"
+    with get_socket(rm.database_manager) as socket:
+        start_message = ("start", "2", "log2.log", job_name0)
+        await send_message(socket, start_message)
+
+    await asyncio.sleep(0.1)
+
+    # Check if the new job is started in the database
+    db = rm.database_manager.as_dicts()
+    assert len(db) == 2  # noqa: PLR2004
+    jobs = [
+        ("2", "log2.log", job_name0),
+        (job_id1, "log1.log", job_name1),
+    ]
+    for i, (job_id, log_fname, job_name) in enumerate(jobs):
+        assert db[i]["job_id"] == job_id
+        assert db[i]["job_name"] == job_name
+        assert not db[i]["is_done"]
+        assert db[i]["log_fname"].endswith(log_fname)
+
+    # Now mark the 2 jobs as done
+    with get_socket(rm.database_manager) as socket:
+        for entry in db:
+            stop_message = ("stop", entry["fname"])
+            await send_message(socket, stop_message)
+
+    await asyncio.sleep(0.15)
+
+    # Check that the jobs are now done
+    db = rm.database_manager.as_dicts()
+    assert len(db) == 2  # noqa: PLR2004
+    for i, (_, log_fname, _) in enumerate(jobs):
+        assert db[i]["job_id"] is None
+        assert db[i]["job_name"] is None
+        assert db[i]["is_done"]
+        assert db[i]["log_fname"].endswith(log_fname)
+
+    # Check that RunManager is done
+    assert rm.task.done()

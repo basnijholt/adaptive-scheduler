@@ -1,4 +1,5 @@
 """Test module for JobManager."""
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -21,6 +22,8 @@ async def test_job_manager_init(job_manager: JobManager) -> None:
 @pytest.mark.asyncio()
 async def test_job_manager_queued(job_manager: JobManager) -> None:
     """Test the _queued method of JobManager."""
+    job_manager.scheduler.start_job("job1")
+    job_manager.scheduler.start_job("job2")
     job_manager.scheduler.update_queue("job1", "running")  # type: ignore[attr-defined]
     job_manager.scheduler.update_queue("job2", "running")  # type: ignore[attr-defined]
     assert job_manager._queued(job_manager.scheduler.queue()) == {"job1", "job2"}
