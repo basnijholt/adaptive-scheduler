@@ -336,7 +336,7 @@ def add_constant_to_fname(
     Assumes `combo2fname` has been used to construct the old filename.
     Adds `constant` dict to the `combo` and returns the new filename too.
 
-    Returns a tuple of `old_fname` and new_fname.
+    Returns a tuple of ``old_fname`` and ``new_fname``.
     """
     for k in constant:
         combo.pop(k, None)
