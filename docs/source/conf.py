@@ -14,14 +14,21 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../.."))
+package_path = os.path.abspath("../..")
+# Insert into sys.path so that we can import adaptive here
+sys.path.insert(0, package_path)
+# Insert into PYTHONPATH so that jupyter-sphinx will pick it up
+os.environ["PYTHONPATH"] = ":".join((package_path, os.environ.get("PYTHONPATH", "")))
+# Insert `docs/` such that we can run the logo scripts
+docs_path = os.path.abspath("..")
+sys.path.insert(1, docs_path)
 
 import adaptive_scheduler  # noqa: E402, isort:skip
 
 # -- Project information -----------------------------------------------------
 
 project = "adaptive-scheduler"
-copyright = "2019, Bas Nijholt"
+copyright = "2023, Bas Nijholt"
 author = "Bas Nijholt"
 
 # The short X.Y version
@@ -40,7 +47,8 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "m2r",
+    "myst_nb",
+    "sphinx_fontawesome",
 ]
 
 source_parsers = {}
@@ -74,7 +82,7 @@ pygments_style = "sphinx"
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 html_static_path = ["_static"]
 
 
@@ -98,6 +106,11 @@ intersphinx_mapping = {
     "distributed": ("https://distributed.dask.org/en/latest/", None),
     "dask": ("https://docs.dask.org/en/latest/", None),
 }
+
+# myst-nb configuration
+nb_execution_mode = "cache"
+nb_execution_timeout = 180
+nb_execution_raise_on_error = True
 
 
 def setup(app):
