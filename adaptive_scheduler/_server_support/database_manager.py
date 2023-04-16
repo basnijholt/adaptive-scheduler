@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import zmq
 import zmq.asyncio
@@ -14,7 +14,6 @@ from adaptive_scheduler.utils import (
     _deserialize,
     _serialize,
     cloudpickle_learners,
-    maybe_lst,
 )
 
 from .base_manager import BaseManager
@@ -27,13 +26,15 @@ if TYPE_CHECKING:
 
 ctx = zmq.asyncio.Context()
 
+FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
+
 
 class JobIDExistsInDbError(Exception):
     """Raised when a job id already exists in the database."""
 
 
 def _ensure_str(
-    fnames: str | Path | list[str] | list[Path] | list[list[str]] | list[list[Path]],
+    fnames: str | Path | FnamesTypes,
 ) -> str | list[str] | list[list[str]]:
     """Make sure that `pathlib.Path`s are converted to strings."""
     if isinstance(fnames, (str, Path)):
@@ -84,7 +85,7 @@ class DatabaseManager(BaseManager):
         scheduler: BaseScheduler,
         db_fname: str | Path,
         learners: list[adaptive.BaseLearner],
-        fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
+        fnames: FnamesTypes,
         *,
         overwrite_db: bool = True,
     ) -> None:
@@ -140,7 +141,7 @@ class DatabaseManager(BaseManager):
         It keeps track of ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
         entries = [
-            dict(fname=fname, **self.defaults) for fname in _ensure_str(self.fnames)
+            dict(fname=_ensure_str(fname), **self.defaults) for fname in self.fnames
         ]
         if self.db_fname.exists():
             self.db_fname.unlink()
@@ -190,8 +191,7 @@ class DatabaseManager(BaseManager):
         return entry["fname"]
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
-        fname = _ensure_str(fname)
-        fname = maybe_lst(fname)  # if a BalancingLearner
+        fname = _ensure_str(fname)  # type: ignore[assignment]
         entry = Query()
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
@@ -200,9 +200,9 @@ class DatabaseManager(BaseManager):
             )  # make sure the entry exists
             db.update(reset, entry.fname == fname)
 
-    def _stop_requests(self, fnames: list[str] | list[list[str]]) -> None:
+    def _stop_requests(self, fnames: FnamesTypes) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once
-        fnames_str = {str(maybe_lst(fname)) for fname in _ensure_str(fnames)}
+        fnames_str = {str(fname) for fname in _ensure_str(fnames)}
         with TinyDB(self.db_fname) as db:
             reset = {"job_id": None, "is_done": True, "job_name": None}
             doc_ids = [e.doc_id for e in db.all() if str(e["fname"]) in fnames_str]
