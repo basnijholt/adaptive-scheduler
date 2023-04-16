@@ -3,20 +3,21 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
-import zmq
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler._server_support.database_manager import (
     DatabaseManager,
     _ensure_str,
 )
-from adaptive_scheduler.utils import _deserialize, _serialize, smart_goal
+from adaptive_scheduler.utils import smart_goal
+
+from .helpers import send_message
 
 if TYPE_CHECKING:
-    import zmq.asyncio
+    import zmq
 
 
 @pytest.mark.asyncio()
@@ -103,12 +104,6 @@ async def test_database_manager_dispatch_start_stop(
         entry = db.get(entry.fname == fname)
         assert entry["job_id"] is None
         assert entry["is_done"] is True
-
-
-async def send_message(socket: zmq.asyncio.Socket, message: Any) -> Any:
-    """Send a message to the socket and return the response."""
-    await socket.send_serialized(message, _serialize)
-    return await socket.recv_serialized(_deserialize)
 
 
 @pytest.mark.asyncio()
