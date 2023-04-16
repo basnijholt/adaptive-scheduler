@@ -153,8 +153,6 @@ See [`example.ipynb`](https://github.com/basnijholt/adaptive-scheduler/blob/mast
 
 ## :computer: Installation
 
-**WARNING:** This is still in the pre-alpha development stage.
-
 Install the **latest stable** version from conda (recommended):
 
 ```bash
