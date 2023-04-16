@@ -113,5 +113,22 @@ nb_execution_timeout = 180
 nb_execution_raise_on_error = True
 
 
+def replace_named_emojis(input_file, output_file):
+    import emoji
+
+    with open(input_file, "r") as infile:
+        content = infile.read()
+        content_with_emojis = emoji.emojize(content, language="alias")
+
+        with open(output_file, "w") as outfile:
+            outfile.write(content_with_emojis)
+
+
+# Call the function to replace emojis in the README.md file
+input_file = os.path.join(package_path, "README.md")
+output_file = os.path.join(docs_path, "README.md")
+replace_named_emojis(input_file, output_file)
+
+
 def setup(app):
     pass
