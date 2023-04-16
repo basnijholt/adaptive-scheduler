@@ -14,14 +14,14 @@ This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [🤔 What is this?](#thinking-what-is-this)
-- [🎯 Design Goals](#dart-design-goals)
-- [🧪 How does it work?](#test_tube-how-does-it-work)
-- [🔍 But how does it *really* work?](#mag-but-how-does-it-really-work)
-- [📓 Jupyter Notebook Example](#notebook-jupyter-notebook-example)
-- [💻 Installation](#computer-installation)
-- [🛠️ Development](#hammer_and_wrench-development)
-- [⚠️ Limitations](#warning-limitations)
+- [:thinking: What is this?](#thinking-what-is-this)
+- [:dart: Design Goals](#dart-design-goals)
+- [:test_tube: How does it work?](#test_tube-how-does-it-work)
+- [:mag: But how does it *really* work?](#mag-but-how-does-it-really-work)
+- [:notebook: Jupyter Notebook Example](#notebook-jupyter-notebook-example)
+- [:computer: Installation](#computer-installation)
+- [:hammer_and_wrench: Development](#hammer_and_wrench-development)
+- [:warning: Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 <!-- toc-end -->
