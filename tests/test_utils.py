@@ -413,7 +413,7 @@ def test_fname_to_dataframe_with_folder() -> None:
     """Test `utils.fname_to_dataframe` with `folder`."""
     fname = "test_folder/test.pickle"
     df_fname = utils.fname_to_dataframe(fname)
-    assert df_fname == "test_folder/dataframe.test.parquet"
+    assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
 def test_load_dataframes_with_folder(tmp_path: Path) -> None:
