@@ -7,7 +7,7 @@
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 [![CodeCov](https://codecov.io/gh/basnijholt/adaptive-scheduler/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/adaptive-scheduler)
 
-This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python-adaptive/adaptive/), designed to run many `adaptive.Learner`s on many cores (>10k) using `mpi4py.futures`, `ipyparallel`, or `distributed`.
+This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python-adaptive/adaptive/), designed to run many `adaptive.Learner`s on many cores (>***10k-100k***) using `mpi4py.futures`, `ipyparallel`, `loky`, or `dask.distributed`.
 
 <!-- toc-start -->
 ## :books: Table of Contents
@@ -28,13 +28,16 @@ This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python
 
 ## :thinking: What is this?
 
-The Adaptive scheduler is designed to solve the problem of running more learners than you can run with a single runner and/or can use >1k cores.
+Adaptive Scheduler is designed to address the challenge of executing a large number of `adaptive.Learner`s in parallel, even when using more than **1k-100k cores**.
+Traditional engines like `ipyparallel` and `distributed` can struggle with such high core counts because there is a central process that communicates with each worker.
 
-`ipyparallel` and `distributed` provide powerful engines for interactive sessions. However, when you want to connect to >1k cores, they start to struggle. Furthermore, on a shared cluster, there is often the problem of starting an interactive session with enough space available.
+This library schedules a separate job for each `adaptive.Learner`, and manages the creation and execution of these jobs.
+This ensures that your calculations will run even if the cluster is currently fully occupied (because job will just be put in the queue).
+The approach allows for nearly limitless core usage, whether you allocate 10 nodes for a single job or 1 core for a single job while scheduling hundreds of jobs.
 
-Our approach is to schedule a different job for each `adaptive.Learner`. The creation and running of these jobs are managed by `adaptive-scheduler`. This means that your calculation will definitely run, even though the cluster might be fully occupied at the moment. Because of this approach, there is almost no limit to how many cores you want to use. You can either use 10 nodes for 1 job (`learner`) or 1 core for 1 job (`learner`) while scheduling hundreds of jobs.
-
-The computation is designed to be maximally local. This means that if one of the jobs crashes, there is no problem and it will automatically schedule a new one and continue the calculation where it left off (thanks to Adaptive's periodic saving functionality). Even if the central "job manager" dies, the jobs will continue to run (although no new jobs will be scheduled).
+The computation is designed for maximum locality.
+If a job crashes, it will automatically reschedule a new one and continue the calculation from where it left off, thanks to Adaptive's periodic saving functionality.
+Even if the central "job manager" fails, the jobs will continue to run, although no new jobs will be scheduled.
 
 ## :dart: Design Goals
 
