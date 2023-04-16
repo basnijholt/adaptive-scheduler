@@ -41,7 +41,7 @@ log = structlog.wrap_logger(
 )
 
 
-def _add_log_file_handler(log_fname: str | Path) -> None:
+def _add_log_file_handler(log_fname: str | Path) -> None:  # pragma: no cover
     fh = logging.FileHandler(log_fname)
     logger.addHandler(fh)
 

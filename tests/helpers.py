@@ -7,11 +7,14 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler.scheduler import BaseScheduler
+from adaptive_scheduler.utils import _deserialize, _serialize
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
     from pathlib import Path
     from typing import Any, ClassVar
+
+    import zmq.asyncio
 
 
 @contextmanager
@@ -122,3 +125,9 @@ PARTITIONS = {
     "nc24-low": 24,
     "nd40v2-mpi": 40,
 }
+
+
+async def send_message(socket: zmq.asyncio.Socket, message: Any) -> Any:
+    """Send a message to the socket and return the response."""
+    await socket.send_serialized(message, _serialize)
+    return await socket.recv_serialized(_deserialize)
