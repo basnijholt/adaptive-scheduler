@@ -130,7 +130,7 @@ def test_combo2fname() -> None:
     """Test `utils.combo2fname`."""
     combo = {"x": 1, "y": 2, "z": 3}
     fname = utils.combo2fname(combo)
-    assert fname == "x_1__y_2__z_3.pickle"
+    assert str(fname) == "x_1__y_2__z_3.pickle"
 
 
 def test_add_constant_to_fname() -> None:
@@ -138,8 +138,8 @@ def test_add_constant_to_fname() -> None:
     combo = {"x": 1, "y": 2, "z": 3}
     constant = {"a": 42}
     old_fname, new_fname = utils.add_constant_to_fname(combo, constant)
-    assert old_fname == "x_1__y_2__z_3.pickle"
-    assert new_fname == "a_42__x_1__y_2__z_3.pickle"
+    assert str(old_fname) == "x_1__y_2__z_3.pickle"
+    assert str(new_fname) == "a_42__x_1__y_2__z_3.pickle"
 
 
 def test_maybe_round() -> None:
