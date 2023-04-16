@@ -39,4 +39,4 @@ dependencies:
   - sphinx
   - furo
   - myst-parser
-  - sphinxemoji
+  - emoji
