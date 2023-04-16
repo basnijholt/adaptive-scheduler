@@ -5,6 +5,7 @@ channels:
 
 dependencies:
   - python
+  # Required deps from pyproject.toml
   - adaptive >=0.14.1
   - cloudpickle
   - dill
@@ -24,5 +25,18 @@ dependencies:
   - toolz
   - tqdm
   - versioningit
-  - pip:
-      - m2r @ git+https://github.com/crossnox/m2r@dev#egg=m2r  # https://github.com/sphinx-doc/sphinx/issues/7420#issuecomment-610958327
+  # optional-dependencies: all
+  - dask-mpi
+  - mpi4py
+  # optional-dependencies: test
+  - pytest
+  - pytest-asyncio
+  - coverage
+  - pytest-cov
+  # optional-dependencies: docs
+  - myst-nb
+  - sphinx_fontawesome
+  - sphinx
+  - furo
+  - myst-parser
+  - emoji

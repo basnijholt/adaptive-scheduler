@@ -45,7 +45,14 @@ dependencies = [
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]
 test = ["pytest", "pytest-asyncio", "coverage", "pytest-cov"]
-
+docs = [
+    "myst-nb",
+    "sphinx_fontawesome",
+    "sphinx",
+    "furo",
+    "myst-parser",
+    "emoji",
+]
 [project.urls]
 homepage = "https://adaptive-scheduler.readthedocs.io/"
 documentation = "https://adaptive-scheduler.readthedocs.io/"

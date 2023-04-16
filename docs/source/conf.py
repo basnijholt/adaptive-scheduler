@@ -12,16 +12,27 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+from pathlib import Path
 import sys
 
-sys.path.insert(0, os.path.abspath("../.."))
+package_path = Path("../..").resolve()
+# Insert into sys.path so that we can import adaptive here
+sys.path.insert(0, str(package_path))
+# Insert into PYTHONPATH so that jupyter-sphinx will pick it up
+os.environ["PYTHONPATH"] = ":".join(
+    (str(package_path), os.environ.get("PYTHONPATH", ""))
+)
+# Insert `docs/` such that we can run the logo scripts
+docs_path = Path("..").resolve()
+sys.path.insert(1, str(docs_path))
+
 
 import adaptive_scheduler  # noqa: E402, isort:skip
 
 # -- Project information -----------------------------------------------------
 
 project = "adaptive-scheduler"
-copyright = "2019, Bas Nijholt"
+copyright = "2023, Bas Nijholt"
 author = "Bas Nijholt"
 
 # The short X.Y version
@@ -40,7 +51,8 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "m2r",
+    "myst_nb",
+    "sphinx_fontawesome",
 ]
 
 source_parsers = {}
@@ -74,7 +86,7 @@ pygments_style = "sphinx"
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 html_static_path = ["_static"]
 
 
@@ -98,6 +110,28 @@ intersphinx_mapping = {
     "distributed": ("https://distributed.dask.org/en/latest/", None),
     "dask": ("https://docs.dask.org/en/latest/", None),
 }
+
+# myst-nb configuration
+nb_execution_mode = "cache"
+nb_execution_timeout = 180
+nb_execution_raise_on_error = True
+
+
+def replace_named_emojis(input_file: Path, output_file: Path):
+    import emoji
+
+    with input_file.open("r") as infile:
+        content = infile.read()
+        content_with_emojis = emoji.emojize(content, language="alias")
+
+        with output_file.open("w") as outfile:
+            outfile.write(content_with_emojis)
+
+
+# Call the function to replace emojis in the README.md file
+input_file = package_path / "README.md"
+output_file = docs_path / "source" / "README.md"
+replace_named_emojis(input_file, output_file)
 
 
 def setup(app):
