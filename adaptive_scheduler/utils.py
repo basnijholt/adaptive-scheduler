@@ -709,7 +709,8 @@ def fname_to_learner_fname(
     """Convert a learner filename (data) to a filename is used to cloudpickle the learner."""
     prefix = _prefix(fname)
     if isinstance(fname, (tuple, list)):
-        fname = fname[0]
+        new_fname = Path(fname[0])
+        fname = new_fname.with_name(f"{new_fname.name}_{len(fname)}")
     p = Path(fname)
     return p.with_stem(f"{prefix}{p.stem}")
 
@@ -767,9 +768,7 @@ def fname_to_dataframe(
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
-    if isinstance(fname, (tuple, list)):
-        fname = fname[0]
-    p = Path(fname)
+    p = fname_to_learner_fname(fname)
     return p.with_stem(f"dataframe.{p.stem}").with_suffix(f".{format}")
 
 
