@@ -63,6 +63,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     _submit_cmd: ClassVar[str]
     _options_flag: ClassVar[str]
     _cancel_cmd: ClassVar[str]
+    _JOB_ID_VARIABLE: ClassVar[str] = "${JOB_ID}"
 
     required_attributes = ["_ext", "_submit_cmd", "_options_flag", "_cancel_cmd"]
 
@@ -96,7 +97,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
         self._extra_script = extra_script if extra_script is not None else ""
-        self._JOB_ID_VARIABLE = "${JOB_ID}"
 
     @abc.abstractmethod
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:
