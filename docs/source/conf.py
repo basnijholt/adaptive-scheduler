@@ -12,16 +12,20 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+from pathlib import Path
 import sys
 
-package_path = os.path.abspath("../..")
+package_path = Path("../..").resolve()
 # Insert into sys.path so that we can import adaptive here
-sys.path.insert(0, package_path)
+sys.path.insert(0, str(package_path))
 # Insert into PYTHONPATH so that jupyter-sphinx will pick it up
-os.environ["PYTHONPATH"] = ":".join((package_path, os.environ.get("PYTHONPATH", "")))
+os.environ["PYTHONPATH"] = ":".join(
+    (str(package_path), os.environ.get("PYTHONPATH", ""))
+)
 # Insert `docs/` such that we can run the logo scripts
-docs_path = os.path.abspath("..")
-sys.path.insert(1, docs_path)
+docs_path = Path("..").resolve()
+sys.path.insert(1, str(docs_path))
+
 
 import adaptive_scheduler  # noqa: E402, isort:skip
 
@@ -113,20 +117,20 @@ nb_execution_timeout = 180
 nb_execution_raise_on_error = True
 
 
-def replace_named_emojis(input_file, output_file):
+def replace_named_emojis(input_file: Path, output_file: Path):
     import emoji
 
-    with open(input_file, "r") as infile:
+    with input_file.open("r") as infile:
         content = infile.read()
         content_with_emojis = emoji.emojize(content, language="alias")
 
-        with open(output_file, "w") as outfile:
+        with output_file.open("w") as outfile:
             outfile.write(content_with_emojis)
 
 
 # Call the function to replace emojis in the README.md file
-input_file = os.path.join(package_path, "README.md")
-output_file = os.path.join(docs_path, "README.md")
+input_file = package_path / "README.md"
+output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
 
 
