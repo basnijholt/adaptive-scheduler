@@ -433,3 +433,13 @@ def test_load_dataframes_with_folder(tmp_path: Path) -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
+
+
+def test_at_least_adaptive_version() -> None:
+    """Test `utils._at_least_adaptive_version`."""
+    assert utils._at_least_adaptive_version("0.0.0", raises=False)
+    assert utils._at_least_adaptive_version("0.0.0")
+    assert not utils._at_least_adaptive_version("100000.0.0", raises=False)
+    with pytest.raises(RuntimeError, match="requires adaptive version"):
+        assert utils._at_least_adaptive_version("100000.0.0", raises=True)
+    utils._at_least_adaptive_version(adaptive.__version__)
