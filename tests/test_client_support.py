@@ -69,6 +69,25 @@ async def test_get_learner(zmq_url: str) -> None:
                     job_name,
                 )
 
+            # Test return exception
+            with mock.patch(
+                "adaptive_scheduler.client_support.log",
+            ) as mock_log, mock.patch(
+                "zmq.sugar.socket.Socket.recv_serialized",
+                return_value=ValueError("Yo"),
+            ):
+                with pytest.raises(
+                    ValueError,
+                    match="Yo",
+                ):
+                    client_support.get_learner(
+                        zmq_url,
+                        log_fname,
+                        job_id,
+                        job_name,
+                    )
+                mock_log.exception.assert_called_with("got an exception")
+
 
 @pytest.mark.asyncio()
 async def test_tell_done(zmq_url: str) -> None:
