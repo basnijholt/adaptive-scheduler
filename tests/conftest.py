@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import adaptive
 import pytest
-from adaptive import BalancingLearner, Learner1D
 
 from adaptive_scheduler.server_support import (
     DatabaseManager,
@@ -31,7 +31,7 @@ def mock_scheduler(tmp_path: Path) -> MockScheduler:
 @pytest.fixture()
 def db_manager(
     mock_scheduler: MockScheduler,
-    learners: list[Learner1D] | list[BalancingLearner],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     fnames: list[str] | list[Path],
     tmp_path: Path,
 ) -> DatabaseManager:
@@ -46,40 +46,40 @@ def func(x: float) -> float:
     return x**2
 
 
-@pytest.fixture(params=[Learner1D, BalancingLearner])
+@pytest.fixture(params=[adaptive.Learner1D, adaptive.BalancingLearner])
 def learners(
     request: pytest.FixtureRequest,
-) -> list[Learner1D] | list[BalancingLearner]:
-    """Fixture for creating a list of Learner1D instances."""
+) -> list[adaptive.Learner1D] | list[adaptive.BalancingLearner]:
+    """Fixture for creating a list of adaptive.Learner1D instances."""
     learner_class = request.param
-    if learner_class is Learner1D:
-        learner1 = Learner1D(func, bounds=(-1, 1))
-        learner2 = Learner1D(func, bounds=(-1, 1))
+    if learner_class is adaptive.Learner1D:
+        learner1 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner2 = adaptive.Learner1D(func, bounds=(-1, 1))
         return [learner1, learner2]
-    if learner_class is BalancingLearner:
-        learner1 = Learner1D(func, bounds=(-1, 1))
-        learner2 = Learner1D(func, bounds=(-1, 1))
-        learner3 = Learner1D(func, bounds=(-1, 1))
-        learner4 = Learner1D(func, bounds=(-1, 1))
+    if learner_class is adaptive.BalancingLearner:
+        learner1 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner2 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner3 = adaptive.Learner1D(func, bounds=(-1, 1))
+        learner4 = adaptive.Learner1D(func, bounds=(-1, 1))
         return [
-            BalancingLearner([learner1, learner2]),
-            BalancingLearner([learner3, learner4]),
+            adaptive.BalancingLearner([learner1, learner2]),
+            adaptive.BalancingLearner([learner3, learner4]),
         ]
-    msg = "learner_class should be Learner1D or BalancingLearner."
+    msg = "learner_class should be adaptive.Learner1D or adaptive.BalancingLearner."
     raise TypeError(msg)
 
 
 @pytest.fixture(params=[Path, str])
 def fnames(
     request: pytest.FixtureRequest,
-    learners: list[Learner1D] | list[BalancingLearner],
+    learners: list[adaptive.Learner1D] | list[adaptive.BalancingLearner],
     tmp_path: Path,
 ) -> list[Path] | list[str] | list[list[Path]] | list[list[str]]:
     """Fixture for creating a list of filenames for learners."""
     type_ = request.param
-    if isinstance(learners[0], Learner1D):
+    if isinstance(learners[0], adaptive.Learner1D):
         return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
-    if isinstance(learners[0], BalancingLearner):
+    if isinstance(learners[0], adaptive.BalancingLearner):
         return [
             [
                 type_(tmp_path / f"bal_learner{j}_{i}.json")
@@ -87,7 +87,9 @@ def fnames(
             ]
             for i, learner in enumerate(learners)
         ]
-    msg = "learners should be a list of Learner1D or BalancingLearner."
+    msg = (
+        "learners should be a list of adaptive.Learner1D or adaptive.BalancingLearner."
+    )
     raise TypeError(msg)
 
 
