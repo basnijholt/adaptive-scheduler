@@ -196,7 +196,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
 
         echo 'YOLO'
 
-        profile=adaptive_scheduler_${{JOB_ID}}
+        profile=adaptive_scheduler_${{SLURM_JOB_ID}}
 
         echo "Creating profile ${{profile}}"
         ipython profile create ${{profile}}
@@ -216,7 +216,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
             --profile ${{profile}} \\
             --n 3 \\
             --log-fname {log_fname} \\
-            --job-id ${{JOB_ID}} \\
+            --job-id ${{SLURM_JOB_ID}} \\
             --name ${{NAME}}
         """,
         ).strip()
