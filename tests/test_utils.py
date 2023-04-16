@@ -329,7 +329,7 @@ def test_save_dataframe(tmp_path: Path) -> None:
 
     save_df(learner)
 
-    assert Path(utils.fname_to_dataframe(fname)).exists()
+    assert utils.fname_to_dataframe(fname).exists()
 
 
 def test_load_dataframes(tmp_path: Path) -> None:
