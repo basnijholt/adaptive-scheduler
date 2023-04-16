@@ -96,7 +96,7 @@ run_manager.start()
 
 That's it! You can run `run_manager.info()` which will display an interactive `ipywidget` that shows the amount of running, pending, and finished jobs, buttons to cancel your job, and other useful information.
 
-![Widget demo](http://files.nijho.lt/info.gif)
+![Widget demo](https://user-images.githubusercontent.com/6897215/232347580-37f8faa9-53f0-45f5-a34b-856cd8e62b83.gif)
 
 ## :mag: But how does it *really* work?
 

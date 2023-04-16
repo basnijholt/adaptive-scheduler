@@ -295,12 +295,15 @@ def combo_to_fname(
     combo: dict[str, Any],
     folder: str | Path | None = None,
     ext: str = ".pickle",
-) -> str:
+) -> Path:
     """Converts a dict into a human readable filename."""
+    console.log(
+        "Use `adaptive_scheduler.utils.combo2fname` instead of `combo_to_fname`.",
+    )
     fname = "__".join(f"{k}_{v}" for k, v in combo.items()) + ext
     if folder is None:
-        return fname
-    return str(Path(folder) / fname)
+        return Path(fname)
+    return Path(folder) / fname
 
 
 def combo2fname(
@@ -308,7 +311,7 @@ def combo2fname(
     folder: str | Path | None = None,
     ext: str = ".pickle",
     sig_figs: int = 8,
-) -> str:
+) -> Path:
     """Converts a dict into a human readable filename.
 
     Improved version of `combo_to_fname`.
@@ -316,8 +319,8 @@ def combo2fname(
     name_parts = [f"{k}_{maybe_round(v, sig_figs)}" for k, v in sorted(combo.items())]
     fname = Path("__".join(name_parts) + ext)
     if folder is None:
-        return str(fname)
-    return str(folder / fname)
+        return fname
+    return folder / fname
 
 
 def add_constant_to_fname(
@@ -327,8 +330,14 @@ def add_constant_to_fname(
     folder: str | Path | None = None,
     ext: str = ".pickle",
     sig_figs: int = 8,
-) -> tuple[str, str]:
-    """Add a constant to a filename."""
+) -> tuple[Path, Path]:
+    """Construct old and new filename based on a combo.
+
+    Assumes `combo2fname` has been used to construct the old filename.
+    Adds `constant` dict to the `combo` and returns the new filename too.
+
+    Returns a tuple of ``old_fname`` and ``new_fname``.
+    """
     for k in constant:
         combo.pop(k, None)
     old_fname = combo2fname(combo, folder, ext, sig_figs)

@@ -62,6 +62,8 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     runner_kwargs = cloudpickle.loads(
         {{ serialized_runner_kwargs }}
     )
+    # Get npoints at the start
+    npoints_start = learner.npoints
 
     # run until `some_goal` is reached with an `MPIPoolExecutor`
     runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
@@ -75,7 +77,7 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     {% endif %}
 
     # log progress info in the job output script, optional
-    client_support.log_info(runner, interval={{ log_interval }})
+    _log_task = client_support.log_info(runner, interval={{ log_interval }})
 
     # block until runner goal reached
     runner.ioloop.run_until_complete(runner.task)
@@ -88,7 +90,7 @@ if __name__ == "__main__":  # <-- use this, see warning @ https://bit.ly/2HAk0GG
     {% endif %}
 
     # log once more after the runner is done
-    client_support.log_info(runner, interval=0)
+    client_support.log_now(runner, npoints_start)
 
     # tell the database that this learner has reached its goal
     client_support.tell_done(url, fname)

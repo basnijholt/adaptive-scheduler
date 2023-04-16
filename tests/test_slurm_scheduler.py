@@ -165,8 +165,8 @@ def test_slurm_partitions_mock() -> None:
     assert adaptive_scheduler._scheduler.slurm.slurm_partitions() == PARTITIONS
 
 
-def test_base_scheduler_job_script_ipyparallel() -> None:
-    """Test the BaseScheduler.job_script method."""
+def test_slurm_scheduler_job_script_ipyparallel() -> None:
+    """Test the SLURM.job_script method."""
     s = SLURM(
         cores=4,
         extra_scheduler=["--exclusive=user", "--time=1"],
@@ -196,7 +196,7 @@ def test_base_scheduler_job_script_ipyparallel() -> None:
 
         echo 'YOLO'
 
-        profile=adaptive_scheduler_${{JOB_ID}}
+        profile=adaptive_scheduler_${{SLURM_JOB_ID}}
 
         echo "Creating profile ${{profile}}"
         ipython profile create ${{profile}}
@@ -216,7 +216,7 @@ def test_base_scheduler_job_script_ipyparallel() -> None:
             --profile ${{profile}} \\
             --n 3 \\
             --log-fname {log_fname} \\
-            --job-id ${{JOB_ID}} \\
+            --job-id ${{SLURM_JOB_ID}} \\
             --name ${{NAME}}
         """,
         ).strip()
@@ -224,8 +224,8 @@ def test_base_scheduler_job_script_ipyparallel() -> None:
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
-def test_base_scheduler_ipyparallel() -> None:
-    """Test the BaseScheduler.job_script method."""
+def test_slurm_scheduler_ipyparallel() -> None:
+    """Test the SLURM.job_script method."""
     s = SLURM(
         extra_scheduler=["--exclusive=user", "--time=1"],
         extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
@@ -244,7 +244,7 @@ def test_base_scheduler_ipyparallel() -> None:
         ipy.strip()
         == textwrap.dedent(
             f"""\
-        profile=adaptive_scheduler_${{JOB_ID}}
+        profile=adaptive_scheduler_${{SLURM_JOB_ID}}
 
         echo "Creating profile ${{profile}}"
         ipython profile create ${{profile}}
@@ -264,7 +264,7 @@ def test_base_scheduler_ipyparallel() -> None:
             --profile ${{profile}} \\
             --n 23975 \\
             --log-fname {log_fname} \\
-            --job-id ${{JOB_ID}} \\
+            --job-id ${{SLURM_JOB_ID}} \\
             --name TEST
         """,
         ).strip()

@@ -130,7 +130,7 @@ def test_combo2fname() -> None:
     """Test `utils.combo2fname`."""
     combo = {"x": 1, "y": 2, "z": 3}
     fname = utils.combo2fname(combo)
-    assert fname == "x_1__y_2__z_3.pickle"
+    assert str(fname) == "x_1__y_2__z_3.pickle"
 
 
 def test_add_constant_to_fname() -> None:
@@ -138,8 +138,8 @@ def test_add_constant_to_fname() -> None:
     combo = {"x": 1, "y": 2, "z": 3}
     constant = {"a": 42}
     old_fname, new_fname = utils.add_constant_to_fname(combo, constant)
-    assert old_fname == "x_1__y_2__z_3.pickle"
-    assert new_fname == "a_42__x_1__y_2__z_3.pickle"
+    assert str(old_fname) == "x_1__y_2__z_3.pickle"
+    assert str(new_fname) == "a_42__x_1__y_2__z_3.pickle"
 
 
 def test_maybe_round() -> None:
@@ -384,7 +384,7 @@ def test_combo_to_fname_with_folder() -> None:
     combo = {"x": 1, "y": 2, "z": 3}
     folder = "test_folder"
     fname = utils.combo_to_fname(combo, folder=folder)
-    assert fname == f"{folder}/x_1__y_2__z_3.pickle"
+    assert fname == Path(f"{folder}/x_1__y_2__z_3.pickle")
 
 
 def test_combo2fname_with_folder() -> None:
@@ -392,7 +392,7 @@ def test_combo2fname_with_folder() -> None:
     combo = {"x": 1, "y": 2, "z": 3}
     folder = "test_folder"
     fname = utils.combo2fname(combo, folder=folder)
-    assert fname == f"{folder}/x_1__y_2__z_3.pickle"
+    assert fname == Path(f"{folder}/x_1__y_2__z_3.pickle")
 
 
 def test_add_constant_to_fname_with_folder() -> None:
@@ -405,8 +405,8 @@ def test_add_constant_to_fname_with_folder() -> None:
         constant,
         folder=folder,
     )
-    assert old_fname == f"{folder}/x_1__y_2__z_3.pickle"
-    assert new_fname == f"{folder}/a_42__x_1__y_2__z_3.pickle"
+    assert old_fname == Path(f"{folder}/x_1__y_2__z_3.pickle")
+    assert new_fname == Path(f"{folder}/a_42__x_1__y_2__z_3.pickle")
 
 
 def test_fname_to_dataframe_with_folder() -> None:
