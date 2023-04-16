@@ -117,7 +117,7 @@ nb_execution_timeout = 180
 nb_execution_raise_on_error = True
 
 
-def replace_named_emojis(input_file: Path, output_file: Path):
+def replace_named_emojis(input_file: Path, output_file: Path) -> None:
     import emoji
 
     with input_file.open("r") as infile:
