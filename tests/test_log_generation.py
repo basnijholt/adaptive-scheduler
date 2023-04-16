@@ -12,6 +12,26 @@ from adaptive_scheduler import client_support
 from adaptive_scheduler.utils import _at_least_adaptive_version
 
 
+def expected_log_keys(learner: adaptive.BaseLearner) -> list[str]:
+    """Return the expected keys for the log entry."""
+    # Check if the result contains the expected keys
+    expected_keys = [
+        "elapsed_time",
+        "overhead",
+        "npoints",
+        "cpu_usage",
+        "mem_usage",
+    ]
+    if not _at_least_adaptive_version("0.16.0", raises=False) and not isinstance(
+        learner,
+        adaptive.SequenceLearner,
+    ):
+        # The loss cache for SequenceLearner was introduced in adaptive 0.16.0
+        # see https://github.com/python-adaptive/adaptive/pull/411
+        expected_keys.append("latest_loss")
+    return expected_keys
+
+
 @pytest.mark.asyncio()
 async def test_get_log_entry(
     learners: list[adaptive.Learner1D]
@@ -33,21 +53,8 @@ async def test_get_log_entry(
     result = client_support._get_log_entry(runner, 0)
 
     # Check if the result contains the expected keys
-    expected_keys = [
-        "elapsed_time",
-        "overhead",
-        "npoints",
-        "cpu_usage",
-        "mem_usage",
-    ]
-    if not _at_least_adaptive_version("0.16.0", raises=False) and not isinstance(
-        learner,
-        adaptive.SequenceLearner,
-    ):
-        # The loss cache for SequenceLearner was introduced in adaptive 0.16.0
-        # see https://github.com/python-adaptive/adaptive/pull/411
-        expected_keys.append("latest_loss")
-    assert all(key in result for key in expected_keys), list(result.keys())
+    expected_keys = expected_log_keys(learner)
+    assert all(key in result for key in expected_keys)
 
 
 @pytest.mark.asyncio()
@@ -88,14 +95,8 @@ async def test_log_info(
         log_entry = json.loads(msg)
         if "current status" in log_entry["event"]:
             current_status_entries += 1
-            expected_keys = [
-                "elapsed_time",
-                "overhead",
-                "npoints",
-                "latest_loss",
-                "cpu_usage",
-                "mem_usage",
-            ]
+            # Check if the result contains the expected keys
+            expected_keys = expected_log_keys(learner)
             assert all(key in log_entry for key in expected_keys)
 
     # Check if there were any "current status" log entries
