@@ -1,6 +1,7 @@
 """Tests for `adaptive_scheduler.utils`."""
 from __future__ import annotations
 
+import platform
 import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
@@ -480,10 +481,14 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     # Run the wrapped function using ProcessPoolExecutor
     ex = ProcessPoolExecutor()
 
-    # Check if the global cache does not contain the key in the cache
+    # Check if the global cache contains the key in the cache
+    # Note that behaviour on Linux and MacOS is different due to 'fork' vs 'spawn'
     fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
     is_key = fut_is_key.result()
-    assert not is_key
+    if platform.system() == "Darwin":
+        assert not is_key
+    elif platform.system() == "Linux":
+        assert is_key
 
     # Note that passing the loaded_function directly to ex.submit will not work!
     fut = ex.submit(wrapped_function, 4)
