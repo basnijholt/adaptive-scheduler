@@ -85,11 +85,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--log-interval", action="store", type=int, default="1s")
     parser.add_argument("--save-interval", action="store", type=int)
-    parser.add_argument("--serialized-runner-kwargs", action="store", type=bytes)
+    parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
     return parser.parse_args()
 
 
-def run() -> None:
+def main() -> None:
     args = _parse_args()
 
     # ask the database for a learner that we can run which we log in `args.log_fname`

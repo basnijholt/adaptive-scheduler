@@ -105,7 +105,6 @@ class JobManager(BaseManager):
     def _command_line_options(self) -> dict[str, Any]:
         opts = {
             "--url": self.database_manager.url,
-            "--save-dataframe": self.save_dataframe,
             "--executor-type": self.executor_type,
             "--log-interval": self.log_interval,
             "--save-interval": self.save_interval,
@@ -113,8 +112,9 @@ class JobManager(BaseManager):
         }
         if self.executor_type == "loky":
             opts["--loky-start-method"] = self.loky_start_method
-        if self.dataframe_format:
+        if self.save_dataframe:
             opts["--dataframe-format"] = None
+            opts["--save-dataframe"] = self.dataframe_format
         if self.profile:
             opts["--profile"] = self.profile
         return opts
