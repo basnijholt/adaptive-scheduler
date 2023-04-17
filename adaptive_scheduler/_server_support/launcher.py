@@ -83,7 +83,7 @@ def _parse_args() -> argparse.Namespace:
         "--save-interval",
         action="store",
         type=float,
-        save_interval=120,
+        default=120,
     )
     parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
     return parser.parse_args()
