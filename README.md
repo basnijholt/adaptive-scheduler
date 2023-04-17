@@ -145,11 +145,11 @@ Then, when the jobs have been running for a while, you can check `server_support
 
 And use `scheduler.cancel(job_names)` to cancel the jobs.
 
-You don't actually ever have to leave the Jupyter notebook; take a look at the [`example notebook`](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
+You don't actually ever have to leave the Jupyter notebook; take a look at the [`example notebook`](https://github.com/basnijholt/adaptive-scheduler/blob/main/example.ipynb).
 
 ## :notebook: Jupyter Notebook Example
 
-See [`example.ipynb`](https://github.com/basnijholt/adaptive-scheduler/blob/master/example.ipynb).
+See [`example.ipynb`](https://github.com/basnijholt/adaptive-scheduler/blob/main/example.ipynb).
 
 ## :computer: Installation
 
@@ -165,10 +165,10 @@ or from PyPI:
 pip install adaptive_scheduler
 ```
 
-or install **master** with:
+or install **main** with:
 
 ```bash
-pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/master.zip
+pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/main.zip
 ```
 
 or clone the repository and do a dev install (recommended for dev):
@@ -200,4 +200,4 @@ in the repository.
 ## :warning: Limitations
 
 Currently, `adaptive_scheduler` only works for SLURM and PBS.
-However, only a class like [`adaptive_scheduler/scheduler.py`](https://github.com/basnijholt/adaptive-scheduler/blob/master/adaptive_scheduler/scheduler.py#L471) would have to be implemented for another type of scheduler.
+However, only a class like [`adaptive_scheduler/scheduler.py`](https://github.com/basnijholt/adaptive-scheduler/blob/main/adaptive_scheduler/scheduler.py#L471) would have to be implemented for another type of scheduler.
