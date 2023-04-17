@@ -27,7 +27,6 @@ class LocalMockScheduler(BaseScheduler):
         self,
         cores: int,
         *,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -50,7 +49,6 @@ class LocalMockScheduler(BaseScheduler):
         warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
-            run_script=run_script,
             python_executable=python_executable,
             log_folder=log_folder,
             mpiexec_executable=mpiexec_executable,

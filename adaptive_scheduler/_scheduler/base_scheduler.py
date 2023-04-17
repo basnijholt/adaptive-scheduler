@@ -71,7 +71,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self,
         cores: int,
         *,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -88,7 +87,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     ) -> None:
         """Initialize the scheduler."""
         self.cores = cores
-        self.run_script = Path(run_script)
         self.python_executable = python_executable or sys.executable
         self.log_folder = log_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"
@@ -301,6 +299,10 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Scheduler output file names (with JOB_ID_VARIABLE)."""
         log_fname = self.log_fname(name)
         return [log_fname.with_suffix(".out")]
+
+    @property
+    def run_script(self) -> str:
+        return "adaptive-scheduler-launcher"
 
     @property
     def extra_scheduler(self) -> str:

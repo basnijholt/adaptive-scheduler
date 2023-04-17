@@ -142,3 +142,7 @@ def main() -> None:
 
     # tell the database that this learner has reached its goal
     client_support.tell_done(args.url, fname)
+
+
+if __name__ == "__main__":
+    main()

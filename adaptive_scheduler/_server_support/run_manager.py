@@ -334,10 +334,6 @@ class RunManager(BaseManager):
         If the `RunManager` is not running, the ``run_script.py`` file
         will also be removed.
         """
-        with suppress(FileNotFoundError):
-            if self.status() != "running":
-                self.scheduler.run_script.unlink()
-
         for fname in self.fnames:
             fname_cloudpickle = fname_to_learner_fname(fname)
             with suppress(FileNotFoundError):

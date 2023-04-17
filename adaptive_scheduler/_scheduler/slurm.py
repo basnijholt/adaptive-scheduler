@@ -77,7 +77,6 @@ class SLURM(BaseScheduler):
         cores_per_node: int | None = None,
         partition: str | None = None,
         exclusive: bool = True,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -126,7 +125,6 @@ class SLURM(BaseScheduler):
         assert cores is not None
         super().__init__(
             cores,
-            run_script=run_script,
             python_executable=python_executable,
             log_folder=log_folder,
             mpiexec_executable=mpiexec_executable,
