@@ -104,7 +104,6 @@ class JobManager(BaseManager):
 
     def _command_line_options(self) -> dict[str, Any]:
         opts = {
-            "--profile": self.profile,
             "--url": self.database_manager.url,
             "--save-dataframe": self.save_dataframe,
             "--executor-type": self.executor_type,
