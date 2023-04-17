@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.common import run_submit
-from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress, _RequireAttrsABCMeta
+from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress
 
 if TYPE_CHECKING:
     from typing import Any, ClassVar
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 _MULTI_LINE_BREAK = " \\\n    "
 
 
-class BaseScheduler(metaclass=_RequireAttrsABCMeta):
+class BaseScheduler(abc.ABC):
     """Base object for a Scheduler.
 
     Parameters
@@ -62,8 +62,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     _options_flag: ClassVar[str]
     _cancel_cmd: ClassVar[str]
     _JOB_ID_VARIABLE: ClassVar[str] = "${JOB_ID}"
-
-    required_attributes = ["_ext", "_submit_cmd", "_options_flag", "_cancel_cmd"]
 
     def __init__(
         self,
