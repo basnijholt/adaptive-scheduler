@@ -190,7 +190,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
 
         export TMPDIR='/scratch'
         export PYTHONPATH='my_dir:$PYTHONPATH'
-        export EXECUTOR_TYPE=mpi4py
+        export EXECUTOR_TYPE=ipyparallel
         export MKL_NUM_THREADS=1
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
