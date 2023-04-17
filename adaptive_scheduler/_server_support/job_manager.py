@@ -3,13 +3,56 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+from adaptive_scheduler.utils import _serialize_to_b64
+
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
+    from adaptive_scheduler.utils import (
+        _DATAFRAME_FORMATS,
+        LOKY_START_METHODS,
+        GoalTypes,
+    )
 
     from .database_manager import DatabaseManager
+
+
+def command_line_options(
+    *,
+    scheduler: BaseScheduler,
+    database_manager: DatabaseManager,
+    runner_kwargs: dict[str, Any] | None = None,
+    goal: GoalTypes,
+    log_interval: int | float = 60,
+    save_interval: int | float = 300,
+    save_dataframe: bool = True,
+    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+) -> dict[str, Any]:
+    """Return the command line options for the job_script."""
+    if runner_kwargs is None:
+        runner_kwargs = {}
+    runner_kwargs["goal"] = goal
+    base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
+    n = scheduler.cores
+    if scheduler.executor_type == "ipyparallel":
+        n -= 1
+
+    opts = {
+        "--n": n,
+        "--url": database_manager.url,
+        "--executor-type": scheduler.executor_type,
+        "--log-interval": log_interval,
+        "--save-interval": save_interval,
+        "--serialized-runner-kwargs": base64_runner_kwargs,
+    }
+    if scheduler.executor_type == "loky":
+        opts["--loky-start-method"] = scheduler.loky_start_method
+    if save_dataframe:
+        opts["--dataframe-format"] = dataframe_format
+        opts["--save-dataframe"] = None
+    return opts
 
 
 class JobManager(BaseManager):
@@ -34,7 +77,7 @@ class JobManager(BaseManager):
         (because of this `max_simultaneous_jobs` condition) to not ever start.
     max_fails_per_job : int, default: 40
         Maximum number of times that a job can fail. This is here as a fail switch
-        because a job might fail instantly because of a bug inside `run_script`.
+        because a job might fail instantly because of a bug inside your code.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
 
@@ -53,6 +96,14 @@ class JobManager(BaseManager):
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
+        # Command line launcher options
+        save_dataframe: bool = True,
+        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        loky_start_method: LOKY_START_METHODS = "loky",
+        log_interval: int | float = 60,
+        save_interval: int | float = 300,
+        runner_kwargs: dict[str, Any] | None = None,
+        goal: GoalTypes = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
@@ -62,7 +113,17 @@ class JobManager(BaseManager):
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
 
+        # Counter
         self.n_started = 0
+
+        # Command line launcher options
+        self.save_dataframe = save_dataframe
+        self.dataframe_format = dataframe_format
+        self.loky_start_method = loky_start_method
+        self.log_interval = log_interval
+        self.save_interval = save_interval
+        self.runner_kwargs = runner_kwargs
+        self.goal = goal
 
     @property
     def max_job_starts(self) -> int:
@@ -75,6 +136,20 @@ class JobManager(BaseManager):
             for job in queue.values()
             if job["job_name"] in self.job_names
         }
+
+    def _setup(self) -> None:
+        name_prefix = self.job_names[0].rsplit("-", 1)[0]
+        options = command_line_options(
+            scheduler=self.scheduler,
+            database_manager=self.database_manager,
+            runner_kwargs=self.runner_kwargs,
+            log_interval=self.log_interval,
+            save_interval=self.save_interval,
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
+            goal=self.goal,
+        )
+        self.scheduler.write_job_script(name_prefix, options)
 
     async def _manage(self) -> None:
         while True:

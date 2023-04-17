@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import abc
+import base64
 import functools
 import hashlib
 import inspect
@@ -38,6 +39,24 @@ console = Console()
 MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
 FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
+
+LOKY_START_METHODS = Literal[
+    "loky",
+    "loky_int_main",
+    "spawn",
+    "fork",
+    "forkserver",
+]
+
+EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+GoalTypes = Union[
+    Callable[[adaptive.BaseLearner], bool],
+    int,
+    float,
+    datetime,
+    timedelta,
+    None,
+]
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
@@ -936,12 +955,7 @@ class _TimeGoal:
 
 
 def smart_goal(
-    goal: Callable[[adaptive.BaseLearner], bool]
-    | int
-    | float
-    | datetime
-    | timedelta
-    | None,
+    goal: GoalTypes,
     learners: list[adaptive.BaseLearner],
 ) -> Callable[[adaptive.BaseLearner], bool]:
     """Extract a goal from the learners.
@@ -981,3 +995,13 @@ def smart_goal(
         return lambda _: False
     msg = "goal must be `callable | int | float | None`"
     raise ValueError(msg)
+
+
+def _serialize_to_b64(x: Any) -> str:
+    serialized_x = cloudpickle.dumps(x)
+    return base64.b64encode(serialized_x).decode("utf-8")
+
+
+def _deserialize_from_b64(x: str) -> Any:
+    bytes_ = base64.b64decode(x)
+    return cloudpickle.loads(bytes_)

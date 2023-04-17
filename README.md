@@ -126,21 +126,18 @@ database_manager = server_support.DatabaseManager(
 )
 database_manager.start()
 
-# create the Python script that runs a learner (run_learner.py)
-server_support._make_default_run_script(
-   url=url,
-   save_interval=300,
-   log_interval=30,
-   goal=None,
-   executor_type=scheduler.executor_type,
-   run_script_fname=scheduler.run_script,
-)
-
 # create unique names for the jobs
 n_jobs = len(learners)
 job_names = [f"test-job-{i}" for i in range(n_jobs)]
 
-job_manager = server_support.JobManager(job_names, database_manager, scheduler)
+job_manager = server_support.JobManager(
+    job_names,
+    database_manager,
+    scheduler,
+    save_interval=300,
+    log_interval=30,
+    goal=None,
+)
 job_manager.start()
 ```
 

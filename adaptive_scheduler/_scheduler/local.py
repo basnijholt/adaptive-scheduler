@@ -27,7 +27,6 @@ class LocalMockScheduler(BaseScheduler):
         self,
         cores: int,
         *,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -50,7 +49,6 @@ class LocalMockScheduler(BaseScheduler):
         warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
-            run_script=run_script,
             python_executable=python_executable,
             log_folder=log_folder,
             mpiexec_executable=mpiexec_executable,
@@ -80,7 +78,7 @@ class LocalMockScheduler(BaseScheduler):
             mock_scheduler_kwargs=self.mock_scheduler_kwargs,
         )
 
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -95,24 +93,20 @@ class LocalMockScheduler(BaseScheduler):
         normally a scheduler will take care of this.
         """
         job_script = textwrap.dedent(
-            f"""\
+            """\
             #!/bin/sh
 
-            export MKL_NUM_THREADS={self.num_threads}
-            export OPENBLAS_NUM_THREADS={self.num_threads}
-            export OMP_NUM_THREADS={self.num_threads}
-            export NUMEXPR_NUM_THREADS={self.num_threads}
-            {{extra_env_vars}}
+            {extra_env_vars}
 
-            {{extra_script}}
+            {extra_script}
 
-            {{executor_specific}}
+            {executor_specific}
             """,
         )
 
         job_script = job_script.format(
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self._executor_specific("${NAME}"),
+            executor_specific=self._executor_specific("${NAME}", options),
             extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
@@ -125,7 +119,6 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str) -> None:
         """Start a job."""
-        self.write_job_script(name)
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd, name)
 

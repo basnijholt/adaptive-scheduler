@@ -34,12 +34,6 @@ class SLURM(BaseScheduler):
         The SLURM partition to submit the job to.
     exclusive : bool
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
-    run_script : str
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner.
-    python_executable : str, default: `sys.executable`
-        The Python executable that should run the `run_script`. By default
-        it uses the same Python as where this function is called.
     log_folder : str, default: ""
         The folder in which to put the log-files.
     mpiexec_executable : str, optional
@@ -77,7 +71,6 @@ class SLURM(BaseScheduler):
         cores_per_node: int | None = None,
         partition: str | None = None,
         exclusive: bool = True,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -126,7 +119,6 @@ class SLURM(BaseScheduler):
         assert cores is not None
         super().__init__(
             cores,
-            run_script=run_script,
             python_executable=python_executable,
             log_folder=log_folder,
             mpiexec_executable=mpiexec_executable,
@@ -154,8 +146,7 @@ class SLURM(BaseScheduler):
         """Set the state of the SLURM scheduler."""
         self.__init__(**state)  # type: ignore[misc]
 
-    def _ipyparallel(self, name: str) -> str:
-        log_fname = self.log_fname(name)
+    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         cores = self.cores - 1
@@ -163,7 +154,7 @@ class SLURM(BaseScheduler):
             max_cores_per_node = self.partitions[self.partition]
             tot_cores = self.nodes * max_cores_per_node
             cores = min(self.cores, tot_cores - 1)
-        return textwrap.dedent(
+        start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
 
@@ -181,16 +172,13 @@ class SLURM(BaseScheduler):
                 --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} \\
-                --profile {profile} \\
-                --n {cores} \\
-                --log-fname {log_fname} \\
-                --job-id {job_id} \\
-                --name {name}
+            srun --ntasks 1 {self.python_executable} {self.launcher} \\
             """,
         )
+        custom = (f"    --profile {profile}",)
+        return start, custom
 
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -205,10 +193,6 @@ class SLURM(BaseScheduler):
             #SBATCH --no-requeue
             {{extra_scheduler}}
 
-            export MKL_NUM_THREADS={self.num_threads}
-            export OPENBLAS_NUM_THREADS={self.num_threads}
-            export OMP_NUM_THREADS={self.num_threads}
-            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             {{extra_script}}
@@ -221,20 +205,19 @@ class SLURM(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}"),
+            executor_specific=self._executor_specific("${NAME}", options),
         )
         return job_script
 
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
-        self.write_job_script(name_prefix)
-
-        output_fname = str(self.output_fnames(name)[0]).replace(
+        (output_fname,) = self.output_fnames(name)
+        output_str = str(output_fname).replace(
             self._JOB_ID_VARIABLE,
             "%A",
         )
-        output_opt = f"--output {output_fname}"
+        output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
         submit_cmd = (
             f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"

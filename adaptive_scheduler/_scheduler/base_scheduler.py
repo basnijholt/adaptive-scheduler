@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.common import run_submit
-from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
+from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress, _RequireAttrsABCMeta
 
 if TYPE_CHECKING:
-    from typing import Any, ClassVar, Literal
+    from typing import Any, ClassVar
 
 
 _MULTI_LINE_BREAK = " \\\n    "
@@ -27,11 +27,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     ----------
     cores : int
         Number of cores per job (so per learner.)
-    run_script : str
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner.
     python_executable : str, default: `sys.executable`
-        The Python executable that should run the `run_script`. By default
+        The Python executable that should run adaptive-scheduler. By default
         it uses the same Python as where this function is called.
     log_folder : str, default: ""
         The folder in which to put the log-files.
@@ -71,16 +68,10 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         self,
         cores: int,
         *,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: Literal[
-            "ipyparallel",
-            "dask-mpi",
-            "mpi4py",
-            "process-pool",
-        ] = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "mpi4py",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
@@ -88,7 +79,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     ) -> None:
         """Initialize the scheduler."""
         self.cores = cores
-        self.run_script = Path(run_script)
         self.python_executable = python_executable or sys.executable
         self.log_folder = log_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"
@@ -130,7 +120,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return self._submit_cmd
 
     @abc.abstractmethod
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -197,36 +187,44 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             cancel_jobs(job_ids)
             time.sleep(0.5)
 
-    def _mpi4py(self, name: str) -> str:
+    def _expand_options(
+        self,
+        custom: tuple[str, ...],
+        name: str,
+        options: dict[str, Any],
+    ) -> str:
+        """Expand the options.
+
+        This is used to expand the options that are passed to the job script.
+        """
         log_fname = self.log_fname(name)
         return _MULTI_LINE_BREAK.join(
             (
-                f"{self.mpiexec_executable}",
-                f"-n {self.cores} {self.python_executable}",
-                f"-m mpi4py.futures {self.run_script}",
+                *custom,
                 f"--log-fname {log_fname}",
                 f"--job-id {self._JOB_ID_VARIABLE}",
                 f"--name {name}",
+                *(f"{k} {v}" if v is not None else k for k, v in options.items()),
             ),
         )
 
-    def _dask_mpi(self, name: str) -> str:
-        log_fname = self.log_fname(name)
-        return _MULTI_LINE_BREAK.join(
-            (
-                f"{self.mpiexec_executable}",
-                f"-n {self.cores} {self.python_executable} {self.run_script}",
-                f"--log-fname {log_fname}",
-                f"--job-id {self._JOB_ID_VARIABLE}",
-                f"--name {name}",
-            ),
+    def _mpi4py(self) -> tuple[str, ...]:
+        return (
+            f"{self.mpiexec_executable}",
+            f"-n {self.cores} {self.python_executable}",
+            f"-m mpi4py.futures {self.launcher}",
         )
 
-    def _ipyparallel(self, name: str) -> str:
-        log_fname = self.log_fname(name)
+    def _dask_mpi(self) -> tuple[str, ...]:
+        return (
+            f"{self.mpiexec_executable}",
+            f"-n {self.cores} {self.python_executable} {self.launcher}",
+        )
+
+    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
-        return textwrap.dedent(
+        start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
 
@@ -247,36 +245,35 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
                 --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} \\
-                --profile {profile} \\
-                --n {self.cores-1} \\
-                --log-fname {log_fname} \\
-                --job-id {job_id} \\
-                --name {name}
+            {self.python_executable} {self.launcher} \\
             """,
         )
+        custom = (f"    --profile {profile}", f"--n {self.cores-1}")
+        return start, custom
 
-    def _process_pool(self, name: str) -> str:
-        log_fname = self.log_fname(name)
-        return f"{self.python_executable} {self.run_script} --n {self.cores} --log-fname {log_fname} --job-id {self._JOB_ID_VARIABLE} --name {name}"
+    def _process_pool(self) -> tuple[str, ...]:
+        return (f"{self.python_executable} {self.launcher}",)
 
-    def _executor_specific(self, name: str) -> str:
+    def _executor_specific(self, name: str, options: dict[str, Any]) -> str:
+        start = ""
         if self.executor_type == "mpi4py":
-            return self._mpi4py(name)
-        if self.executor_type == "dask-mpi":
-            return self._dask_mpi(name)
-        if self.executor_type == "ipyparallel":
+            opts = self._mpi4py()
+        elif self.executor_type == "dask-mpi":
+            opts = self._dask_mpi()
+        elif self.executor_type == "ipyparallel":
             if self.cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     " the rest of the cores for the engines, so use more than 1 core.",
                 )
                 raise ValueError(msg)
-            return self._ipyparallel(name)
-        if self.executor_type == "process-pool":
-            return self._process_pool(name)
-        msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
-        raise NotImplementedError(msg)
+            start, opts = self._ipyparallel()
+        elif self.executor_type == "process-pool":
+            opts = self._process_pool()
+        else:
+            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+            raise NotImplementedError(msg)
+        return start + self._expand_options(opts, name, options)
 
     def log_fname(self, name: str) -> Path:
         """The filename of the log (with JOB_ID_VARIABLE)."""
@@ -293,6 +290,12 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return [log_fname.with_suffix(".out")]
 
     @property
+    def launcher(self) -> Path:
+        from adaptive_scheduler import _server_support
+
+        return Path(_server_support.__file__).parent / "launcher.py"
+
+    @property
     def extra_scheduler(self) -> str:
         """Scheduler options that go in the job script."""
         extra_scheduler = self._extra_scheduler or []
@@ -302,6 +305,15 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def extra_env_vars(self) -> str:
         """Environment variables that need to exist in the job script."""
         extra_env_vars = self._extra_env_vars or []
+        extra_env_vars.extend(
+            [
+                f"EXECUTOR_TYPE={self.executor_type}",
+                f"MKL_NUM_THREADS={self.num_threads}",
+                f"OPENBLAS_NUM_THREADS={self.num_threads}",
+                f"OMP_NUM_THREADS={self.num_threads}",
+                f"NUMEXPR_NUM_THREADS={self.num_threads}",
+            ],
+        )
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
     @property
@@ -309,15 +321,14 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Script that will be run before the main scheduler."""
         return str(self._extra_script) or ""
 
-    def write_job_script(self, name: str) -> None:
+    def write_job_script(self, name: str, options: dict[str, Any]) -> None:
         """Writes a job script."""
         with self.batch_fname(name).open("w", encoding="utf-8") as f:
-            job_script = self.job_script()
+            job_script = self.job_script(options)
             f.write(job_script)
 
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
-        self.write_job_script(name)
         submit_cmd = f"{self.submit_cmd} {self.batch_fname(name)}"
         run_submit(submit_cmd)
 
@@ -325,7 +336,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Return the state of the scheduler."""
         return {
             "cores": self.cores,
-            "run_script": self.run_script,
             "python_executable": self.python_executable,
             "log_folder": self.log_folder,
             "mpiexec_executable": self.mpiexec_executable,

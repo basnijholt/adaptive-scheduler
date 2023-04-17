@@ -62,6 +62,9 @@ repository = "https://github.com/basnijholt/adaptive-scheduler"
 content-type = "text/x-rst"
 file = "README.rst"
 
+[project.scripts]
+adaptive-scheduler-launcher = "adaptive_scheduler._server_support.launcher:main"
+
 [tool.versioningit]
 
 [tool.versioningit.onbuild]

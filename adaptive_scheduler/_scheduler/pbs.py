@@ -36,7 +36,6 @@ class PBS(BaseScheduler):
         self,
         cores: int,
         *,
-        run_script: str | Path = "run_learner.py",
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
@@ -56,7 +55,6 @@ class PBS(BaseScheduler):
         """Initialize the PBS scheduler."""
         super().__init__(
             cores,
-            run_script=run_script,
             python_executable=python_executable,
             log_folder=log_folder,
             mpiexec_executable=mpiexec_executable,
@@ -126,7 +124,7 @@ class PBS(BaseScheduler):
         stdout, stderr = (home / f"{name}.{x}{self._JOB_ID_VARIABLE}" for x in "oe")
         return [stdout, stderr]
 
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -143,10 +141,6 @@ class PBS(BaseScheduler):
             #PBS -e /tmp/placeholder
             {{extra_scheduler}}
 
-            export MKL_NUM_THREADS={self.num_threads}
-            export OPENBLAS_NUM_THREADS={self.num_threads}
-            export OMP_NUM_THREADS={self.num_threads}
-            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             cd $PBS_O_WORKDIR
@@ -161,7 +155,7 @@ class PBS(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}"),
+            executor_specific=self._executor_specific("${NAME}", options),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
@@ -170,7 +164,6 @@ class PBS(BaseScheduler):
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
-        self.write_job_script(name_prefix)
         name_opt = f"-N {name}"
         submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)

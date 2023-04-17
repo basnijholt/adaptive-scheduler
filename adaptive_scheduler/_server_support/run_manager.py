@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 import pandas as pd
 
 from adaptive_scheduler.utils import (
+    LOKY_START_METHODS,
+    GoalTypes,
     _at_least_adaptive_version,
     fname_to_learner_fname,
     load_dataframes,
@@ -29,12 +31,9 @@ from .common import (
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
 from .kill_manager import KillManager
-from .logging import parse_log_files
-from .run_script import _make_default_run_script
+from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
-    import datetime
-
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -53,7 +52,7 @@ class RunManager(BaseManager):
         List of `fnames` corresponding to `learners`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the ``run_script``. Can be a smart-goal
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
@@ -61,7 +60,7 @@ class RunManager(BaseManager):
         Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
-        will be serialized and pasted in the ``run_script``.
+        will be serialized and pasted in the ``job_script``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -153,12 +152,7 @@ class RunManager(BaseManager):
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[Path],
         *,
-        goal: Callable[[adaptive.BaseLearner], bool]
-        | int
-        | float
-        | datetime.timedelta
-        | datetime.datetime
-        | None = None,
+        goal: GoalTypes = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
@@ -173,13 +167,7 @@ class RunManager(BaseManager):
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
-        loky_start_method: Literal[
-            "loky",
-            "loky_int_main",
-            "spawn",
-            "fork",
-            "forkserver",
-        ] = "loky",
+        loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
@@ -272,6 +260,14 @@ class RunManager(BaseManager):
             interval=self.job_manager_interval,
             max_fails_per_job=self.max_fails_per_job,
             max_simultaneous_jobs=self.max_simultaneous_jobs,
+            # Laucher command line options
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
+            loky_start_method=self.loky_start_method,
+            log_interval=self.log_interval,
+            save_interval=self.save_interval,
+            runner_kwargs=self.runner_kwargs,
+            goal=self.goal,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None
@@ -288,18 +284,6 @@ class RunManager(BaseManager):
             self.kill_manager = None
 
     def _setup(self) -> None:
-        _make_default_run_script(
-            url=self.url,
-            save_interval=self.save_interval,
-            log_interval=self.log_interval,
-            goal=self.goal,
-            runner_kwargs=self.runner_kwargs,
-            run_script_fname=self.scheduler.run_script,
-            executor_type=self.scheduler.executor_type,
-            loky_start_method=self.loky_start_method,
-            save_dataframe=self.save_dataframe,
-            dataframe_format=self.dataframe_format,
-        )
         self.database_manager.start()
         if self.check_goal_on_start:
             # Check if goal already reached
@@ -342,15 +326,7 @@ class RunManager(BaseManager):
             self._start_one_by_one_task[0].cancel()
 
     def cleanup(self, *, remove_old_logs_folder: bool = False) -> None:
-        """Cleanup the log and batch files.
-
-        If the `RunManager` is not running, the ``run_script.py`` file
-        will also be removed.
-        """
-        with suppress(FileNotFoundError):
-            if self.status() != "running":
-                self.scheduler.run_script.unlink()
-
+        """Cleanup the log and batch files."""
         for fname in self.fnames:
             fname_cloudpickle = fname_to_learner_fname(fname)
             with suppress(FileNotFoundError):

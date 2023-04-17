@@ -38,9 +38,6 @@ def parse_log_files(
 ) -> pd.DataFrame:
     """Parse the log-files and convert it to a `~pandas.core.frame.DataFrame`.
 
-    This only works if you use `adaptive_scheduler.client_support.log_info`
-    inside your ``run_script``.
-
     Parameters
     ----------
     job_names : list

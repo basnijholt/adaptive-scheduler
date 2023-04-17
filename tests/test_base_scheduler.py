@@ -16,7 +16,7 @@ def test_base_scheduler_job_script() -> None:
         extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
         extra_script="echo 'YOLO'",
     )
-    job_script = s.job_script()
+    job_script = s.job_script(options={})
     log_fname = s.log_fname("${NAME}")
     assert job_script == textwrap.dedent(
         f"""\
@@ -25,19 +25,19 @@ def test_base_scheduler_job_script() -> None:
         ##MOCK --exclusive=user
         ##MOCK --time=1
 
+        export TMPDIR='/scratch'
+        export PYTHONPATH='my_dir:$PYTHONPATH'
+        export EXECUTOR_TYPE=mpi4py
         export MKL_NUM_THREADS=1
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
         export NUMEXPR_NUM_THREADS=1
 
-        export TMPDIR='/scratch'
-        export PYTHONPATH='my_dir:$PYTHONPATH'
-
         echo 'YOLO'
 
         {s.mpiexec_executable} \\
             -n 4 {s.python_executable} \\
-            -m mpi4py.futures run_learner.py \\
+            -m mpi4py.futures {s.launcher} \\
             --log-fname {log_fname} \\
             --job-id ${{JOB_ID}} \\
             --name ${{NAME}}
@@ -96,7 +96,7 @@ def test_ipyparallel() -> None:
         ValueError,
         match="`ipyparalllel` uses 1 cores of the `adaptive.Runner`",
     ):
-        s._executor_specific("")
+        s._executor_specific("NAME", {})
 
 
 def test_getstate_setstate() -> None:
@@ -117,38 +117,40 @@ def test_base_scheduler_ipyparallel() -> None:
         extra_script="echo 'YOLO'",
         executor_type="ipyparallel",
     )
-    ipy = s._ipyparallel("TEST")
+    ipy = s._executor_specific("TEST", {"--save-dataframe": None, "--log-interval": 10})
     log_fname = s.log_fname("TEST")
     print(ipy)
     assert (
         ipy.strip()
         == textwrap.dedent(
             f"""\
-        profile=adaptive_scheduler_${{JOB_ID}}
+            profile=adaptive_scheduler_${{JOB_ID}}
 
-        echo "Creating profile ${{profile}}"
-        ipython profile create ${{profile}}
+            echo "Creating profile ${{profile}}"
+            ipython profile create ${{profile}}
 
-        echo "Launching controller"
-        ipcontroller --ip="*" --profile=${{profile}} --log-to-file &
-        sleep 10
+            echo "Launching controller"
+            ipcontroller --ip="*" --profile=${{profile}} --log-to-file &
+            sleep 10
 
-        echo "Launching engines"
-        mpiexec \\
-            -n 3 \\
-            ipengine \\
-            --profile=${{profile}} \\
-            --mpi \\
-            --cluster-id='' \\
-            --log-to-file &
+            echo "Launching engines"
+            mpiexec \\
+                -n 3 \\
+                ipengine \\
+                --profile=${{profile}} \\
+                --mpi \\
+                --cluster-id='' \\
+                --log-to-file &
 
-        echo "Starting the Python script"
-        {s.python_executable} run_learner.py \\
-            --profile ${{profile}} \\
-            --n 3 \\
-            --log-fname {log_fname} \\
-            --job-id ${{JOB_ID}} \\
-            --name TEST
-        """,
+            echo "Starting the Python script"
+            {s.python_executable} {s.launcher} \\
+                --profile ${{profile}} \\
+                --n 3 \\
+                --log-fname {log_fname} \\
+                --job-id ${{JOB_ID}} \\
+                --name TEST \\
+                --save-dataframe \\
+                --log-interval 10
+            """,
         ).strip()
     )
