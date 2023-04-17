@@ -106,6 +106,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """The main function that is called by the launcher script."""
     args = _parse_args()
     client_support.log.info("parsed args", **vars(args))
 
