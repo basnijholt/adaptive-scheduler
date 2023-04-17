@@ -193,10 +193,6 @@ class SLURM(BaseScheduler):
             #SBATCH --no-requeue
             {{extra_scheduler}}
 
-            export MKL_NUM_THREADS={self.num_threads}
-            export OPENBLAS_NUM_THREADS={self.num_threads}
-            export OMP_NUM_THREADS={self.num_threads}
-            export NUMEXPR_NUM_THREADS={self.num_threads}
             {{extra_env_vars}}
 
             {{extra_script}}

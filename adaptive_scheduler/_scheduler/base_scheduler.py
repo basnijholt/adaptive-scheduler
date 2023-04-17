@@ -305,6 +305,15 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def extra_env_vars(self) -> str:
         """Environment variables that need to exist in the job script."""
         extra_env_vars = self._extra_env_vars or []
+        extra_env_vars.extend(
+            [
+                f"EXECUTOR_TYPE={self.executor_type}",
+                f"MKL_NUM_THREADS={self.num_threads}",
+                f"OPENBLAS_NUM_THREADS={self.num_threads}",
+                f"OMP_NUM_THREADS={self.num_threads}",
+                f"NUMEXPR_NUM_THREADS={self.num_threads}",
+            ],
+        )
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
     @property

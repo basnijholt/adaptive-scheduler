@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import functools
+import os
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, get_args
 
@@ -17,6 +17,17 @@ from adaptive_scheduler.utils import (
 
 if TYPE_CHECKING:
     from adaptive_scheduler.utils import EXECUTOR_TYPES
+
+
+executor_type = os.environ.get("EXECUTOR_TYPE")
+if executor_type == "mpi4py":
+    from mpi4py import MPI
+
+    MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+elif executor_type == "dask-mpi":
+    from dask_mpi import initialize
+
+    initialize()
 
 
 def _get_executor(
@@ -47,7 +58,6 @@ def _get_executor(
     raise ValueError(msg)
 
 
-@functools.cache
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", action="store", type=str, default=None)
@@ -86,17 +96,6 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
     return parser.parse_args()
-
-
-args = _parse_args()
-if args.executor_type == "mpi4py":
-    from mpi4py import MPI
-
-    MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
-elif args.executor_type == "dask-mpi":
-    from dask_mpi import initialize
-
-    initialize()
 
 
 def main() -> None:

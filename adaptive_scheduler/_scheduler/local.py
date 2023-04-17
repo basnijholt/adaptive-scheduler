@@ -93,18 +93,14 @@ class LocalMockScheduler(BaseScheduler):
         normally a scheduler will take care of this.
         """
         job_script = textwrap.dedent(
-            f"""\
+            """\
             #!/bin/sh
 
-            export MKL_NUM_THREADS={self.num_threads}
-            export OPENBLAS_NUM_THREADS={self.num_threads}
-            export OMP_NUM_THREADS={self.num_threads}
-            export NUMEXPR_NUM_THREADS={self.num_threads}
-            {{extra_env_vars}}
+            {extra_env_vars}
 
-            {{extra_script}}
+            {extra_script}
 
-            {{executor_specific}}
+            {executor_specific}
             """,
         )
 
