@@ -264,7 +264,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             if self.cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
-                    " the rest of the cores for the engines, so use more than 1 core.",
+                    " the rest of the cores for the engines, so use more than 1 core."
                 )
                 raise ValueError(msg)
             start, opts = self._ipyparallel()

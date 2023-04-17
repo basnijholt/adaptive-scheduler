@@ -29,6 +29,7 @@ def command_line_options(
     save_interval: int | float = 300,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "parquet",
+    loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
     """Return the command line options for the job_script."""
     if runner_kwargs is None:
@@ -48,7 +49,7 @@ def command_line_options(
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
     if scheduler.executor_type == "loky":
-        opts["--loky-start-method"] = scheduler.loky_start_method
+        opts["--loky-start-method"] = loky_start_method
     if save_dataframe:
         opts["--dataframe-format"] = dataframe_format
         opts["--save-dataframe"] = None
@@ -148,6 +149,7 @@ class JobManager(BaseManager):
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
             goal=self.goal,
+            loky_start_method=self.loky_start_method,
         )
         self.scheduler.write_job_script(name_prefix, options)
 
