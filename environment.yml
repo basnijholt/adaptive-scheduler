@@ -5,15 +5,14 @@ channels:
 
 dependencies:
   - python
-  # Required deps from pyproject.toml
-  - adaptive >=0.14.1
+  - mpi4py
+  - mpich
+  - adaptive >= 0.14.1
   - cloudpickle
   - dill
   - ipyparallel
   - jinja2
   - loky
-  - mpi4py
-  - mpich
   - numpy
   - pandas
   - psutil
