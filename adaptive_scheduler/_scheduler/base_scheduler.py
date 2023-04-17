@@ -269,7 +269,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
                 )
                 raise ValueError(msg)
             start, opts = self._ipyparallel()
-        elif self.executor_type == "process-pool":
+        elif self.executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         else:
             msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky' or 'process-pool'."

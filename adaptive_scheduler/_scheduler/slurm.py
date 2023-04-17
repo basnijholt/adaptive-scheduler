@@ -43,7 +43,8 @@ class SLURM(BaseScheduler):
         used (so probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
+        ``"loky"``, or ``"process-pool"``.
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.

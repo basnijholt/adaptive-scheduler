@@ -80,7 +80,7 @@ For example:
 from adaptive_scheduler.scheduler import SLURM
 
 scheduler = SLURM(
-        cores=48,
+    cores=48,
     executor_type="ipyparallel",
 )
 
