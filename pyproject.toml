@@ -28,6 +28,7 @@ dependencies = [
     "cloudpickle",
     "dill",
     "ipyparallel",
+    "ipywidgets",
     "jinja2",
     "loky",
     "numpy",
