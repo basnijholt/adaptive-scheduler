@@ -137,7 +137,6 @@ def slurm_run(
         nodes=nodes,
         cores_per_node=cores_per_node,
         partition=partition,
-        run_script=folder / f"{name}_adaptive_scheduler.py",
         log_folder=folder / "logs",
         executor_type=executor_type,
         num_threads=num_threads,
