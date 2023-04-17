@@ -1011,41 +1011,56 @@ _GLOBAL_CACHE = {}
 
 
 class WrappedFunction:
-    """A wrapped to allow `cloudpickle.load`ed functions with `ProcessPoolExecutor`.
+    """A wrapper to allow `cloudpickle.load`ed functions with `ProcessPoolExecutor`.
 
     A wrapper around a serialized function that handles deserialization and
     caches the deserialized function in the worker process.
 
     Parameters
     ----------
-    serialized_function : bytes
-        The serialized function, typically created using cloudpickle.dumps.
+    function : Callable[..., Any]
+        The function to be serialized and wrapped.
+    use_random_id : bool, optional (default=False)
+        If True, use a random identifier instead of the serialized function
+        as a key in the global cache. This can be useful if the serialized
+        function is large.
 
     Attributes
     ----------
-    _serialized_function : bytes
-        The serialized function.
+    _cache_key : str
+        The key used to access the deserialized function in the global cache.
 
     Examples
     --------
     >>> import cloudpickle
     >>> def square(x):
     ...     return x * x
-    >>> serialized_function = cloudpickle.dumps(square)
-    >>> wrapped_function = WrappedFunction(serialized_function)
+    >>> wrapped_function = WrappedFunction(square)
     >>> wrapped_function(4)
     16
     """
 
-    def __init__(self, function: Callable[..., Any]) -> None:
+    def __init__(
+        self,
+        function: Callable[..., Any],
+        *,
+        use_random_id: bool = False,
+    ) -> None:
         """Initialize WrappedFunction."""
-        self._serialized_function = cloudpickle.dumps(function)
+        serialized_function = cloudpickle.dumps(function)
+        if use_random_id:
+            self._cache_key = f"{function.__name__}_{os.urandom(16).hex()}"
+        else:
+            self._cache_key = serialized_function
+
+        global _GLOBAL_CACHE  # noqa: PLW0602
+        _GLOBAL_CACHE[self._cache_key] = function
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Call the serialized function.
+        """Call the wrapped function.
 
-        Deserializes the function, caches it in the worker process, and
-        calls it with the provided arguments and keyword arguments.
+        Retrieves the deserialized function from the global cache and calls it
+        with the provided arguments and keyword arguments.
 
         Parameters
         ----------
@@ -1060,10 +1075,9 @@ class WrappedFunction:
             The result of calling the deserialized function with the provided
             arguments and keyword arguments.
         """
-        if self._serialized_function not in _GLOBAL_CACHE:
-            _GLOBAL_CACHE[self._serialized_function] = cloudpickle.loads(
-                self._serialized_function,
-            )
-        deserialized_function = _GLOBAL_CACHE[self._serialized_function]
+        if self._cache_key not in _GLOBAL_CACHE:
+            msg = "Function not found in the global cache."
+            raise ValueError(msg)
 
+        deserialized_function = _GLOBAL_CACHE[self._cache_key]
         return deserialized_function(*args, **kwargs)
