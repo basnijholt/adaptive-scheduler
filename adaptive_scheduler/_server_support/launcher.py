@@ -86,6 +86,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    client_support.log.info("parsed args", **args.vars())
 
     # ask the database for a learner that we can run which we log in `args.log_fname`
     learner, fname = client_support.get_learner(
