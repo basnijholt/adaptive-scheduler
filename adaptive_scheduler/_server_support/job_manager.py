@@ -118,8 +118,8 @@ class JobManager(BaseManager):
         if self.executor_type == "loky":
             opts["--loky-start-method"] = self.loky_start_method
         if self.save_dataframe:
-            opts["--dataframe-format"] = None
-            opts["--save-dataframe"] = self.dataframe_format
+            opts["--dataframe-format"] = self.dataframe_format
+            opts["--save-dataframe"] = None
         if self.profile:
             opts["--profile"] = self.profile
         return opts
