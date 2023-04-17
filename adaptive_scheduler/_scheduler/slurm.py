@@ -224,11 +224,12 @@ class SLURM(BaseScheduler):
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
-        output_fname = str(self.output_fnames(name)[0]).replace(
+        (output_fname,) = self.output_fnames(name)
+        output_str = str(output_fname).replace(
             self._JOB_ID_VARIABLE,
             "%A",
         )
-        output_opt = f"--output {output_fname}"
+        output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
         submit_cmd = (
             f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"

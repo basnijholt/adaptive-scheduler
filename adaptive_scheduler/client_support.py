@@ -108,7 +108,7 @@ def get_learner(
     return learner, maybe_lst(fname)
 
 
-def tell_done(url: str, fname: str) -> None:
+def tell_done(url: str, fname: str | list[str]) -> None:
     """Tell the database that the learner has reached it's goal.
 
     Parameters

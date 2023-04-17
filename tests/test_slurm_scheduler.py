@@ -86,7 +86,8 @@ def test_start_job(tmp_path: Path) -> None:
     with temporary_working_directory(tmp_path), patch(
         "adaptive_scheduler._scheduler.slurm.run_submit",
     ) as mock_submit:
-        s.start_job("testjob", {})
+        s.write_job_script("testjob", {})
+        s.start_job("testjob")
         mock_submit.assert_called_once_with(
             f"sbatch --job-name testjob --output {tmp_path}/testjob-%A.out testjob.sbatch",
             "testjob",
