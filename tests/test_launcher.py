@@ -47,7 +47,7 @@ def test_get_executor() -> None:
     """Test that the _get_executor function returns the correct executor."""
     with patch("concurrent.futures.ProcessPoolExecutor") as mock_executor:
         mock_executor.return_value = MagicMock()
-        executor = launcher._get_executor("process-pool", None, 4, "loky")
+        executor = launcher._get_executor("process-pool", None, 4, None)
         assert executor is not None
         mock_executor.assert_called_with(max_workers=4)
 

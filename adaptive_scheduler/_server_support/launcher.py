@@ -37,7 +37,7 @@ def _get_executor(
     executor_type: EXECUTOR_TYPES,
     profile: str | None,
     n: int,
-    loky_start_method: LOKY_START_METHODS,
+    loky_start_method: LOKY_START_METHODS | None,
 ) -> Any:
     if executor_type == "mpi4py":
         from mpi4py.futures import MPIPoolExecutor
@@ -55,6 +55,7 @@ def _get_executor(
     if executor_type == "loky":
         import loky
 
+        assert loky_start_method is not None
         loky.backend.context.set_start_method(loky_start_method)
         return loky.get_reusable_executor(max_workers=n)
     if executor_type == "process-pool":
