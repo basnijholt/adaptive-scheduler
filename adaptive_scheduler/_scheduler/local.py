@@ -32,7 +32,7 @@ class LocalMockScheduler(BaseScheduler):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
