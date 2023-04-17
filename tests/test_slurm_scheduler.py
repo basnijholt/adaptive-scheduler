@@ -175,7 +175,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         extra_script="echo 'YOLO'",
         executor_type="ipyparallel",
     )
-    job_script = s.job_script(options={})
+    job_script = s.job_script(options={"--n": 3})
     log_fname = s.log_fname("${NAME}")
     assert (
         job_script.strip()
@@ -215,10 +215,10 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         echo "Starting the Python script"
         srun --ntasks 1 {s.python_executable} {s.launcher} \\
             --profile ${{profile}} \\
-            --n 3 \\
             --log-fname {log_fname} \\
             --job-id ${{SLURM_JOB_ID}} \\
-            --name ${{NAME}}
+            --name ${{NAME}} \\
+            --n 3
         """,
         ).strip()
     )
@@ -238,7 +238,7 @@ def test_slurm_scheduler_ipyparallel() -> None:
         exclusive=True,
     )
     assert s.cores == 999 * 24
-    ipy = s._executor_specific("TEST", {})
+    ipy = s._executor_specific("TEST", {"--n": 23975})
     log_fname = s.log_fname("TEST")
     print(ipy)
     assert (
@@ -263,10 +263,10 @@ def test_slurm_scheduler_ipyparallel() -> None:
         echo "Starting the Python script"
         srun --ntasks 1 {s.python_executable} {s.launcher} \\
             --profile ${{profile}} \\
-            --n 23975 \\
             --log-fname {log_fname} \\
             --job-id ${{SLURM_JOB_ID}} \\
-            --name TEST
+            --name TEST \\
+            --n 23975
         """,
         ).strip()
     )
