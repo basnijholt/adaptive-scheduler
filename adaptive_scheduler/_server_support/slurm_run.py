@@ -97,7 +97,7 @@ def slurm_run(
         The maximum number of simultaneous jobs.
     executor_type : str, default: "process-pool"
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
-        or "process-pool".
+        "loky", or "process-pool".
     exclusive : bool, default: True
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_run_manager_kwargs : dict, default: None
