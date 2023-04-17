@@ -35,7 +35,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     mpiexec_executable : str, optional
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
-    executor_type : str, default: "mpi4py"
+    executor_type : str
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
         ``"loky"``, or ``"process-pool"``.
@@ -72,7 +72,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,

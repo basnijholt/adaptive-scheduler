@@ -80,7 +80,7 @@ def slurm_run(
         The maximum number of times a job can fail before it is cancelled.
     max_simultaneous_jobs : int, default: 500
         The maximum number of simultaneous jobs.
-    executor_type : str, default: "process-pool"
+    executor_type : str
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
         "loky", or "process-pool".
     exclusive : bool, default: True
