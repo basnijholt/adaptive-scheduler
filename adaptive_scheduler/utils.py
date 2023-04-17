@@ -1058,9 +1058,10 @@ class WrappedFunction:
         else:
             self._cache_key = serialized_function
 
-        if not use_file:
-            global _GLOBAL_CACHE  # noqa: PLW0602
-            _GLOBAL_CACHE[self._cache_key] = function
+        # This setting of the cache only works on Linux where the default start method
+        # is 'fork'. On MacOS it is 'spawn', so the cache can be populated in __call__.
+        global _GLOBAL_CACHE  # noqa: PLW0602
+        _GLOBAL_CACHE[self._cache_key] = function
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Call the wrapped function.
