@@ -291,9 +291,9 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     @property
     def launcher(self) -> Path:
-        from adaptive_scheduler._server_support import launcher
+        from adaptive_scheduler import _server_support
 
-        return Path(launcher.__file__)
+        return Path(_server_support.__file__).parent / "launcher.py"
 
     @property
     def extra_scheduler(self) -> str:
