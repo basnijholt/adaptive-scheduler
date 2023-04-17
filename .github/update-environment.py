@@ -7,7 +7,7 @@ import tomllib
 def generate_environment_yml(
     data: dict,
     sections: tuple[str, ...] = ("all", "test", "docs"),
-    default_packages: tuple[str, ...] = ("python", "mpi4py", "mpich"),
+    default_packages: tuple[str, ...] = ("python", "mpich"),
 ) -> str:
     """Generate environment.yml from pyproject.toml."""
     env_yaml = (
