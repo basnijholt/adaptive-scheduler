@@ -7,16 +7,23 @@ import tomllib
 def generate_environment_yml(
     data: dict,
     sections: tuple[str, ...] = ("all", "test", "docs"),
+    default_packages: tuple[str, ...] = ("python", "mpi4py", "mpich"),
 ) -> str:
     """Generate environment.yml from pyproject.toml."""
-    env_yaml = "name: adaptive-scheduler\n\n"
+    env_yaml = (
+        "# This file is generated from pyproject.toml"
+        " using .github/update-environment.py\n"
+    )
+    env_yaml += "name: adaptive-scheduler\n\n"
     env_yaml += "channels:\n- conda-forge\n\n"
     env_yaml += "dependencies:\n"
-    env_yaml += "  - python\n"
-    env_yaml += "  - mpi4py\n"
-    env_yaml += "  - mpich\n"
+
+    # Default packages
+    for package in default_packages:
+        env_yaml += f"  - {package}\n"
 
     # Required deps from pyproject.toml
+    env_yaml += "  # from pyproject.toml\n"
     for dep in data["project"]["dependencies"]:
         env_yaml += f"  - {dep}\n"
 
