@@ -125,7 +125,7 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str) -> None:
         """Start a job."""
-        self.write_job_script(name)
+        self.write_job_script(name, options)
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd, name)
 

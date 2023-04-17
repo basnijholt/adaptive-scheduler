@@ -287,18 +287,7 @@ class RunManager(BaseManager):
             self.kill_manager = None
 
     def _setup(self) -> None:
-        _make_default_run_script(
-            url=self.url,
-            save_interval=self.save_interval,
-            log_interval=self.log_interval,
-            goal=self.goal,
-            runner_kwargs=self.runner_kwargs,
-            run_script_fname=self.scheduler.run_script,
-            executor_type=self.scheduler.executor_type,
-            loky_start_method=self.loky_start_method,
-            save_dataframe=self.save_dataframe,
-            dataframe_format=self.dataframe_format,
-        )
+        self.scheduler.write_job_script()
         self.database_manager.start()
         if self.check_goal_on_start:
             # Check if goal already reached
