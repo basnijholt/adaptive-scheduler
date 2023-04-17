@@ -10,7 +10,6 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import adaptive_scheduler
 from adaptive_scheduler._scheduler.common import run_submit
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
@@ -304,6 +303,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     @property
     def launcher(self) -> Path:
         from adaptive_scheduler._server_support import launcher
+
         return Path(launcher.__file__)
 
     @property
