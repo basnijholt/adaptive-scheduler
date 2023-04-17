@@ -11,6 +11,7 @@ import os
 import pickle
 import random
 import shutil
+import tempfile
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -1020,10 +1021,10 @@ class WrappedFunction:
     ----------
     function : Callable[..., Any]
         The function to be serialized and wrapped.
-    use_random_id : bool, optional (default=False)
-        If True, use a random identifier instead of the serialized function
-        as a key in the global cache. This can be useful if the serialized
-        function is large.
+    use_file : bool, optional (default=False)
+        If True, save the serialized function to a file and store the path
+        to the file in the global cache. This avoids sending the function
+        to all workers.
 
     Attributes
     ----------
@@ -1044,17 +1045,22 @@ class WrappedFunction:
         self,
         function: Callable[..., Any],
         *,
-        use_random_id: bool = False,
+        use_file: bool = False,
     ) -> None:
         """Initialize WrappedFunction."""
         serialized_function = cloudpickle.dumps(function)
-        if use_random_id:
-            self._cache_key = f"{function.__name__}_{os.urandom(16).hex()}"
+        self.use_file = use_file
+
+        if use_file:
+            with tempfile.NamedTemporaryFile(delete=False) as f:
+                f.write(serialized_function)
+                self._cache_key = f.name
         else:
             self._cache_key = serialized_function
 
-        global _GLOBAL_CACHE  # noqa: PLW0602
-        _GLOBAL_CACHE[self._cache_key] = function
+        if not use_file:
+            global _GLOBAL_CACHE  # noqa: PLW0602
+            _GLOBAL_CACHE[self._cache_key] = function
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Call the wrapped function.
@@ -1075,9 +1081,16 @@ class WrappedFunction:
             The result of calling the deserialized function with the provided
             arguments and keyword arguments.
         """
+        global _GLOBAL_CACHE  # noqa: PLW0602
+
         if self._cache_key not in _GLOBAL_CACHE:
-            msg = "Function not found in the global cache."
-            raise ValueError(msg)
+            if self.use_file:
+                with open(self._cache_key, "rb") as f:  # noqa: PTH123
+                    serialized_function = f.read()
+                deserialized_function = cloudpickle.loads(serialized_function)
+                _GLOBAL_CACHE[self._cache_key] = deserialized_function
+            else:
+                _GLOBAL_CACHE[self._cache_key] = cloudpickle.loads(self._cache_key)
 
         deserialized_function = _GLOBAL_CACHE[self._cache_key]
         return deserialized_function(*args, **kwargs)

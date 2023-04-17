@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import adaptive
+import cloudpickle
 import pandas as pd
 import pytest
 
@@ -443,3 +445,40 @@ def test_at_least_adaptive_version() -> None:
     with pytest.raises(RuntimeError, match="requires adaptive version"):
         assert utils._at_least_adaptive_version("100000.0.0", raises=True)
     utils._at_least_adaptive_version(adaptive.__version__)
+
+
+@pytest.mark.parametrize("use_file", [True, False])
+def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
+    *,
+    use_file: bool,
+) -> None:
+    """Test executor with WrappedFunction that is loaded with cloudpickle."""
+
+    # Define a simple test function
+    def square(x: int) -> int:
+        return x * x
+
+    # Serialize the function using cloudpickle
+    serialized_function = cloudpickle.dumps(square)
+
+    # Remove the function from the current scope
+    del square
+
+    # Load the serialized function using cloudpickle
+    loaded_function = cloudpickle.loads(serialized_function)
+
+    # Wrap the loaded function using WrappedFunction
+    wrapped_function = utils.WrappedFunction(
+        loaded_function,
+        use_file=use_file,
+    )
+
+    # Run the wrapped function using ProcessPoolExecutor
+    ex = ProcessPoolExecutor()
+    # Note that passing the loaded_function directly to ex.submit will not work!
+    fut = ex.submit(wrapped_function, 4)
+    result = fut.result()
+
+    assert result == 16, f"Expected 16, but got {result}"  # noqa: PLR2004
+
+    # TODO: how to test whether the cache in the executor has the global variable now?
