@@ -271,7 +271,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         elif self.executor_type == "process-pool":
             opts = self._process_pool()
         else:
-            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky' or 'process-pool'."
             raise NotImplementedError(msg)
         return start + self._expand_options(opts, name, options)
 
