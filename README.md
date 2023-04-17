@@ -7,7 +7,7 @@
 [![Documentation Status](https://readthedocs.org/projects/adaptive-scheduler/badge/?version=latest)](https://adaptive-scheduler.readthedocs.io/en/latest/?badge=latest)
 [![CodeCov](https://codecov.io/gh/basnijholt/adaptive-scheduler/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/adaptive-scheduler)
 
-This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python-adaptive/adaptive/), designed to run many `adaptive.Learner`s on many cores (>***10k-100k***) using `mpi4py.futures`, `ipyparallel`, `loky`, or `dask.distributed`.
+This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python-adaptive/adaptive/), designed to run many `adaptive.Learner`s on many cores (>***10k-100k***) using `mpi4py.futures`, `ipyparallel`, `loky`, `concurrent.futures.ProcessPoolExecutor`, or `dask.distributed`.
 
 <!-- toc-start -->
 ## :books: Table of Contents
