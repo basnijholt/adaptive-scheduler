@@ -9,6 +9,7 @@ import inspect
 import math
 import os
 import pickle
+import platform
 import random
 import shutil
 import tempfile
@@ -1019,12 +1020,14 @@ class WrappedFunction:
 
     Parameters
     ----------
-    function : Callable[..., Any]
+    function
         The function to be serialized and wrapped.
-    use_file : bool, optional (default=False)
-        If True, save the serialized function to a file and store the path
+    mode
+        If "file", save the serialized function to a file and store the path
         to the file in the global cache. This avoids sending the function
         to all workers.
+        If "memory", store the serialized function in the object.
+        If "random_id", store the serialized function only in the global cache.
 
     Attributes
     ----------
@@ -1045,18 +1048,25 @@ class WrappedFunction:
         self,
         function: Callable[..., Any],
         *,
-        use_file: bool = True,
+        mode: Literal["memory", "random_id", "file"] = "random_id",
     ) -> None:
         """Initialize WrappedFunction."""
         serialized_function = cloudpickle.dumps(function)
-        self.use_file = use_file
+        self.mode = mode
 
-        if use_file:
+        if mode == "file":
             with tempfile.NamedTemporaryFile(delete=False) as f:
                 f.write(serialized_function)
                 self._cache_key = f.name
-        else:
+        elif mode == "memory":
             self._cache_key = serialized_function
+        elif mode == "random_id":
+            assert platform.system() == "Linux"
+            name = function.__name__ if hasattr(function, "__name__") else "function"
+            self._cache_key = f"{name}_{os.urandom(16).hex()}"
+        else:
+            msg = f"mode={mode} is not valid."
+            raise ValueError(msg)
 
         # This setting of the cache only works on Linux where the default start method
         # is 'fork'. On MacOS it is 'spawn', so the cache can be populated in __call__.
@@ -1085,13 +1095,21 @@ class WrappedFunction:
         global _GLOBAL_CACHE  # noqa: PLW0602
 
         if self._cache_key not in _GLOBAL_CACHE:
-            if self.use_file:
+            if self.mode == "file":
                 with open(self._cache_key, "rb") as f:  # noqa: PTH123
                     serialized_function = f.read()
                 deserialized_function = cloudpickle.loads(serialized_function)
                 _GLOBAL_CACHE[self._cache_key] = deserialized_function
-            else:
+            elif self.mode == "memory":
                 _GLOBAL_CACHE[self._cache_key] = cloudpickle.loads(self._cache_key)
+            elif self.mode == "random_id":
+                msg = (
+                    "The function was not found in the global cache. "
+                    "This is likely because the default start method on "
+                    "your system is 'spawn' instead of 'fork'. "
+                    "Try setting `mode='file' or `mode='memory'`."
+                )
+                raise RuntimeError(msg)
 
         deserialized_function = _GLOBAL_CACHE[self._cache_key]
         return deserialized_function(*args, **kwargs)

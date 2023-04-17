@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import adaptive
 import cloudpickle
@@ -13,6 +14,9 @@ import pandas as pd
 import pytest
 
 from adaptive_scheduler import utils
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 
 def test_shuffle_list() -> None:
@@ -452,12 +456,14 @@ def _is_key_in_global_cache(key: str | bytes) -> bool:
     return key in utils._GLOBAL_CACHE
 
 
-@pytest.mark.parametrize("use_file", [True, False])
+@pytest.mark.parametrize("mode", ["file", "memory", "random_id"])
 def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     *,
-    use_file: bool,
+    mode: Literal["memory", "random_id", "file"],
 ) -> None:
     """Test executor with WrappedFunction that is loaded with cloudpickle."""
+    if mode == "random_id" and platform.system() == "Darwin":
+        pytest.skip("Not possible on MacOS")
 
     # Define a simple test function
     def square(x: int) -> int:
@@ -475,7 +481,7 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     # Wrap the loaded function using WrappedFunction
     wrapped_function = utils.WrappedFunction(
         loaded_function,
-        use_file=use_file,
+        mode=mode,
     )
 
     # Run the wrapped function using ProcessPoolExecutor
