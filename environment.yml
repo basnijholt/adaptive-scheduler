@@ -1,3 +1,4 @@
+# This file is generated from pyproject.toml using .github/update-environment.py
 name: adaptive-scheduler
 
 channels:
@@ -7,6 +8,7 @@ dependencies:
   - python
   - mpi4py
   - mpich
+  # from pyproject.toml
   - adaptive >= 0.14.1
   - cloudpickle
   - dill
