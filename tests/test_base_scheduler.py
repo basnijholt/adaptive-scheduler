@@ -15,6 +15,7 @@ def test_base_scheduler_job_script() -> None:
         extra_scheduler=["--exclusive=user", "--time=1"],
         extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
         extra_script="echo 'YOLO'",
+        executor_type="mpi4py",
     )
     job_script = s.job_script(options={})
     log_fname = s.log_fname("${NAME}")
