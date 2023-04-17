@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 import pandas as pd
 
 from adaptive_scheduler.utils import (
+    LOKY_START_METHODS,
     _at_least_adaptive_version,
     fname_to_learner_fname,
     load_dataframes,
@@ -172,13 +173,7 @@ class RunManager(BaseManager):
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
-        loky_start_method: Literal[
-            "loky",
-            "loky_int_main",
-            "spawn",
-            "fork",
-            "forkserver",
-        ] = "loky",
+        loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
@@ -271,6 +266,13 @@ class RunManager(BaseManager):
             interval=self.job_manager_interval,
             max_fails_per_job=self.max_fails_per_job,
             max_simultaneous_jobs=self.max_simultaneous_jobs,
+            # Laucher command line options
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
+            loky_start_method=self.loky_start_method,
+            log_interval=self.log_interval,
+            save_interval=self.save_interval,
+            runner_kwargs=self.runner_kwargs,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None

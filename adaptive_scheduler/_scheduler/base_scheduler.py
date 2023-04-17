@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.common import run_submit
-from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
+from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress, _RequireAttrsABCMeta
 
 if TYPE_CHECKING:
-    from typing import Any, ClassVar, Literal
+    from typing import Any, ClassVar
 
 
 _MULTI_LINE_BREAK = " \\\n    "
@@ -71,12 +71,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: Literal[
-            "ipyparallel",
-            "dask-mpi",
-            "mpi4py",
-            "process-pool",
-        ] = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "mpi4py",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,

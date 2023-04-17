@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import (
         _DATAFRAME_FORMATS,
-        EXECUTOR_TYPES,
         LOKY_START_METHODS,
     )
 
@@ -65,10 +64,9 @@ class JobManager(BaseManager):
         profile: str | None = None,
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "parquet",
-        executor_type: EXECUTOR_TYPES = "process-pool",
         loky_start_method: LOKY_START_METHODS = "loky",
-        log_interval: int = 60,
-        save_interval: int = 300,
+        log_interval: int | float = 60,
+        save_interval: int | float = 300,
         runner_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
@@ -83,7 +81,6 @@ class JobManager(BaseManager):
         self.profile = profile
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
-        self.executor_type = executor_type
         self.loky_start_method = loky_start_method
         self.log_interval = log_interval
         self.save_interval = save_interval
@@ -108,24 +105,23 @@ class JobManager(BaseManager):
         base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode(
             "utf-8",
         )
-        n = self.scheduler.cores
-        if self.executor_type == "ipyparallel":
-            n -= 1
         opts = {
-            "--n": n,
             "--url": self.database_manager.url,
-            "--executor-type": self.executor_type,
+            "--executor-type": self.scheduler.executor_type,
             "--log-interval": self.log_interval,
             "--save-interval": self.save_interval,
             "--serialized-runner-kwargs": base64_runner_kwargs,
         }
-        if self.executor_type == "loky":
+        n = self.scheduler.cores
+        if self.scheduler.executor_type == "ipyparallel":
+            n -= 1
+            opts["--profile"] = "adaptive_scheduler_${job_id}"
+        opts["--n"] = n
+        if self.scheduler.executor_type == "loky":
             opts["--loky-start-method"] = self.loky_start_method
         if self.save_dataframe:
             opts["--dataframe-format"] = self.dataframe_format
             opts["--save-dataframe"] = None
-        if self.profile:
-            opts["--profile"] = self.profile
         return opts
 
     def _setup(self) -> None:
