@@ -37,7 +37,7 @@ def test_base_scheduler_job_script() -> None:
 
         {s.mpiexec_executable} \\
             -n 4 {s.python_executable} \\
-            -m mpi4py.futures run_learner.py \\
+            -m mpi4py.futures {s.launcher} \\
             --log-fname {log_fname} \\
             --job-id ${{JOB_ID}} \\
             --name ${{NAME}}
