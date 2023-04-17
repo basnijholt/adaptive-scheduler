@@ -3,11 +3,18 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+import cloudpickle
+
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
+    from adaptive_scheduler._server_support.launcher import (
+        EXECUTOR_TYPES,
+        LOKY_START_METHODS,
+    )
     from adaptive_scheduler.scheduler import BaseScheduler
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
     from .database_manager import DatabaseManager
 
@@ -53,6 +60,15 @@ class JobManager(BaseManager):
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
+        # Command line launcher options
+        profile: str | None = None,
+        save_dataframe: bool = True,
+        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        executor_type: EXECUTOR_TYPES = "process-pool",
+        loky_start_method: LOKY_START_METHODS = "loky",
+        log_interval: int = 60,
+        save_interval: int = 300,
+        runner_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
@@ -61,6 +77,16 @@ class JobManager(BaseManager):
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
+
+        # Command line launcher options
+        self.profile = profile
+        self.save_dataframe = save_dataframe
+        self.dataframe_format = dataframe_format
+        self.executor_type = executor_type
+        self.loky_start_method = loky_start_method
+        self.log_interval = log_interval
+        self.save_interval = save_interval
+        self.runner_kwargs = runner_kwargs
 
         self.n_started = 0
 
@@ -75,6 +101,23 @@ class JobManager(BaseManager):
             for job in queue.values()
             if job["job_name"] in self.job_names
         }
+
+    def _command_line_options(self) -> dict[str, Any]:
+        return {
+            "profile": self.profile,
+            "url": self.database_manager.url,
+            "save-dataframe": self.save_dataframe,
+            "dataframe-format": self.dataframe_format,
+            "executor-type": self.executor_type,
+            "loky-start-method": self.loky_start_method,
+            "log-interval": self.log_interval,
+            "save-interval": self.save_interval,
+            "serialized-runner-kwargs": cloudpickle.dumps(self.runner_kwargs or {}),
+        }
+
+    def _setup(self) -> None:
+        name_prefix = self.job_names[0].rsplit("-", 1)[0]
+        self.scheduler.write_job_script(name_prefix, self._command_line_options())
 
     async def _manage(self) -> None:
         while True:

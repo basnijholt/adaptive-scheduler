@@ -167,10 +167,9 @@ class PBS(BaseScheduler):
 
         return job_script
 
-    def start_job(self, name: str, options: dict[str, Any]) -> None:
+    def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
-        self.write_job_script(name_prefix, options)
         name_opt = f"-N {name}"
         submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)

@@ -287,7 +287,6 @@ class RunManager(BaseManager):
             self.kill_manager = None
 
     def _setup(self) -> None:
-        self.scheduler.write_job_script()
         self.database_manager.start()
         if self.check_goal_on_start:
             # Check if goal already reached

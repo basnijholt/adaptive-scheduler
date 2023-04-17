@@ -18,9 +18,11 @@ LOKY_START_METHODS = Literal[
     "forkserver",
 ]
 
+EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+
 
 def _get_executor(
-    executor_type: Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"],
+    executor_type: EXECUTOR_TYPES,
     profile: str | None,
     n: int,
     loky_start_method: LOKY_START_METHODS,

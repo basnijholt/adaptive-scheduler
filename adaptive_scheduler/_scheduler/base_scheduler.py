@@ -325,9 +325,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             job_script = self.job_script(options)
             f.write(job_script)
 
-    def start_job(self, name: str, options: dict[str, Any]) -> None:
+    def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
-        self.write_job_script(name, options)
         submit_cmd = f"{self.submit_cmd} {self.batch_fname(name)}"
         run_submit(submit_cmd)
 
