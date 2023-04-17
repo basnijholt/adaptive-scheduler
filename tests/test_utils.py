@@ -1,15 +1,22 @@
 """Tests for `adaptive_scheduler.utils`."""
 from __future__ import annotations
 
+import platform
 import time
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import adaptive
+import cloudpickle
 import pandas as pd
 import pytest
 
 from adaptive_scheduler import utils
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 
 def test_shuffle_list() -> None:
@@ -443,3 +450,59 @@ def test_at_least_adaptive_version() -> None:
     with pytest.raises(RuntimeError, match="requires adaptive version"):
         assert utils._at_least_adaptive_version("100000.0.0", raises=True)
     utils._at_least_adaptive_version(adaptive.__version__)
+
+
+def _is_key_in_global_cache(key: str | bytes) -> bool:
+    return key in utils._GLOBAL_CACHE
+
+
+@pytest.mark.parametrize("mode", ["file", "memory", "random_id"])
+def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
+    *,
+    mode: Literal["memory", "random_id", "file"],
+) -> None:
+    """Test executor with WrappedFunction that is loaded with cloudpickle."""
+    if mode == "random_id" and platform.system() == "Darwin":
+        pytest.skip("Not possible on MacOS")
+
+    # Define a simple test function
+    def square(x: int) -> int:
+        return x * x
+
+    # Serialize the function using cloudpickle
+    serialized_function = cloudpickle.dumps(square)
+
+    # Remove the function from the current scope
+    del square
+
+    # Load the serialized function using cloudpickle
+    loaded_function = cloudpickle.loads(serialized_function)
+
+    # Wrap the loaded function using WrappedFunction
+    wrapped_function = utils.WrappedFunction(
+        loaded_function,
+        mode=mode,
+    )
+
+    # Run the wrapped function using ProcessPoolExecutor
+    ex = ProcessPoolExecutor()
+
+    # Check if the global cache contains the key in the cache
+    # Note that behaviour on Linux and MacOS is different due to 'fork' vs 'spawn'
+    fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
+    is_key = fut_is_key.result()
+    if platform.system() == "Darwin":
+        assert not is_key
+    elif platform.system() == "Linux":
+        assert is_key
+
+    # Note that passing the loaded_function directly to ex.submit will not work!
+    fut = ex.submit(wrapped_function, 4)
+    result = fut.result()
+
+    assert result == 16, f"Expected 16, but got {result}"  # noqa: PLR2004
+
+    # Check if the global cache contains the key in the executor
+    fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
+    is_key = fut_is_key.result()
+    assert is_key
