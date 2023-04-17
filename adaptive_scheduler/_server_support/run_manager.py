@@ -30,7 +30,6 @@ from .database_manager import DatabaseManager
 from .job_manager import JobManager
 from .kill_manager import KillManager
 from .logging import parse_log_files
-from .run_script import _make_default_run_script
 
 if TYPE_CHECKING:
     import datetime

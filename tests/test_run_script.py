@@ -7,8 +7,6 @@ from unittest.mock import patch
 
 import pytest
 
-from adaptive_scheduler.server_support import _make_default_run_script
-
 if TYPE_CHECKING:
     from collections.abc import Generator
 

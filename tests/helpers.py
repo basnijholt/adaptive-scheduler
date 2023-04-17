@@ -54,7 +54,7 @@ class MockScheduler(BaseScheduler):
         print("Mock queue:", self._queue_info)
         return self._queue_info
 
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Return a job script for the mock scheduler."""
         job_script = textwrap.dedent(
             f"""\
@@ -78,7 +78,7 @@ class MockScheduler(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}"),
+            executor_specific=self._executor_specific("${NAME}", options),
         )
         return job_script
 

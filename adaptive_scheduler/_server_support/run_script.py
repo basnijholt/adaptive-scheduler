@@ -1,67 +1,142 @@
 from __future__ import annotations
 
-from importlib.util import find_spec
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+import argparse
+from contextlib import suppress
+from typing import Any, Literal, get_args
 
+import adaptive
 import cloudpickle
-import jinja2
 
-if TYPE_CHECKING:
-    import adaptive
+from adaptive_scheduler import client_support
+from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
-    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+LOKY_START_METHODS = Literal[
+    "loky",
+    "loky_int_main",
+    "spawn",
+    "fork",
+    "forkserver",
+]
 
 
-def _is_dask_mpi_installed() -> bool:  # pragma: no cover
-    return find_spec("dask_mpi") is not None
+def _get_executor(
+    executor_type: Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"],
+    profile: str | None,
+    n: int,
+    loky_start_method: LOKY_START_METHODS,
+) -> Any:
+    if executor_type == "mpi4py":
+        from mpi4py import MPI
+        from mpi4py.futures import MPIPoolExecutor
+
+        MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+        return MPIPoolExecutor()
+    if executor_type == "ipyparallel":
+        from adaptive_scheduler.utils import connect_to_ipyparallel
+
+        assert profile is not None
+        return connect_to_ipyparallel(profile=profile, n=n)
+    if executor_type == "dask-mpi":
+        from dask_mpi import initialize
+
+        initialize()
+        from distributed import Client
+
+        return Client()
+    if executor_type == "process-pool":
+        import loky
+
+        loky.backend.context.set_start_method(loky_start_method)
+        return loky.get_reusable_executor(max_workers=n)
+    msg = f"Unknown executor_type: {executor_type}"
+    raise ValueError(msg)
 
 
-def _make_default_run_script(
-    url: str,
-    save_interval: int | float,
-    log_interval: int | float,
-    *,
-    goal: Callable[[adaptive.BaseLearner], bool] | None = None,
-    runner_kwargs: dict[str, Any] | None = None,
-    run_script_fname: str | Path = "run_learner.py",
-    executor_type: str = "mpi4py",
-    loky_start_method: Literal[
-        "loky",
-        "loky_int_main",
-        "spawn",
-        "fork",
-        "forkserver",
-    ] = "loky",
-    save_dataframe: bool = False,
-    dataframe_format: _DATAFRAME_FORMATS = "parquet",
-) -> None:
-    default_runner_kwargs = {"shutdown_executor": True}
-    runner_kwargs = dict(default_runner_kwargs, goal=goal, **(runner_kwargs or {}))
-    serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", action="store", type=str, default=None)
+    parser.add_argument("--n", action="store", dest="n", type=int)
+    parser.add_argument("--log-fname", action="store", type=str)
+    parser.add_argument("--job-id", action="store", type=str)
+    parser.add_argument("--name", action="store", dest="name", type=str, required=True)
+    parser.add_argument("--url", action="store", type=str, required=True)
 
-    if executor_type not in ("mpi4py", "ipyparallel", "dask-mpi", "process-pool"):
-        msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
-        raise NotImplementedError(msg)
+    parser.add_argument("--save-dataframe", action="store_true", default=False)
+    parser.add_argument(
+        "--dataframe-format",
+        action="store",
+        type=str,
+        choices=get_args(_DATAFRAME_FORMATS),
+    )
+    parser.add_argument(
+        "--executor-type",
+        action="store",
+        type=str,
+        default="process-pool",
+    )
+    parser.add_argument(
+        "--loky-start-method",
+        action="store",
+        type=str,
+        default="loky",
+        choices=get_args(LOKY_START_METHODS),
+    )
+    parser.add_argument("--log-interval", action="store", type=int, default="1s")
+    parser.add_argument("--save-interval", action="store", type=int)
+    parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
+    return parser.parse_args()
 
-    if executor_type == "dask-mpi" and not _is_dask_mpi_installed():
-        msg = "You need to have 'dask-mpi' installed to use `executor_type='dask-mpi'`."
-        raise ModuleNotFoundError(msg)
-    run_script_template = Path(__file__).parent / "run_script.py.j2"
-    with run_script_template.open(encoding="utf-8") as f:
-        empty = "".join(f.readlines())
-    run_script_fname = Path(run_script_fname)
-    template = jinja2.Template(empty).render(
-        run_script_fname=run_script_fname,
-        executor_type=executor_type,
-        url=url,
-        serialized_runner_kwargs=serialized_runner_kwargs,
-        save_interval=save_interval,
-        log_interval=log_interval,
-        loky_start_method=loky_start_method,
-        save_dataframe=save_dataframe,
-        dataframe_format=dataframe_format,
+
+def run() -> None:
+    args = _parse_args()
+
+    # ask the database for a learner that we can run which we log in `args.log_fname`
+    learner, fname = client_support.get_learner(
+        args.url,
+        args.log_fname,
+        args.job_id,
+        args.name,
     )
 
-    with run_script_fname.open("w", encoding="utf-8") as f:
-        f.write(template)
+    # load the data
+    with suppress(Exception):
+        learner.load(fname)
+    npoints_start = learner.npoints
+
+    executor = _get_executor(
+        args.executor_type,
+        args.profile,
+        args.n,
+        args.loky_start_method,
+    )
+
+    runner_kwargs = cloudpickle.loads(args.serialized_runner_kwargs)
+    runner_kwargs.setdefault("shutdown_executor", True)
+    runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
+
+    # periodically save the data (in case the job dies)
+    runner.start_periodic_saving({"fname": fname}, interval=args.save_interval)
+
+    if args.save_dataframe:
+        from adaptive_scheduler.utils import save_dataframe
+
+        save_method = save_dataframe(fname, format=args.dataframe_format)
+        runner.start_periodic_saving(interval=args.save_interval, method=save_method)
+
+    # log progress info in the job output script, optional
+    _log_task = client_support.log_info(runner, interval=args.log_interval)
+
+    # block until runner goal reached
+    runner.ioloop.run_until_complete(runner.task)
+
+    # save once more after the runner is done
+    learner.save(fname)
+
+    if args.save_dataframe:
+        save_method(learner)
+
+    # log once more after the runner is done
+    client_support.log_now(runner, npoints_start)
+
+    # tell the database that this learner has reached its goal
+    client_support.tell_done(args.url, fname)

@@ -21,7 +21,6 @@ from ._server_support.run_manager import (
     _wait_for_finished,
     start_one_by_one,
 )
-from ._server_support.run_script import _make_default_run_script
 from ._server_support.slurm_run import slurm_run
 
 __all__ = [
@@ -34,7 +33,6 @@ __all__ = [
     "logs_with_string_or_condition",
     "RunManager",
     "slurm_run",
-    "_make_default_run_script",
     "_get_infos",
     "parse_log_files",
     "BaseManager",

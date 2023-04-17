@@ -154,8 +154,7 @@ class SLURM(BaseScheduler):
         """Set the state of the SLURM scheduler."""
         self.__init__(**state)  # type: ignore[misc]
 
-    def _ipyparallel(self, name: str) -> str:
-        log_fname = self.log_fname(name)
+    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         cores = self.cores - 1
@@ -163,7 +162,7 @@ class SLURM(BaseScheduler):
             max_cores_per_node = self.partitions[self.partition]
             tot_cores = self.nodes * max_cores_per_node
             cores = min(self.cores, tot_cores - 1)
-        return textwrap.dedent(
+        start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
 
@@ -182,15 +181,12 @@ class SLURM(BaseScheduler):
 
             echo "Starting the Python script"
             srun --ntasks 1 {self.python_executable} {self.run_script} \\
-                --profile {profile} \\
-                --n {cores} \\
-                --log-fname {log_fname} \\
-                --job-id {job_id} \\
-                --name {name}
             """,
         )
+        custom = (f"    --profile {profile}", f"--n {cores}")
+        return start, custom
 
-    def job_script(self) -> str:
+    def job_script(self, options: dict[str, Any]) -> str:
         """Get a jobscript in string form.
 
         Returns
@@ -221,14 +217,14 @@ class SLURM(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}"),
+            executor_specific=self._executor_specific("${NAME}", options),
         )
         return job_script
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, options: dict[str, Any]) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
-        self.write_job_script(name_prefix)
+        self.write_job_script(name_prefix, options)
 
         output_fname = str(self.output_fnames(name)[0]).replace(
             self._JOB_ID_VARIABLE,

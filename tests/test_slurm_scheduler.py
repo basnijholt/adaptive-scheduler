@@ -69,7 +69,7 @@ def test_getstate_setstate() -> None:
 def test_job_script() -> None:
     """Test the SLURM.job_script method."""
     s = SLURM(cores=4)
-    job_script = s.job_script()
+    job_script = s.job_script(options={})
     assert "#SBATCH --ntasks 4" in job_script
     assert "#SBATCH --exclusive" in job_script
     assert "#SBATCH --no-requeue" in job_script
@@ -86,7 +86,7 @@ def test_start_job(tmp_path: Path) -> None:
     with temporary_working_directory(tmp_path), patch(
         "adaptive_scheduler._scheduler.slurm.run_submit",
     ) as mock_submit:
-        s.start_job("testjob")
+        s.start_job("testjob", {})
         mock_submit.assert_called_once_with(
             f"sbatch --job-name testjob --output {tmp_path}/testjob-%A.out testjob.sbatch",
             "testjob",
@@ -103,7 +103,7 @@ def test_slurm_job_script_default() -> None:
     """Test the SLURM.job_script method with default arguments."""
     """Test the SLURM.job_script method with default arguments."""
     s = SLURM(cores=4, partition="nc24-low")
-    job_script = s.job_script()
+    job_script = s.job_script(options={})
 
     assert "#SBATCH --ntasks 4" in job_script
     assert "#SBATCH --no-requeue" in job_script
@@ -128,7 +128,7 @@ def test_slurm_job_script_custom() -> None:
         extra_env_vars=extra_env_vars,
         extra_script=extra_script,
     )
-    job_script = s.job_script()
+    job_script = s.job_script(options={})
 
     # Check extra_scheduler
     for opt in extra_scheduler:
@@ -174,7 +174,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         extra_script="echo 'YOLO'",
         executor_type="ipyparallel",
     )
-    job_script = s.job_script()
+    job_script = s.job_script(options={})
     log_fname = s.log_fname("${NAME}")
     assert (
         job_script.strip()
@@ -237,7 +237,7 @@ def test_slurm_scheduler_ipyparallel() -> None:
         exclusive=True,
     )
     assert s.cores == 999 * 24
-    ipy = s._ipyparallel("TEST")
+    ipy = s._executor_specific("TEST", {})
     log_fname = s.log_fname("TEST")
     print(ipy)
     assert (
