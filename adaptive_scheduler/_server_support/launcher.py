@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 from contextlib import suppress
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 import adaptive
 import cloudpickle
@@ -11,9 +11,51 @@ import cloudpickle
 from adaptive_scheduler import client_support
 from adaptive_scheduler.utils import (
     _DATAFRAME_FORMATS,
-    EXECUTOR_TYPES,
     LOKY_START_METHODS,
 )
+
+if TYPE_CHECKING:
+    from adaptive_scheduler.scheduler import BaseScheduler
+    from adaptive_scheduler.utils import EXECUTOR_TYPES, GoalTypes
+
+    from .database_manager import DatabaseManager
+
+
+def command_line_options(
+    *,
+    scheduler: BaseScheduler,
+    database_manager: DatabaseManager,
+    runner_kwargs: dict[str, Any] | None = None,
+    goal: GoalTypes,
+    log_interval: int | float = 60,
+    save_interval: int | float = 300,
+    save_dataframe: bool = True,
+    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+) -> dict[str, Any]:
+    """Return the command line options for the job_script."""
+    if runner_kwargs is None:
+        runner_kwargs = {}
+    runner_kwargs["goal"] = goal
+    serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
+    base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode("utf-8")
+    n = scheduler.cores
+    if scheduler.executor_type == "ipyparallel":
+        n -= 1
+
+    opts = {
+        "--n": n,
+        "--url": database_manager.url,
+        "--executor-type": scheduler.executor_type,
+        "--log-interval": log_interval,
+        "--save-interval": save_interval,
+        "--serialized-runner-kwargs": base64_runner_kwargs,
+    }
+    if scheduler.executor_type == "loky":
+        opts["--loky-start-method"] = scheduler.loky_start_method
+    if save_dataframe:
+        opts["--dataframe-format"] = dataframe_format
+        opts["--save-dataframe"] = None
+    return opts
 
 
 def _get_executor(

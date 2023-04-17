@@ -11,6 +11,7 @@ import pandas as pd
 
 from adaptive_scheduler.utils import (
     LOKY_START_METHODS,
+    GoalTypes,
     _at_least_adaptive_version,
     fname_to_learner_fname,
     load_dataframes,
@@ -33,8 +34,6 @@ from .kill_manager import KillManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
-    import datetime
-
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -153,12 +152,7 @@ class RunManager(BaseManager):
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[Path],
         *,
-        goal: Callable[[adaptive.BaseLearner], bool]
-        | int
-        | float
-        | datetime.timedelta
-        | datetime.datetime
-        | None = None,
+        goal: GoalTypes = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
@@ -273,6 +267,7 @@ class RunManager(BaseManager):
             log_interval=self.log_interval,
             save_interval=self.save_interval,
             runner_kwargs=self.runner_kwargs,
+            goal=self.goal,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None

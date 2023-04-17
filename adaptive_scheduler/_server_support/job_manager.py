@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 from typing import TYPE_CHECKING, Any
-
-import cloudpickle
 
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
+from .launcher import command_line_options
 
 if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import (
         _DATAFRAME_FORMATS,
         LOKY_START_METHODS,
+        GoalTypes,
     )
 
     from .database_manager import DatabaseManager
@@ -67,6 +66,7 @@ class JobManager(BaseManager):
         log_interval: int | float = 60,
         save_interval: int | float = 300,
         runner_kwargs: dict[str, Any] | None = None,
+        goal: GoalTypes = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
@@ -76,6 +76,9 @@ class JobManager(BaseManager):
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
 
+        # Counter
+        self.n_started = 0
+
         # Command line launcher options
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
@@ -83,8 +86,7 @@ class JobManager(BaseManager):
         self.log_interval = log_interval
         self.save_interval = save_interval
         self.runner_kwargs = runner_kwargs
-
-        self.n_started = 0
+        self.goal = goal
 
     @property
     def max_job_starts(self) -> int:
@@ -98,32 +100,19 @@ class JobManager(BaseManager):
             if job["job_name"] in self.job_names
         }
 
-    def _command_line_options(self) -> dict[str, Any]:
-        serialized_runner_kwargs = cloudpickle.dumps(self.runner_kwargs or {})
-        base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode(
-            "utf-8",
-        )
-        n = self.scheduler.cores
-        if self.scheduler.executor_type == "ipyparallel":
-            n -= 1
-        opts = {
-            "--n": n,
-            "--url": self.database_manager.url,
-            "--executor-type": self.scheduler.executor_type,
-            "--log-interval": self.log_interval,
-            "--save-interval": self.save_interval,
-            "--serialized-runner-kwargs": base64_runner_kwargs,
-        }
-        if self.scheduler.executor_type == "loky":
-            opts["--loky-start-method"] = self.loky_start_method
-        if self.save_dataframe:
-            opts["--dataframe-format"] = self.dataframe_format
-            opts["--save-dataframe"] = None
-        return opts
-
     def _setup(self) -> None:
         name_prefix = self.job_names[0].rsplit("-", 1)[0]
-        self.scheduler.write_job_script(name_prefix, self._command_line_options())
+        options = command_line_options(
+            scheduler=self.scheduler,
+            database_manager=self.database_manager,
+            runner_kwargs=self.runner_kwargs,
+            log_interval=self.log_interval,
+            save_interval=self.save_interval,
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
+            goal=self.goal,
+        )
+        self.scheduler.write_job_script(name_prefix, options)
 
     async def _manage(self) -> None:
         while True:

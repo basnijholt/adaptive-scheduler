@@ -48,6 +48,14 @@ LOKY_START_METHODS = Literal[
 ]
 
 EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+GoalTypes = Union[
+    Callable[[adaptive.BaseLearner], bool],
+    int,
+    float,
+    datetime,
+    timedelta,
+    None,
+]
 
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
@@ -946,12 +954,7 @@ class _TimeGoal:
 
 
 def smart_goal(
-    goal: Callable[[adaptive.BaseLearner], bool]
-    | int
-    | float
-    | datetime
-    | timedelta
-    | None,
+    goal: GoalTypes,
     learners: list[adaptive.BaseLearner],
 ) -> Callable[[adaptive.BaseLearner], bool]:
     """Extract a goal from the learners.

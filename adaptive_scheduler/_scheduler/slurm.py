@@ -175,7 +175,7 @@ class SLURM(BaseScheduler):
             srun --ntasks 1 {self.python_executable} {self.launcher} \\
             """,
         )
-        custom = (f"    --profile {profile}", f"--n {cores}")
+        custom = (f"    --profile {profile}",)
         return start, custom
 
     def job_script(self, options: dict[str, Any]) -> str:
