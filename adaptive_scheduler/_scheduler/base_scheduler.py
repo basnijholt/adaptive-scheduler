@@ -27,11 +27,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     ----------
     cores : int
         Number of cores per job (so per learner.)
-    run_script : str
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner.
     python_executable : str, default: `sys.executable`
-        The Python executable that should run the `run_script`. By default
+        The Python executable that should run adaptive-scheduler. By default
         it uses the same Python as where this function is called.
     log_folder : str, default: ""
         The folder in which to put the log-files.
@@ -338,7 +335,6 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Return the state of the scheduler."""
         return {
             "cores": self.cores,
-            "run_script": self.launcher,
             "python_executable": self.python_executable,
             "log_folder": self.log_folder,
             "mpiexec_executable": self.mpiexec_executable,

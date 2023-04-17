@@ -39,6 +39,16 @@ MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
 FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
 
+LOKY_START_METHODS = Literal[
+    "loky",
+    "loky_int_main",
+    "spawn",
+    "fork",
+    "forkserver",
+]
+
+EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+
 
 class _RequireAttrsABCMeta(abc.ABCMeta):
     required_attributes: list[str] = []

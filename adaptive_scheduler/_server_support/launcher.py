@@ -2,23 +2,17 @@ from __future__ import annotations
 
 import argparse
 from contextlib import suppress
-from typing import Any, Literal, get_args
+from typing import Any, get_args
 
 import adaptive
 import cloudpickle
 
 from adaptive_scheduler import client_support
-from adaptive_scheduler.utils import _DATAFRAME_FORMATS
-
-LOKY_START_METHODS = Literal[
-    "loky",
-    "loky_int_main",
-    "spawn",
-    "fork",
-    "forkserver",
-]
-
-EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+from adaptive_scheduler.utils import (
+    _DATAFRAME_FORMATS,
+    EXECUTOR_TYPES,
+    LOKY_START_METHODS,
+)
 
 
 def _get_executor(

@@ -9,12 +9,12 @@ from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
-    from adaptive_scheduler._server_support.launcher import (
+    from adaptive_scheduler.scheduler import BaseScheduler
+    from adaptive_scheduler.utils import (
+        _DATAFRAME_FORMATS,
         EXECUTOR_TYPES,
         LOKY_START_METHODS,
     )
-    from adaptive_scheduler.scheduler import BaseScheduler
-    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
     from .database_manager import DatabaseManager
 
@@ -41,7 +41,7 @@ class JobManager(BaseManager):
         (because of this `max_simultaneous_jobs` condition) to not ever start.
     max_fails_per_job : int, default: 40
         Maximum number of times that a job can fail. This is here as a fail switch
-        because a job might fail instantly because of a bug inside `run_script`.
+        because a job might fail instantly because of a bug inside your code.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
 

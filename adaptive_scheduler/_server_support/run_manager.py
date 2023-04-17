@@ -52,7 +52,7 @@ class RunManager(BaseManager):
         List of `fnames` corresponding to `learners`.
     goal : callable, default: None
         The goal passed to the `adaptive.Runner`. Note that this function will
-        be serialized and pasted in the ``run_script``. Can be a smart-goal
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
@@ -60,7 +60,7 @@ class RunManager(BaseManager):
         Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
-        will be serialized and pasted in the ``run_script``.
+        will be serialized and pasted in the ``job_script``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -329,11 +329,7 @@ class RunManager(BaseManager):
             self._start_one_by_one_task[0].cancel()
 
     def cleanup(self, *, remove_old_logs_folder: bool = False) -> None:
-        """Cleanup the log and batch files.
-
-        If the `RunManager` is not running, the ``run_script.py`` file
-        will also be removed.
-        """
+        """Cleanup the log and batch files."""
         for fname in self.fnames:
             fname_cloudpickle = fname_to_learner_fname(fname)
             with suppress(FileNotFoundError):
