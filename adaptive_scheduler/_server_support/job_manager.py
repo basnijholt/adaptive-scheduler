@@ -104,15 +104,15 @@ class JobManager(BaseManager):
 
     def _command_line_options(self) -> dict[str, Any]:
         return {
-            "profile": self.profile,
-            "url": self.database_manager.url,
-            "save-dataframe": self.save_dataframe,
-            "dataframe-format": self.dataframe_format,
-            "executor-type": self.executor_type,
-            "loky-start-method": self.loky_start_method,
-            "log-interval": self.log_interval,
-            "save-interval": self.save_interval,
-            "serialized-runner-kwargs": cloudpickle.dumps(self.runner_kwargs or {}),
+            "--profile": self.profile,
+            "--url": self.database_manager.url,
+            "--save-dataframe": self.save_dataframe,
+            "--dataframe-format": self.dataframe_format,
+            "--executor-type": self.executor_type,
+            "--loky-start-method": self.loky_start_method,
+            "--log-interval": self.log_interval,
+            "--save-interval": self.save_interval,
+            "--serialized-runner-kwargs": cloudpickle.dumps(self.runner_kwargs or {}),
         }
 
     def _setup(self) -> None:
