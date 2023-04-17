@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.scheduler import SLURM, slurm_partitions
 from adaptive_scheduler.utils import _get_default_args
@@ -10,11 +10,9 @@ from .common import console
 from .run_manager import RunManager
 
 if TYPE_CHECKING:
-    import datetime
-
     import adaptive
 
-    from adaptive_scheduler.utils import EXECUTOR_TYPES
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes
 
 
 def slurm_run(
@@ -24,12 +22,7 @@ def slurm_run(
     partition: str | None = None,
     nodes: int = 1,
     cores_per_node: int | None = None,
-    goal: Callable[[adaptive.BaseLearner], bool]
-    | int
-    | float
-    | datetime.timedelta
-    | datetime.datetime
-    | None = None,
+    goal: GoalTypes = None,
     folder: str | Path = "",
     name: str = "adaptive",
     num_threads: int = 1,
@@ -37,15 +30,7 @@ def slurm_run(
     log_interval: int | float = 300,
     cleanup_first: bool = True,
     save_dataframe: bool = True,
-    dataframe_format: Literal[
-        "parquet",
-        "csv",
-        "hdf",
-        "pickle",
-        "feather",
-        "excel",
-        "json",
-    ] = "parquet",
+    dataframe_format: _DATAFRAME_FORMATS = "parquet",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool = True,

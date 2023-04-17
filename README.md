@@ -114,7 +114,7 @@ import adaptive_scheduler
 from adaptive_scheduler import server_support
 
 # create a scheduler
-scheduler = adaptive_scheduler.scheduler.SLURM(cores=10, run_script="run_learner.py",)
+scheduler = adaptive_scheduler.scheduler.SLURM(cores=10)
 
 # create a new database that keeps track of job <-> learner
 db_fname = "running.json"
@@ -136,7 +136,7 @@ job_manager = server_support.JobManager(
     scheduler,
     save_interval=300,
     log_interval=30,
-    goal=None,
+    goal=0.01,
 )
 job_manager.start()
 ```
