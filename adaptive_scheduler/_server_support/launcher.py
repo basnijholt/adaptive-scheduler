@@ -144,15 +144,13 @@ def main() -> None:
     args = _parse_args()
     client_support.log.info("parsed args", **vars(args))
 
-    # ask the database for a learner that we can run which we log in `args.log_fname`
+    # ask the server for a fname and learner
     learner, fname = client_support.get_learner(
         args.url,
         args.log_fname,
         args.job_id,
         args.name,
     )
-
-    # load the data
     with suppress(Exception):
         learner.load(fname)
     npoints_start = learner.npoints
