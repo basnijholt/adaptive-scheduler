@@ -1045,7 +1045,7 @@ class WrappedFunction:
         self,
         function: Callable[..., Any],
         *,
-        use_file: bool = False,
+        use_file: bool = True,
     ) -> None:
         """Initialize WrappedFunction."""
         serialized_function = cloudpickle.dumps(function)
