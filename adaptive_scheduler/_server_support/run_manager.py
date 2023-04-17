@@ -5,7 +5,7 @@ import shutil
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable
 
 import pandas as pd
 
@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
 class RunManager(BaseManager):
@@ -170,16 +171,7 @@ class RunManager(BaseManager):
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
-        # TODO: use _DATAFRAME_FORMATS instead of literal in ≥Python 3.10
-        dataframe_format: Literal[
-            "parquet",
-            "csv",
-            "hdf",
-            "pickle",
-            "feather",
-            "excel",
-            "json",
-        ] = "parquet",
+        dataframe_format: _DATAFRAME_FORMATS = "parquet",
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
