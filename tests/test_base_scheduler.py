@@ -25,13 +25,14 @@ def test_base_scheduler_job_script() -> None:
         ##MOCK --exclusive=user
         ##MOCK --time=1
 
+        export TMPDIR='/scratch'
+        export PYTHONPATH='my_dir:$PYTHONPATH'
+        export EXECUTOR_TYPE=mpi4py
         export MKL_NUM_THREADS=1
         export OPENBLAS_NUM_THREADS=1
         export OMP_NUM_THREADS=1
         export NUMEXPR_NUM_THREADS=1
 
-        export TMPDIR='/scratch'
-        export PYTHONPATH='my_dir:$PYTHONPATH'
 
         echo 'YOLO'
 
