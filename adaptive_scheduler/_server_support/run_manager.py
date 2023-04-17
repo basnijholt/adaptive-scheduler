@@ -29,7 +29,7 @@ from .common import (
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
 from .kill_manager import KillManager
-from .logging import parse_log_files
+from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
     import datetime

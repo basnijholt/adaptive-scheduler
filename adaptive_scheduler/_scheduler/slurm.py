@@ -34,9 +34,6 @@ class SLURM(BaseScheduler):
         The SLURM partition to submit the job to.
     exclusive : bool
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
-    run_script : str
-        Filename of the script that is run on the nodes. Inside this script we
-        query the database and run the learner.
     log_folder : str, default: ""
         The folder in which to put the log-files.
     mpiexec_executable : str, optional
