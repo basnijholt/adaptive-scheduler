@@ -107,11 +107,12 @@ class JobManager(BaseManager):
             "--url": self.database_manager.url,
             "--save-dataframe": self.save_dataframe,
             "--executor-type": self.executor_type,
-            "--loky-start-method": self.loky_start_method,
             "--log-interval": self.log_interval,
             "--save-interval": self.save_interval,
             "--serialized-runner-kwargs": cloudpickle.dumps(self.runner_kwargs or {}),
         }
+        if self.executor_type == "loky":
+            opts["--loky-start-method"] = self.loky_start_method
         if self.dataframe_format:
             opts["--dataframe-format"] = None
         if self.profile:

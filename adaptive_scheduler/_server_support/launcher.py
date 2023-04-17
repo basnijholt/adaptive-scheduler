@@ -85,7 +85,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--log-interval", action="store", type=int, default="1s")
     parser.add_argument("--save-interval", action="store", type=int)
-    parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
+    parser.add_argument("--serialized-runner-kwargs", action="store", type=bytes)
     return parser.parse_args()
 
 
