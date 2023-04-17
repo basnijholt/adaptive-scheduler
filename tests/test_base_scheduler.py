@@ -143,7 +143,7 @@ def test_base_scheduler_ipyparallel() -> None:
                 --log-to-file &
 
             echo "Starting the Python script"
-            {s.python_executable} run_learner.py \\
+            {s.python_executable} {s.launcher} \\
                 --profile ${{profile}} \\
                 --n 3 \\
                 --log-fname {log_fname} \\

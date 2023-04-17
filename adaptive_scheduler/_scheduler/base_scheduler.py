@@ -303,7 +303,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     @property
     def launcher(self) -> Path:
-        return Path(adaptive_scheduler._server_support.launcher.__file__)
+        from adaptive_scheduler._server_support import launcher
+        return Path(launcher.__file__)
 
     @property
     def extra_scheduler(self) -> str:

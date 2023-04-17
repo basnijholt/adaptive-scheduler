@@ -213,7 +213,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
             --log-to-file &
 
         echo "Starting the Python script"
-        srun --ntasks 1 {s.python_executable} run_learner.py \\
+        srun --ntasks 1 {s.python_executable} {s.launcher} \\
             --profile ${{profile}} \\
             --n 3 \\
             --log-fname {log_fname} \\
@@ -261,7 +261,7 @@ def test_slurm_scheduler_ipyparallel() -> None:
             --log-to-file &
 
         echo "Starting the Python script"
-        srun --ntasks 1 {s.python_executable} run_learner.py \\
+        srun --ntasks 1 {s.python_executable} {s.launcher} \\
             --profile ${{profile}} \\
             --n 23975 \\
             --log-fname {log_fname} \\
