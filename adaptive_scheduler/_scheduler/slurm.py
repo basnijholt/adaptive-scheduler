@@ -37,9 +37,6 @@ class SLURM(BaseScheduler):
     run_script : str
         Filename of the script that is run on the nodes. Inside this script we
         query the database and run the learner.
-    python_executable : str, default: `sys.executable`
-        The Python executable that should run the `run_script`. By default
-        it uses the same Python as where this function is called.
     log_folder : str, default: ""
         The folder in which to put the log-files.
     mpiexec_executable : str, optional
@@ -178,7 +175,7 @@ class SLURM(BaseScheduler):
                 --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.run_script} \\
+            srun --ntasks 1 {self.python_executable} {self.launcher} \\
             """,
         )
         custom = (f"    --profile {profile}", f"--n {cores}")

@@ -10,6 +10,7 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import adaptive_scheduler
 from adaptive_scheduler._scheduler.common import run_submit
 from adaptive_scheduler.utils import _progress, _RequireAttrsABCMeta
 
@@ -220,13 +221,13 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return (
             f"{self.mpiexec_executable}",
             f"-n {self.cores} {self.python_executable}",
-            f"-m mpi4py.futures {self.run_script}",
+            f"-m mpi4py.futures {self.launcher}",
         )
 
     def _dask_mpi(self) -> tuple[str, ...]:
         return (
             f"{self.mpiexec_executable}",
-            f"-n {self.cores} {self.python_executable} {self.run_script}",
+            f"-n {self.cores} {self.python_executable} {self.launcher}",
         )
 
     def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
@@ -253,7 +254,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
                 --log-to-file &
 
             echo "Starting the Python script"
-            {self.python_executable} {self.run_script} \\
+            {self.python_executable} {self.launcher} \\
             """,
         )
         custom = (f"    --profile {profile}", f"--n {self.cores-1}")
@@ -261,7 +262,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
 
     def _process_pool(self) -> tuple[str, ...]:
         return (
-            f"{self.python_executable} {self.run_script}",
+            f"{self.python_executable} {self.launcher}",
             f"-n {self.cores} {self.python_executable}",
         )
 
@@ -301,8 +302,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         return [log_fname.with_suffix(".out")]
 
     @property
-    def run_script(self) -> str:
-        return "adaptive-scheduler-launcher"
+    def launcher(self) -> Path:
+        return Path(adaptive_scheduler._server_support.launcher.__file__)
 
     @property
     def extra_scheduler(self) -> str:
@@ -336,7 +337,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         """Return the state of the scheduler."""
         return {
             "cores": self.cores,
-            "run_script": self.run_script,
+            "run_script": self.launcher,
             "python_executable": self.python_executable,
             "log_folder": self.log_folder,
             "mpiexec_executable": self.mpiexec_executable,
