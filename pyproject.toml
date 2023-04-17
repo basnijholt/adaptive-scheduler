@@ -63,7 +63,7 @@ content-type = "text/x-rst"
 file = "README.rst"
 
 [project.scripts]
-adaptive-scheduler-launcher = "adaptive_scheduler._server_support.launcher.__main__:main"
+adaptive-scheduler-launcher = "adaptive_scheduler._server_support.launcher:main"
 
 [tool.versioningit]
 
