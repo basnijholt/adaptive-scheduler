@@ -447,6 +447,10 @@ def test_at_least_adaptive_version() -> None:
     utils._at_least_adaptive_version(adaptive.__version__)
 
 
+def _is_key_in_global_cache(key: str | bytes) -> bool:
+    return key in utils._GLOBAL_CACHE
+
+
 @pytest.mark.parametrize("use_file", [True, False])
 def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     *,
@@ -475,10 +479,19 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
 
     # Run the wrapped function using ProcessPoolExecutor
     ex = ProcessPoolExecutor()
+
+    # Check if the global cache does not contain the key in the cache
+    fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
+    is_key = fut_is_key.result()
+    assert not is_key
+
     # Note that passing the loaded_function directly to ex.submit will not work!
     fut = ex.submit(wrapped_function, 4)
     result = fut.result()
 
     assert result == 16, f"Expected 16, but got {result}"  # noqa: PLR2004
 
-    # TODO: how to test whether the cache in the executor has the global variable now?
+    # Check if the global cache contains the key in the executor
+    fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
+    is_key = fut_is_key.result()
+    assert is_key
