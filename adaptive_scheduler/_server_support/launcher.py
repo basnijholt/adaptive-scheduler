@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import os
+
+if os.environ.get("EXECUTOR_TYPE") == "dask-mpi":
+    from dask_mpi import initialize
+
+    initialize()
+
 import argparse
 import os
 from contextlib import suppress
@@ -19,15 +26,10 @@ if TYPE_CHECKING:
     from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
-executor_type = os.environ.get("EXECUTOR_TYPE")
-if executor_type == "mpi4py":
+if os.environ.get("EXECUTOR_TYPE") == "mpi4py":
     from mpi4py import MPI
 
     MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
-elif executor_type == "dask-mpi":
-    from dask_mpi import initialize
-
-    initialize()
 
 
 def _get_executor(
