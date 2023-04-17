@@ -37,7 +37,8 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
         used (so probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
+        ``"loky"``, or ``"process-pool"``.
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
@@ -264,14 +265,14 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
             if self.cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
-                    " the rest of the cores for the engines, so use more than 1 core.",
+                    " the rest of the cores for the engines, so use more than 1 core."
                 )
                 raise ValueError(msg)
             start, opts = self._ipyparallel()
-        elif self.executor_type == "process-pool":
+        elif self.executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         else:
-            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py' or 'process-pool'."
+            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky' or 'process-pool'."
             raise NotImplementedError(msg)
         return start + self._expand_options(opts, name, options)
 

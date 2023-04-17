@@ -13,7 +13,9 @@ from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from typing import Any, Literal
+    from typing import Any
+
+    from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
 class SLURM(BaseScheduler):
@@ -41,7 +43,8 @@ class SLURM(BaseScheduler):
         used (so probably from ``conda``).
     executor_type : str, default: "mpi4py"
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
-        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``, or ``"process-pool"``.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
+        ``"loky"``, or ``"process-pool"``.
     num_threads : int, default 1
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
@@ -74,12 +77,7 @@ class SLURM(BaseScheduler):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: Literal[
-            "ipyparallel",
-            "dask-mpi",
-            "mpi4py",
-            "process-pool",
-        ] = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "mpi4py",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,

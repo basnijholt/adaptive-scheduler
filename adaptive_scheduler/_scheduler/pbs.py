@@ -16,7 +16,9 @@ from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:
-    from typing import Any, Literal
+    from typing import Any
+
+    from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
 class PBS(BaseScheduler):
@@ -39,12 +41,7 @@ class PBS(BaseScheduler):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: Literal[
-            "ipyparallel",
-            "dask-mpi",
-            "mpi4py",
-            "process-pool",
-        ] = "mpi4py",
+        executor_type: EXECUTOR_TYPES = "mpi4py",
         num_threads: int = 1,
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,

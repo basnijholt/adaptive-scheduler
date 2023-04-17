@@ -48,7 +48,7 @@ LOKY_START_METHODS = Literal[
     "forkserver",
 ]
 
-EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool"]
+EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool", "loky"]
 GoalTypes = Union[
     Callable[[adaptive.BaseLearner], bool],
     int,
@@ -1005,3 +1005,65 @@ def _serialize_to_b64(x: Any) -> str:
 def _deserialize_from_b64(x: str) -> Any:
     bytes_ = base64.b64decode(x)
     return cloudpickle.loads(bytes_)
+
+
+_GLOBAL_CACHE = {}
+
+
+class WrappedFunction:
+    """A wrapped to allow `cloudpickle.load`ed functions with `ProcessPoolExecutor`.
+
+    A wrapper around a serialized function that handles deserialization and
+    caches the deserialized function in the worker process.
+
+    Parameters
+    ----------
+    serialized_function : bytes
+        The serialized function, typically created using cloudpickle.dumps.
+
+    Attributes
+    ----------
+    _serialized_function : bytes
+        The serialized function.
+
+    Examples
+    --------
+    >>> import cloudpickle
+    >>> def square(x):
+    ...     return x * x
+    >>> serialized_function = cloudpickle.dumps(square)
+    >>> wrapped_function = WrappedFunction(serialized_function)
+    >>> wrapped_function(4)
+    16
+    """
+
+    def __init__(self, function: Callable[..., Any]) -> None:
+        """Initialize WrappedFunction."""
+        self._serialized_function = cloudpickle.dumps(function)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Call the serialized function.
+
+        Deserializes the function, caches it in the worker process, and
+        calls it with the provided arguments and keyword arguments.
+
+        Parameters
+        ----------
+        *args : tuple
+            Positional arguments to pass to the deserialized function.
+        **kwargs : dict
+            Keyword arguments to pass to the deserialized function.
+
+        Returns
+        -------
+        Any
+            The result of calling the deserialized function with the provided
+            arguments and keyword arguments.
+        """
+        if self._serialized_function not in _GLOBAL_CACHE:
+            _GLOBAL_CACHE[self._serialized_function] = cloudpickle.loads(
+                self._serialized_function,
+            )
+        deserialized_function = _GLOBAL_CACHE[self._serialized_function]
+
+        return deserialized_function(*args, **kwargs)

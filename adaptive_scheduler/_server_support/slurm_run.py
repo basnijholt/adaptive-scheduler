@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
     import adaptive
 
+    from adaptive_scheduler.utils import EXECUTOR_TYPES
+
 
 def slurm_run(
     learners: list[adaptive.BaseLearner],
@@ -47,12 +49,7 @@ def slurm_run(
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool = True,
-    executor_type: Literal[
-        "ipyparallel",
-        "dask-mpi",
-        "mpi4py",
-        "process-pool",
-    ] = "process-pool",
+    executor_type: EXECUTOR_TYPES = "process-pool",
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
 ) -> RunManager:
@@ -100,7 +97,7 @@ def slurm_run(
         The maximum number of simultaneous jobs.
     executor_type : str, default: "process-pool"
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
-        or "process-pool".
+        "loky", or "process-pool".
     exclusive : bool, default: True
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_run_manager_kwargs : dict, default: None

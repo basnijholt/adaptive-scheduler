@@ -19,6 +19,7 @@ from adaptive_scheduler import client_support
 from adaptive_scheduler.utils import (
     _DATAFRAME_FORMATS,
     LOKY_START_METHODS,
+    WrappedFunction,
     _deserialize_from_b64,
 )
 
@@ -51,11 +52,15 @@ def _get_executor(
         from distributed import Client
 
         return Client()
-    if executor_type == "process-pool":
+    if executor_type == "loky":
         import loky
 
         loky.backend.context.set_start_method(loky_start_method)
         return loky.get_reusable_executor(max_workers=n)
+    if executor_type == "process-pool":
+        from concurrent.futures import ProcessPoolExecutor
+
+        return ProcessPoolExecutor(max_workers=n)
     msg = f"Unknown executor_type: {executor_type}"
     raise ValueError(msg)
 
@@ -111,6 +116,9 @@ def main() -> None:
         args.job_id,
         args.name,
     )
+    if args.executor_type == "process-pool":
+        learner.function = WrappedFunction(learner.function)
+
     with suppress(Exception):
         learner.load(fname)
     npoints_start = learner.npoints
