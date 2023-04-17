@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, get_args
 
@@ -18,12 +19,6 @@ if TYPE_CHECKING:
     from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
-from dask_mpi import initialize
-from mpi4py import MPI
-
-initialize()
-
-
 def _get_executor(
     executor_type: EXECUTOR_TYPES,
     profile: str | None,
@@ -33,7 +28,6 @@ def _get_executor(
     if executor_type == "mpi4py":
         from mpi4py.futures import MPIPoolExecutor
 
-        MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
         return MPIPoolExecutor()
     if executor_type == "ipyparallel":
         from adaptive_scheduler.utils import connect_to_ipyparallel
@@ -53,6 +47,7 @@ def _get_executor(
     raise ValueError(msg)
 
 
+@functools.cache
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", action="store", type=str, default=None)
@@ -91,6 +86,17 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
     return parser.parse_args()
+
+
+args = _parse_args()
+if args.executor_type == "mpi4py":
+    from mpi4py import MPI
+
+    MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+elif args.executor_type == "dask-mpi":
+    from dask_mpi import initialize
+
+    initialize()
 
 
 def main() -> None:
