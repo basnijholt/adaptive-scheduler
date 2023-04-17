@@ -259,7 +259,7 @@ class BaseScheduler(metaclass=_RequireAttrsABCMeta):
     def _process_pool(self) -> tuple[str, ...]:
         return (
             f"{self.python_executable} {self.launcher}",
-            f"-n {self.cores} {self.python_executable}",
+            f"--n {self.cores}",
         )
 
     def _executor_specific(self, name: str, options: dict[str, Any]) -> str:

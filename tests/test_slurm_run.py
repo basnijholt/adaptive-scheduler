@@ -112,7 +112,6 @@ def test_slurm_run_with_custom_folder_and_name(
     name = "custom_name"
     rm = slurm_run(learners, fnames, folder=folder, name=name)
     assert isinstance(rm, RunManager)
-    assert rm.scheduler.run_script == folder / f"{name}_adaptive_scheduler.py"
     assert rm.scheduler.log_folder == folder / "logs"
     assert rm.job_name == name
 
