@@ -1023,11 +1023,11 @@ class WrappedFunction:
     function
         The function to be serialized and wrapped.
     mode
-        If "file", save the serialized function to a file and store the path
-        to the file in the global cache. This avoids sending the function
-        to all workers.
-        If "memory", store the serialized function in the object.
+        All of the options avoids sending the function to all workers.
         If "random_id", store the serialized function only in the global cache.
+        If "file", save the serialized function to a file and store the path
+        to the file in the global cache. Only keep the path in this object.
+        If "memory", store the full serialized function in the object.
 
     Attributes
     ----------
