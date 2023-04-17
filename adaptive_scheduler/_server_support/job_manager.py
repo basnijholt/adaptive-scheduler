@@ -61,7 +61,6 @@ class JobManager(BaseManager):
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
         # Command line launcher options
-        profile: str | None = None,
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "parquet",
         loky_start_method: LOKY_START_METHODS = "loky",
@@ -78,7 +77,6 @@ class JobManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
 
         # Command line launcher options
-        self.profile = profile
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
         self.loky_start_method = loky_start_method
@@ -105,18 +103,17 @@ class JobManager(BaseManager):
         base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode(
             "utf-8",
         )
+        n = self.scheduler.cores
+        if self.scheduler.executor_type == "ipyparallel":
+            n -= 1
         opts = {
+            "--n": n,
             "--url": self.database_manager.url,
             "--executor-type": self.scheduler.executor_type,
             "--log-interval": self.log_interval,
             "--save-interval": self.save_interval,
             "--serialized-runner-kwargs": base64_runner_kwargs,
         }
-        n = self.scheduler.cores
-        if self.scheduler.executor_type == "ipyparallel":
-            n -= 1
-            opts["--profile"] = "adaptive_scheduler_${job_id}"
-        opts["--n"] = n
         if self.scheduler.executor_type == "loky":
             opts["--loky-start-method"] = self.loky_start_method
         if self.save_dataframe:
