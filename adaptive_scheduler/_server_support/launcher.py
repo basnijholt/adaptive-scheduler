@@ -5,6 +5,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any, get_args
 
 import adaptive
+import cloudpickle
 
 from adaptive_scheduler import client_support
 from adaptive_scheduler.utils import (
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
 
 from dask_mpi import initialize
+from mpi4py import MPI
 
 initialize()
 
@@ -31,6 +33,7 @@ def _get_executor(
     if executor_type == "mpi4py":
         from mpi4py.futures import MPIPoolExecutor
 
+        MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
         return MPIPoolExecutor()
     if executor_type == "ipyparallel":
         from adaptive_scheduler.utils import connect_to_ipyparallel
