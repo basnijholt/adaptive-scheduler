@@ -108,7 +108,11 @@ class JobManager(BaseManager):
         base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode(
             "utf-8",
         )
+        n = self.scheduler.cores
+        if self.executor_type == "ipyparallel":
+            n -= 1
         opts = {
+            "--n": n,
             "--url": self.database_manager.url,
             "--executor-type": self.executor_type,
             "--log-interval": self.log_interval,
