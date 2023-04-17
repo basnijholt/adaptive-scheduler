@@ -1,9 +1,9 @@
----
 name: Release Drafter
 
-# yamllint disable-line rule:truthy
 on:
-  workflow_call:
+  push:
+    branches:
+      - main
 
 jobs:
   update_release_draft:
