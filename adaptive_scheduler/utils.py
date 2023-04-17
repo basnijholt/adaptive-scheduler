@@ -1,7 +1,6 @@
 """Utility functions for adaptive_scheduler."""
 from __future__ import annotations
 
-import abc
 import base64
 import functools
 import hashlib
@@ -59,18 +58,6 @@ GoalTypes = Union[
     timedelta,
     None,
 ]
-
-
-class _RequireAttrsABCMeta(abc.ABCMeta):
-    required_attributes: list[str] = []
-
-    def __call__(cls, *args: Any, **kwargs: Any) -> Any:
-        obj = super().__call__(*args, **kwargs)
-        for name in obj.required_attributes:
-            if not hasattr(obj, name):
-                msg = f"Required attribute {name} not set in __init__."
-                raise ValueError(msg)
-        return obj
 
 
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip | zip:
