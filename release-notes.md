@@ -18,5 +18,7 @@ Key features and improvements:
 *   Removed `run_script.py` and templated code; replaced with a launcher script, simplifying job script creation
 *   Updated README.md and documentation
 
+Check out this crazy diff since the last release: https://github.com/basnijholt/adaptive-scheduler/compare/v1.8.0...main
+
 Note that I haven't tagged a new release yet, so you will need to install from the `main` branch, with:
 `pip install -U https://github.com/basnijholt/adaptive-scheduler/archive/refs/heads/main.zip`
