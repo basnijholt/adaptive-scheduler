@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+from adaptive_scheduler.utils import _serialize_to_b64
+
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
-from .launcher import command_line_options
 
 if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -16,6 +17,42 @@ if TYPE_CHECKING:
     )
 
     from .database_manager import DatabaseManager
+
+
+def command_line_options(
+    *,
+    scheduler: BaseScheduler,
+    database_manager: DatabaseManager,
+    runner_kwargs: dict[str, Any] | None = None,
+    goal: GoalTypes,
+    log_interval: int | float = 60,
+    save_interval: int | float = 300,
+    save_dataframe: bool = True,
+    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+) -> dict[str, Any]:
+    """Return the command line options for the job_script."""
+    if runner_kwargs is None:
+        runner_kwargs = {}
+    runner_kwargs["goal"] = goal
+    base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
+    n = scheduler.cores
+    if scheduler.executor_type == "ipyparallel":
+        n -= 1
+
+    opts = {
+        "--n": n,
+        "--url": database_manager.url,
+        "--executor-type": scheduler.executor_type,
+        "--log-interval": log_interval,
+        "--save-interval": save_interval,
+        "--serialized-runner-kwargs": base64_runner_kwargs,
+    }
+    if scheduler.executor_type == "loky":
+        opts["--loky-start-method"] = scheduler.loky_start_method
+    if save_dataframe:
+        opts["--dataframe-format"] = dataframe_format
+        opts["--save-dataframe"] = None
+    return opts
 
 
 class JobManager(BaseManager):

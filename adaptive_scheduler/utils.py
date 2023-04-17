@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import abc
+import base64
 import functools
 import hashlib
 import inspect
@@ -994,3 +995,13 @@ def smart_goal(
         return lambda _: False
     msg = "goal must be `callable | int | float | None`"
     raise ValueError(msg)
+
+
+def _serialize_to_b64(x: Any) -> str:
+    serialized_x = cloudpickle.dumps(x)
+    return base64.b64encode(serialized_x).decode("utf-8")
+
+
+def _deserialize_from_b64(x: str) -> Any:
+    bytes_ = base64.b64decode(x)
+    return cloudpickle.loads(bytes_)
