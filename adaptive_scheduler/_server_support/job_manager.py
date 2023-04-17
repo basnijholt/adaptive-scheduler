@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from typing import TYPE_CHECKING, Any
 
 import cloudpickle
@@ -103,12 +104,16 @@ class JobManager(BaseManager):
         }
 
     def _command_line_options(self) -> dict[str, Any]:
+        serialized_runner_kwargs = cloudpickle.dumps(self.runner_kwargs or {})
+        base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode(
+            "utf-8",
+        )
         opts = {
             "--url": self.database_manager.url,
             "--executor-type": self.executor_type,
             "--log-interval": self.log_interval,
             "--save-interval": self.save_interval,
-            "--serialized-runner-kwargs": cloudpickle.dumps(self.runner_kwargs or {}),
+            "--serialized-runner-kwargs": base64_runner_kwargs,
         }
         if self.executor_type == "loky":
             opts["--loky-start-method"] = self.loky_start_method

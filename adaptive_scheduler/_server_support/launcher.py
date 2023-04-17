@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from contextlib import suppress
 from typing import Any, get_args
 
@@ -106,7 +107,9 @@ def main() -> None:
         args.loky_start_method,
     )
 
-    runner_kwargs = cloudpickle.loads(args.serialized_runner_kwargs)
+    kw_bytes = base64.b64decode(args.serialized_runner_kwargs.encode("utf-8"))
+    runner_kwargs = cloudpickle.loads(kw_bytes)
+
     runner_kwargs.setdefault("shutdown_executor", True)
     runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
 
