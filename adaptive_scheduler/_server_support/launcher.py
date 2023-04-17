@@ -21,6 +21,16 @@ if TYPE_CHECKING:
     from .database_manager import DatabaseManager
 
 
+def _serialize_to_b64(x: Any) -> str:
+    serialized_x = cloudpickle.dumps(x)
+    return base64.b64encode(serialized_x).decode("utf-8")
+
+
+def _deserialize_from_b64(x: str) -> Any:
+    bytes_ = base64.b64decode(x)
+    return cloudpickle.loads(bytes_)
+
+
 def command_line_options(
     *,
     scheduler: BaseScheduler,
@@ -36,8 +46,7 @@ def command_line_options(
     if runner_kwargs is None:
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
-    serialized_runner_kwargs = cloudpickle.dumps(runner_kwargs)
-    base64_runner_kwargs = base64.b64encode(serialized_runner_kwargs).decode("utf-8")
+    base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
     n = scheduler.cores
     if scheduler.executor_type == "ipyparallel":
         n -= 1
@@ -155,8 +164,7 @@ def main() -> None:
         args.loky_start_method,
     )
 
-    kw_bytes = base64.b64decode(args.serialized_runner_kwargs.encode("utf-8"))
-    runner_kwargs = cloudpickle.loads(kw_bytes)
+    runner_kwargs = _deserialize_from_b64(args.serialized_runner_kwargs)
 
     runner_kwargs.setdefault("shutdown_executor", True)
     runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
