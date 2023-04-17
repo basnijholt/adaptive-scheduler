@@ -33,7 +33,6 @@ def test_base_scheduler_job_script() -> None:
         export OMP_NUM_THREADS=1
         export NUMEXPR_NUM_THREADS=1
 
-
         echo 'YOLO'
 
         {s.mpiexec_executable} \\
