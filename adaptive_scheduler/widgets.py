@@ -392,7 +392,7 @@ def _timedelta_to_human_readable(
             period_label = period if value == 1 else f"{period}s"
             if short_format:
                 period_label = period_label[0]
-            result.append(f"{value} {period_label}")
+            result.append(f"{value:.0f} {period_label}")
 
     return ", ".join(result)
 
