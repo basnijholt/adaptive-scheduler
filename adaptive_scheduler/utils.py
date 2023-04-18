@@ -761,10 +761,13 @@ def cloudpickle_learners(
     *,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
-) -> None:
-    """Save a list of learners to disk using cloudpickle."""
-    _ensure_folder_exists(fnames)
+) -> int:
+    """Save a list of learners to disk using cloudpickle.
 
+    Returns the total size of the saved files in bytes.
+    """
+    _ensure_folder_exists(fnames)
+    total_filesize = 0
     for learner, fname in _progress(
         zip(learners, fnames),
         with_progress_bar,
@@ -776,6 +779,9 @@ def cloudpickle_learners(
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
             cloudpickle.dump(learner, f)
+        filesize = fname_learner.stat().st_size
+        total_filesize += filesize
+    return total_filesize
 
 
 def fname_to_dataframe(
