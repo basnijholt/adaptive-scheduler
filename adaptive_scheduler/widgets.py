@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from ipywidgets import VBox
 
     from adaptive_scheduler.server_support import RunManager
+    from adaptive_scheduler.utils import FnamesTypes
 
 
 def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
@@ -344,14 +346,51 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
     )
 
 
+def _bytes_to_human_readable(size_in_bytes: int) -> str:
+    if size_in_bytes < 0:
+        msg = "Size must be a positive integer"
+        raise ValueError(msg)
+
+    units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    index = 0
+    bytes_in_kb = 1024
+    while size_in_bytes >= bytes_in_kb and index < len(units) - 1:
+        size_in_bytes /= bytes_in_kb  # type: ignore[assignment]
+        index += 1
+
+    return f"{size_in_bytes:.2f} {units[index]}"
+
+
+def _total_size(fnames: FnamesTypes) -> int:
+    """Return the total size of the files in `fnames`."""
+
+    def flatten(
+        items: FnamesTypes,
+    ) -> Generator[str | Path, None, None]:
+        """Flatten nested lists."""
+        for item in items:
+            if isinstance(item, (list, tuple)):
+                yield from flatten(item)
+            else:
+                yield item
+
+    flattened_fnames = list(flatten(fnames))
+    return sum(
+        os.path.getsize(str(fname))
+        for fname in flattened_fnames
+        if os.path.isfile(fname)  # noqa: PTH113
+    )
+
+
 def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
-    run_manager.database_manager.update(queue)
+    dbm = run_manager.database_manager
+    dbm.update(queue)
     jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
     n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
     n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
-    n_done = sum(1 for job in run_manager.database_manager.as_dicts() if job["is_done"])
-    n_failed = len(run_manager.database_manager.failed)
+    n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
+    n_failed = len(dbm.failed)
     n_failed_color = "red" if n_failed > 0 else "black"
 
     status = run_manager.status()
@@ -372,6 +411,7 @@ def _info_html(run_manager: RunManager) -> str:
             f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
         )
 
+    data_size = _total_size(dbm.fnames)
     info = [
         ("status", f'<font color="{color}">{status}</font>'),
         ("# running jobs", f'<font color="blue">{n_running}</font>'),
@@ -379,7 +419,12 @@ def _info_html(run_manager: RunManager) -> str:
         ("# finished jobs", f'<font color="green">{n_done}</font>'),
         ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
         ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
+        ("total data size", _bytes_to_human_readable(data_size)),
     ]
+    if dbm._total_learner_size is not None:
+        info.append(
+            ("empty learner size", _bytes_to_human_readable(dbm._total_learner_size)),
+        )
 
     with suppress(Exception):
         df = run_manager.parse_log_files()

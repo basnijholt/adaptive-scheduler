@@ -67,19 +67,19 @@ async def test_log_info(
     """Test `client_support.log_info`."""
     # Prepare the runner and the learner
     learner = learners[0]
-    runner = adaptive.Runner(learner, npoints_goal=1000, shutdown_executor=True)
+    runner = adaptive.Runner(learner, shutdown_executor=True)
     learner.loss()  # populates loss cache and therefore latest_loss
 
     caplog.set_level(logging.INFO)
-    interval = 0.1
+    interval = 0.05
     log_task = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
-    for _ in range(50):
+    for _ in range(100):
         if log_task.done():
             assert log_task.exception() is None
         await asyncio.sleep(0.1)
-        if len(caplog.records) > 5:  # noqa: PLR2004
+        if len(caplog.records) > 10:  # noqa: PLR2004
             break
 
     # Filter the captured log records based on level and logger name
@@ -103,3 +103,5 @@ async def test_log_info(
 
     # Check if there were any "current status" log entries
     assert current_status_entries > 0
+
+    runner.cancel()

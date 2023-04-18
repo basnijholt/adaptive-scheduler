@@ -109,12 +109,18 @@ class DatabaseManager(BaseManager):
         self._last_reply: str | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
         self.failed: list[dict[str, Any]] = []
+        self._pickling_time: float | None = None
+        self._total_learner_size: int | None = None
 
     def _setup(self) -> None:
         if self.db_fname.exists() and not self.overwrite_db:
             return
         self.create_empty_db()
-        cloudpickle_learners(self.learners, self.fnames, with_progress_bar=True)
+        self._total_learner_size, self._pickling_time = cloudpickle_learners(
+            self.learners,
+            self.fnames,
+            with_progress_bar=True,
+        )
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
