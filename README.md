@@ -150,6 +150,8 @@ You don't actually ever have to leave the Jupyter notebook; take a look at the [
 
 ## :bar_chart: Flow diagram
 
+This is a flow diagram of the different objects.
+
 <!-- CODE:BASH:START -->
 <!-- d2 docs/diagram.d2 docs/source/_static/diagram.svg -->
 <!-- CODE:END -->
