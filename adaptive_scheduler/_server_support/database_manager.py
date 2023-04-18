@@ -236,6 +236,8 @@ class DatabaseManager(BaseManager):
                 # give the worker a job and send back the fname to the worker
                 fname = self._start_request(**kwargs)
                 if fname is None:
+                    # This should never happen because the _manage co-routine
+                    # should have stopped the workers before this happens.
                     msg = "No more learners to run in the database."
                     raise RuntimeError(msg)  # noqa: TRY301
                 log.debug("choose a fname", fname=fname, **kwargs)

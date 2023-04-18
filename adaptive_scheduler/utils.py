@@ -1147,5 +1147,5 @@ async def sleep_unless_task_is_done(
     # Cancel only the sleep_task if it's pending
     if sleep_task in pending:
         sleep_task.cancel()
-        return False
-    return True
+        return True  # means that the task is done
+    return False

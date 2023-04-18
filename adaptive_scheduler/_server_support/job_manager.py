@@ -194,7 +194,7 @@ class JobManager(BaseManager):
                         )
                         raise MaxRestartsReachedError(msg)  # noqa: TRY301
                     if await sleep_unless_task_is_done(
-                        self.database_manager,  # type: ignore[arg-type]
+                        self.database_manager.task,  # type: ignore[arg-type]
                         self.interval,
                     ):  # if true, we are done
                         return
@@ -213,7 +213,7 @@ class JobManager(BaseManager):
                 except Exception as e:  # noqa: BLE001
                     log.exception("got exception when starting a job", exception=str(e))
                     if await sleep_unless_task_is_done(
-                        self.database_manager,  # type: ignore[arg-type]
+                        self.database_manager.task,  # type: ignore[arg-type]
                         5,
                     ):  # if true, we are done
                         return

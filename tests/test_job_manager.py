@@ -87,11 +87,9 @@ async def test_job_manager_manage_cancelled_error(
     assert job_manager.task is not None
 
     timeout = 0.1
-    try:
-        await asyncio.wait_for(job_manager.task, timeout=timeout)
-    except asyncio.TimeoutError:
-        job_manager.task.cancel()
-
+    await asyncio.sleep(timeout)
+    job_manager.task.cancel()
+    await asyncio.sleep(timeout)
     with pytest.raises(asyncio.CancelledError):
         await job_manager.task
 

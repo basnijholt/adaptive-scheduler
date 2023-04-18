@@ -89,7 +89,7 @@ def get_learner(
         socket.setsockopt(zmq.SNDTIMEO, 300_000)  # timeout after 300s
         socket.connect(url)
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
-        log.info("sent start signal, going to wait 60s for a reply.")
+        log.info("sent start signal, going to wait 300s for a reply.")
         socket.setsockopt(zmq.RCVTIMEO, 300_000)  # timeout after 300s
         reply = socket.recv_serialized(_deserialize)
         log.info("got reply", reply=str(reply))
