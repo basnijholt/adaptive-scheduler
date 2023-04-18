@@ -506,6 +506,48 @@ def _info_html(run_manager: RunManager) -> str:
     """
 
 
+def queue_widget(run_manager: RunManager) -> VBox:
+    """Create a widget that shows the current queue and allows to update it."""
+    from IPython.display import display
+    from ipywidgets import Button, Checkbox, Layout, Output, VBox
+
+    def _update_queue_df(
+        me_only_checkbox: Checkbox,
+        output_widget: Output,
+    ) -> Callable[[Any], None]:
+        def on_click(_: Any) -> None:
+            with output_widget:
+                output_widget.clear_output()
+                queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
+                df = pd.DataFrame(queue).transpose()
+                display(df)
+
+        return on_click
+
+    # Create widgets
+    output_widget = Output()
+    me_only_checkbox = Checkbox(description="Only my jobs", indent=False, value=True)
+    update_button = Button(
+        description="Update queue",
+        button_style="info",
+        icon="refresh",
+    )
+
+    # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
+    update_function = _update_queue_df(me_only_checkbox, output_widget)
+    update_button.on_click(update_function)
+    me_only_checkbox.observe(update_function, names="value")
+
+    # Initialize the DataFrame display
+    update_function(None)
+
+    # Create a VBox and add the widgets to it
+    return VBox(
+        [me_only_checkbox, update_button, output_widget],
+        layout=Layout(border="solid 2px gray"),
+    )
+
+
 def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     """Display information about the `RunManager`.
 
@@ -549,12 +591,19 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         button_style="info",
         icon="book",
     )
+    show_queue_button = Button(
+        description="show queue",
+        layout=layout,
+        button_style="info",
+        icon="tasks",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": HBox([cancel_button], layout=layout),
         "cleanup": HBox([cleanup_button], layout=layout),
         "load learners": load_learners_button,
         "show logs": show_logs_button,
+        "show queue": show_queue_button,
     }
 
     def switch_to(
@@ -572,6 +621,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     box = VBox([])
 
     log_widget = None
+    _queue_widget = None
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -593,6 +643,20 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
             b.description = "show logs"
             box.children = box.children[:-1]
 
+    def toggle_queue(_: Any) -> None:
+        nonlocal _queue_widget
+
+        if _queue_widget is None:
+            _queue_widget = queue_widget(run_manager)
+
+        b = widgets["show queue"]
+        if b.description == "show queue":
+            b.description = "hide queue"
+            box.children = (*box.children, _queue_widget)
+        else:
+            b.description = "show queue"
+            box.children = box.children[:-1]
+
     def cancel() -> None:
         run_manager.cancel()
         update(None)
@@ -606,6 +670,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     widgets["update info"].on_click(update)
     widgets["show logs"].on_click(toggle_logs)
+    widgets["show queue"].on_click(toggle_queue)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
