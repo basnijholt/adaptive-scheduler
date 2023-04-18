@@ -10,6 +10,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 from adaptive_scheduler._scheduler.common import run_submit
 from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress
 
@@ -107,6 +109,11 @@ class BaseScheduler(abc.ABC):
         This function might return extra information about the job, however
         this is not used elsewhere in this package.
         """
+
+    def queue_df(self) -> pd.DataFrame:
+        """Get the current running and pending jobs as a `pandas.DataFrame`."""
+        queue = self.queue()
+        return pd.DataFrame(queue).transpose()
 
     @property
     def ext(self) -> str:
