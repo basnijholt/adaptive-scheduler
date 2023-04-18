@@ -6,7 +6,6 @@ channels:
 
 dependencies:
   - python
-  - mpi4py
   - mpich
   # from pyproject.toml
   - adaptive >= 0.14.1
