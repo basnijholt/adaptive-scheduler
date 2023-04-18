@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, List, Union
 
 import zmq
 import zmq.asyncio
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 ctx = zmq.asyncio.Context()
 
-FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
+FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
 
 
 class JobIDExistsInDbError(Exception):
