@@ -156,14 +156,17 @@ class JobManager(BaseManager):
         self.scheduler.write_job_script(name_prefix, options)
 
     async def _manage(self) -> None:
-        async def update_database_and_get_not_queued() -> tuple[set[str], set[str]]:
+        async def update_database_and_get_not_queued() -> tuple[
+            set[str],
+            set[str],
+        ] | None:
             running = self.scheduler.queue(me_only=True)
             self.database_manager.update(running)  # in case some jobs died
             queued = self._queued(running)  # running `job_name`s
             not_queued = set(self.job_names) - queued
             n_done = self.database_manager.n_done()
             if n_done == len(self.job_names):
-                return queued, set()
+                return None  # we are finished!
             n_to_schedule = max(0, len(not_queued) - n_done)
             return queued, set(list(not_queued)[:n_to_schedule])
 
@@ -171,6 +174,7 @@ class JobManager(BaseManager):
             not_queued: set[str],
             queued: set[str],
             ex: ThreadPoolExecutor,
+            loop: asyncio.AbstractEventLoop,
         ) -> None:
             num_jobs_to_start = min(
                 len(not_queued),
@@ -187,11 +191,11 @@ class JobManager(BaseManager):
         with ThreadPoolExecutor() as ex:  # TODO: use asyncio.to_thread when Python≥3.9
             while True:
                 try:
-                    queued, not_queued = await update_database_and_get_not_queued()
-                    if not not_queued:  # we are finished!
+                    update = await update_database_and_get_not_queued()
+                    if update is None:  # we are finished!
                         return
-                    await start_new_jobs(not_queued, queued, ex)
-
+                    queued, not_queued = update
+                    await start_new_jobs(not_queued, queued, ex, loop)
                     if self.n_started > self.max_job_starts:
                         msg = (
                             "Too many jobs failed, your Python code probably has a bug."
