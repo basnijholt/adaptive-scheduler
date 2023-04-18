@@ -34,7 +34,6 @@ dependencies:
   - pytest-asyncio
   - coverage
   - pytest-cov
-  - flaky
   # optional-dependencies: docs
   - myst-nb
   - sphinx_fontawesome

@@ -46,7 +46,7 @@ dependencies = [
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]
-test = ["pytest", "pytest-asyncio", "coverage", "pytest-cov", "flaky"]
+test = ["pytest", "pytest-asyncio", "coverage", "pytest-cov"]
 docs = [
     "myst-nb",
     "sphinx_fontawesome",

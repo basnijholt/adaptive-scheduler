@@ -34,4 +34,3 @@ dependencies:
   - pytest-asyncio
   - coverage
   - pytest-cov
-  - flaky
