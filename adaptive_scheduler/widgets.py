@@ -344,14 +344,30 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
     )
 
 
+def _bytes_to_human_readable(size_in_bytes: int) -> str:
+    if size_in_bytes < 0:
+        msg = "Size must be a positive integer"
+        raise ValueError(msg)
+
+    units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    index = 0
+    bytes_in_kb = 1024
+    while size_in_bytes >= bytes_in_kb and index < len(units) - 1:
+        size_in_bytes /= bytes_in_kb  # type: ignore[assignment]
+        index += 1
+
+    return f"{size_in_bytes:.2f} {units[index]}"
+
+
 def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
-    run_manager.database_manager.update(queue)
+    dbm = run_manager.database_manager
+    dbm.update(queue)
     jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
     n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
     n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
-    n_done = sum(1 for job in run_manager.database_manager.as_dicts() if job["is_done"])
-    n_failed = len(run_manager.database_manager.failed)
+    n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
+    n_failed = len(dbm.failed)
     n_failed_color = "red" if n_failed > 0 else "black"
 
     status = run_manager.status()
@@ -380,6 +396,10 @@ def _info_html(run_manager: RunManager) -> str:
         ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
         ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
     ]
+    if status != "not yet started":
+        assert dbm._total_learner_size is not None
+        n_bytes = dbm._total_learner_size // len(run_manager.learners)
+        info.append(("empty learner size", _bytes_to_human_readable(n_bytes)))
 
     with suppress(Exception):
         df = run_manager.parse_log_files()
