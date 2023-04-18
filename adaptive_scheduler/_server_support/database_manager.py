@@ -144,6 +144,9 @@ class DatabaseManager(BaseManager):
         with TinyDB(self.db_fname) as db:
             return db.count(entry.is_done == True)  # noqa: E712
 
+    def is_done(self) -> bool:
+        return self.n_done() == len(self.fnames)
+
     def create_empty_db(self) -> None:
         """Create an empty database.
 
@@ -280,5 +283,7 @@ class DatabaseManager(BaseManager):
                     assert self._last_request is not None  # for mypy
                     self._last_reply = self._dispatch(self._last_request)
                     await socket.send_serialized(self._last_reply, _serialize)
+                if self.is_done():
+                    break
         finally:
             socket.close()

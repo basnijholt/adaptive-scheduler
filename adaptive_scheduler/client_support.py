@@ -1,7 +1,6 @@
 """Client support for Adaptive Scheduler."""
 from __future__ import annotations
 
-import asyncio
 import datetime
 import logging
 import socket
@@ -19,9 +18,11 @@ from adaptive_scheduler.utils import (
     fname_to_learner,
     log_exception,
     maybe_lst,
+    wait_with_cancelled_sleep,
 )
 
 if TYPE_CHECKING:
+    import asyncio
     from pathlib import Path
 
     from adaptive import AsyncRunner, BaseLearner
@@ -182,7 +183,7 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         assert npoints_start is not None
         log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
-            await asyncio.sleep(interval)
+            await wait_with_cancelled_sleep(runner.task, interval)
             log_now(runner, npoints_start)
         log.info("runner status changed", status=runner.status())
         log.info("current status", **_get_log_entry(runner, npoints_start))

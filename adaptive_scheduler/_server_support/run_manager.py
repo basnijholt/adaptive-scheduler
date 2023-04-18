@@ -18,6 +18,7 @@ from adaptive_scheduler.utils import (
     load_dataframes,
     load_parallel,
     smart_goal,
+    wait_with_cancelled_sleep,
 )
 from adaptive_scheduler.widgets import info
 
@@ -28,7 +29,6 @@ from .common import (
     cleanup_scheduler_files,
     console,
     get_allowed_url,
-    wait_with_cancelled_sleep,
 )
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
