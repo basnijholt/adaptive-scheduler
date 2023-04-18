@@ -16,7 +16,7 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
@@ -1110,3 +1110,20 @@ class WrappedFunction:
 
         deserialized_function = _GLOBAL_CACHE[self._cache_key]
         return deserialized_function(*args, **kwargs)
+
+
+def _now() -> str:
+    """Return the current time as a string."""
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+def _from_datetime(dt: str) -> datetime:
+    """Return a string representation of a datetime object."""
+    return datetime.fromisoformat(dt)
+
+
+def _time_between(start: str, end: str) -> float:
+    """Return the time between two strings representing datetimes."""
+    dt_start = _from_datetime(start)
+    dt_end = _from_datetime(end)
+    return (dt_end - dt_start).total_seconds()

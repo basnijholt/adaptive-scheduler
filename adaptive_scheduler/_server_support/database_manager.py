@@ -12,6 +12,7 @@ from tinydb import Query, TinyDB
 
 from adaptive_scheduler.utils import (
     _deserialize,
+    _now,
     _serialize,
     cloudpickle_learners,
 )
@@ -104,6 +105,7 @@ class DatabaseManager(BaseManager):
             "log_fname": None,
             "job_name": None,
             "output_logs": [],
+            "start_time": None,
         }
 
         self._last_reply: str | Exception | None = None
@@ -192,6 +194,7 @@ class DatabaseManager(BaseManager):
                     "log_fname": log_fname,
                     "job_name": job_name,
                     "output_logs": _ensure_str(self._output_logs(job_id, job_name)),
+                    "start_time": _now(),
                 },
                 doc_ids=[entry.doc_id],
             )

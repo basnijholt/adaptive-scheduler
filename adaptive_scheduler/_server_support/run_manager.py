@@ -200,6 +200,7 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
+        self.start_time_dict: dict[str, str] = {}  # start_time -> request_time
 
         for key in ["max_fails_per_job", "max_simultaneous_jobs"]:
             if key in self.job_manager_kwargs:
@@ -301,7 +302,18 @@ class RunManager(BaseManager):
 
     async def _manage(self) -> None:
         assert self.job_manager.task is not None
-        await self.job_manager.task
+        while not self.job_manager.task.done():
+            current_len = len(self.job_manager._request_times)
+            if current_len > 0:
+                for job in self.database_manager.as_dicts():
+                    start_time = job["start_time"]
+                    if (
+                        start_time is not None
+                        and start_time not in self.start_time_dict
+                    ):
+                        request_time = self.job_manager._request_times.pop(0)
+                        self.start_time_dict[start_time] = request_time
+            await asyncio.sleep(5)
         self.end_time = time.time()
 
     def cancel(self) -> None:
