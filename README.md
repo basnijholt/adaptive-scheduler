@@ -154,7 +154,7 @@ You don't actually ever have to leave the Jupyter notebook; take a look at the [
 <!-- d2 docs/diagram.d2 docs/source/_static/diagram.svg -->
 <!-- CODE:END -->
 
-![](docs/source/_static/diagram.svg)
+![](./docs/source/_static/diagram.svg)
 
 ## :notebook: Jupyter Notebook Example
 
