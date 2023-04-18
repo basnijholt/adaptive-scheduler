@@ -320,10 +320,11 @@ class RunManager(BaseManager):
                         request_time = self.job_manager._request_times.pop(job_name)
                         self._job_start_time_dict[job_name, start_time] = request_time
 
-            await sleep_unless_task_is_done(
+            if await sleep_unless_task_is_done(
                 self.database_manager.task,  # type: ignore[arg-type]
                 5,
-            )
+            ):  # if true, we are done
+                break
 
         self.end_time = time.time()
 

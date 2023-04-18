@@ -183,7 +183,8 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         assert npoints_start is not None
         log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
-            await sleep_unless_task_is_done(runner.task, interval)
+            if await sleep_unless_task_is_done(runner.task, interval):
+                break
             log_now(runner, npoints_start)
         log.info("runner status changed", status=runner.status())
         log.info("current status", **_get_log_entry(runner, npoints_start))

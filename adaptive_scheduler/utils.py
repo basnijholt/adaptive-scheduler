@@ -1133,7 +1133,7 @@ def _time_between(start: str, end: str) -> float:
 async def sleep_unless_task_is_done(
     task: asyncio.Task,
     sleep_duration: int | float,
-) -> None:
+) -> bool:
     """Sleep for an interval, unless the task is done before then."""
     # Create the sleep task separately
     sleep_task = asyncio.create_task(asyncio.sleep(sleep_duration))
@@ -1147,3 +1147,5 @@ async def sleep_unless_task_is_done(
     # Cancel only the sleep_task if it's pending
     if sleep_task in pending:
         sleep_task.cancel()
+        return False
+    return True
