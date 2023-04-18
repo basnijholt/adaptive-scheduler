@@ -28,6 +28,7 @@ from .common import (
     cleanup_scheduler_files,
     console,
     get_allowed_url,
+    wait_with_cancelled_sleep,
 )
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
@@ -319,14 +320,7 @@ class RunManager(BaseManager):
                         request_time = self.job_manager._request_times.pop(job_name)
                         self._job_start_time_dict[job_name, start_time] = request_time
 
-            sleep_task = asyncio.create_task(asyncio.sleep(5))
-            _done, pending = await asyncio.wait(
-                [sleep_task, self.job_manager.task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            # Cancel only the sleep_task if it's pending
-            if sleep_task in pending:
-                sleep_task.cancel()
+            await wait_with_cancelled_sleep(self.job_manager.task, 5)
 
         self.end_time = time.time()
 

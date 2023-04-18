@@ -182,3 +182,21 @@ def _maybe_path(fname: str | Path | None) -> Path | None:  # pragma: no cover
     if isinstance(fname, str):
         return Path(fname)
     return fname
+
+
+async def wait_with_cancelled_sleep(
+    task: asyncio.Task,
+    sleep_duration: int | float,
+) -> None:
+    # Create the sleep task separately
+    sleep_task = asyncio.create_task(asyncio.sleep(sleep_duration))
+
+    # Await both the sleep_task and the passed task
+    done, pending = await asyncio.wait(
+        [sleep_task, task],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel only the sleep_task if it's pending
+    if sleep_task in pending:
+        sleep_task.cancel()
