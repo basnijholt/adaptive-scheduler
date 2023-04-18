@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pickle
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Union
 
@@ -117,13 +116,11 @@ class DatabaseManager(BaseManager):
         if self.db_fname.exists() and not self.overwrite_db:
             return
         self.create_empty_db()
-        t_start = time.time()
-        self._total_learner_size = cloudpickle_learners(
+        self._total_learner_size, self._pickling_time = cloudpickle_learners(
             self.learners,
             self.fnames,
             with_progress_bar=True,
         )
-        self._pickling_time = time.time() - t_start
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
