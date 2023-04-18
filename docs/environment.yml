@@ -41,3 +41,4 @@ dependencies:
   - furo
   - myst-parser
   - emoji
+  - pytest-flaky

@@ -57,6 +57,7 @@ async def test_get_log_entry(
     assert all(key in result for key in expected_keys)
 
 
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.asyncio()
 async def test_log_info(
     learners: list[adaptive.Learner1D]

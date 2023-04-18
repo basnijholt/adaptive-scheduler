@@ -54,6 +54,7 @@ docs = [
     "furo",
     "myst-parser",
     "emoji",
+    "pytest-flaky",
 ]
 [project.urls]
 homepage = "https://adaptive-scheduler.readthedocs.io/"
