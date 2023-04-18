@@ -147,6 +147,14 @@ And use `scheduler.cancel(job_names)` to cancel the jobs.
 
 You don't actually ever have to leave the Jupyter notebook; take a look at the [`example notebook`](https://github.com/basnijholt/adaptive-scheduler/blob/main/example.ipynb).
 
+## :bar_chart: Flow diagram
+
+<!-- CODE:BASH:START -->
+<!-- d2 docs/diagram.d2 docs/source/_static/diagram.svg -->
+<!-- CODE:END -->
+
+![](docs/source/_static/diagram.svg)
+
 ## :notebook: Jupyter Notebook Example
 
 See [`example.ipynb`](https://github.com/basnijholt/adaptive-scheduler/blob/main/example.ipynb).
