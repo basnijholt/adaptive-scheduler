@@ -155,39 +155,47 @@ class JobManager(BaseManager):
         )
         self.scheduler.write_job_script(name_prefix, options)
 
+    async def _update_database_and_get_not_queued(
+        self,
+    ) -> tuple[set[str], set[str]] | None:
+        running = self.scheduler.queue(me_only=True)
+        self.database_manager.update(running)  # in case some jobs died
+        queued = self._queued(running)  # running `job_name`s
+        not_queued = set(self.job_names) - queued
+        n_done = self.database_manager.n_done()
+        if n_done == len(self.job_names):
+            return None  # we are finished!
+        n_to_schedule = max(0, len(not_queued) - n_done)
+        return queued, set(list(not_queued)[:n_to_schedule])
+
+    async def _start_new_jobs(
+        self,
+        not_queued: set[str],
+        queued: set[str],
+        ex: ThreadPoolExecutor,
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        num_jobs_to_start = min(
+            len(not_queued),
+            self.max_simultaneous_jobs - len(queued),
+        )
+        for _ in range(num_jobs_to_start):
+            job_name = not_queued.pop()
+            queued.add(job_name)
+            await loop.run_in_executor(ex, self.scheduler.start_job, job_name)
+            self.n_started += 1
+            self._request_times[job_name] = _now()
+
     async def _manage(self) -> None:
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as ex:  # TODO: use asyncio.to_thread when Python≥3.9
             while True:
                 try:
-                    running = self.scheduler.queue(me_only=True)
-                    self.database_manager.update(running)  # in case some jobs died
-
-                    queued = self._queued(running)  # running `job_name`s
-                    not_queued = set(self.job_names) - queued
-
-                    n_done = self.database_manager.n_done()
-
-                    if n_done == len(self.job_names):
-                        # we are finished!
+                    update = await self._update_database_and_get_not_queued()
+                    if update is None:  # we are finished!
                         return
-
-                    n_to_schedule = max(0, len(not_queued) - n_done)
-                    not_queued = set(list(not_queued)[:n_to_schedule])
-                    while not_queued:
-                        # start new jobs
-                        if len(queued) < self.max_simultaneous_jobs:
-                            job_name = not_queued.pop()
-                            queued.add(job_name)
-                            await loop.run_in_executor(
-                                ex,
-                                self.scheduler.start_job,
-                                job_name,
-                            )
-                            self.n_started += 1
-                            self._request_times[job_name] = _now()
-                        else:
-                            break
+                    queued, not_queued = update
+                    await self._start_new_jobs(not_queued, queued, ex, loop)
                     if self.n_started > self.max_job_starts:
                         msg = (
                             "Too many jobs failed, your Python code probably has a bug."
