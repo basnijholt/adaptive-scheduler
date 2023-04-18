@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import platform
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
@@ -224,9 +225,18 @@ def test_lru_cached_callable() -> None:
 
     assert cached_function.cache_dict == {}
     assert cached_function(2) == 4  # noqa: PLR2004
-    assert cached_function.cache_dict == {"{'x': 2}": 4}
+    assert (
+        cached_function.cache_dict == {"{'x': 2}": 4}
+        if sys.version_info >= (3, 9)
+        else {"OrderedDict([('x', 2)])": 4}
+    )
+
     assert cached_function(3) == 9  # noqa: PLR2004
-    assert cached_function.cache_dict == {"{'x': 2}": 4, "{'x': 3}": 9}
+    assert (
+        cached_function.cache_dict == {"{'x': 2}": 4, "{'x': 3}": 9}
+        if sys.version_info >= (3, 9)
+        else {"OrderedDict([('x', 2)]): 4, OrderedDict([('x', 3)]): 9"}
+    )
 
 
 def test_smart_goal() -> None:

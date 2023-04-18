@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
 
 import adaptive
 import cloudpickle
@@ -39,7 +39,7 @@ console = Console()
 
 MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
-FnamesTypes = Union[list[str], list[Path], list[list[str]], list[list[Path]]]
+FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
 
 LOKY_START_METHODS = Literal[
     "loky",
@@ -723,12 +723,13 @@ def _prefix(
 def fname_to_learner_fname(
     fname: str | list[str] | Path | list[Path],
 ) -> Path:
-    """Convert a learner filename (data) to a filename is used to cloudpickle the learner."""
+    """Convert a learner filename (data) to a filename used to cloudpickle the learner."""
     prefix = _prefix(fname)
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return p.with_stem(f"{prefix}{p.stem}")
+    new_name = f"{prefix}{p.stem}{p.suffix}"
+    return p.with_name(new_name)
 
 
 def fname_to_learner(
@@ -787,7 +788,8 @@ def fname_to_dataframe(
     if isinstance(fname, (tuple, list)):
         fname = fname[0]
     p = Path(fname)
-    return p.with_stem(f"dataframe.{p.stem}").with_suffix(f".{format}")
+    new_name = f"dataframe.{p.stem}.{format}"
+    return p.with_name(new_name)
 
 
 def save_dataframe(
