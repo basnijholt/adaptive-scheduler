@@ -76,7 +76,8 @@ async def test_log_info(
 
     # Wait for some time to let the logging happen
     for _ in range(50):
-        assert log_task.exception() is None
+        if log_task.done():
+            assert log_task.exception() is None
         await asyncio.sleep(0.1)
         if len(caplog.records) > 5:  # noqa: PLR2004
             break
