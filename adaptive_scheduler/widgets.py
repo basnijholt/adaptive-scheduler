@@ -464,9 +464,8 @@ def _info_html(run_manager: RunManager) -> str:
 
     starting_times = run_manager.job_starting_times()
     if starting_times:
-        times = [t for _, t in starting_times]
-        mean_starting_time = np.mean(times)
-        std_starting_time = np.std(times)
+        mean_starting_time = _timedelta_to_human_readable(np.mean(starting_times))
+        std_starting_time = _timedelta_to_human_readable(np.std(starting_times))
         info.append(("avg job start time", mean_starting_time))
         info.append(("std job start time", std_starting_time))
 

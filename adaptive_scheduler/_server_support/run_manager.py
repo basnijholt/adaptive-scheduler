@@ -13,7 +13,6 @@ from adaptive_scheduler.utils import (
     LOKY_START_METHODS,
     GoalTypes,
     _at_least_adaptive_version,
-    _from_datetime,
     _time_between,
     fname_to_learner_fname,
     load_dataframes,
@@ -36,8 +35,6 @@ from .kill_manager import KillManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
-    import datetime
-
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -323,10 +320,10 @@ class RunManager(BaseManager):
             await asyncio.sleep(5)
         self.end_time = time.time()
 
-    def job_starting_times(self) -> list[tuple[datetime.datetime, float]]:
+    def job_starting_times(self) -> list[float]:
         """Return the starting times of the jobs."""
         return [
-            (_from_datetime(start), _time_between(end, start))
+            _time_between(end, start)
             for start, end in self._job_start_time_dict.items()
         ]
 
