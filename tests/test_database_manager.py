@@ -73,6 +73,7 @@ def test_database_manager_as_dicts(
             "job_name": None,
             "log_fname": None,
             "output_logs": [],
+            "start_time": None,
         },
         {
             "fname": _ensure_str(fnames[1]),
@@ -81,6 +82,7 @@ def test_database_manager_as_dicts(
             "job_name": None,
             "log_fname": None,
             "output_logs": [],
+            "start_time": None,
         },
     ]
 
