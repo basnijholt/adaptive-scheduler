@@ -67,15 +67,17 @@ async def test_log_info(
     """Test `client_support.log_info`."""
     # Prepare the runner and the learner
     learner = learners[0]
-    runner = adaptive.Runner(learner, npoints_goal=1000)
+    runner = adaptive.Runner(learner, npoints_goal=1000, shutdown_executor=True)
     learner.loss()  # populates loss cache and therefore latest_loss
 
     caplog.set_level(logging.INFO)
     interval = 0.1
-    _ = client_support.log_info(runner, interval)
+    log_task = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
     for _ in range(50):
+        if log_task.done():
+            assert log_task.exception() is None
         await asyncio.sleep(0.1)
         if len(caplog.records) > 5:  # noqa: PLR2004
             break
