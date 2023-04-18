@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from adaptive_scheduler.utils import (
     _remove_or_move_files,
+    sleep_unless_task_is_done,
 )
 
 from .base_manager import BaseManager
@@ -139,10 +140,19 @@ class KillManager(BaseManager):
                 )
                 self.cancelled.extend(to_cancel)
                 self.deleted.extend(to_delete)
-                await asyncio.sleep(self.interval)
+
+                if await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
+                    self.interval,
+                ):  # if true, we are done
+                    return
             except asyncio.CancelledError:
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except Exception as e:  # noqa: BLE001
                 log.exception("got exception in kill manager", exception=str(e))
-                await asyncio.sleep(self.interval)
+                if await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
+                    self.interval,
+                ):  # if true, we are done
+                    return

@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import adaptive
 import pytest
+import zmq
 from tinydb import Query, TinyDB
 
 from adaptive_scheduler._server_support.database_manager import (
@@ -16,9 +16,6 @@ from adaptive_scheduler._server_support.database_manager import (
 from adaptive_scheduler.utils import smart_goal
 
 from .helpers import send_message
-
-if TYPE_CHECKING:
-    import zmq
 
 
 @pytest.mark.asyncio()
@@ -224,9 +221,8 @@ async def test_database_manager_start_stop(
     reply = await send_message(socket, stop_message)
     assert reply is None
 
-    exception = await send_message(socket, start_message)
-    with pytest.raises(Exception, match="No more learners to run in the database"):
-        raise exception
+    with pytest.raises(zmq.error.Again, match="Resource temporarily unavailable"):
+        await send_message(socket, start_message)
 
 
 @pytest.mark.asyncio()

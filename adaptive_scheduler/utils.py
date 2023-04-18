@@ -1,6 +1,7 @@
 """Utility functions for adaptive_scheduler."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import functools
 import hashlib
@@ -1127,3 +1128,24 @@ def _time_between(start: str, end: str) -> float:
     dt_start = _from_datetime(start)
     dt_end = _from_datetime(end)
     return (dt_end - dt_start).total_seconds()
+
+
+async def sleep_unless_task_is_done(
+    task: asyncio.Task,
+    sleep_duration: int | float,
+) -> bool:
+    """Sleep for an interval, unless the task is done before then."""
+    # Create the sleep task separately
+    sleep_task = asyncio.create_task(asyncio.sleep(sleep_duration))
+
+    # Await both the sleep_task and the passed task
+    done, pending = await asyncio.wait(
+        [sleep_task, task],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel only the sleep_task if it's pending
+    if sleep_task in pending:
+        sleep_task.cancel()
+        return True  # means that the task is done
+    return False

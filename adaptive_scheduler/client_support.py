@@ -1,7 +1,6 @@
 """Client support for Adaptive Scheduler."""
 from __future__ import annotations
 
-import asyncio
 import datetime
 import logging
 import socket
@@ -19,9 +18,11 @@ from adaptive_scheduler.utils import (
     fname_to_learner,
     log_exception,
     maybe_lst,
+    sleep_unless_task_is_done,
 )
 
 if TYPE_CHECKING:
+    import asyncio
     from pathlib import Path
 
     from adaptive import AsyncRunner, BaseLearner
@@ -88,7 +89,7 @@ def get_learner(
         socket.setsockopt(zmq.SNDTIMEO, 300_000)  # timeout after 300s
         socket.connect(url)
         socket.send_serialized(("start", job_id, log_fname, job_name), _serialize)
-        log.info("sent start signal, going to wait 60s for a reply.")
+        log.info("sent start signal, going to wait 300s for a reply.")
         socket.setsockopt(zmq.RCVTIMEO, 300_000)  # timeout after 300s
         reply = socket.recv_serialized(_deserialize)
         log.info("got reply", reply=str(reply))
@@ -182,7 +183,8 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         assert npoints_start is not None
         log.info("npoints at start", npoints=npoints_start)
         while runner.status() == "running":
-            await asyncio.sleep(interval)
+            if await sleep_unless_task_is_done(runner.task, interval):
+                break
             log_now(runner, npoints_start)
         log.info("runner status changed", status=runner.status())
         log.info("current status", **_get_log_entry(runner, npoints_start))

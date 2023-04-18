@@ -17,6 +17,7 @@ from adaptive_scheduler.utils import (
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
+    sleep_unless_task_is_done,
     smart_goal,
 )
 from adaptive_scheduler.widgets import info
@@ -28,7 +29,6 @@ from .common import (
     cleanup_scheduler_files,
     console,
     get_allowed_url,
-    wait_with_cancelled_sleep,
 )
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
@@ -320,7 +320,11 @@ class RunManager(BaseManager):
                         request_time = self.job_manager._request_times.pop(job_name)
                         self._job_start_time_dict[job_name, start_time] = request_time
 
-            await wait_with_cancelled_sleep(self.job_manager.task, 5)
+            if await sleep_unless_task_is_done(
+                self.database_manager.task,  # type: ignore[arg-type]
+                5,
+            ):  # if true, we are done
+                break
 
         self.end_time = time.time()
 

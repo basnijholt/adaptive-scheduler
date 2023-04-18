@@ -122,6 +122,8 @@ PARTITIONS = {
 
 async def send_message(socket: zmq.asyncio.Socket, message: Any) -> Any:
     """Send a message to the socket and return the response."""
+    socket.setsockopt(zmq.SNDTIMEO, 100)  # timeout after 100ms
+    socket.setsockopt(zmq.RCVTIMEO, 100)  # timeout after 100ms
     await socket.send_serialized(message, _serialize)
     return await socket.recv_serialized(_deserialize)
 

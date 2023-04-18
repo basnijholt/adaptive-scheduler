@@ -4,7 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
-from adaptive_scheduler.utils import _now, _serialize_to_b64
+from adaptive_scheduler.utils import _now, _serialize_to_b64, sleep_unless_task_is_done
 
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
@@ -170,7 +170,6 @@ class JobManager(BaseManager):
 
                     if n_done == len(self.job_names):
                         # we are finished!
-                        self.database_manager.task.cancel()  # type: ignore[union-attr]
                         return
 
                     n_to_schedule = max(0, len(not_queued) - n_done)
@@ -194,7 +193,11 @@ class JobManager(BaseManager):
                             "Too many jobs failed, your Python code probably has a bug."
                         )
                         raise MaxRestartsReachedError(msg)  # noqa: TRY301
-                    await asyncio.sleep(self.interval)
+                    if await sleep_unless_task_is_done(
+                        self.database_manager.task,  # type: ignore[arg-type]
+                        self.interval,
+                    ):  # if true, we are done
+                        return
                 except asyncio.CancelledError:
                     log.info("task was cancelled because of a CancelledError")
                     raise
@@ -209,4 +212,8 @@ class JobManager(BaseManager):
                     raise
                 except Exception as e:  # noqa: BLE001
                     log.exception("got exception when starting a job", exception=str(e))
-                    await asyncio.sleep(5)
+                    if await sleep_unless_task_is_done(
+                        self.database_manager.task,  # type: ignore[arg-type]
+                        5,
+                    ):  # if true, we are done
+                        return
