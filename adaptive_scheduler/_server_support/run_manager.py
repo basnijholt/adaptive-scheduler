@@ -311,11 +311,14 @@ class RunManager(BaseManager):
             if current_len > 0:
                 for job in self.database_manager.as_dicts():
                     start_time = job["start_time"]
+                    job_name = job["job_name"]
+                    # Check if the job actually started (not cancelled)
                     if (
                         start_time is not None
+                        and job_name in self.job_manager._request_times
                         and start_time not in self._job_start_time_dict
                     ):
-                        request_time = self.job_manager._request_times.pop(0)
+                        request_time = self.job_manager._request_times.pop(job_name)
                         self._job_start_time_dict[start_time] = request_time
             await asyncio.sleep(5)
         self.end_time = time.time()

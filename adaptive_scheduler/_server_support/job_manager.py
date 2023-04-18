@@ -117,7 +117,7 @@ class JobManager(BaseManager):
 
         # Other attributes
         self.n_started = 0
-        self._request_times: list[str] = []
+        self._request_times: dict[str, str] = {}
 
         # Command line launcher options
         self.save_dataframe = save_dataframe
@@ -186,7 +186,7 @@ class JobManager(BaseManager):
                                 job_name,
                             )
                             self.n_started += 1
-                            self._request_times.append(_now())
+                            self._request_times[job_name] = _now()
                         else:
                             break
                     if self.n_started > self.max_job_starts:
