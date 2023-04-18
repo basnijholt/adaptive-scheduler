@@ -18,6 +18,7 @@ This is an asynchronous job scheduler for [`Adaptive`](https://github.com/python
 - [:dart: Design Goals](#dart-design-goals)
 - [:test_tube: How does it work?](#test_tube-how-does-it-work)
 - [:mag: But how does it *really* work?](#mag-but-how-does-it-really-work)
+- [:bar_chart: Flow diagram](#bar_chart-flow-diagram)
 - [:notebook: Jupyter Notebook Example](#notebook-jupyter-notebook-example)
 - [:computer: Installation](#computer-installation)
 - [:hammer_and_wrench: Development](#hammer_and_wrench-development)
@@ -146,6 +147,16 @@ Then, when the jobs have been running for a while, you can check `server_support
 And use `scheduler.cancel(job_names)` to cancel the jobs.
 
 You don't actually ever have to leave the Jupyter notebook; take a look at the [`example notebook`](https://github.com/basnijholt/adaptive-scheduler/blob/main/example.ipynb).
+
+## :bar_chart: Flow diagram
+
+This is a flow diagram of the different objects.
+
+<!-- CODE:BASH:START -->
+<!-- d2 docs/diagram.d2 docs/source/_static/diagram.svg -->
+<!-- CODE:END -->
+
+![](./docs/source/_static/diagram.svg)
 
 ## :notebook: Jupyter Notebook Example
 
