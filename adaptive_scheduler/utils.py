@@ -1130,7 +1130,7 @@ def _time_between(start: str, end: str) -> float:
     return (dt_end - dt_start).total_seconds()
 
 
-async def wait_with_cancelled_sleep(
+async def sleep_unless_task_is_done(
     task: asyncio.Task,
     sleep_duration: int | float,
 ) -> None:

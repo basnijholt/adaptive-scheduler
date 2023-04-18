@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from adaptive_scheduler.utils import (
     _remove_or_move_files,
-    wait_with_cancelled_sleep,
+    sleep_unless_task_is_done,
 )
 
 from .base_manager import BaseManager
@@ -141,9 +141,8 @@ class KillManager(BaseManager):
                 self.cancelled.extend(to_cancel)
                 self.deleted.extend(to_delete)
 
-                assert self.database_manager.task is not None  # mypy
-                await wait_with_cancelled_sleep(
-                    self.database_manager.task,
+                await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
                     self.interval,
                 )
             except asyncio.CancelledError:
@@ -151,8 +150,7 @@ class KillManager(BaseManager):
                 raise
             except Exception as e:  # noqa: BLE001
                 log.exception("got exception in kill manager", exception=str(e))
-                assert self.database_manager.task is not None  # mypy
-                await wait_with_cancelled_sleep(
-                    self.database_manager.task,
+                await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
                     self.interval,
                 )
