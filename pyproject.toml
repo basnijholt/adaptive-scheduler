@@ -30,6 +30,7 @@ dependencies = [
     "dill",
     "ipyparallel",
     "ipywidgets",
+    "itables",
     "jinja2",
     "loky",
     "numpy",
