@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections import defaultdict
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
@@ -520,7 +520,8 @@ def queue_widget(run_manager: RunManager) -> VBox:
                 output_widget.clear_output()
                 queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
                 df = pd.DataFrame(queue).transpose()
-                display(df)
+                with _display_all_dataframe_rows():
+                    display(df)
 
         return on_click
 
@@ -721,3 +722,14 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     box.children = (status, *tuple(widgets.values()))
     display(box)
+
+
+@contextmanager
+def _display_all_dataframe_rows() -> Generator[None, None, None]:
+    """Display all rows in a `pandas.DataFrame`."""
+    original_max_rows = pd.options.display.max_rows
+    pd.set_option("display.max_rows", None)
+    try:
+        yield
+    finally:
+        pd.set_option("display.max_rows", original_max_rows)
