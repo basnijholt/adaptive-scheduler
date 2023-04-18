@@ -58,7 +58,6 @@ async def test_get_log_entry(
 
 
 @pytest.mark.asyncio()
-@pytest.mark.flaky(reruns=3)
 async def test_log_info(
     learners: list[adaptive.Learner1D]
     | list[adaptive.BalancingLearner]
