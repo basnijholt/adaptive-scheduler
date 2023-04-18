@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from ipywidgets import VBox
 
     from adaptive_scheduler.server_support import RunManager
+    from adaptive_scheduler.utils import FnamesTypes
 
 
 def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
@@ -359,6 +361,23 @@ def _bytes_to_human_readable(size_in_bytes: int) -> str:
     return f"{size_in_bytes:.2f} {units[index]}"
 
 
+def _total_size(fnames: FnamesTypes) -> int:
+    """Return the total size of the files in `fnames`."""
+
+    def flatten(
+        items: FnamesTypes,
+    ) -> Generator[str | Path, None, None]:
+        """Flatten nested lists."""
+        for item in items:
+            if isinstance(item, (list, tuple)):
+                yield from flatten(item)
+            else:
+                yield item
+
+    flattened_fnames = list(flatten(fnames))
+    return sum(os.path.getsize(str(fname)) for fname in flattened_fnames)
+
+
 def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
     dbm = run_manager.database_manager
@@ -398,8 +417,13 @@ def _info_html(run_manager: RunManager) -> str:
     ]
     if status != "not yet started":
         assert dbm._total_learner_size is not None
-        n_bytes = dbm._total_learner_size // len(run_manager.learners)
-        info.append(("empty learner size", _bytes_to_human_readable(n_bytes)))
+        info.append(
+            ("empty learner size", _bytes_to_human_readable(dbm._total_learner_size)),
+        )
+        data_size = _total_size(dbm.fnames)
+        info.append(
+            ("total data size", _bytes_to_human_readable(data_size)),
+        )
 
     with suppress(Exception):
         df = run_manager.parse_log_files()
