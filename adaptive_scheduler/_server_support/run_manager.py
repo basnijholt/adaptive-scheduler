@@ -323,7 +323,6 @@ class RunManager(BaseManager):
             await asyncio.sleep(5)
         self.end_time = time.time()
 
-    @property
     def job_starting_times(self) -> list[tuple[datetime.datetime, float]]:
         """Return the starting times of the jobs."""
         return [
