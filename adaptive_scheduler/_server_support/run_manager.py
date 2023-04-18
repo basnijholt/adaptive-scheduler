@@ -204,7 +204,7 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
-        self._start_time_dict: dict[str, str] = {}  # start_time -> request_time
+        self._job_start_time_dict: dict[str, str] = {}  # start_time -> request_time
 
         for key in ["max_fails_per_job", "max_simultaneous_jobs"]:
             if key in self.job_manager_kwargs:
@@ -313,19 +313,19 @@ class RunManager(BaseManager):
                     start_time = job["start_time"]
                     if (
                         start_time is not None
-                        and start_time not in self._start_time_dict
+                        and start_time not in self._job_start_time_dict
                     ):
                         request_time = self.job_manager._request_times.pop(0)
-                        self._start_time_dict[start_time] = request_time
+                        self._job_start_time_dict[start_time] = request_time
             await asyncio.sleep(5)
         self.end_time = time.time()
 
     @property
-    def starting_times(self) -> list[tuple[datetime.datetime, float]]:
+    def job_starting_times(self) -> list[tuple[datetime.datetime, float]]:
         """Return the starting times of the jobs."""
         return [
             (_from_datetime(start), _time_between(end, start))
-            for start, end in self._start_time_dict.items()
+            for start, end in self._job_start_time_dict.items()
         ]
 
     def cancel(self) -> None:
