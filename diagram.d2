@@ -1,0 +1,83 @@
+Adaptive Scheduler: {
+  near: top-center
+  shape: text
+  style.font-size: 45
+}
+
+Cluster: {
+  icon: https://icons.terrastruct.com/tech/022-server.svg
+}
+Cluster.SLURM: {
+  shape: queue
+  icon: https://icons.terrastruct.com/azure%2FManagement%20and%20Governance%20Service%20Color%2FScheduler%20Job%20Collections.svg
+}
+
+Jupyter notebook: {
+  icon: https://icons.terrastruct.com/dev%2Fpython.svg
+  scheduler: BaseScheduler {
+    shape: class
+    queue(): "list[str, dict[str, Any]]"
+    "write_job_script(name: str, launcher_options: dict[str, Any])": None
+  }
+
+  dbmanager: DataBaseManager {
+    shape: class
+    url: str
+    db_fname: str
+    learners: "list[BaseLearner]"
+    fnames: "list[str | Path]"
+    scheduler: BaseScheduler
+    as_dicts(): "list[dict]"
+    is_done(): bool
+  }
+  jobmanager: JobManager {
+    shape: class
+    job_names: "list[str]"
+    interval: int
+    database_manager: DataBaseManager
+    scheduler: BaseScheduler
+  }
+  runmanager: RunManager {
+    shape: class
+    learners: "list[BaseLearner]"
+    fnames: "list[str | Path]"
+    job_manager: JobManager
+    scheduler: BaseScheduler
+    db_manager: DataBaseManager
+    start(): None
+  }
+
+  scheduler -> dbmanager: Talks to the SLURM and tracks the jobs that are running
+  scheduler -> jobmanager: Talks to the SLURM and DataBaseManager and submits new jobs
+
+  runmanager -> scheduler
+  runmanager -> dbmanager
+  runmanager -> jobmanager
+}
+
+Jupyter notebook.scheduler -> Cluster.SLURM: Talks to the SLURM cluster
+
+Worker node: {
+    icon: https://icons.terrastruct.com/azure%2FDatabases%20Service%20Color%2FVirtual%20Clusters.svg
+  launcher: "laucher.py" {
+    icon: https://icons.terrastruct.com/dev%2Fpython.svg
+    "zmq.Socket"
+    "adaptive.BalancingLearner"
+    learners
+    fnames
+    "adaptive.Runner" {
+        shape: class
+        learner: BaseLearner
+        fname: str | Path
+        start_periodic_saving(): asyncio.Task
+    }
+    "zmq.Socket" -> learners
+    "zmq.Socket" -> fnames
+    learners -> "adaptive.BalancingLearner"
+    fnames -> "adaptive.BalancingLearner"
+    "adaptive.BalancingLearner" -> "adaptive.Runner"
+  }
+}
+
+Worker node.launcher."zmq.Socket" -> Jupyter notebook.dbmanager: "gets learners and fnames"
+Worker node.launcher."zmq.Socket" <- Jupyter notebook.dbmanager: "tell_done()"
