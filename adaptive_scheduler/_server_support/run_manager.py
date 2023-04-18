@@ -13,6 +13,7 @@ from adaptive_scheduler.utils import (
     LOKY_START_METHODS,
     GoalTypes,
     _at_least_adaptive_version,
+    _time_between,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -27,6 +28,7 @@ from .common import (
     cleanup_scheduler_files,
     console,
     get_allowed_url,
+    wait_with_cancelled_sleep,
 )
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
@@ -200,6 +202,8 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
+        # Track job start times, (job_name, start_time) -> request_time
+        self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
         for key in ["max_fails_per_job", "max_simultaneous_jobs"]:
             if key in self.job_manager_kwargs:
@@ -301,8 +305,31 @@ class RunManager(BaseManager):
 
     async def _manage(self) -> None:
         assert self.job_manager.task is not None
-        await self.job_manager.task
+        while not self.job_manager.task.done():
+            current_len = len(self.job_manager._request_times)
+            if current_len > 0:
+                for job in self.database_manager.as_dicts():
+                    start_time = job["start_time"]
+                    job_name = job["job_name"]
+                    # Check if the job actually started (not cancelled)
+                    if (
+                        start_time is not None
+                        and job_name in self.job_manager._request_times
+                        and (job_name, start_time) not in self._job_start_time_dict
+                    ):
+                        request_time = self.job_manager._request_times.pop(job_name)
+                        self._job_start_time_dict[job_name, start_time] = request_time
+
+            await wait_with_cancelled_sleep(self.job_manager.task, 5)
+
         self.end_time = time.time()
+
+    def job_starting_times(self) -> list[float]:
+        """Return the starting times of the jobs."""
+        return [
+            _time_between(end, start)
+            for (_, start), end in self._job_start_time_dict.items()
+        ]
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""

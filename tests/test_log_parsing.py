@@ -88,6 +88,7 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
             "fname",
             "is_done",
             "output_logs",
+            "start_time",
             "state",
             "job_name",
         ]

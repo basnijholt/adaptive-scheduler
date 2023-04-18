@@ -4,7 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
-from adaptive_scheduler.utils import _serialize_to_b64
+from adaptive_scheduler.utils import _now, _serialize_to_b64
 
 from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
@@ -115,8 +115,9 @@ class JobManager(BaseManager):
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
 
-        # Counter
+        # Other attributes
         self.n_started = 0
+        self._request_times: dict[str, str] = {}
 
         # Command line launcher options
         self.save_dataframe = save_dataframe
@@ -185,6 +186,7 @@ class JobManager(BaseManager):
                                 job_name,
                             )
                             self.n_started += 1
+                            self._request_times[job_name] = _now()
                         else:
                             break
                     if self.n_started > self.max_job_starts:

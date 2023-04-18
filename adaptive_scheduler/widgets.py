@@ -361,6 +361,42 @@ def _bytes_to_human_readable(size_in_bytes: int) -> str:
     return f"{size_in_bytes:.2f} {units[index]}"
 
 
+def _timedelta_to_human_readable(
+    time_input: timedelta | int,
+    *,
+    short_format: bool = True,
+) -> str:
+    """Convert a timedelta object or an int (in seconds) into a human-readable format."""
+    if isinstance(time_input, timedelta):
+        total_seconds = int(time_input.total_seconds())
+    elif isinstance(time_input, (int, float)):
+        total_seconds = time_input
+    else:
+        msg = "Input must be a datetime.timedelta object or an int (in seconds)"
+        raise TypeError(msg)
+
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    periods = [
+        ("day", days),
+        ("hour", hours),
+        ("minute", minutes),
+        ("second", seconds),
+    ]
+
+    result = []
+    for period, value in periods:
+        if value:
+            period_label = period if value == 1 else f"{period}s"
+            if short_format:
+                period_label = period_label[0]
+            result.append(f"{value:.0f} {period_label}")
+
+    return ", ".join(result)
+
+
 def _total_size(fnames: FnamesTypes) -> int:
     """Return the total size of the files in `fnames`."""
 
@@ -425,6 +461,13 @@ def _info_html(run_manager: RunManager) -> str:
         info.append(
             ("empty learner size", _bytes_to_human_readable(dbm._total_learner_size)),
         )
+
+    starting_times = run_manager.job_starting_times()
+    if starting_times:
+        mean_starting_time = _timedelta_to_human_readable(np.mean(starting_times))
+        std_starting_time = _timedelta_to_human_readable(np.std(starting_times))
+        info.append(("avg job start time", mean_starting_time))
+        info.append(("std job start time", std_starting_time))
 
     with suppress(Exception):
         df = run_manager.parse_log_files()

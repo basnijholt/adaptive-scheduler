@@ -516,3 +516,13 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
     is_key = fut_is_key.result()
     assert is_key
+
+
+def test_datetime_now() -> None:
+    """Test `utils.datetime_now`."""
+    # Test that the functions are compatible and can roundtrip a datetime string
+    now = utils._now()
+    now_roundtripped = utils._from_datetime(now)
+
+    assert now == now_roundtripped.isoformat()
+    assert utils._time_between(now, now) == 0
