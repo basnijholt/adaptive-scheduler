@@ -375,7 +375,11 @@ def _total_size(fnames: FnamesTypes) -> int:
                 yield item
 
     flattened_fnames = list(flatten(fnames))
-    return sum(os.path.getsize(str(fname)) for fname in flattened_fnames)
+    return sum(
+        os.path.getsize(str(fname))
+        for fname in flattened_fnames
+        if os.path.isfile(fname)  # noqa: PTH113
+    )
 
 
 def _info_html(run_manager: RunManager) -> str:
@@ -407,6 +411,7 @@ def _info_html(run_manager: RunManager) -> str:
             f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
         )
 
+    data_size = _total_size(dbm.fnames)
     info = [
         ("status", f'<font color="{color}">{status}</font>'),
         ("# running jobs", f'<font color="blue">{n_running}</font>'),
@@ -414,15 +419,11 @@ def _info_html(run_manager: RunManager) -> str:
         ("# finished jobs", f'<font color="green">{n_done}</font>'),
         ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
         ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
+        ("total data size", _bytes_to_human_readable(data_size)),
     ]
-    if status != "not yet started":
-        assert dbm._total_learner_size is not None
+    if dbm._total_learner_size is not None:
         info.append(
             ("empty learner size", _bytes_to_human_readable(dbm._total_learner_size)),
-        )
-        data_size = _total_size(dbm.fnames)
-        info.append(
-            ("total data size", _bytes_to_human_readable(data_size)),
         )
 
     with suppress(Exception):
