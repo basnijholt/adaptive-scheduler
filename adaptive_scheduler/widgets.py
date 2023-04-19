@@ -188,7 +188,7 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
                     run_manager,
                     only_running=only_running_checkbox.value,
                 )
-            if not contains_text.value.strip():
+            if contains_text.value.strip():
                 fnames = _files_that_contain(fnames, contains_text.value.strip())
             sorted_fnames = _sort_fnames(sort_by_dropdown.value, run_manager, fnames)
             fname_dropdown.options = sorted_fnames
