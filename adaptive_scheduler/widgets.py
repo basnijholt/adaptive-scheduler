@@ -683,6 +683,11 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
+    def remove_widget(box: VBox, widget_to_remove: Widget) -> None:
+        box.children = tuple(
+            child for child in box.children if child != widget_to_remove
+        )
+
     def toggle_logs(_: Any) -> None:
         nonlocal log_widget
 
@@ -695,7 +700,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
             box.children = (*box.children, log_widget)
         else:
             b.description = "show logs"
-            box.children = box.children[:-1]
+            remove_widget(box, log_widget)
 
     def toggle_queue(_: Any) -> None:
         nonlocal _queue_widget
@@ -709,7 +714,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
             box.children = (*box.children, _queue_widget)
         else:
             b.description = "show queue"
-            box.children = box.children[:-1]
+            remove_widget(box, _queue_widget)
 
     def toggle_db(_: Any) -> None:
         nonlocal _db_widget
@@ -723,7 +728,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
             box.children = (*box.children, _db_widget)
         else:
             b.description = "show database"
-            box.children = box.children[:-1]
+            remove_widget(box, _db_widget)
 
     def cancel() -> None:
         run_manager.cancel()
