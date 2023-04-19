@@ -101,15 +101,17 @@ def _sort_fnames(
             return -1, fname
         return float(x), fname
 
+    def _vec_timedelta(ts: pd.Timestamp) -> str:
+        now = np.datetime64(datetime.now())  # noqa: DTZ005
+        dt = np.timedelta64(now - ts, "s")
+        return f"{dt} ago"
+
     mapping = {
         "Alphabetical": (None, lambda _: ""),
         "CPU %": ("cpu_usage", lambda x: f"{x:.1f}%"),
         "Mem %": ("mem_usage", lambda x: f"{x:.1f}%"),
-        "Last editted": (
-            "timestamp",
-            lambda x: f"{(np.datetime64(datetime.now()) - x) / 1e9}s ago",  # noqa: DTZ005
-        ),
-        "Loss": ("latest_loss", lambda x: f"{x:.2f}"),
+        "Last editted": ("timestamp", _vec_timedelta),
+        "Loss": ("latest_loss", lambda x: f"{x:.2e}"),
         "npoints": ("npoints", lambda x: f"{x} pnts"),
         "Elapsed time": ("elapsed_time", lambda x: f"{x / 1e9}s"),
     }
