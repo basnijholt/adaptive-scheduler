@@ -22,6 +22,7 @@ from .common import log
 
 if TYPE_CHECKING:
     import adaptive
+    import pandas as pd
 
     from adaptive_scheduler.scheduler import BaseScheduler
 
@@ -140,11 +141,13 @@ class DatabaseManager(BaseManager):
             db.update({"job_id": None, "job_name": None}, doc_ids=doc_ids)
 
     def n_done(self) -> int:
+        """Return the number of jobs that are done."""
         entry = Query()
         with TinyDB(self.db_fname) as db:
             return db.count(entry.is_done == True)  # noqa: E712
 
     def is_done(self) -> bool:
+        """Return True if all jobs are done."""
         return self.n_done() == len(self.fnames)
 
     def create_empty_db(self) -> None:
@@ -161,8 +164,15 @@ class DatabaseManager(BaseManager):
             db.insert_multiple(entries)
 
     def as_dicts(self) -> list[dict[str, str]]:
+        """Return the database as a list of dictionaries."""
         with TinyDB(self.db_fname) as db:
             return db.all()
+
+    def as_df(self) -> pd.DataFrame:
+        """Return the database as a `pandas.DataFrame`."""
+        import pandas as pd
+
+        return pd.DataFrame(self.as_dicts())
 
     def _output_logs(self, job_id: str, job_name: str) -> list[Path]:
         job_id = self.scheduler.sanatize_job_id(job_id)

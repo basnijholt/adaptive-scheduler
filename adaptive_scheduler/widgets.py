@@ -564,6 +564,60 @@ def queue_widget(run_manager: RunManager) -> VBox:
     )
 
 
+def database_widget(run_manager: RunManager) -> VBox:
+    """Create a widget that shows the current database and allows to update it."""
+    from IPython.display import display
+    from ipywidgets import Button, Checkbox, Layout, Output, VBox
+    from itables import show
+
+    def _update_database_df(
+        use_itables_checkbox: Checkbox,
+        output_widget: Output,
+    ) -> Callable[[Any], None]:
+        def on_click(_: Any) -> None:
+            with output_widget:
+                output_widget.clear_output()
+                database = run_manager.database_manager.as_df()
+                df = pd.DataFrame(database).transpose()
+                if use_itables_checkbox.value:
+                    show(df)
+                else:
+                    with _display_all_dataframe_rows():
+                        display(df)
+
+        return on_click
+
+    # Create widgets
+    output_widget = Output()
+    use_itables_checkbox = Checkbox(
+        description="Use itables (interactive)",
+        indent=False,
+        value=False,
+    )
+    update_button = Button(
+        description="Update database",
+        button_style="info",
+        icon="refresh",
+    )
+
+    # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
+    update_function = _update_database_df(
+        use_itables_checkbox,
+        output_widget,
+    )
+    update_button.on_click(update_function)
+    use_itables_checkbox.observe(update_function, names="value")
+
+    # Initialize the DataFrame display
+    update_function(None)
+
+    # Create a VBox and add the widgets to it
+    return VBox(
+        [use_itables_checkbox, update_button, output_widget],
+        layout=Layout(border="solid 2px gray"),
+    )
+
+
 def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     """Display information about the `RunManager`.
 
@@ -613,6 +667,12 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         button_style="info",
         icon="tasks",
     )
+    show_db_button = Button(
+        description="show database",
+        layout=layout,
+        button_style="info",
+        icon="tasks",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": HBox([cancel_button], layout=layout),
@@ -620,6 +680,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         "load learners": load_learners_button,
         "show logs": show_logs_button,
         "show queue": show_queue_button,
+        "show database": show_db_button,
     }
 
     def switch_to(
@@ -638,6 +699,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     log_widget = None
     _queue_widget = None
+    _db_widget = None
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -673,6 +735,20 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
             b.description = "show queue"
             box.children = box.children[:-1]
 
+    def toggle_db(_: Any) -> None:
+        nonlocal _db_widget
+
+        if _db_widget is None:
+            _db_widget = queue_widget(run_manager)
+
+        b = widgets["show queue"]
+        if b.description == "show queue":
+            b.description = "hide queue"
+            box.children = (*box.children, _db_widget)
+        else:
+            b.description = "show queue"
+            box.children = box.children[:-1]
+
     def cancel() -> None:
         run_manager.cancel()
         update(None)
@@ -687,6 +763,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     widgets["update info"].on_click(update)
     widgets["show logs"].on_click(toggle_logs)
     widgets["show queue"].on_click(toggle_queue)
+    widgets["show database"].on_click(toggle_db)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
