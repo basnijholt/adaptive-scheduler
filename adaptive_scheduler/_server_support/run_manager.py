@@ -7,6 +7,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+import cloudpickle
 import pandas as pd
 
 from adaptive_scheduler.utils import (
@@ -14,6 +15,7 @@ from adaptive_scheduler.utils import (
     GoalTypes,
     _at_least_adaptive_version,
     _time_between,
+    fname_to_learner,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -466,6 +468,44 @@ class RunManager(BaseManager):
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
+
+    def save(self, store_fname: str | Path, *, overwrite: bool = True) -> None:
+        """Store the `RunManager` to a file.
+
+        Parameters
+        ----------
+        store_fname : str or Path
+            The filename to store the `RunManager` to.
+        overwrite : bool, default: False
+            If True, overwrite the file if it already exists.
+
+        """
+        keys = self.__dict__.keys() - {
+            "ioloop",  # set in super().__init__()
+            "learners",  # we can load them from the filenames
+            # below are set in __init__
+            "database_manager",
+            "scheduler",
+            "job_manager",
+            "kill_manager",
+        }
+        to_save = {k: self.__dict__[k] for k in keys if not k.startswith("_")}
+        store_fname = Path(store_fname)
+        if store_fname.exists() and not overwrite:
+            msg = f"{store_fname} already exists."
+            raise FileExistsError(msg)
+        with store_fname.open("wb") as f:
+            cloudpickle.dump(to_save, f)
+
+    @classmethod
+    def load(cls: type[RunManager], store_fname: str | Path) -> RunManager:
+        """Load a `RunManager` from a file."""
+        store_fname = Path(store_fname)
+        with store_fname.open("rb") as f:
+            to_load = cloudpickle.load(f)
+        to_load["learners"] = [fname_to_learner(fn) for fn in to_load["fnames"]]
+        to_load["overwrite_db"] = False
+        return cls(**to_load)
 
 
 async def _wait_for_finished(
