@@ -485,8 +485,8 @@ class RunManager(BaseManager):
             "task",  # set in super().start()
             "learners",  # we can load them from the filenames
             # below are set in __init__
+            "job_names",
             "database_manager",
-            "scheduler",
             "job_manager",
             "kill_manager",
         }
@@ -506,7 +506,12 @@ class RunManager(BaseManager):
             to_load = cloudpickle.load(f)
         to_load["learners"] = [fname_to_learner(fn) for fn in to_load["fnames"]]
         to_load["overwrite_db"] = False
-        return cls(**to_load)
+        start_time = to_load.pop("start_time")
+        end_time = to_load.pop("end_time")
+        rm = cls(**to_load)
+        rm.start_time = start_time
+        rm.end_time = end_time
+        return rm
 
 
 async def _wait_for_finished(
