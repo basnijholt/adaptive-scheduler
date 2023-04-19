@@ -16,7 +16,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from typing import Any, Callable
 
-    from ipywidgets import VBox
+    from ipywidgets import VBox, Widget
 
     from adaptive_scheduler.server_support import RunManager
     from adaptive_scheduler.utils import FnamesTypes
@@ -506,23 +506,26 @@ def _info_html(run_manager: RunManager) -> str:
     """
 
 
-def queue_widget(run_manager: RunManager) -> VBox:
-    """Create a widget that shows the current queue and allows to update it."""
+def _create_widget(
+    data_provider: Callable[[], pd.DataFrame],
+    update_button_text: str,
+    *,
+    use_itables_checkbox: bool = False,
+    additional_widgets: list[Widget] | None = None,
+) -> VBox:
     from IPython.display import display
     from ipywidgets import Button, Checkbox, Layout, Output, VBox
     from itables import show
 
-    def _update_queue_df(
-        me_only_checkbox: Checkbox,
-        use_itables_checkbox: Checkbox,
+    def _update_data_df(
+        itables_checkbox: Checkbox,
         output_widget: Output,
     ) -> Callable[[Any], None]:
         def on_click(_: Any) -> None:
             with output_widget:
                 output_widget.clear_output()
-                queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
-                df = pd.DataFrame(queue).transpose()
-                if use_itables_checkbox.value:
+                df = data_provider()
+                if itables_checkbox.value:
                     show(df)
                 else:
                     with _display_all_dataframe_rows():
@@ -532,90 +535,63 @@ def queue_widget(run_manager: RunManager) -> VBox:
 
     # Create widgets
     output_widget = Output()
-    me_only_checkbox = Checkbox(description="Only my jobs", indent=False, value=True)
-    use_itables_checkbox = Checkbox(
+    itables_checkbox = Checkbox(
         description="Use itables (interactive)",
         indent=False,
-        value=False,
+        value=use_itables_checkbox,
     )
     update_button = Button(
-        description="Update queue",
+        description=update_button_text,
         button_style="info",
         icon="refresh",
     )
 
     # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
-    update_function = _update_queue_df(
-        me_only_checkbox,
-        use_itables_checkbox,
+    update_function = _update_data_df(
+        itables_checkbox,
         output_widget,
     )
     update_button.on_click(update_function)
-    me_only_checkbox.observe(update_function, names="value")
-    use_itables_checkbox.observe(update_function, names="value")
+    itables_checkbox.observe(update_function, names="value")
 
     # Initialize the DataFrame display
     update_function(None)
 
     # Create a VBox and add the widgets to it
+    widget_list = [itables_checkbox, update_button, output_widget]
+    if additional_widgets:
+        widget_list = additional_widgets + widget_list
+
     return VBox(
-        [me_only_checkbox, use_itables_checkbox, update_button, output_widget],
+        widget_list,
         layout=Layout(border="solid 2px gray"),
+    )
+
+
+def queue_widget(run_manager: RunManager) -> VBox:
+    """Create a widget that shows the current queue and allows to update it."""
+    from ipywidgets import Checkbox
+
+    me_only_checkbox = Checkbox(description="Only my jobs", indent=False, value=True)
+
+    def get_queue_df() -> pd.DataFrame:
+        queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
+        return pd.DataFrame(queue).transpose()
+
+    return _create_widget(
+        get_queue_df,
+        "Update queue",
+        additional_widgets=[me_only_checkbox],
     )
 
 
 def database_widget(run_manager: RunManager) -> VBox:
     """Create a widget that shows the current database and allows to update it."""
-    from IPython.display import display
-    from ipywidgets import Button, Checkbox, Layout, Output, VBox
-    from itables import show
 
-    def _update_database_df(
-        use_itables_checkbox: Checkbox,
-        output_widget: Output,
-    ) -> Callable[[Any], None]:
-        def on_click(_: Any) -> None:
-            with output_widget:
-                output_widget.clear_output()
-                database = run_manager.database_manager.as_df()
-                df = pd.DataFrame(database)
-                if use_itables_checkbox.value:
-                    show(df)
-                else:
-                    with _display_all_dataframe_rows():
-                        display(df)
+    def get_database_df() -> pd.DataFrame:
+        return run_manager.database_manager.as_df()
 
-        return on_click
-
-    # Create widgets
-    output_widget = Output()
-    use_itables_checkbox = Checkbox(
-        description="Use itables (interactive)",
-        indent=False,
-        value=False,
-    )
-    update_button = Button(
-        description="Update database",
-        button_style="info",
-        icon="refresh",
-    )
-
-    # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
-    update_function = _update_database_df(
-        use_itables_checkbox,
-        output_widget,
-    )
-    update_button.on_click(update_function)
-    use_itables_checkbox.observe(update_function, names="value")
-
-    # Initialize the DataFrame display
-    update_function(None)
-
-    # Create a VBox and add the widgets to it
-    return VBox(
-        [use_itables_checkbox, update_button, output_widget],
-        layout=Layout(border="solid 2px gray"),
-    )
+    return _create_widget(get_database_df, "Update database")
 
 
 def info(run_manager: RunManager) -> None:  # noqa: PLR0915
@@ -741,12 +717,12 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         if _db_widget is None:
             _db_widget = database_widget(run_manager)
 
-        b = widgets["show queue"]
-        if b.description == "show queue":
-            b.description = "hide queue"
+        b = widgets["show database"]
+        if b.description == "show database":
+            b.description = "hide database"
             box.children = (*box.children, _db_widget)
         else:
-            b.description = "show queue"
+            b.description = "show database"
             box.children = box.children[:-1]
 
     def cancel() -> None:
