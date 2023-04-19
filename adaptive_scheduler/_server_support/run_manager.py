@@ -481,7 +481,8 @@ class RunManager(BaseManager):
 
         """
         keys = self.__dict__.keys() - {
-            "ioloop",  # set in super().__init__()
+            "ioloop",  # set in super().start()
+            "task",  # set in super().start()
             "learners",  # we can load them from the filenames
             # below are set in __init__
             "database_manager",
