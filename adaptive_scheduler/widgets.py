@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     import ipywidgets as ipyw
 
+    from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.server_support import RunManager
     from adaptive_scheduler.utils import FnamesTypes
 
@@ -573,7 +574,7 @@ def _create_widget(
     return (vbox, update_function)
 
 
-def queue_widget(run_manager: RunManager) -> ipyw.VBox:
+def queue_widget(scheduler: BaseScheduler) -> ipyw.VBox:
     """Create a widget that shows the current queue and allows to update it."""
     import ipywidgets as ipyw
 
@@ -584,7 +585,7 @@ def queue_widget(run_manager: RunManager) -> ipyw.VBox:
     )
 
     def get_queue_df() -> pd.DataFrame:
-        queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
+        queue = scheduler.queue(me_only=me_only_checkbox.value)
         return pd.DataFrame(queue).transpose()
 
     # Get both the VBox and the update_function from _create_widget
@@ -611,37 +612,36 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
     return vbox
 
 
-def _remove_widget(box: ipyw.VBox, widget_to_remove: ipyw.Widget) -> None:
-    box.children = tuple(child for child in box.children if child != widget_to_remove)
-
-
 def _toggle_widget(
-    box: ipyw.VBox,
     widget_key: str,
     widget_dict: dict[str, ipyw.Widget | str],
-    state_dict: dict[str, dict[str, Any]],
+    toggle_dict: dict[str, dict[str, Any]],
 ) -> Callable[[Any], None]:
     import ipywidgets as ipyw
+    from IPython.display import display
 
     def on_click(_: Any) -> None:
-        widget = state_dict[widget_key]["widget"]
+        widget = toggle_dict[widget_key]["widget"]
         if widget is None:
-            widget = state_dict[widget_key]["init_func"]()
-            state_dict[widget_key]["widget"] = widget
+            widget = toggle_dict[widget_key]["init_func"]()
+            toggle_dict[widget_key]["widget"] = widget
 
         button = widget_dict[widget_key]
         assert isinstance(button, ipyw.Button)
-        show_description = state_dict[widget_key]["show_description"]
-        hide_description = state_dict[widget_key]["hide_description"]
-
+        show_description = toggle_dict[widget_key]["show_description"]
+        hide_description = toggle_dict[widget_key]["hide_description"]
+        output = toggle_dict[widget_key]["output"]
         if button.description == show_description:
             button.description = hide_description
             button.button_style = "warning"
-            box.children = (*box.children, widget)
+            with output:
+                output.clear_output()
+                display(widget)
         else:
             button.description = show_description
             button.button_style = "info"
-            _remove_widget(box, widget)
+            with output:
+                output.clear_output()
 
     return on_click
 
@@ -752,32 +752,33 @@ def info(run_manager: RunManager) -> None:
         "show database": show_db_button,
     }
 
-    box = ipyw.VBox([])
-
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
 
     def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
-    state_dict = {
+    toggle_dict = {
         "show logs": {
             "widget": None,
             "init_func": lambda: log_explorer(run_manager),
             "show_description": "show logs",
             "hide_description": "hide logs",
+            "output": ipyw.Output(),
         },
         "show queue": {
             "widget": None,
-            "init_func": lambda: queue_widget(run_manager),
+            "init_func": lambda: queue_widget(run_manager.scheduler),
             "show_description": "show queue",
             "hide_description": "hide queue",
+            "output": ipyw.Output(),
         },
         "show database": {
             "widget": None,
             "init_func": lambda: database_widget(run_manager),
             "show_description": "show database",
             "hide_description": "hide database",
+            "output": ipyw.Output(),
         },
     }
 
@@ -793,9 +794,9 @@ def info(run_manager: RunManager) -> None:
         return _callable
 
     widgets["update info"].on_click(update)
-    toggle_logs = _toggle_widget(box, "show logs", widgets, state_dict)
-    toggle_queue = _toggle_widget(box, "show queue", widgets, state_dict)
-    toggle_database = _toggle_widget(box, "show database", widgets, state_dict)
+    toggle_logs = _toggle_widget("show logs", widgets, toggle_dict)
+    toggle_queue = _toggle_widget("show queue", widgets, toggle_dict)
+    toggle_database = _toggle_widget("show database", widgets, toggle_dict)
     widgets["show logs"].on_click(toggle_logs)
     widgets["show queue"].on_click(toggle_queue)
     widgets["show database"].on_click(toggle_database)
@@ -813,8 +814,10 @@ def info(run_manager: RunManager) -> None:
     # Cleanup button with confirm/deny option
     cleanup_callable = cleanup(include_old_logs=include_old_logs)
     _create_confirm_deny(cleanup_button, widgets, cleanup_callable, key="cleanup")
-
-    box.children = (status, *tuple(widgets.values()))
+    buttons_box = ipyw.VBox(tuple(widgets.values()))
+    buttons_box.layout.margin = "0 0 0 100px"
+    top_box = ipyw.HBox((status, buttons_box))
+    box = ipyw.VBox((top_box, *(v["output"] for v in toggle_dict.values())))
     display(box)
 
 
