@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections import defaultdict
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
@@ -510,9 +510,11 @@ def queue_widget(run_manager: RunManager) -> VBox:
     """Create a widget that shows the current queue and allows to update it."""
     from IPython.display import display
     from ipywidgets import Button, Checkbox, Layout, Output, VBox
+    from itables import show
 
     def _update_queue_df(
         me_only_checkbox: Checkbox,
+        use_itables_checkbox: Checkbox,
         output_widget: Output,
     ) -> Callable[[Any], None]:
         def on_click(_: Any) -> None:
@@ -520,13 +522,22 @@ def queue_widget(run_manager: RunManager) -> VBox:
                 output_widget.clear_output()
                 queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
                 df = pd.DataFrame(queue).transpose()
-                display(df)
+                if use_itables_checkbox.value:
+                    show(df)
+                else:
+                    with _display_all_dataframe_rows():
+                        display(df)
 
         return on_click
 
     # Create widgets
     output_widget = Output()
     me_only_checkbox = Checkbox(description="Only my jobs", indent=False, value=True)
+    use_itables_checkbox = Checkbox(
+        description="Use itables (interactive)",
+        indent=False,
+        value=False,
+    )
     update_button = Button(
         description="Update queue",
         button_style="info",
@@ -534,16 +545,21 @@ def queue_widget(run_manager: RunManager) -> VBox:
     )
 
     # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
-    update_function = _update_queue_df(me_only_checkbox, output_widget)
+    update_function = _update_queue_df(
+        me_only_checkbox,
+        use_itables_checkbox,
+        output_widget,
+    )
     update_button.on_click(update_function)
     me_only_checkbox.observe(update_function, names="value")
+    use_itables_checkbox.observe(update_function, names="value")
 
     # Initialize the DataFrame display
     update_function(None)
 
     # Create a VBox and add the widgets to it
     return VBox(
-        [me_only_checkbox, update_button, output_widget],
+        [me_only_checkbox, use_itables_checkbox, update_button, output_widget],
         layout=Layout(border="solid 2px gray"),
     )
 
@@ -721,3 +737,17 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     box.children = (status, *tuple(widgets.values()))
     display(box)
+
+
+@contextmanager
+def _display_all_dataframe_rows(max_colwidth: int = 50) -> Generator[None, None, None]:
+    """Display all rows in a `pandas.DataFrame`."""
+    original_max_rows = pd.options.display.max_rows
+    original_max_colwidth = pd.options.display.max_colwidth
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_colwidth", max_colwidth)
+    try:
+        yield
+    finally:
+        pd.set_option("display.max_rows", original_max_rows)
+        pd.set_option("display.max_colwidth", original_max_colwidth)

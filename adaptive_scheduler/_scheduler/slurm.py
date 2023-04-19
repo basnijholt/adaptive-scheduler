@@ -227,7 +227,7 @@ class SLURM(BaseScheduler):
         python_format = {
             "JobID": 100,
             "Name": 100,
-            "State": 100,
+            "state": 100,
             "NumNodes": 100,
             "NumTasks": 100,
             "ReasonList": 4000,
@@ -268,7 +268,7 @@ class SLURM(BaseScheduler):
 
         squeue = [line_to_dict(line) for line in output.split("\n")]
         states = ("PENDING", "RUNNING", "CONFIGURING")
-        squeue = [info for info in squeue if info["State"] in states]
+        squeue = [info for info in squeue if info["state"] in states]
         running = {info.pop("JobID"): info for info in squeue}
         for info in running.values():
             info["job_name"] = info.pop("Name")
