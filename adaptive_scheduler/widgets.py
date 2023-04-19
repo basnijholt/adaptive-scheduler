@@ -520,7 +520,7 @@ def _info_html(run_manager: RunManager) -> str:
         t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
 
         cpu = df.cpu_usage.mean()
-        cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu))
+        cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu, 50, 80))
 
         mem = df.mem_usage.mean()
         mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 50))
