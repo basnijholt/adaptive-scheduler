@@ -432,19 +432,20 @@ def _total_size(fnames: FnamesTypes) -> int:
 def _interp_red_green(
     percent: float,
     pct_red: int = 30,
-    pct_green: int = 90,
+    pct_green: int = 10,
 ) -> tuple[int, int, int]:
-    if pct_red > pct_green:
-        pct_red, pct_green = pct_green, pct_red
+    if pct_green > pct_red:
+        pct_green, pct_red = pct_red, pct_green
 
-    if percent <= pct_red:
-        return 255, 0, 0
-    if percent >= pct_green:
+    if percent <= pct_green:
         return 0, 255, 0
-    # Interpolate between red and green
-    factor = (percent - pct_red) / (pct_green - pct_red)
-    red_level = int(255 * (1 - factor))
-    green_level = int(255 * factor)
+    if percent >= pct_red:
+        return 255, 0, 0
+
+    # Interpolate between green and red
+    factor = (percent - pct_green) / (pct_red - pct_green)
+    red_level = int(255 * factor)
+    green_level = int(255 * (1 - factor))
     return red_level, green_level, 0
 
 
