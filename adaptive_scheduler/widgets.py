@@ -709,7 +709,7 @@ def results_widget(
     update_function(None)
 
     # Create a ipyw.VBox and add the widgets to it
-    return ipyw.VBox(
+    vbox = ipyw.VBox(
         [
             dropdown,
             concat_checkbox,
@@ -720,6 +720,8 @@ def results_widget(
         ],
         layout=ipyw.Layout(border="solid 2px gray"),
     )
+    _add_title("adaptive_scheduler.widgets.database_widget", vbox)
+    return vbox
 
 
 def _toggle_widget(
@@ -738,8 +740,8 @@ def _toggle_widget(
 
         button = widget_dict[widget_key]
         assert isinstance(button, ipyw.Button)
-        show_description = toggle_dict[widget_key]["show_description"]
-        hide_description = toggle_dict[widget_key]["hide_description"]
+        show_description = f"show {widget_key}"
+        hide_description = f"hide {widget_key}"
         output = toggle_dict[widget_key]["output"]
         if button.description == show_description:
             button.description = hide_description
@@ -865,10 +867,10 @@ def info(run_manager: RunManager) -> None:
         "cancel": ipyw.HBox([cancel_button], layout=layout),
         "cleanup": ipyw.HBox([cleanup_button], layout=layout),
         "load learners": load_learners_button,
-        "show logs": show_logs_button,
-        "show queue": show_queue_button,
-        "show database": show_db_button,
-        "show results": show_results_button,
+        "logs": show_logs_button,
+        "queue": show_queue_button,
+        "database": show_db_button,
+        "results": show_results_button,
     }
 
     def update(_: Any) -> None:
@@ -878,35 +880,29 @@ def info(run_manager: RunManager) -> None:
         run_manager.load_learners()
 
     toggle_dict = {
-        "show logs": {
+        "logs": {
             "widget": None,
             "init_func": lambda: log_explorer(run_manager),
-            "show_description": "show logs",
+            "show_description": "logs",
             "hide_description": "hide logs",
             "output": ipyw.Output(),
         },
-        "show queue": {
+        "queue": {
             "widget": None,
             "init_func": lambda: queue_widget(run_manager.scheduler),
-            "show_description": "show queue",
-            "hide_description": "hide queue",
             "output": ipyw.Output(),
         },
-        "show database": {
+        "database": {
             "widget": None,
             "init_func": lambda: database_widget(run_manager),
-            "show_description": "show database",
-            "hide_description": "hide database",
             "output": ipyw.Output(),
         },
-        "show results": {
+        "results": {
             "widget": None,
             "init_func": lambda: results_widget(
                 run_manager.fnames,
                 run_manager.dataframe_format,
             ),
-            "show_description": "show results",
-            "hide_description": "hide results",
             "output": ipyw.Output(),
         },
     }
@@ -923,14 +919,14 @@ def info(run_manager: RunManager) -> None:
         return _callable
 
     widgets["update info"].on_click(update)
-    toggle_logs = _toggle_widget("show logs", widgets, toggle_dict)
-    toggle_queue = _toggle_widget("show queue", widgets, toggle_dict)
-    toggle_database = _toggle_widget("show database", widgets, toggle_dict)
-    toggle_results = _toggle_widget("show results", widgets, toggle_dict)
-    widgets["show logs"].on_click(toggle_logs)
-    widgets["show queue"].on_click(toggle_queue)
-    widgets["show database"].on_click(toggle_database)
-    widgets["show results"].on_click(toggle_results)
+    toggle_logs = _toggle_widget("logs", widgets, toggle_dict)
+    toggle_queue = _toggle_widget("queue", widgets, toggle_dict)
+    toggle_database = _toggle_widget("database", widgets, toggle_dict)
+    toggle_results = _toggle_widget("results", widgets, toggle_dict)
+    widgets["logs"].on_click(toggle_logs)
+    widgets["queue"].on_click(toggle_queue)
+    widgets["database"].on_click(toggle_database)
+    widgets["results"].on_click(toggle_results)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
