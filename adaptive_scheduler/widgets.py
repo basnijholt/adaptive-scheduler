@@ -727,7 +727,7 @@ def results_widget(
                 dfs = [selected_fname] if not concat_checkbox.value else fnames
                 df = load_dataframes(dfs, format=dataframe_format)
                 assert isinstance(df, pd.DataFrame)
-                if change is not None and change["owner"] == itables_checkbox:
+                if isinstance(change, dict) and change["owner"] == itables_checkbox:
                     max_rows.value = 10_000 if itables_checkbox.value else 300
                     # Unobserve temporarily to not trigger twice
                     max_rows.unobserve(update_function, names="value")
