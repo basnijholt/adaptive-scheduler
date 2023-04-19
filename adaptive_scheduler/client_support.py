@@ -152,6 +152,8 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
             info["npoints/learner"] = info["npoints"] / info["nlearners"]  # type: ignore[operator]
     info["cpu_usage"] = psutil.cpu_percent()
     info["mem_usage"] = psutil.virtual_memory().percent
+    for k, v in psutil.cpu_times()._asdict().items():
+        info[f"cputimes.{k}"] = v
     return info
 
 
