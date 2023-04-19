@@ -777,13 +777,12 @@ def info(run_manager: RunManager) -> None:
         return _callable
 
     widgets["update info"].on_click(update)
-    widgets["show logs"].on_click(_toggle_widget(box, "show logs", widgets, state_dict))
-    widgets["show queue"].on_click(
-        _toggle_widget(box, "show queue", widgets, state_dict),
-    )
-    widgets["show database"].on_click(
-        _toggle_widget(box, "show database", widgets, state_dict),
-    )
+    toggle_logs = _toggle_widget(box, "show logs", widgets, state_dict)
+    toggle_queue = _toggle_widget(box, "show queue", widgets, state_dict)
+    toggle_database = _toggle_widget(box, "show database", widgets, state_dict)
+    widgets["show logs"].on_click(toggle_logs)
+    widgets["show queue"].on_click(toggle_queue)
+    widgets["show database"].on_click(toggle_database)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
