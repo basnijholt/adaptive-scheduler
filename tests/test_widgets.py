@@ -17,6 +17,7 @@ from adaptive_scheduler.widgets import (
     _failed_job_logs,
     _files_that_contain,
     _get_fnames,
+    _interp_red_green,
     _sort_fnames,
     _timedelta_to_human_readable,
     _total_size,
@@ -310,3 +311,13 @@ def test_results_widget(tmp_path: Path) -> None:
 
     # Test the widget's configuration
     assert widget is not None
+
+
+def test_interp_red_green() -> None:
+    """Test _interp_red_green."""
+    assert _interp_red_green(100, pct_red=10, pct_green=90) == (0, 255, 0)
+    assert _interp_red_green(0, pct_red=10, pct_green=90) == (255, 0, 0)
+    assert _interp_red_green(50, pct_red=10, pct_green=90) == (127, 127, 0)
+    assert _interp_red_green(50, pct_red=90, pct_green=10) == (127, 127, 0)
+    assert _interp_red_green(100, pct_green=10, pct_red=90) == (255, 0, 0)
+    assert _interp_red_green(0, pct_green=10, pct_red=90) == (0, 255, 0)

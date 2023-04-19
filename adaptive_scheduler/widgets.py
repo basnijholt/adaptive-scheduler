@@ -434,13 +434,16 @@ def _interp_red_green(
     pct_red: int = 30,
     pct_green: int = 10,
 ) -> tuple[int, int, int]:
-    if pct_green > pct_red:
-        pct_green, pct_red = pct_red, pct_green
-
-    if percent <= pct_green:
-        return 0, 255, 0
-    if percent >= pct_red:
-        return 255, 0, 0
+    if pct_green < pct_red:
+        if percent <= pct_green:
+            return 0, 255, 0
+        if percent >= pct_red:
+            return 255, 0, 0
+    else:
+        if percent >= pct_green:
+            return 0, 255, 0
+        if percent <= pct_red:
+            return 255, 0, 0
 
     # Interpolate between green and red
     factor = (percent - pct_green) / (pct_red - pct_green)
