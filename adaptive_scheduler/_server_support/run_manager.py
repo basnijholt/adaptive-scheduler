@@ -306,8 +306,7 @@ class RunManager(BaseManager):
     async def _manage(self) -> None:
         assert self.job_manager.task is not None
         while not self.job_manager.task.done():
-            current_len = len(self.job_manager._request_times)
-            if current_len > 0:
+            if self.job_manager._request_times:
                 for job in self.database_manager.as_dicts():
                     start_time = job["start_time"]
                     job_name = job["job_name"]

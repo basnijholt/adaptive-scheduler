@@ -16,7 +16,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from typing import Any, Callable
 
-    from ipywidgets import VBox
+    import ipywidgets as ipyw
 
     from adaptive_scheduler.server_support import RunManager
     from adaptive_scheduler.utils import FnamesTypes
@@ -167,26 +167,17 @@ def _read_file(fname: Path, max_lines: int = 500) -> str:
         return f"Exception with trying to read {fname}:\n{e}."
 
 
-def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
+def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
     """Log explorer widget."""
-    from ipywidgets import (
-        HTML,
-        Button,
-        Checkbox,
-        Dropdown,
-        Layout,
-        Text,
-        Textarea,
-        VBox,
-    )
+    import ipywidgets as ipyw
 
     def _update_fname_dropdown(  # noqa: PLR0913
         run_manager: RunManager,
-        fname_dropdown: Dropdown,
-        only_running_checkbox: Checkbox,
-        only_failed_checkbox: Checkbox,
-        sort_by_dropdown: Dropdown,
-        contains_text: Text,
+        fname_dropdown: ipyw.Dropdown,
+        only_running_checkbox: ipyw.Checkbox,
+        only_failed_checkbox: ipyw.Checkbox,
+        sort_by_dropdown: ipyw.Dropdown,
+        contains_text: ipyw.Text,
     ) -> Callable[[Any], None]:
         def on_click(_: Any) -> None:
             current_value = fname_dropdown.value
@@ -213,7 +204,7 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
         except FileNotFoundError:
             return -1.0
 
-    async def _tail_log(fname: Path, textarea: Textarea) -> None:
+    async def _tail_log(fname: Path, textarea: ipyw.Textarea) -> None:
         t = -2.0  # to make sure the update always triggers
         while True:
             await asyncio.sleep(2)
@@ -228,12 +219,12 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
                 pass
 
     def _tail(  # noqa: PLR0913
-        dropdown: Dropdown,
-        tail_button: Button,
-        textarea: Textarea,
-        update_button: Button,
-        only_running_checkbox: Checkbox,
-        only_failed_checkbox: Checkbox,
+        dropdown: ipyw.Dropdown,
+        tail_button: ipyw.Button,
+        textarea: ipyw.Textarea,
+        update_button: ipyw.Button,
+        only_running_checkbox: ipyw.Checkbox,
+        only_failed_checkbox: ipyw.Checkbox,
     ) -> Callable[[Any], None]:
         tail_task = None
         ioloop = asyncio.get_running_loop()
@@ -263,7 +254,9 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
 
         return on_click
 
-    def _on_dropdown_change(textarea: Textarea) -> Callable[[dict[str, Any]], None]:
+    def _on_dropdown_change(
+        textarea: ipyw.Textarea,
+    ) -> Callable[[dict[str, Any]], None]:
         def on_change(change: dict[str, Any]) -> None:
             if (
                 change["type"] == "change"
@@ -274,7 +267,9 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
 
         return on_change
 
-    def _click_button_on_change(button: Button) -> Callable[[dict[str, Any]], None]:
+    def _click_button_on_change(
+        button: ipyw.Button,
+    ) -> Callable[[dict[str, Any]], None]:
         def on_change(change: dict[str, Any]) -> None:
             if change["type"] == "change" and change["name"] == "value":
                 button.click()
@@ -284,23 +279,23 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
     fnames = _get_fnames(run_manager, only_running=False)
     # no need to sort `fnames` because the default sort_by option is alphabetical
     text = _read_file(fnames[0], run_manager.max_log_lines) if fnames else ""
-    textarea = Textarea(text, layout={"width": "auto"}, rows=20)
-    sort_by_dropdown = Dropdown(
+    textarea = ipyw.Textarea(text, layout={"width": "auto"}, rows=20)
+    sort_by_dropdown = ipyw.Dropdown(
         description="Sort by",
         options=["Alphabetical", "CPU %", "Mem %", "Last editted", "Loss", "npoints"],
     )
-    contains_text = Text(description="Has string")
-    fname_dropdown = Dropdown(description="File name", options=fnames)
+    contains_text = ipyw.Text(description="Has string")
+    fname_dropdown = ipyw.Dropdown(description="File name", options=fnames)
     fname_dropdown.observe(_on_dropdown_change(textarea))
-    only_running_checkbox = Checkbox(
+    only_running_checkbox = ipyw.Checkbox(
         description="Only files of running jobs",
         indent=False,
     )
-    only_failed_checkbox = Checkbox(
+    only_failed_checkbox = ipyw.Checkbox(
         description="Only files of failed jobs (might include false positives)",
         indent=False,
     )
-    update_button = Button(
+    update_button = ipyw.Button(
         description="update file list",
         button_style="info",
         icon="refresh",
@@ -318,7 +313,11 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
     sort_by_dropdown.observe(_click_button_on_change(update_button))
     only_running_checkbox.observe(_click_button_on_change(update_button))
     only_failed_checkbox.observe(_click_button_on_change(update_button))
-    tail_button = Button(description="tail log", button_style="info", icon="refresh")
+    tail_button = ipyw.Button(
+        description="tail log",
+        button_style="info",
+        icon="refresh",
+    )
     tail_button.on_click(
         _tail(
             fname_dropdown,
@@ -329,10 +328,8 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
             only_failed_checkbox,
         ),
     )
-    title = HTML("<h2><tt>adaptive_scheduler.widgets.log_explorer</tt></h2>")
-    return VBox(
+    vbox = ipyw.VBox(
         [
-            title,
             only_running_checkbox,
             only_failed_checkbox,
             update_button,
@@ -342,8 +339,17 @@ def log_explorer(run_manager: RunManager) -> VBox:  # noqa: C901, PLR0915
             tail_button,
             textarea,
         ],
-        layout=Layout(border="solid 2px gray"),
+        layout=ipyw.Layout(border="solid 2px gray"),
     )
+    _add_title("adaptive_scheduler.widgets.log_explorer", vbox)
+    return vbox
+
+
+def _add_title(title: str, vbox: ipyw.VBox) -> None:
+    import ipywidgets as ipyw
+
+    title = ipyw.HTML(f"<h2><tt>{title}</tt></h2>")
+    vbox.children = (title, *vbox.children)
 
 
 def _bytes_to_human_readable(size_in_bytes: int) -> str:
@@ -506,23 +512,26 @@ def _info_html(run_manager: RunManager) -> str:
     """
 
 
-def queue_widget(run_manager: RunManager) -> VBox:
-    """Create a widget that shows the current queue and allows to update it."""
+def _create_widget(
+    data_provider: Callable[[], pd.DataFrame],
+    update_button_text: str,
+    *,
+    use_itables_checkbox: bool = False,
+    additional_widgets: list[ipyw.Widget] | None = None,
+) -> tuple[ipyw.VBox, Callable[[Any], None]]:
+    import ipywidgets as ipyw
     from IPython.display import display
-    from ipywidgets import Button, Checkbox, Layout, Output, VBox
     from itables import show
 
-    def _update_queue_df(
-        me_only_checkbox: Checkbox,
-        use_itables_checkbox: Checkbox,
-        output_widget: Output,
+    def _update_data_df(
+        itables_checkbox: ipyw.Checkbox,
+        output_widget: ipyw.Output,
     ) -> Callable[[Any], None]:
         def on_click(_: Any) -> None:
             with output_widget:
                 output_widget.clear_output()
-                queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
-                df = pd.DataFrame(queue).transpose()
-                if use_itables_checkbox.value:
+                df = data_provider()
+                if itables_checkbox.value:
                     show(df)
                 else:
                     with _display_all_dataframe_rows():
@@ -531,113 +540,217 @@ def queue_widget(run_manager: RunManager) -> VBox:
         return on_click
 
     # Create widgets
-    output_widget = Output()
-    me_only_checkbox = Checkbox(description="Only my jobs", indent=False, value=True)
-    use_itables_checkbox = Checkbox(
+    output_widget = ipyw.Output()
+    itables_checkbox = ipyw.Checkbox(
         description="Use itables (interactive)",
         indent=False,
-        value=False,
+        value=use_itables_checkbox,
     )
-    update_button = Button(
-        description="Update queue",
+    update_button = ipyw.Button(
+        description=update_button_text,
         button_style="info",
         icon="refresh",
     )
 
-    # Update the DataFrame in the Output widget when the button is clicked or the checkbox is changed
-    update_function = _update_queue_df(
-        me_only_checkbox,
-        use_itables_checkbox,
+    # Update the DataFrame in the ipyw.Output widget when the button is clicked or the checkbox is changed
+    update_function = _update_data_df(
+        itables_checkbox,
         output_widget,
     )
     update_button.on_click(update_function)
-    me_only_checkbox.observe(update_function, names="value")
-    use_itables_checkbox.observe(update_function, names="value")
+    itables_checkbox.observe(update_function, names="value")
 
     # Initialize the DataFrame display
     update_function(None)
 
-    # Create a VBox and add the widgets to it
-    return VBox(
-        [me_only_checkbox, use_itables_checkbox, update_button, output_widget],
-        layout=Layout(border="solid 2px gray"),
+    # Create a ipyw.VBox and add the widgets to it
+    widget_list = [itables_checkbox, update_button, output_widget]
+    if additional_widgets:
+        widget_list = additional_widgets + widget_list
+    vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))
+    return (vbox, update_function)
+
+
+def queue_widget(run_manager: RunManager) -> ipyw.VBox:
+    """Create a widget that shows the current queue and allows to update it."""
+    import ipywidgets as ipyw
+
+    me_only_checkbox = ipyw.Checkbox(
+        description="Only my jobs",
+        indent=False,
+        value=True,
+    )
+
+    def get_queue_df() -> pd.DataFrame:
+        queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
+        return pd.DataFrame(queue).transpose()
+
+    # Get both the VBox and the update_function from _create_widget
+    vbox, update_function = _create_widget(
+        get_queue_df,
+        "Update queue",
+        additional_widgets=[me_only_checkbox],
+    )
+
+    # Add an observer to the 'me_only_checkbox' that calls the 'update_function' when the checkbox value changes
+    me_only_checkbox.observe(update_function, names="value")
+    _add_title("adaptive_scheduler.widgets.queue_widget", vbox)
+    return vbox
+
+
+def database_widget(run_manager: RunManager) -> ipyw.VBox:
+    """Create a widget that shows the current database and allows to update it."""
+
+    def get_database_df() -> pd.DataFrame:
+        return run_manager.database_manager.as_df()
+
+    vbox, _ = _create_widget(get_database_df, "Update database")
+    _add_title("adaptive_scheduler.widgets.database_widget", vbox)
+    return vbox
+
+
+def _remove_widget(box: ipyw.VBox, widget_to_remove: ipyw.Widget) -> None:
+    box.children = tuple(child for child in box.children if child != widget_to_remove)
+
+
+def _toggle_widget(
+    box: ipyw.VBox,
+    widget_key: str,
+    widget_dict: dict[str, ipyw.Widget | str],
+    state_dict: dict[str, dict[str, Any]],
+) -> Callable[[Any], None]:
+    import ipywidgets as ipyw
+
+    def on_click(_: Any) -> None:
+        widget = state_dict[widget_key]["widget"]
+        if widget is None:
+            widget = state_dict[widget_key]["init_func"]()
+            state_dict[widget_key]["widget"] = widget
+
+        button = widget_dict[widget_key]
+        assert isinstance(button, ipyw.Button)
+        show_description = state_dict[widget_key]["show_description"]
+        hide_description = state_dict[widget_key]["hide_description"]
+
+        if button.description == show_description:
+            button.description = hide_description
+            button.button_style = "warning"
+            box.children = (*box.children, widget)
+        else:
+            button.description = show_description
+            button.button_style = "info"
+            _remove_widget(box, widget)
+
+    return on_click
+
+
+def _switch_to(
+    box: ipyw.HBox,
+    *buttons: ipyw.Button,
+    _callable: Callable[[], None] | None = None,
+) -> Callable[[Any], None]:
+    def on_click(_: Any) -> None:
+        box.children = tuple(buttons)
+        if _callable is not None:
+            _callable()
+
+    return on_click
+
+
+def _create_confirm_deny(
+    initial_button: ipyw.Button,
+    widgets: dict[str, ipyw.Button | ipyw.HBox],
+    callable_func: Callable[[], None],
+    key: str,
+) -> None:
+    import ipywidgets as ipyw
+
+    confirm_button = ipyw.Button(
+        description="Confirm",
+        button_style="success",
+        icon="check",
+    )
+    deny_button = ipyw.Button(
+        description="Deny",
+        button_style="danger",
+        icon="close",
+    )
+
+    initial_button.on_click(
+        _switch_to(widgets[key], confirm_button, deny_button),
+    )
+    deny_button.on_click(_switch_to(widgets[key], initial_button))
+    confirm_button.on_click(
+        _switch_to(widgets[key], initial_button, _callable=callable_func),
     )
 
 
-def info(run_manager: RunManager) -> None:  # noqa: PLR0915
+def info(run_manager: RunManager) -> None:
     """Display information about the `RunManager`.
 
     Returns an interactive ipywidget that can be
     visualized in a Jupyter notebook.
     """
+    import ipywidgets as ipyw
     from IPython.display import display
-    from ipywidgets import HTML, Button, Checkbox, HBox, Layout, VBox
 
-    status = HTML(value=_info_html(run_manager))
+    status = ipyw.HTML(value=_info_html(run_manager))
 
-    layout = Layout(width="200px")
+    layout = ipyw.Layout(width="200px")
 
-    cancel_button = Button(
+    cancel_button = ipyw.Button(
         description="cancel jobs",
         layout=layout,
         button_style="danger",
         icon="stop",
     )
-    cleanup_button = Button(
+    cleanup_button = ipyw.Button(
         description="cleanup log and batch files",
         layout=layout,
         button_style="danger",
         icon="remove",
     )
-    update_info_button = Button(
+    update_info_button = ipyw.Button(
         description="update info",
         layout=layout,
         icon="refresh",
     )
     update_info_button.style.button_color = "lightgreen"
-    load_learners_button = Button(
+    load_learners_button = ipyw.Button(
         description="load learners",
         layout=layout,
         button_style="info",
         icon="download",
     )
-    show_logs_button = Button(
+    show_logs_button = ipyw.Button(
         description="show logs",
         layout=layout,
         button_style="info",
         icon="book",
     )
-    show_queue_button = Button(
+    show_queue_button = ipyw.Button(
         description="show queue",
         layout=layout,
         button_style="info",
         icon="tasks",
     )
+    show_db_button = ipyw.Button(
+        description="show database",
+        layout=layout,
+        button_style="info",
+        icon="database",
+    )
     widgets = {
         "update info": update_info_button,
-        "cancel": HBox([cancel_button], layout=layout),
-        "cleanup": HBox([cleanup_button], layout=layout),
+        "cancel": ipyw.HBox([cancel_button], layout=layout),
+        "cleanup": ipyw.HBox([cleanup_button], layout=layout),
         "load learners": load_learners_button,
         "show logs": show_logs_button,
         "show queue": show_queue_button,
+        "show database": show_db_button,
     }
 
-    def switch_to(
-        box: HBox,
-        *buttons: Button,
-        _callable: Callable[[], None] | None = None,
-    ) -> Callable[[Any], None]:
-        def on_click(_: Any) -> None:
-            box.children = tuple(buttons)
-            if _callable is not None:
-                _callable()
-
-        return on_click
-
-    box = VBox([])
-
-    log_widget = None
-    _queue_widget = None
+    box = ipyw.VBox([])
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -645,39 +758,32 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
-    def toggle_logs(_: Any) -> None:
-        nonlocal log_widget
-
-        if log_widget is None:
-            log_widget = log_explorer(run_manager)
-
-        b = widgets["show logs"]
-        if b.description == "show logs":
-            b.description = "hide logs"
-            box.children = (*box.children, log_widget)
-        else:
-            b.description = "show logs"
-            box.children = box.children[:-1]
-
-    def toggle_queue(_: Any) -> None:
-        nonlocal _queue_widget
-
-        if _queue_widget is None:
-            _queue_widget = queue_widget(run_manager)
-
-        b = widgets["show queue"]
-        if b.description == "show queue":
-            b.description = "hide queue"
-            box.children = (*box.children, _queue_widget)
-        else:
-            b.description = "show queue"
-            box.children = box.children[:-1]
+    state_dict = {
+        "show logs": {
+            "widget": None,
+            "init_func": lambda: log_explorer(run_manager),
+            "show_description": "show logs",
+            "hide_description": "hide logs",
+        },
+        "show queue": {
+            "widget": None,
+            "init_func": lambda: queue_widget(run_manager),
+            "show_description": "show queue",
+            "hide_description": "hide queue",
+        },
+        "show database": {
+            "widget": None,
+            "init_func": lambda: database_widget(run_manager),
+            "show_description": "show database",
+            "hide_description": "hide database",
+        },
+    }
 
     def cancel() -> None:
         run_manager.cancel()
         update(None)
 
-    def cleanup(*, include_old_logs: Checkbox) -> Callable[[], None]:
+    def cleanup(*, include_old_logs: ipyw.Checkbox) -> Callable[[], None]:
         def _callable() -> None:
             run_manager.cleanup(remove_old_logs_folder=include_old_logs.value)
             update(None)
@@ -685,55 +791,26 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         return _callable
 
     widgets["update info"].on_click(update)
+    toggle_logs = _toggle_widget(box, "show logs", widgets, state_dict)
+    toggle_queue = _toggle_widget(box, "show queue", widgets, state_dict)
+    toggle_database = _toggle_widget(box, "show database", widgets, state_dict)
     widgets["show logs"].on_click(toggle_logs)
     widgets["show queue"].on_click(toggle_queue)
+    widgets["show database"].on_click(toggle_database)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
-    confirm_cancel_button = Button(
-        description="Confirm",
-        button_style="success",
-        icon="check",
-    )
-    deny_cancel_button = Button(description="Deny", button_style="danger", icon="close")
-
-    cancel_button.on_click(
-        switch_to(widgets["cancel"], confirm_cancel_button, deny_cancel_button),
-    )
-    deny_cancel_button.on_click(switch_to(widgets["cancel"], cancel_button))
-    confirm_cancel_button.on_click(
-        switch_to(widgets["cancel"], cancel_button, _callable=cancel),
-    )
+    _create_confirm_deny(cancel_button, widgets, cancel, key="cancel")
 
     # Cleanup button with confirm/deny option
-    include_old_logs = Checkbox(
+    include_old_logs = ipyw.Checkbox(
         value=False,
         description=f"Remove {run_manager.move_old_logs_to}/ folder",
         indent=False,
     )
-    confirm_cleanup_button = Button(
-        description="Confirm",
-        button_style="success",
-        icon="check",
-    )
-    deny_cleanup_button = Button(
-        description="Deny",
-        button_style="danger",
-        icon="close",
-    )
-
-    cleanup_box = VBox(
-        [HBox([confirm_cleanup_button, deny_cleanup_button]), include_old_logs],
-    )
-    cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_box))
-    deny_cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_button))
-    confirm_cleanup_button.on_click(
-        switch_to(
-            widgets["cleanup"],
-            cleanup_button,
-            _callable=cleanup(include_old_logs=include_old_logs),
-        ),
-    )
+    # Cleanup button with confirm/deny option
+    cleanup_callable = cleanup(include_old_logs=include_old_logs)
+    _create_confirm_deny(cleanup_button, widgets, cleanup_callable, key="cleanup")
 
     box.children = (status, *tuple(widgets.values()))
     display(box)
