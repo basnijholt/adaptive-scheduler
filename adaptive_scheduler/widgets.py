@@ -739,7 +739,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         nonlocal _db_widget
 
         if _db_widget is None:
-            _db_widget = queue_widget(run_manager)
+            _db_widget = database_widget(run_manager)
 
         b = widgets["show queue"]
         if b.description == "show queue":
