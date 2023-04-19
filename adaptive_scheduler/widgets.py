@@ -567,14 +567,8 @@ def _create_widget(
     widget_list = [itables_checkbox, update_button, output_widget]
     if additional_widgets:
         widget_list = additional_widgets + widget_list
-
-    return (
-        ipyw.VBox(
-            widget_list,
-            layout=ipyw.Layout(border="solid 2px gray"),
-        ),
-        update_function,
-    )
+    vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))
+    return (vbox, update_function)
 
 
 def queue_widget(run_manager: RunManager) -> ipyw.VBox:
