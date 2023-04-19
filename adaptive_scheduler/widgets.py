@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Generator
 import numpy as np
 import pandas as pd
 
+from adaptive_scheduler.utils import load_dataframes
+
 if TYPE_CHECKING:
     from typing import Any, Callable
 
@@ -685,6 +687,80 @@ def _create_confirm_deny(
     confirm_button.on_click(
         _switch_to(widgets[key], initial_button, _callable=callable_func),
     )
+
+
+def results_widget(
+    learners: list[adaptive.BaseLearner],
+    fnames: list[str | Path],
+    dataframe_format: str,
+) -> ipyw.VBox:
+    import ipywidgets as ipyw
+    from IPython.display import display
+
+    def on_concat_checkbox_value_change(change: dict) -> None:
+        if change["name"] == "value":
+            dropdown.layout.visibility = "hidden" if change["new"] else "visible"
+            update_function(None)
+
+    def on_dropdown_value_change(change: dict) -> None:
+        if change["name"] == "value":
+            update_function(None)
+
+    def _update_data_df(
+        itables_checkbox: ipyw.Checkbox,
+        concat_checkbox: ipyw.Checkbox,
+        output_widget: ipyw.Output,
+    ) -> Callable[[Any], None]:
+        def on_click(_: Any) -> None:
+            with output_widget:
+                output_widget.clear_output()
+                selected_fname = dropdown.value
+                dfs = [selected_fname] if not concat_checkbox.value else fnames
+                df = load_dataframes(dfs, format=dataframe_format)
+                if itables_checkbox.value:
+                    from itables import show
+
+                    show(df)
+                else:
+                    with _display_all_dataframe_rows():
+                        display(df)
+
+        return on_click
+
+    # Create widgets
+    output_widget = ipyw.Output()
+    dropdown = ipyw.Dropdown(options=fnames)
+    itables_checkbox = ipyw.Checkbox(
+        description="Use itables (interactive)",
+        indent=False,
+    )
+    concat_checkbox = ipyw.Checkbox(description="Concat all dataframes", indent=False)
+    update_button = ipyw.Button(
+        description="Update results",
+        button_style="info",
+        icon="refresh",
+    )
+
+    # Update the DataFrame in the ipyw.Output widget when the button is clicked, dropdown value or checkboxes change
+    update_function = _update_data_df(itables_checkbox, concat_checkbox, output_widget)
+    update_button.on_click(update_function)
+    itables_checkbox.observe(update_function, names="value")
+    concat_checkbox.observe(update_function, names="value")
+    dropdown.observe(on_dropdown_value_change, names="value")
+
+    # Observe the value change in the 'concat_checkbox'
+    concat_checkbox.observe(on_concat_checkbox_value_change, names="value")
+
+    # Initialize the DataFrame display
+    update_function(None)
+
+    # Create a ipyw.VBox and add the widgets to it
+    vbox = ipyw.VBox(
+        [dropdown, concat_checkbox, itables_checkbox, update_button, output_widget],
+        layout=ipyw.Layout(border="solid 2px gray"),
+    )
+
+    return vbox
 
 
 def info(run_manager: RunManager) -> None:
