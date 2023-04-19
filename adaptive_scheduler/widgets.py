@@ -328,10 +328,8 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
             only_failed_checkbox,
         ),
     )
-    title = ipyw.HTML("<h2><tt>adaptive_scheduler.ipyw.log_explorer</tt></h2>")
-    return ipyw.VBox(
+    vbox = ipyw.VBox(
         [
-            title,
             only_running_checkbox,
             only_failed_checkbox,
             update_button,
@@ -343,6 +341,15 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
         ],
         layout=ipyw.Layout(border="solid 2px gray"),
     )
+    _add_title("adaptive_scheduler.widgets.log_explorer", vbox)
+    return vbox
+
+
+def _add_title(title: str, vbox: ipyw.VBox) -> None:
+    import ipywidgets as ipyw
+
+    title = ipyw.HTML(f"<h2><tt>{title}</tt></h2>")
+    vbox.children = (title, *vbox.children)
 
 
 def _bytes_to_human_readable(size_in_bytes: int) -> str:
@@ -585,7 +592,7 @@ def queue_widget(run_manager: RunManager) -> ipyw.VBox:
         return pd.DataFrame(queue).transpose()
 
     # Get both the VBox and the update_function from _create_widget
-    queue_vbox, update_function = _create_widget(
+    vbox, update_function = _create_widget(
         get_queue_df,
         "Update queue",
         additional_widgets=[me_only_checkbox],
@@ -593,8 +600,8 @@ def queue_widget(run_manager: RunManager) -> ipyw.VBox:
 
     # Add an observer to the 'me_only_checkbox' that calls the 'update_function' when the checkbox value changes
     me_only_checkbox.observe(update_function, names="value")
-
-    return queue_vbox
+    _add_title("adaptive_scheduler.widgets.queue_widget", vbox)
+    return vbox
 
 
 def database_widget(run_manager: RunManager) -> ipyw.VBox:
@@ -604,6 +611,7 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
         return run_manager.database_manager.as_df()
 
     vbox, _ = _create_widget(get_database_df, "Update database")
+    _add_title("adaptive_scheduler.widgets.database_widget", vbox)
     return vbox
 
 
@@ -632,9 +640,11 @@ def _toggle_widget(
 
         if button.description == show_description:
             button.description = hide_description
+            button.button_style = "warning"
             box.children = (*box.children, widget)
         else:
             button.description = show_description
+            button.button_style = "info"
             _remove_widget(box, widget)
 
     return on_click
