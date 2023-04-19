@@ -706,9 +706,6 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     box = VBox([])
 
-    _queue_widget = None
-    _db_widget = None
-
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
 
