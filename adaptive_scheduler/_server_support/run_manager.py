@@ -474,7 +474,10 @@ class RunManager(BaseManager):
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
 
     def save(
-        self, store_fname: str | Path | None = None, *, overwrite: bool = True,
+        self,
+        store_fname: str | Path | None = None,
+        *,
+        overwrite: bool = True,
     ) -> None:
         """Store the `RunManager` to a file.
 
