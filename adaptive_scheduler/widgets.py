@@ -230,32 +230,36 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
         update_button: ipyw.Button,
         only_running_checkbox: ipyw.Checkbox,
         only_failed_checkbox: ipyw.Checkbox,
+        sort_by_dropdown: ipyw.Dropdown,
+        contains_text: ipyw.Text,
     ) -> Callable[[Any], None]:
         tail_task = None
         ioloop = asyncio.get_running_loop()
 
         def on_click(_: Any) -> None:
             nonlocal tail_task
-            if tail_task is None:
+            tailing_log = tail_task is not None
+
+            def update_ui_state(tailing: bool) -> None:  # noqa: FBT001
+                tail_button.description = "cancel tail log" if tailing else "tail log"
+                tail_button.button_style = "danger" if tailing else "info"
+                tail_button.icon = "window-close" if tailing else "refresh"
+                dropdown.disabled = tailing
+                only_running_checkbox.disabled = tailing
+                only_failed_checkbox.disabled = tailing
+                update_button.disabled = tailing
+                sort_by_dropdown.disabled = tailing
+                contains_text.disabled = tailing
+
+            if not tailing_log:
                 fname = dropdown.options[dropdown.index]
                 tail_task = ioloop.create_task(_tail_log(fname, textarea))
-                tail_button.description = "cancel tail log"
-                tail_button.button_style = "danger"
-                tail_button.icon = "window-close"
-                dropdown.disabled = True
-                update_button.disabled = True
-                only_running_checkbox.disabled = True
-                only_failed_checkbox.disabled = True
             else:
-                tail_button.description = "tail log"
-                tail_button.button_style = "info"
-                tail_button.icon = "refresh"
-                dropdown.disabled = False
-                only_running_checkbox.disabled = False
-                only_failed_checkbox.disabled = False
-                update_button.disabled = False
+                assert tail_task is not None
                 tail_task.cancel()
                 tail_task = None
+
+            update_ui_state(not tailing_log)
 
         return on_click
 
@@ -331,6 +335,8 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
             update_button,
             only_running_checkbox,
             only_failed_checkbox,
+            sort_by_dropdown,
+            contains_text,
         ),
     )
     vbox = ipyw.VBox(
@@ -517,7 +523,7 @@ def _info_html(run_manager: RunManager) -> str:
         cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu))
 
         mem = df.mem_usage.mean()
-        mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 30))
+        mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 50))
 
         overhead = df.overhead.mean()
         overhead_html_value = _create_html_tag(
