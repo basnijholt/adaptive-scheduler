@@ -5,6 +5,7 @@ import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Union
 
+import pandas as pd
 import zmq
 import zmq.asyncio
 import zmq.ssh
@@ -22,7 +23,6 @@ from .common import log
 
 if TYPE_CHECKING:
     import adaptive
-    import pandas as pd
 
     from adaptive_scheduler.scheduler import BaseScheduler
 
@@ -170,8 +170,6 @@ class DatabaseManager(BaseManager):
 
     def as_df(self) -> pd.DataFrame:
         """Return the database as a `pandas.DataFrame`."""
-        import pandas as pd
-
         return pd.DataFrame(self.as_dicts())
 
     def _output_logs(self, job_id: str, job_name: str) -> list[Path]:
