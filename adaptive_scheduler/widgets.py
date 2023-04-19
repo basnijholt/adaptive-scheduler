@@ -509,16 +509,22 @@ def _info_html(run_manager: RunManager) -> str:
         df = run_manager.parse_log_files()
         t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
 
-        mem = df.mem_usage.mean()
-        overhead_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 30))
-
         cpu = df.cpu_usage.mean()
         cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu))
+
+        mem = df.mem_usage.mean()
+        mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 30))
+
+        overhead = df.overhead.mean()
+        overhead_html_value = _create_html_tag(
+            overhead,
+            _interp_red_green(overhead, 10, 30),
+        )
 
         from_logs = [
             ("# of points", df.npoints.sum()),
             ("mean CPU usage", cpu_html_value),
-            ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
+            ("mean memory usage", mem_html_value),
             ("mean overhead", overhead_html_value),
             ("last log-entry", f"{t_last}s ago"),
         ]
