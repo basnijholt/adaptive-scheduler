@@ -179,6 +179,7 @@ class RunManager(BaseManager):
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
+        store_fname: str | Path | None = None,
     ) -> None:
         super().__init__()
 
@@ -204,6 +205,7 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
+        self.store_fname = store_fname
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
@@ -303,6 +305,8 @@ class RunManager(BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
+        if self.store_fname is not None:
+            self.start()
         return self
 
     async def _manage(self) -> None:
@@ -469,17 +473,24 @@ class RunManager(BaseManager):
             raise ValueError(msg)
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
 
-    def save(self, store_fname: str | Path, *, overwrite: bool = True) -> None:
+    def save(self, store_fname: str | Path | None, *, overwrite: bool = True) -> None:
         """Store the `RunManager` to a file.
 
         Parameters
         ----------
         store_fname : str or Path
-            The filename to store the `RunManager` to.
+            The filename to store the `RunManager` to, if None, use the
+            `store_fname` attribute.
         overwrite : bool, default: False
             If True, overwrite the file if it already exists.
 
         """
+        if store_fname is None:
+            store_fname = self.store_fname
+        if store_fname is None:
+            msg = "No `store_fname` given and no `store_fname` attribute is set."
+            raise ValueError(msg)
+        store_fname = Path(store_fname)
         keys = self.__dict__.keys() - {
             "ioloop",  # set in super().start()
             "task",  # set in super().start()
@@ -491,7 +502,6 @@ class RunManager(BaseManager):
             "kill_manager",
         }
         to_save = {k: self.__dict__[k] for k in keys if not k.startswith("_")}
-        store_fname = Path(store_fname)
         if store_fname.exists() and not overwrite:
             msg = f"{store_fname} already exists."
             raise FileExistsError(msg)
