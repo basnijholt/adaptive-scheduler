@@ -6,6 +6,7 @@ import tempfile
 from datetime import timedelta
 from pathlib import Path
 from random import randint
+from typing import TYPE_CHECKING
 
 from adaptive_scheduler.widgets import (
     _bytes_to_human_readable,
@@ -19,6 +20,9 @@ from adaptive_scheduler.widgets import (
     log_explorer,
     queue_widget,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def create_temp_files(num_files: int) -> list[str]:
@@ -66,16 +70,19 @@ def test_bytes_to_human_readable() -> None:
     assert _bytes_to_human_readable(size_in_bytes) == "1.15 GB"
 
 
-# Mock DatabaseManager for testing
 class MockDatabaseManager:
-    def __init__(self, tmp_folder) -> None:
+    """Mock DatabaseManager for testing."""
+
+    def __init__(self, tmp_folder: str) -> None:
+        """Initialize the MockDatabaseManager."""
         self.failed = []
         self._total_learner_size = None
         self.fnames = []
 
         self.tmp_folder = tmp_folder
 
-    def as_dicts(self):
+    def as_dicts(self) -> list[dict[str, str]]:
+        """Return a list of dictionaries representing the database entries."""
         return [
             {
                 "fname": f"data/{i}.pickle",
@@ -89,12 +96,15 @@ class MockDatabaseManager:
             for i in range(3)
         ]
 
-    def update(self, queue):
-        pass
+    def update(self, queue: dict) -> None:
+        """Update the database with the given queue."""
 
 
 class MockRunManager:
-    def __init__(self, tmp_folder) -> None:
+    """Mock RunManager for testing."""
+
+    def __init__(self, tmp_folder: str) -> None:
+        """Initialize the MockRunManager."""
         self.job_name = "test_job"
         self.scheduler = self
         self.log_folder = "."
@@ -105,7 +115,11 @@ class MockRunManager:
         self.database_manager = MockDatabaseManager(tmp_folder)
         self.job_names = ["test_job"]
 
-    def queue(self, me_only=True):
+    def queue(
+        self,
+        me_only: bool = True,  # noqa: FBT001, ARG002, FBT002
+    ) -> dict[str, dict[str, str]]:
+        """Return a dictionary representing the current queue."""
         return {
             f"{i}": {
                 "state": "RUNNING",
@@ -123,6 +137,7 @@ class MockRunManager:
 
 
 def test_files_that_contain2(tmp_path: Path) -> None:
+    """Test the _files_that_contain function."""
     d = tmp_path / "logs"
     d.mkdir()
     p1 = d / "test1.log"
@@ -135,6 +150,7 @@ def test_files_that_contain2(tmp_path: Path) -> None:
 
 
 def test_get_fnames(tmp_path: Path) -> None:
+    """Test the _get_fnames function."""
     d = tmp_path / "logs"
     d.mkdir()
     p1 = d / "test_job-1.log"
@@ -146,13 +162,14 @@ def test_get_fnames(tmp_path: Path) -> None:
     run_manager.log_folder = str(d)
 
     fnames = _get_fnames(run_manager, only_running=False)
-    assert len(fnames) == 2
+    assert len(fnames) == 2  # noqa: PLR2004
 
     fnames = _get_fnames(run_manager, only_running=True)
-    assert len(fnames) == 6
+    assert len(fnames) == 6  # noqa: PLR2004
 
 
 def test_failed_job_logs(tmp_path: Path) -> None:
+    """Test the _failed_job_logs function."""
     d = tmp_path / "logs"
     d.mkdir()
     p1 = d / "test_job-1.log"
@@ -167,7 +184,8 @@ def test_failed_job_logs(tmp_path: Path) -> None:
     assert failed_fnames == []
 
 
-def test_timedelta_to_human_readable_int():
+def test_timedelta_to_human_readable_int() -> None:
+    """Test the _timedelta_to_human_readable function with an integer."""
     seconds = 3666
     assert _timedelta_to_human_readable(seconds) == "1 h, 1 m, 6 s"
     assert (
@@ -176,19 +194,22 @@ def test_timedelta_to_human_readable_int():
     )
 
 
-def test_log_explorer(tmp_path: Path):
+def test_log_explorer(tmp_path: Path) -> None:
+    """Test the log_explorer function."""
     run_manager = MockRunManager(tmp_path)
     widget = log_explorer(run_manager)
     assert widget is not None
 
 
-def test_queue_widget(tmp_path: Path):
+def test_queue_widget(tmp_path: Path) -> None:
+    """Test the queue_widget function."""
     run_manager = MockRunManager(tmp_path)
     widget = queue_widget(run_manager)
     assert widget is not None
 
 
-def test_info(capfd, tmp_path: Path):
+def test_info(capfd: pytest.CaptureFixture, tmp_path: Path) -> None:
+    """Test the info function."""
     run_manager = MockRunManager(tmp_path)
     info(run_manager)
     captured = capfd.readouterr()
@@ -204,24 +225,18 @@ def test_timedelta_to_human_readable_short_format() -> None:
     )
 
 
-def test_files_that_contain() -> None:
+def test_files_that_contain(tmp_path: Path) -> None:
     """Test the _files_that_contain function."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
-        f.write("This file contains the keyword: example")
-        fname1 = f.name
+    file1 = tmp_path / "file1.txt"
+    file1.write_text("This file contains the keyword: example")
 
-    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
-        f.write("This file does not contain the keyword.")
-        fname2 = f.name
+    file2 = tmp_path / "file2.txt"
+    file2.write_text("This file does not contain the keyword.")
 
-    fnames = [Path(fname1), Path(fname2)]
+    fnames = [file1, file2]
     filtered_fnames = _files_that_contain(fnames, "example")
     assert len(filtered_fnames) == 1
-    assert filtered_fnames[0] == Path(fname1)
-
-    # Clean up temporary files
-    os.remove(fname1)
-    os.remove(fname2)
+    assert filtered_fnames[0] == file1
 
 
 def test_get_fnames_only_running(tmp_path: Path) -> None:
@@ -235,7 +250,7 @@ def test_get_fnames_only_running_false(tmp_path: Path) -> None:
     """Test the _get_fnames function with only_running=False."""
     run_manager = MockRunManager(tmp_path)
     log_fname = run_manager.database_manager.as_dicts()[0]["log_fname"]
-    with open(log_fname, "w") as f:
+    with log_fname.open("w") as f:
         f.write("This is a test log file.")
     fnames = _get_fnames(run_manager, only_running=False)
     assert len(fnames) == 1, log_fname
