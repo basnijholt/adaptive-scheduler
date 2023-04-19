@@ -16,7 +16,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from typing import Any, Callable
 
-    from ipywidgets import VBox, Widget
+    from ipywidgets import Button, HBox, VBox, Widget
 
     from adaptive_scheduler.server_support import RunManager
     from adaptive_scheduler.utils import FnamesTypes
@@ -627,7 +627,44 @@ def _toggle_widget(
     return on_click
 
 
-def info(run_manager: RunManager) -> None:  # noqa: PLR0915
+def _switch_to(
+    box: HBox,
+    *buttons: Button,
+    _callable: Callable[[], None] | None = None,
+) -> Callable[[Any], None]:
+    def on_click(_: Any) -> None:
+        box.children = tuple(buttons)
+        if _callable is not None:
+            _callable()
+
+    return on_click
+
+
+def _create_confirm_deny(
+    initial_button: Button,
+    widgets: dict[str, Button | HBox],
+    callable_func: Callable[[], None],
+    key: str,
+) -> None:
+    from ipywidgets import Button
+
+    confirm_button = Button(
+        description="Confirm",
+        button_style="success",
+        icon="check",
+    )
+    deny_button = Button(description="Deny", button_style="danger", icon="close")
+
+    initial_button.on_click(
+        _switch_to(widgets[key], confirm_button, deny_button),
+    )
+    deny_button.on_click(_switch_to(widgets[key], initial_button))
+    confirm_button.on_click(
+        _switch_to(widgets[key], initial_button, _callable=callable_func),
+    )
+
+
+def info(run_manager: RunManager) -> None:
     """Display information about the `RunManager`.
 
     Returns an interactive ipywidget that can be
@@ -692,18 +729,6 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         "show database": show_db_button,
     }
 
-    def switch_to(
-        box: HBox,
-        *buttons: Button,
-        _callable: Callable[[], None] | None = None,
-    ) -> Callable[[Any], None]:
-        def on_click(_: Any) -> None:
-            box.children = tuple(buttons)
-            if _callable is not None:
-                _callable()
-
-        return on_click
-
     box = VBox([])
 
     def update(_: Any) -> None:
@@ -755,20 +780,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
-    confirm_cancel_button = Button(
-        description="Confirm",
-        button_style="success",
-        icon="check",
-    )
-    deny_cancel_button = Button(description="Deny", button_style="danger", icon="close")
-
-    cancel_button.on_click(
-        switch_to(widgets["cancel"], confirm_cancel_button, deny_cancel_button),
-    )
-    deny_cancel_button.on_click(switch_to(widgets["cancel"], cancel_button))
-    confirm_cancel_button.on_click(
-        switch_to(widgets["cancel"], cancel_button, _callable=cancel),
-    )
+    _create_confirm_deny(cancel_button, widgets, cancel, key="cancel")
 
     # Cleanup button with confirm/deny option
     include_old_logs = Checkbox(
@@ -776,29 +788,9 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         description=f"Remove {run_manager.move_old_logs_to}/ folder",
         indent=False,
     )
-    confirm_cleanup_button = Button(
-        description="Confirm",
-        button_style="success",
-        icon="check",
-    )
-    deny_cleanup_button = Button(
-        description="Deny",
-        button_style="danger",
-        icon="close",
-    )
-
-    cleanup_box = VBox(
-        [HBox([confirm_cleanup_button, deny_cleanup_button]), include_old_logs],
-    )
-    cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_box))
-    deny_cleanup_button.on_click(switch_to(widgets["cleanup"], cleanup_button))
-    confirm_cleanup_button.on_click(
-        switch_to(
-            widgets["cleanup"],
-            cleanup_button,
-            _callable=cleanup(include_old_logs=include_old_logs),
-        ),
-    )
+    # Cleanup button with confirm/deny option
+    cleanup_callable = cleanup(include_old_logs=include_old_logs)
+    _create_confirm_deny(cleanup_button, widgets, cleanup_callable, key="cleanup")
 
     box.children = (status, *tuple(widgets.values()))
     display(box)
