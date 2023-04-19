@@ -594,6 +594,39 @@ def database_widget(run_manager: RunManager) -> VBox:
     return _create_widget(get_database_df, "Update database")
 
 
+def _remove_widget(box: VBox, widget_to_remove: Widget) -> None:
+    box.children = tuple(child for child in box.children if child != widget_to_remove)
+
+
+def _toggle_widget(
+    box: VBox,
+    widget_key: str,
+    widget_dict: dict[str, Widget | str],
+    state_dict: dict[str, dict[str, Any]],
+) -> Callable[[Any], None]:
+    from ipywidgets import Button
+
+    def on_click(_: Any) -> None:
+        widget = state_dict[widget_key]["widget"]
+        if widget is None:
+            widget = state_dict[widget_key]["init_func"]()
+            state_dict[widget_key]["widget"] = widget
+
+        button = widget_dict[widget_key]
+        assert isinstance(button, Button)
+        show_description = state_dict[widget_key]["show_description"]
+        hide_description = state_dict[widget_key]["hide_description"]
+
+        if button.description == show_description:
+            button.description = hide_description
+            box.children = (*box.children, widget)
+        else:
+            button.description = show_description
+            _remove_widget(box, widget)
+
+    return on_click
+
+
 def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     """Display information about the `RunManager`.
 
@@ -673,7 +706,6 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
 
     box = VBox([])
 
-    log_widget = None
     _queue_widget = None
     _db_widget = None
 
@@ -683,52 +715,26 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
     def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
-    def remove_widget(box: VBox, widget_to_remove: Widget) -> None:
-        box.children = tuple(
-            child for child in box.children if child != widget_to_remove
-        )
-
-    def toggle_logs(_: Any) -> None:
-        nonlocal log_widget
-
-        if log_widget is None:
-            log_widget = log_explorer(run_manager)
-
-        b = widgets["show logs"]
-        if b.description == "show logs":
-            b.description = "hide logs"
-            box.children = (*box.children, log_widget)
-        else:
-            b.description = "show logs"
-            remove_widget(box, log_widget)
-
-    def toggle_queue(_: Any) -> None:
-        nonlocal _queue_widget
-
-        if _queue_widget is None:
-            _queue_widget = queue_widget(run_manager)
-
-        b = widgets["show queue"]
-        if b.description == "show queue":
-            b.description = "hide queue"
-            box.children = (*box.children, _queue_widget)
-        else:
-            b.description = "show queue"
-            remove_widget(box, _queue_widget)
-
-    def toggle_db(_: Any) -> None:
-        nonlocal _db_widget
-
-        if _db_widget is None:
-            _db_widget = database_widget(run_manager)
-
-        b = widgets["show database"]
-        if b.description == "show database":
-            b.description = "hide database"
-            box.children = (*box.children, _db_widget)
-        else:
-            b.description = "show database"
-            remove_widget(box, _db_widget)
+    state_dict = {
+        "show logs": {
+            "widget": None,
+            "init_func": lambda: log_explorer(run_manager),
+            "show_description": "show logs",
+            "hide_description": "hide logs",
+        },
+        "show queue": {
+            "widget": None,
+            "init_func": lambda: queue_widget(run_manager),
+            "show_description": "show queue",
+            "hide_description": "hide queue",
+        },
+        "show database": {
+            "widget": None,
+            "init_func": lambda: database_widget(run_manager),
+            "show_description": "show database",
+            "hide_description": "hide database",
+        },
+    }
 
     def cancel() -> None:
         run_manager.cancel()
@@ -742,9 +748,13 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         return _callable
 
     widgets["update info"].on_click(update)
-    widgets["show logs"].on_click(toggle_logs)
-    widgets["show queue"].on_click(toggle_queue)
-    widgets["show database"].on_click(toggle_db)
+    widgets["show logs"].on_click(_toggle_widget(box, "show logs", widgets, state_dict))
+    widgets["show queue"].on_click(
+        _toggle_widget(box, "show queue", widgets, state_dict),
+    )
+    widgets["show database"].on_click(
+        _toggle_widget(box, "show database", widgets, state_dict),
+    )
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
