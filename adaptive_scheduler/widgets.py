@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.server_support import RunManager
-    from adaptive_scheduler.utils import FnamesTypes
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS, FnamesTypes
 
 
 def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
@@ -690,10 +690,10 @@ def _create_confirm_deny(
 
 
 def results_widget(
-    learners: list[adaptive.BaseLearner],
-    fnames: list[str | Path],
-    dataframe_format: str,
+    fnames: list[str] | list[Path],
+    dataframe_format: _DATAFRAME_FORMATS,
 ) -> ipyw.VBox:
+    """Widget that loads and displays the results as `pandas.DataFrame`s."""
     import ipywidgets as ipyw
     from IPython.display import display
 
@@ -710,6 +710,7 @@ def results_widget(
         itables_checkbox: ipyw.Checkbox,
         concat_checkbox: ipyw.Checkbox,
         output_widget: ipyw.Output,
+        max_rows: ipyw.IntText,
     ) -> Callable[[Any], None]:
         def on_click(_: Any) -> None:
             with output_widget:
@@ -717,6 +718,8 @@ def results_widget(
                 selected_fname = dropdown.value
                 dfs = [selected_fname] if not concat_checkbox.value else fnames
                 df = load_dataframes(dfs, format=dataframe_format)
+                assert isinstance(df, pd.DataFrame)
+                df = df.head(max_rows.value)
                 if itables_checkbox.value:
                     from itables import show
 
@@ -740,12 +743,23 @@ def results_widget(
         button_style="info",
         icon="refresh",
     )
+    max_rows = ipyw.IntText(
+        value=300,
+        description="Max rows",
+    )
 
-    # Update the DataFrame in the ipyw.Output widget when the button is clicked, dropdown value or checkboxes change
-    update_function = _update_data_df(itables_checkbox, concat_checkbox, output_widget)
+    # Update the DataFrame in the ipyw.Output widget
+    # when the button is clicked, dropdown value or checkboxes change
+    update_function = _update_data_df(
+        itables_checkbox,
+        concat_checkbox,
+        output_widget,
+        max_rows,
+    )
     update_button.on_click(update_function)
     itables_checkbox.observe(update_function, names="value")
     concat_checkbox.observe(update_function, names="value")
+    max_rows.observe(update_function, names="value")
     dropdown.observe(on_dropdown_value_change, names="value")
 
     # Observe the value change in the 'concat_checkbox'
@@ -755,12 +769,17 @@ def results_widget(
     update_function(None)
 
     # Create a ipyw.VBox and add the widgets to it
-    vbox = ipyw.VBox(
-        [dropdown, concat_checkbox, itables_checkbox, update_button, output_widget],
+    return ipyw.VBox(
+        [
+            dropdown,
+            concat_checkbox,
+            itables_checkbox,
+            max_rows,
+            update_button,
+            output_widget,
+        ],
         layout=ipyw.Layout(border="solid 2px gray"),
     )
-
-    return vbox
 
 
 def info(run_manager: RunManager) -> None:
@@ -818,6 +837,12 @@ def info(run_manager: RunManager) -> None:
         button_style="info",
         icon="database",
     )
+    show_results_button = ipyw.Button(
+        description="show results",
+        layout=layout,
+        button_style="info",
+        icon="table",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": ipyw.HBox([cancel_button], layout=layout),
@@ -826,6 +851,7 @@ def info(run_manager: RunManager) -> None:
         "show logs": show_logs_button,
         "show queue": show_queue_button,
         "show database": show_db_button,
+        "show results": show_results_button,
     }
 
     def update(_: Any) -> None:
@@ -856,6 +882,16 @@ def info(run_manager: RunManager) -> None:
             "hide_description": "hide database",
             "output": ipyw.Output(),
         },
+        "show results": {
+            "widget": None,
+            "init_func": lambda: results_widget(
+                run_manager.fnames,
+                run_manager.dataframe_format,
+            ),
+            "show_description": "show results",
+            "hide_description": "hide results",
+            "output": ipyw.Output(),
+        },
     }
 
     def cancel() -> None:
@@ -873,9 +909,11 @@ def info(run_manager: RunManager) -> None:
     toggle_logs = _toggle_widget("show logs", widgets, toggle_dict)
     toggle_queue = _toggle_widget("show queue", widgets, toggle_dict)
     toggle_database = _toggle_widget("show database", widgets, toggle_dict)
+    toggle_results = _toggle_widget("show results", widgets, toggle_dict)
     widgets["show logs"].on_click(toggle_logs)
     widgets["show queue"].on_click(toggle_queue)
     widgets["show database"].on_click(toggle_database)
+    widgets["show results"].on_click(toggle_results)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
