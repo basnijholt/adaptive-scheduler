@@ -798,7 +798,7 @@ def info(run_manager: RunManager) -> None:
     cleanup_callable = cleanup(include_old_logs=include_old_logs)
     _create_confirm_deny(cleanup_button, widgets, cleanup_callable, key="cleanup")
 
-    box.children = (status, *tuple(ipyw.values()))
+    box.children = (status, *tuple(widgets.values()))
     display(box)
 
 
