@@ -306,7 +306,7 @@ class RunManager(BaseManager):
         else:
             super().start()
         if self.store_fname is not None:
-            self.start()
+            self.save()
         return self
 
     async def _manage(self) -> None:
@@ -473,12 +473,14 @@ class RunManager(BaseManager):
             raise ValueError(msg)
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
 
-    def save(self, store_fname: str | Path | None, *, overwrite: bool = True) -> None:
+    def save(
+        self, store_fname: str | Path | None = None, *, overwrite: bool = True,
+    ) -> None:
         """Store the `RunManager` to a file.
 
         Parameters
         ----------
-        store_fname : str or Path
+        store_fname : str or Path or None
             The filename to store the `RunManager` to, if None, use the
             `store_fname` attribute.
         overwrite : bool, default: False
