@@ -526,7 +526,6 @@ def _create_widget(
 ) -> tuple[ipyw.VBox, Callable[[Any], None]]:
     import ipywidgets as ipyw
     from IPython.display import display
-    from itables import show
 
     def _update_data_df(
         itables_checkbox: ipyw.Checkbox,
@@ -537,6 +536,9 @@ def _create_widget(
                 output_widget.clear_output()
                 df = data_provider()
                 if itables_checkbox.value:
+                    from itables import show
+
+                    _set_itables_opts()
                     show(df)
                 else:
                     with _display_all_dataframe_rows():
@@ -689,6 +691,12 @@ def _create_confirm_deny(
     )
 
 
+def _set_itables_opts() -> None:
+    import itables.options as opt
+
+    opt.maxBytes = 262_144
+
+
 def results_widget(
     fnames: list[str] | list[Path],
     dataframe_format: _DATAFRAME_FORMATS,
@@ -712,17 +720,20 @@ def results_widget(
         output_widget: ipyw.Output,
         max_rows: ipyw.IntText,
     ) -> Callable[[Any], None]:
-        def on_click(_: Any) -> None:
+        def on_click(change: dict[str, Any]) -> None:
             with output_widget:
                 output_widget.clear_output()
                 selected_fname = dropdown.value
                 dfs = [selected_fname] if not concat_checkbox.value else fnames
                 df = load_dataframes(dfs, format=dataframe_format)
                 assert isinstance(df, pd.DataFrame)
+                if change is not None and change["owner"] == itables_checkbox:
+                    max_rows.value = 10_000 if itables_checkbox.value else 300
                 df = df.head(max_rows.value)
                 if itables_checkbox.value:
                     from itables import show
 
+                    _set_itables_opts()
                     show(df)
                 else:
                     with _display_all_dataframe_rows():
