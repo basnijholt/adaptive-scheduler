@@ -791,6 +791,8 @@ def info(run_manager: RunManager) -> None:
     import ipywidgets as ipyw
     from IPython.display import display
 
+    _disable_widgets_output_scrollbar()
+
     status = ipyw.HTML(value=_info_html(run_manager))
 
     layout = ipyw.Layout(width="200px")
@@ -947,3 +949,23 @@ def _display_all_dataframe_rows(max_colwidth: int = 50) -> Generator[None, None,
     finally:
         pd.set_option("display.max_rows", original_max_rows)
         pd.set_option("display.max_colwidth", original_max_colwidth)
+
+
+def _disable_widgets_output_scrollbar() -> None:
+    import ipywidgets as ipyw
+    from IPython.display import display
+
+    style = """
+        <style>
+            .jupyter-widgets-output-area .output_scroll {
+                height: unset !important;
+                border-radius: unset !important;
+                -webkit-box-shadow: unset !important;
+                box-shadow: unset !important;
+            }
+            .jupyter-widgets-output-area  {
+                height: auto !important;
+            }
+        </style>
+        """
+    display(ipyw.HTML(style))
