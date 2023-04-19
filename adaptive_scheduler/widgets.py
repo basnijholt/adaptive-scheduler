@@ -603,7 +603,8 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
     def get_database_df() -> pd.DataFrame:
         return run_manager.database_manager.as_df()
 
-    return _create_widget(get_database_df, "Update database")[0]
+    vbox, _ = _create_widget(get_database_df, "Update database")
+    return vbox
 
 
 def _remove_widget(box: ipyw.VBox, widget_to_remove: ipyw.Widget) -> None:
