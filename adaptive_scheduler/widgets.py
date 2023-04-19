@@ -511,7 +511,7 @@ def _create_widget(
     *,
     use_itables_checkbox: bool = False,
     additional_widgets: list[ipyw.Widget] | None = None,
-) -> ipyw.VBox:
+) -> tuple[ipyw.VBox, Callable[[Any], None]]:
     import ipywidgets as ipyw
     from IPython.display import display
     from itables import show
@@ -561,9 +561,12 @@ def _create_widget(
     if additional_widgets:
         widget_list = additional_widgets + widget_list
 
-    return ipyw.VBox(
-        widget_list,
-        layout=ipyw.Layout(border="solid 2px gray"),
+    return (
+        ipyw.VBox(
+            widget_list,
+            layout=ipyw.Layout(border="solid 2px gray"),
+        ),
+        update_function,
     )
 
 
@@ -581,11 +584,17 @@ def queue_widget(run_manager: RunManager) -> ipyw.VBox:
         queue = run_manager.scheduler.queue(me_only=me_only_checkbox.value)
         return pd.DataFrame(queue).transpose()
 
-    return _create_widget(
+    # Get both the VBox and the update_function from _create_widget
+    queue_vbox, update_function = _create_widget(
         get_queue_df,
         "Update queue",
         additional_widgets=[me_only_checkbox],
     )
+
+    # Add an observer to the 'me_only_checkbox' that calls the 'update_function' when the checkbox value changes
+    me_only_checkbox.observe(update_function, names="value")
+
+    return queue_vbox
 
 
 def database_widget(run_manager: RunManager) -> ipyw.VBox:
@@ -594,7 +603,7 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
     def get_database_df() -> pd.DataFrame:
         return run_manager.database_manager.as_df()
 
-    return _create_widget(get_database_df, "Update database")
+    return _create_widget(get_database_df, "Update database")[0]
 
 
 def _remove_widget(box: ipyw.VBox, widget_to_remove: ipyw.Widget) -> None:

@@ -18,7 +18,6 @@ from adaptive_scheduler.widgets import (
     _sort_fnames,
     _timedelta_to_human_readable,
     _total_size,
-    database_widget,
     info,
     log_explorer,
     queue_widget,
@@ -227,13 +226,6 @@ def test_queue_widget(tmp_path: Path) -> None:
     """Test the queue_widget function."""
     run_manager = MockRunManager(tmp_path)
     widget = queue_widget(run_manager)  # type: ignore[arg-type]
-    assert widget is not None
-
-
-def test_database_widget(tmp_path: Path) -> None:
-    """Test the database_widget function."""
-    run_manager = MockRunManager(tmp_path)
-    widget = database_widget(run_manager)  # type: ignore[arg-type]
     assert widget is not None
 
 
