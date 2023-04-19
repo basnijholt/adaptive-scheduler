@@ -521,8 +521,9 @@ def _create_widget(
     data_provider: Callable[[], pd.DataFrame],
     update_button_text: str,
     *,
-    use_itables_checkbox: bool = False,
+    itables_checkbox_default: bool = False,
     additional_widgets: list[ipyw.Widget] | None = None,
+    extra_widget_config: dict | None = None,
 ) -> tuple[ipyw.VBox, Callable[[Any], None]]:
     import ipywidgets as ipyw
     from IPython.display import display
@@ -551,7 +552,7 @@ def _create_widget(
     itables_checkbox = ipyw.Checkbox(
         description="Use itables (interactive)",
         indent=False,
-        value=use_itables_checkbox,
+        value=itables_checkbox_default,
     )
     update_button = ipyw.Button(
         description=update_button_text,
@@ -574,6 +575,11 @@ def _create_widget(
     widget_list = [itables_checkbox, update_button, output_widget]
     if additional_widgets:
         widget_list = additional_widgets + widget_list
+
+    if extra_widget_config:
+        for _key, config in extra_widget_config.items():
+            widget_list.insert(config["position"], config["widget"])
+
     vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))
     return (vbox, update_function)
 
@@ -628,99 +634,49 @@ def results_widget(
 ) -> ipyw.VBox:
     """Widget that loads and displays the results as `pandas.DataFrame`s."""
     import ipywidgets as ipyw
-    from IPython.display import display
 
     def on_concat_checkbox_value_change(change: dict) -> None:
         if change["name"] == "value":
             dropdown.layout.visibility = "hidden" if change["new"] else "visible"
             update_function(None)
 
-    def on_dropdown_value_change(change: dict) -> None:
-        if change["name"] == "value":
-            update_function(None)
+    def get_results_df() -> pd.DataFrame:
+        selected_fname = dropdown.value
+        dfs = [selected_fname] if not concat_checkbox.value else fnames
+        df = load_dataframes(dfs, format=dataframe_format)
+        assert isinstance(df, pd.DataFrame)
 
-    def _update_data_df(
-        itables_checkbox: ipyw.Checkbox,
-        concat_checkbox: ipyw.Checkbox,
-        output_widget: ipyw.Output,
-        max_rows: ipyw.IntText,
-    ) -> Callable[[Any], None]:
-        def on_click(change: dict[str, Any]) -> None:
-            with output_widget:
-                output_widget.clear_output()
-                selected_fname = dropdown.value
-                dfs = [selected_fname] if not concat_checkbox.value else fnames
-                df = load_dataframes(dfs, format=dataframe_format)
-                assert isinstance(df, pd.DataFrame)
-                if isinstance(change, dict) and change["owner"] == itables_checkbox:
-                    max_rows.value = 10_000 if itables_checkbox.value else 300
-                    # Unobserve temporarily to not trigger twice
-                    max_rows.unobserve(update_function, names="value")
-                    max_rows.value = max_rows.value
-                    max_rows.observe(update_function, names="value")
-                df = df.head(max_rows.value)
-                if itables_checkbox.value:
-                    from itables import show
+        if len(df) > max_rows.value:
+            sample_indices = np.linspace(0, len(df) - 1, num=max_rows.value, dtype=int)
+            df = df.iloc[sample_indices]
 
-                    _set_itables_opts()
-                    show(df)
-                else:
-                    with _display_all_dataframe_rows():
-                        display(df)
-
-        return on_click
+        return df  # type: ignore[return-value]
 
     # Create widgets
-    output_widget = ipyw.Output()
     dropdown = ipyw.Dropdown(options=fnames)
-    itables_checkbox = ipyw.Checkbox(
-        description="Use itables (interactive)",
-        indent=False,
-    )
     concat_checkbox = ipyw.Checkbox(description="Concat all dataframes", indent=False)
-    update_button = ipyw.Button(
-        description="Update results",
-        button_style="info",
-        icon="refresh",
-    )
-    max_rows = ipyw.IntText(
-        value=300,
-        description="Max rows",
-    )
-
-    # Update the DataFrame in the ipyw.Output widget
-    # when the button is clicked, dropdown value or checkboxes change
-    update_function = _update_data_df(
-        itables_checkbox,
-        concat_checkbox,
-        output_widget,
-        max_rows,
-    )
-    update_button.on_click(update_function)
-    itables_checkbox.observe(update_function, names="value")
-    concat_checkbox.observe(update_function, names="value")
-    max_rows.observe(update_function, names="value")
-    dropdown.observe(on_dropdown_value_change, names="value")
+    max_rows = ipyw.IntText(value=300, description="Max rows")
 
     # Observe the value change in the 'concat_checkbox'
     concat_checkbox.observe(on_concat_checkbox_value_change, names="value")
 
-    # Initialize the DataFrame display
-    update_function(None)
+    extra_widget_config = {
+        "concat_checkbox": {"widget": concat_checkbox, "position": 1},
+        "dropdown": {"widget": dropdown, "position": 0},
+        "max_rows": {"widget": max_rows, "position": 4},
+    }
 
-    # Create a ipyw.VBox and add the widgets to it
-    vbox = ipyw.VBox(
-        [
-            dropdown,
-            concat_checkbox,
-            itables_checkbox,
-            max_rows,
-            update_button,
-            output_widget,
-        ],
-        layout=ipyw.Layout(border="solid 2px gray"),
+    vbox, update_function = _create_widget(
+        get_results_df,
+        "Update results",
+        extra_widget_config=extra_widget_config,
     )
-    _add_title("adaptive_scheduler.widgets.database_widget", vbox)
+
+    # Add observers for the 'dropdown' and 'max_rows' widgets
+    dropdown.observe(update_function, names="value")
+    max_rows.observe(update_function, names="value")
+
+    _add_title("adaptive_scheduler.widgets.results_widget", vbox)
     return vbox
 
 
