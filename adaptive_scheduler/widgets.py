@@ -616,81 +616,6 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
     return vbox
 
 
-def _toggle_widget(
-    widget_key: str,
-    widget_dict: dict[str, ipyw.Widget | str],
-    toggle_dict: dict[str, dict[str, Any]],
-) -> Callable[[Any], None]:
-    import ipywidgets as ipyw
-    from IPython.display import display
-
-    def on_click(_: Any) -> None:
-        widget = toggle_dict[widget_key]["widget"]
-        if widget is None:
-            widget = toggle_dict[widget_key]["init_func"]()
-            toggle_dict[widget_key]["widget"] = widget
-
-        button = widget_dict[widget_key]
-        assert isinstance(button, ipyw.Button)
-        show_description = toggle_dict[widget_key]["show_description"]
-        hide_description = toggle_dict[widget_key]["hide_description"]
-        output = toggle_dict[widget_key]["output"]
-        if button.description == show_description:
-            button.description = hide_description
-            button.button_style = "warning"
-            with output:
-                output.clear_output()
-                display(widget)
-        else:
-            button.description = show_description
-            button.button_style = "info"
-            with output:
-                output.clear_output()
-
-    return on_click
-
-
-def _switch_to(
-    box: ipyw.HBox,
-    *buttons: ipyw.Button,
-    _callable: Callable[[], None] | None = None,
-) -> Callable[[Any], None]:
-    def on_click(_: Any) -> None:
-        box.children = tuple(buttons)
-        if _callable is not None:
-            _callable()
-
-    return on_click
-
-
-def _create_confirm_deny(
-    initial_button: ipyw.Button,
-    widgets: dict[str, ipyw.Button | ipyw.HBox],
-    callable_func: Callable[[], None],
-    key: str,
-) -> None:
-    import ipywidgets as ipyw
-
-    confirm_button = ipyw.Button(
-        description="Confirm",
-        button_style="success",
-        icon="check",
-    )
-    deny_button = ipyw.Button(
-        description="Deny",
-        button_style="danger",
-        icon="close",
-    )
-
-    initial_button.on_click(
-        _switch_to(widgets[key], confirm_button, deny_button),
-    )
-    deny_button.on_click(_switch_to(widgets[key], initial_button))
-    confirm_button.on_click(
-        _switch_to(widgets[key], initial_button, _callable=callable_func),
-    )
-
-
 def _set_itables_opts() -> None:
     import itables.options as opt
 
@@ -794,6 +719,81 @@ def results_widget(
             output_widget,
         ],
         layout=ipyw.Layout(border="solid 2px gray"),
+    )
+
+
+def _toggle_widget(
+    widget_key: str,
+    widget_dict: dict[str, ipyw.Widget | str],
+    toggle_dict: dict[str, dict[str, Any]],
+) -> Callable[[Any], None]:
+    import ipywidgets as ipyw
+    from IPython.display import display
+
+    def on_click(_: Any) -> None:
+        widget = toggle_dict[widget_key]["widget"]
+        if widget is None:
+            widget = toggle_dict[widget_key]["init_func"]()
+            toggle_dict[widget_key]["widget"] = widget
+
+        button = widget_dict[widget_key]
+        assert isinstance(button, ipyw.Button)
+        show_description = toggle_dict[widget_key]["show_description"]
+        hide_description = toggle_dict[widget_key]["hide_description"]
+        output = toggle_dict[widget_key]["output"]
+        if button.description == show_description:
+            button.description = hide_description
+            button.button_style = "warning"
+            with output:
+                output.clear_output()
+                display(widget)
+        else:
+            button.description = show_description
+            button.button_style = "info"
+            with output:
+                output.clear_output()
+
+    return on_click
+
+
+def _switch_to(
+    box: ipyw.HBox,
+    *buttons: ipyw.Button,
+    _callable: Callable[[], None] | None = None,
+) -> Callable[[Any], None]:
+    def on_click(_: Any) -> None:
+        box.children = tuple(buttons)
+        if _callable is not None:
+            _callable()
+
+    return on_click
+
+
+def _create_confirm_deny(
+    initial_button: ipyw.Button,
+    widgets: dict[str, ipyw.Button | ipyw.HBox],
+    callable_func: Callable[[], None],
+    key: str,
+) -> None:
+    import ipywidgets as ipyw
+
+    confirm_button = ipyw.Button(
+        description="Confirm",
+        button_style="success",
+        icon="check",
+    )
+    deny_button = ipyw.Button(
+        description="Deny",
+        button_style="danger",
+        icon="close",
+    )
+
+    initial_button.on_click(
+        _switch_to(widgets[key], confirm_button, deny_button),
+    )
+    deny_button.on_click(_switch_to(widgets[key], initial_button))
+    confirm_button.on_click(
+        _switch_to(widgets[key], initial_button, _callable=callable_func),
     )
 
 
