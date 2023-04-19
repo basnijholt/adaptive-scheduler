@@ -89,7 +89,7 @@ class SLURM(BaseScheduler):
         self.cores_per_node = cores_per_node
         self.partition = partition
         self.exclusive = exclusive
-        self.__extra_scheduler = extra_scheduler
+        self.__extra_scheduler = extra_scheduler  # stores original input
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
