@@ -24,6 +24,8 @@ from adaptive_scheduler.widgets import (
 )
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import pytest
 
 
@@ -75,15 +77,15 @@ def test_bytes_to_human_readable() -> None:
 class MockDatabaseManager:
     """Mock DatabaseManager for testing."""
 
-    def __init__(self, tmp_folder: str) -> None:
+    def __init__(self, tmp_folder: Path) -> None:
         """Initialize the MockDatabaseManager."""
-        self.failed = []
+        self.failed: list[dict[str, Any]] = []
         self._total_learner_size = None
-        self.fnames = []
+        self.fnames: list[str | Path] = []
 
         self.tmp_folder = tmp_folder
 
-    def as_dicts(self) -> list[dict[str, str]]:
+    def as_dicts(self) -> list[dict[str, Any]]:
         """Return a list of dictionaries representing the database entries."""
         return [
             {
@@ -105,7 +107,7 @@ class MockDatabaseManager:
 class MockRunManager:
     """Mock RunManager for testing."""
 
-    def __init__(self, tmp_folder: str) -> None:
+    def __init__(self, tmp_folder: Path) -> None:
         """Initialize the MockRunManager."""
         self.job_name = "adaptive"
         self.scheduler = self
@@ -173,12 +175,11 @@ def test_get_fnames(tmp_path: Path) -> None:
     p2.write_text("Log 2")
 
     run_manager = MockRunManager(tmp_path)
-    run_manager.log_folder = str(d)
 
-    fnames = _get_fnames(run_manager, only_running=False)
+    fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
     assert len(fnames) == 2  # noqa: PLR2004
 
-    fnames = _get_fnames(run_manager, only_running=True)
+    fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
     assert len(fnames) == 6  # noqa: PLR2004
 
 
@@ -194,7 +195,7 @@ def test_failed_job_logs(tmp_path: Path) -> None:
     run_manager = MockRunManager(tmp_path)
 
     fnames = [p1, p2]
-    failed_fnames = _failed_job_logs(fnames, run_manager, only_running=False)
+    failed_fnames = _failed_job_logs(fnames, run_manager, only_running=False)  # type: ignore[arg-type]
     assert failed_fnames == []
 
 
@@ -212,11 +213,11 @@ def test_log_explorer(tmp_path: Path) -> None:
     """Test the log_explorer function."""
     run_manager = MockRunManager(tmp_path)
 
-    async def mock_get_running_loop():
+    async def mock_get_running_loop():  # noqa: ANN202
         return asyncio.get_event_loop()
 
     with patch("asyncio.get_running_loop", side_effect=mock_get_running_loop):
-        widget = log_explorer(run_manager)
+        widget = log_explorer(run_manager)  # type: ignore[arg-type]
 
     assert widget is not None
 
@@ -224,14 +225,14 @@ def test_log_explorer(tmp_path: Path) -> None:
 def test_queue_widget(tmp_path: Path) -> None:
     """Test the queue_widget function."""
     run_manager = MockRunManager(tmp_path)
-    widget = queue_widget(run_manager)
+    widget = queue_widget(run_manager)  # type: ignore[arg-type]
     assert widget is not None
 
 
 def test_info(capfd: pytest.CaptureFixture, tmp_path: Path) -> None:
     """Test the info function."""
     run_manager = MockRunManager(tmp_path)
-    info(run_manager)
+    info(run_manager)  # type: ignore[arg-type]
     captured = capfd.readouterr()
     assert "status" in captured.out
 
@@ -262,17 +263,17 @@ def test_files_that_contain(tmp_path: Path) -> None:
 def test_get_fnames_only_running(tmp_path: Path) -> None:
     """Test the _get_fnames function with only_running=True."""
     run_manager = MockRunManager(tmp_path)
-    fnames = _get_fnames(run_manager, only_running=True)
-    assert len(fnames) == 6
+    fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
+    assert len(fnames) == 6  # noqa: PLR2004
 
 
 def test_get_fnames_only_running_false(tmp_path: Path) -> None:
     """Test the _get_fnames function with only_running=False."""
     run_manager = MockRunManager(tmp_path)
     log_fname = run_manager.database_manager.as_dicts()[0]["log_fname"]
-    with open(log_fname, "w") as f:
+    with open(log_fname, "w") as f:  # noqa: PTH123
         f.write("This is a test log file.")
-    fnames = _get_fnames(run_manager, only_running=False)
+    fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
     assert len(fnames) == 3  # noqa: PLR2004
     # TODO: it is picking up the database file and scheduler file
     # we should probably filter those out?
@@ -283,5 +284,5 @@ def test_sort_fnames(tmp_path: Path) -> None:
     run_manager = MockRunManager(tmp_path)
     fnames = [Path(f"logs/{run_manager.job_name}-{i}-{i * 100}.log") for i in range(3)]
 
-    sorted_fnames = _sort_fnames("Alphabetical", run_manager, fnames)
+    sorted_fnames = _sort_fnames("Alphabetical", run_manager, fnames)  # type: ignore[arg-type]
     assert sorted_fnames == fnames  # In this case, they should be the same
