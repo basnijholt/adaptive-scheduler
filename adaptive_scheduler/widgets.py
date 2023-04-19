@@ -615,22 +615,22 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
 def _toggle_widget(
     widget_key: str,
     widget_dict: dict[str, ipyw.Widget | str],
-    state_dict: dict[str, dict[str, Any]],
+    toggle_dict: dict[str, dict[str, Any]],
 ) -> Callable[[Any], None]:
     import ipywidgets as ipyw
     from IPython.display import display
 
     def on_click(_: Any) -> None:
-        widget = state_dict[widget_key]["widget"]
+        widget = toggle_dict[widget_key]["widget"]
         if widget is None:
-            widget = state_dict[widget_key]["init_func"]()
-            state_dict[widget_key]["widget"] = widget
+            widget = toggle_dict[widget_key]["init_func"]()
+            toggle_dict[widget_key]["widget"] = widget
 
         button = widget_dict[widget_key]
         assert isinstance(button, ipyw.Button)
-        show_description = state_dict[widget_key]["show_description"]
-        hide_description = state_dict[widget_key]["hide_description"]
-        output = state_dict[widget_key]["output"]
+        show_description = toggle_dict[widget_key]["show_description"]
+        hide_description = toggle_dict[widget_key]["hide_description"]
+        output = toggle_dict[widget_key]["output"]
         if button.description == show_description:
             button.description = hide_description
             button.button_style = "warning"
@@ -758,7 +758,7 @@ def info(run_manager: RunManager) -> None:
     def load_learners(_: Any) -> None:
         run_manager.load_learners()
 
-    state_dict = {
+    toggle_dict = {
         "show logs": {
             "widget": None,
             "init_func": lambda: log_explorer(run_manager),
@@ -794,9 +794,9 @@ def info(run_manager: RunManager) -> None:
         return _callable
 
     widgets["update info"].on_click(update)
-    toggle_logs = _toggle_widget("show logs", widgets, state_dict)
-    toggle_queue = _toggle_widget("show queue", widgets, state_dict)
-    toggle_database = _toggle_widget("show database", widgets, state_dict)
+    toggle_logs = _toggle_widget("show logs", widgets, toggle_dict)
+    toggle_queue = _toggle_widget("show queue", widgets, toggle_dict)
+    toggle_database = _toggle_widget("show database", widgets, toggle_dict)
     widgets["show logs"].on_click(toggle_logs)
     widgets["show queue"].on_click(toggle_queue)
     widgets["show database"].on_click(toggle_database)
@@ -817,7 +817,7 @@ def info(run_manager: RunManager) -> None:
     buttons_box = ipyw.VBox(tuple(widgets.values()))
     buttons_box.layout.margin = "0 0 0 100px"
     top_box = ipyw.HBox((status, buttons_box))
-    box = ipyw.VBox((top_box, *(v["output"] for v in state_dict.values())))
+    box = ipyw.VBox((top_box, *(v["output"] for v in toggle_dict.values())))
     display(box)
 
 
