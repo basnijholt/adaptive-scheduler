@@ -111,7 +111,7 @@ def _sort_fnames(
         "CPU %": ("cpu_usage", lambda x: f"{x:.1f}%"),
         "Mem %": ("mem_usage", lambda x: f"{x:.1f}%"),
         "Last editted": ("timestamp", _vec_timedelta),
-        "Loss": ("latest_loss", lambda x: f"{x:.2f}"),
+        "Loss": ("latest_loss", lambda x: f"{x:.2e}"),
         "npoints": ("npoints", lambda x: f"{x} pnts"),
         "Elapsed time": ("elapsed_time", lambda x: f"{x / 1e9}s"),
     }
