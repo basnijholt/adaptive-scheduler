@@ -729,6 +729,10 @@ def results_widget(
                 assert isinstance(df, pd.DataFrame)
                 if change is not None and change["owner"] == itables_checkbox:
                     max_rows.value = 10_000 if itables_checkbox.value else 300
+                    # Unobserve temporarily to not trigger twice
+                    max_rows.unobserve(update_function, names="value")
+                    max_rows.value = max_rows.value
+                    max_rows.observe(update_function, names="value")
                 df = df.head(max_rows.value)
                 if itables_checkbox.value:
                     from itables import show
