@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Generator
 import numpy as np
 import pandas as pd
 
+from adaptive_scheduler.utils import load_dataframes
+
 if TYPE_CHECKING:
     from typing import Any, Callable
 
@@ -20,7 +22,7 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.server_support import RunManager
-    from adaptive_scheduler.utils import FnamesTypes
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS, FnamesTypes
 
 
 def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
@@ -228,32 +230,36 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
         update_button: ipyw.Button,
         only_running_checkbox: ipyw.Checkbox,
         only_failed_checkbox: ipyw.Checkbox,
+        sort_by_dropdown: ipyw.Dropdown,
+        contains_text: ipyw.Text,
     ) -> Callable[[Any], None]:
         tail_task = None
         ioloop = asyncio.get_running_loop()
 
         def on_click(_: Any) -> None:
             nonlocal tail_task
-            if tail_task is None:
+            tailing_log = tail_task is not None
+
+            def update_ui_state(tailing: bool) -> None:  # noqa: FBT001
+                tail_button.description = "cancel tail log" if tailing else "tail log"
+                tail_button.button_style = "danger" if tailing else "info"
+                tail_button.icon = "window-close" if tailing else "refresh"
+                dropdown.disabled = tailing
+                only_running_checkbox.disabled = tailing
+                only_failed_checkbox.disabled = tailing
+                update_button.disabled = tailing
+                sort_by_dropdown.disabled = tailing
+                contains_text.disabled = tailing
+
+            if not tailing_log:
                 fname = dropdown.options[dropdown.index]
                 tail_task = ioloop.create_task(_tail_log(fname, textarea))
-                tail_button.description = "cancel tail log"
-                tail_button.button_style = "danger"
-                tail_button.icon = "window-close"
-                dropdown.disabled = True
-                update_button.disabled = True
-                only_running_checkbox.disabled = True
-                only_failed_checkbox.disabled = True
             else:
-                tail_button.description = "tail log"
-                tail_button.button_style = "info"
-                tail_button.icon = "refresh"
-                dropdown.disabled = False
-                only_running_checkbox.disabled = False
-                only_failed_checkbox.disabled = False
-                update_button.disabled = False
+                assert tail_task is not None
                 tail_task.cancel()
                 tail_task = None
+
+            update_ui_state(not tailing_log)
 
         return on_click
 
@@ -329,6 +335,8 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
             update_button,
             only_running_checkbox,
             only_failed_checkbox,
+            sort_by_dropdown,
+            contains_text,
         ),
     )
     vbox = ipyw.VBox(
@@ -427,6 +435,35 @@ def _total_size(fnames: FnamesTypes) -> int:
     )
 
 
+def _interp_red_green(
+    percent: float,
+    pct_red: int = 30,
+    pct_green: int = 10,
+) -> tuple[int, int, int]:
+    if pct_green < pct_red:
+        if percent <= pct_green:
+            return 0, 255, 0
+        if percent >= pct_red:
+            return 255, 0, 0
+    else:
+        if percent >= pct_green:
+            return 0, 255, 0
+        if percent <= pct_red:
+            return 255, 0, 0
+
+    # Interpolate between green and red
+    factor = (percent - pct_green) / (pct_red - pct_green)
+    red_level = int(255 * factor)
+    green_level = int(255 * (1 - factor))
+    return red_level, green_level, 0
+
+
+def _create_html_tag(value: float, color: tuple[int, int, int]) -> str:
+    red_level, green_level, blue_level = color
+    hex_color = f"#{red_level:02x}{green_level:02x}{blue_level:02x}"
+    return f'<font color="{hex_color}">{value:.2f}%</font>'
+
+
 def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
     dbm = run_manager.database_manager
@@ -482,20 +519,22 @@ def _info_html(run_manager: RunManager) -> str:
         df = run_manager.parse_log_files()
         t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
 
-        overhead = df.mem_usage.mean()
-        red_level = max(0, min(int(255 * overhead / 100), 255))
-        overhead_color = f"#{red_level:02x}{255 - red_level:02x}{0:02x}"
-        overhead_html_value = f'<font color="{overhead_color}">{overhead:.2f}%</font>'
-
         cpu = df.cpu_usage.mean()
-        red_level = max(0, min(int(255 * cpu / 100), 255))
-        cpu_color = f"#{red_level:02x}{red_level:02x}{0:02x}"
-        cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
+        cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu))
+
+        mem = df.mem_usage.mean()
+        mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 50))
+
+        overhead = df.overhead.mean()
+        overhead_html_value = _create_html_tag(
+            overhead,
+            _interp_red_green(overhead, 10, 30),
+        )
 
         from_logs = [
             ("# of points", df.npoints.sum()),
             ("mean CPU usage", cpu_html_value),
-            ("mean memory usage", f"{df.mem_usage.mean().round(1)} %"),
+            ("mean memory usage", mem_html_value),
             ("mean overhead", overhead_html_value),
             ("last log-entry", f"{t_last}s ago"),
         ]
@@ -519,12 +558,12 @@ def _create_widget(
     data_provider: Callable[[], pd.DataFrame],
     update_button_text: str,
     *,
-    use_itables_checkbox: bool = False,
+    itables_checkbox_default: bool = False,
     additional_widgets: list[ipyw.Widget] | None = None,
+    extra_widget_config: dict | None = None,
 ) -> tuple[ipyw.VBox, Callable[[Any], None]]:
     import ipywidgets as ipyw
     from IPython.display import display
-    from itables import show
 
     def _update_data_df(
         itables_checkbox: ipyw.Checkbox,
@@ -535,6 +574,9 @@ def _create_widget(
                 output_widget.clear_output()
                 df = data_provider()
                 if itables_checkbox.value:
+                    from itables import show
+
+                    _set_itables_opts()
                     show(df)
                 else:
                     with _display_all_dataframe_rows():
@@ -547,7 +589,7 @@ def _create_widget(
     itables_checkbox = ipyw.Checkbox(
         description="Use itables (interactive)",
         indent=False,
-        value=use_itables_checkbox,
+        value=itables_checkbox_default,
     )
     update_button = ipyw.Button(
         description=update_button_text,
@@ -570,6 +612,11 @@ def _create_widget(
     widget_list = [itables_checkbox, update_button, output_widget]
     if additional_widgets:
         widget_list = additional_widgets + widget_list
+
+    if extra_widget_config:
+        for _key, config in extra_widget_config.items():
+            widget_list.insert(config["position"], config["widget"])
+
     vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))
     return (vbox, update_function)
 
@@ -612,6 +659,64 @@ def database_widget(run_manager: RunManager) -> ipyw.VBox:
     return vbox
 
 
+def _set_itables_opts() -> None:
+    import itables.options as opt
+
+    opt.maxBytes = 262_144
+
+
+def results_widget(
+    fnames: list[str] | list[Path],
+    dataframe_format: _DATAFRAME_FORMATS,
+) -> ipyw.VBox:
+    """Widget that loads and displays the results as `pandas.DataFrame`s."""
+    import ipywidgets as ipyw
+
+    def on_concat_checkbox_value_change(change: dict) -> None:
+        if change["name"] == "value":
+            dropdown.layout.visibility = "hidden" if change["new"] else "visible"
+            update_function(None)
+
+    def get_results_df() -> pd.DataFrame:
+        selected_fname = dropdown.value
+        dfs = [selected_fname] if not concat_checkbox.value else fnames
+        df = load_dataframes(dfs, format=dataframe_format)
+        assert isinstance(df, pd.DataFrame)
+
+        if len(df) > max_rows.value:
+            sample_indices = np.linspace(0, len(df) - 1, num=max_rows.value, dtype=int)
+            df = df.iloc[sample_indices]
+
+        return df  # type: ignore[return-value]
+
+    # Create widgets
+    dropdown = ipyw.Dropdown(options=fnames)
+    concat_checkbox = ipyw.Checkbox(description="Concat all dataframes", indent=False)
+    max_rows = ipyw.IntText(value=300, description="Max rows")
+
+    # Observe the value change in the 'concat_checkbox'
+    concat_checkbox.observe(on_concat_checkbox_value_change, names="value")
+
+    extra_widget_config = {
+        "concat_checkbox": {"widget": concat_checkbox, "position": 1},
+        "dropdown": {"widget": dropdown, "position": 0},
+        "max_rows": {"widget": max_rows, "position": 4},
+    }
+
+    vbox, update_function = _create_widget(
+        get_results_df,
+        "Update results",
+        extra_widget_config=extra_widget_config,
+    )
+
+    # Add observers for the 'dropdown' and 'max_rows' widgets
+    dropdown.observe(update_function, names="value")
+    max_rows.observe(update_function, names="value")
+
+    _add_title("adaptive_scheduler.widgets.results_widget", vbox)
+    return vbox
+
+
 def _toggle_widget(
     widget_key: str,
     widget_dict: dict[str, ipyw.Widget | str],
@@ -628,8 +733,8 @@ def _toggle_widget(
 
         button = widget_dict[widget_key]
         assert isinstance(button, ipyw.Button)
-        show_description = toggle_dict[widget_key]["show_description"]
-        hide_description = toggle_dict[widget_key]["hide_description"]
+        show_description = f"show {widget_key}"
+        hide_description = f"hide {widget_key}"
         output = toggle_dict[widget_key]["output"]
         if button.description == show_description:
             button.description = hide_description
@@ -696,6 +801,8 @@ def info(run_manager: RunManager) -> None:
     import ipywidgets as ipyw
     from IPython.display import display
 
+    _disable_widgets_output_scrollbar()
+
     status = ipyw.HTML(value=_info_html(run_manager))
 
     layout = ipyw.Layout(width="200px")
@@ -742,14 +849,21 @@ def info(run_manager: RunManager) -> None:
         button_style="info",
         icon="database",
     )
+    show_results_button = ipyw.Button(
+        description="show results",
+        layout=layout,
+        button_style="info",
+        icon="table",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": ipyw.HBox([cancel_button], layout=layout),
         "cleanup": ipyw.HBox([cleanup_button], layout=layout),
         "load learners": load_learners_button,
-        "show logs": show_logs_button,
-        "show queue": show_queue_button,
-        "show database": show_db_button,
+        "logs": show_logs_button,
+        "queue": show_queue_button,
+        "database": show_db_button,
+        "results": show_results_button,
     }
 
     def update(_: Any) -> None:
@@ -759,25 +873,29 @@ def info(run_manager: RunManager) -> None:
         run_manager.load_learners()
 
     toggle_dict = {
-        "show logs": {
+        "logs": {
             "widget": None,
             "init_func": lambda: log_explorer(run_manager),
-            "show_description": "show logs",
+            "show_description": "logs",
             "hide_description": "hide logs",
             "output": ipyw.Output(),
         },
-        "show queue": {
+        "queue": {
             "widget": None,
             "init_func": lambda: queue_widget(run_manager.scheduler),
-            "show_description": "show queue",
-            "hide_description": "hide queue",
             "output": ipyw.Output(),
         },
-        "show database": {
+        "database": {
             "widget": None,
             "init_func": lambda: database_widget(run_manager),
-            "show_description": "show database",
-            "hide_description": "hide database",
+            "output": ipyw.Output(),
+        },
+        "results": {
+            "widget": None,
+            "init_func": lambda: results_widget(
+                run_manager.fnames,
+                run_manager.dataframe_format,
+            ),
             "output": ipyw.Output(),
         },
     }
@@ -794,12 +912,14 @@ def info(run_manager: RunManager) -> None:
         return _callable
 
     widgets["update info"].on_click(update)
-    toggle_logs = _toggle_widget("show logs", widgets, toggle_dict)
-    toggle_queue = _toggle_widget("show queue", widgets, toggle_dict)
-    toggle_database = _toggle_widget("show database", widgets, toggle_dict)
-    widgets["show logs"].on_click(toggle_logs)
-    widgets["show queue"].on_click(toggle_queue)
-    widgets["show database"].on_click(toggle_database)
+    toggle_logs = _toggle_widget("logs", widgets, toggle_dict)
+    toggle_queue = _toggle_widget("queue", widgets, toggle_dict)
+    toggle_database = _toggle_widget("database", widgets, toggle_dict)
+    toggle_results = _toggle_widget("results", widgets, toggle_dict)
+    widgets["logs"].on_click(toggle_logs)
+    widgets["queue"].on_click(toggle_queue)
+    widgets["database"].on_click(toggle_database)
+    widgets["results"].on_click(toggle_results)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
@@ -833,3 +953,23 @@ def _display_all_dataframe_rows(max_colwidth: int = 50) -> Generator[None, None,
     finally:
         pd.set_option("display.max_rows", original_max_rows)
         pd.set_option("display.max_colwidth", original_max_colwidth)
+
+
+def _disable_widgets_output_scrollbar() -> None:
+    import ipywidgets as ipyw
+    from IPython.display import display
+
+    style = """
+        <style>
+            .jupyter-widgets-output-area .output_scroll {
+                height: unset !important;
+                border-radius: unset !important;
+                -webkit-box-shadow: unset !important;
+                box-shadow: unset !important;
+            }
+            .jupyter-widgets-output-area  {
+                height: auto !important;
+            }
+        </style>
+        """
+    display(ipyw.HTML(style))

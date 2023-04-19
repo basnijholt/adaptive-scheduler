@@ -10,17 +10,21 @@ from random import randint
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pandas as pd
+
 from adaptive_scheduler.widgets import (
     _bytes_to_human_readable,
     _failed_job_logs,
     _files_that_contain,
     _get_fnames,
+    _interp_red_green,
     _sort_fnames,
     _timedelta_to_human_readable,
     _total_size,
     info,
     log_explorer,
     queue_widget,
+    results_widget,
 )
 
 if TYPE_CHECKING:
@@ -286,3 +290,34 @@ def test_sort_fnames(tmp_path: Path) -> None:
 
     sorted_fnames = _sort_fnames("Alphabetical", run_manager, fnames)  # type: ignore[arg-type]
     assert sorted_fnames == fnames  # In this case, they should be the same
+
+
+def test_results_widget(tmp_path: Path) -> None:
+    """Test the results_widget function."""
+    # Create some sample data files in DataFrame pickle format
+    sample_data = [
+        pd.DataFrame({"col1": range(10), "col2": range(10)}),
+        pd.DataFrame({"col1": range(10, 20), "col2": range(10, 20)}),
+    ]
+
+    data_files = []
+    for idx, data in enumerate(sample_data):
+        file_path = tmp_path / f"sample_data_{idx}.pickle"
+        data.to_pickle(file_path)
+        data_files.append(file_path)
+
+    # Create the widget
+    widget = results_widget(data_files, "pickle")
+
+    # Test the widget's configuration
+    assert widget is not None
+
+
+def test_interp_red_green() -> None:
+    """Test _interp_red_green."""
+    assert _interp_red_green(100, pct_red=10, pct_green=90) == (0, 255, 0)
+    assert _interp_red_green(0, pct_red=10, pct_green=90) == (255, 0, 0)
+    assert _interp_red_green(50, pct_red=10, pct_green=90) == (127, 127, 0)
+    assert _interp_red_green(50, pct_red=90, pct_green=10) == (127, 127, 0)
+    assert _interp_red_green(100, pct_green=10, pct_red=90) == (255, 0, 0)
+    assert _interp_red_green(0, pct_green=10, pct_red=90) == (0, 255, 0)
