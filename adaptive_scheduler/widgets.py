@@ -429,6 +429,31 @@ def _total_size(fnames: FnamesTypes) -> int:
     )
 
 
+def _interp_red_green(
+    percent: float,
+    pct_red: int = 30,
+    pct_green: int = 90,
+) -> tuple[int, int, int]:
+    if pct_red > pct_green:
+        pct_red, pct_green = pct_green, pct_red
+
+    if percent <= pct_red:
+        return 255, 0, 0
+    if percent >= pct_green:
+        return 0, 255, 0
+    # Interpolate between red and green
+    factor = (percent - pct_red) / (pct_green - pct_red)
+    red_level = int(255 * (1 - factor))
+    green_level = int(255 * factor)
+    return red_level, green_level, 0
+
+
+def _create_html_tag(value: float, color: tuple[int, int, int]) -> str:
+    red_level, green_level, blue_level = color
+    hex_color = f"#{red_level:02x}{green_level:02x}{blue_level:02x}"
+    return f'<font color="{hex_color}">{value:.2f}%</font>'
+
+
 def _info_html(run_manager: RunManager) -> str:
     queue = run_manager.scheduler.queue(me_only=True)
     dbm = run_manager.database_manager
@@ -484,15 +509,11 @@ def _info_html(run_manager: RunManager) -> str:
         df = run_manager.parse_log_files()
         t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
 
-        overhead = df.mem_usage.mean()
-        red_level = max(0, min(int(255 * overhead / 100), 255))
-        overhead_color = f"#{red_level:02x}{255 - red_level:02x}{0:02x}"
-        overhead_html_value = f'<font color="{overhead_color}">{overhead:.2f}%</font>'
+        mem = df.mem_usage.mean()
+        overhead_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 30))
 
         cpu = df.cpu_usage.mean()
-        red_level = max(0, min(int(255 * cpu / 100), 255))
-        cpu_color = f"#{red_level:02x}{red_level:02x}{0:02x}"
-        cpu_html_value = f'<font color="{cpu_color}">{cpu:.2f}%</font>'
+        cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu))
 
         from_logs = [
             ("# of points", df.npoints.sum()),
