@@ -201,12 +201,17 @@ class JobManager(BaseManager):
                             "Too many jobs failed, your Python code probably has a bug."
                         )
                         raise MaxRestartsReachedError(msg)  # noqa: TRY301
+                    if await sleep_unless_task_is_done(
+                        self.database_manager.task,  # type: ignore[arg-type]
+                        self.interval,
+                    ):  # if true, we are done
+                        return
                 except asyncio.CancelledError:
                     log.info("task was cancelled because of a CancelledError")
                     raise
                 except MaxRestartsReachedError as e:
                     log.exception(
-                        "Too many jobs failed, cancelling the job manager",
+                        "too many jobs have failed, cancelling the job manager",
                         n_started=self.n_started,
                         max_fails_per_job=self.max_fails_per_job,
                         max_job_starts=self.max_job_starts,
@@ -215,9 +220,8 @@ class JobManager(BaseManager):
                     raise
                 except Exception as e:  # noqa: BLE001
                     log.exception("got exception when starting a job", exception=str(e))
-
-                if await sleep_unless_task_is_done(
-                    self.database_manager.task,  # type: ignore[arg-type]
-                    self.interval,
-                ):  # if true, we are done
-                    return
+                    if await sleep_unless_task_is_done(
+                        self.database_manager.task,  # type: ignore[arg-type]
+                        5,
+                    ):  # if true, we are done
+                        return
