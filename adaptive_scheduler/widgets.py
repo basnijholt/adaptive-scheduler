@@ -578,7 +578,7 @@ def database_widget(run_manager: RunManager) -> VBox:
             with output_widget:
                 output_widget.clear_output()
                 database = run_manager.database_manager.as_df()
-                df = pd.DataFrame(database).transpose()
+                df = pd.DataFrame(database)
                 if use_itables_checkbox.value:
                     show(df)
                 else:
@@ -671,7 +671,7 @@ def info(run_manager: RunManager) -> None:  # noqa: PLR0915
         description="show database",
         layout=layout,
         button_style="info",
-        icon="tasks",
+        icon="database",
     )
     widgets = {
         "update info": update_info_button,
