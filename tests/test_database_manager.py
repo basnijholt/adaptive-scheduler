@@ -10,11 +10,95 @@ import zmq
 
 from adaptive_scheduler._server_support.database_manager import (
     DatabaseManager,
+    SimpleDatabase,
+    _DBEntry,
     _ensure_str,
 )
 from adaptive_scheduler.utils import smart_goal
 
 from .helpers import send_message
+
+
+def test_simple_database_init_and_save(tmp_path: Path) -> None:
+    """Test initializing and saving a SimpleDatabase instance."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    assert db.all() == []
+    db._save()
+    assert db_fname.exists()
+
+
+def test_simple_database_insert_multiple(tmp_path: Path) -> None:
+    """Test inserting multiple entries into the database."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    entries = [
+        _DBEntry(fname="file1.txt"),
+        _DBEntry(fname="file2.txt"),
+        _DBEntry(fname="file3.txt"),
+    ]
+    db.insert_multiple(entries)
+    assert len(db.all()) == 3  # noqa: PLR2004
+
+
+def test_simple_database_update(tmp_path: Path) -> None:
+    """Test updating entries in the database."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    entries = [
+        _DBEntry(fname="file1.txt"),
+        _DBEntry(fname="file2.txt"),
+        _DBEntry(fname="file3.txt"),
+    ]
+    db.insert_multiple(entries)
+    db.update({"is_done": True}, indices=[1])
+    assert db.all()[1].is_done is True
+
+
+def test_simple_database_count(tmp_path: Path) -> None:
+    """Test counting entries in the database."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    entries = [
+        _DBEntry(fname="file1.txt", is_done=True),
+        _DBEntry(fname="file2.txt"),
+        _DBEntry(fname="file3.txt", is_done=True),
+    ]
+    db.insert_multiple(entries)
+    count_done = db.count(lambda entry: entry.is_done)
+    assert count_done == 2  # noqa: PLR2004
+
+
+def test_simple_database_get_and_contains(tmp_path: Path) -> None:
+    """Test getting and checking for entries in the database."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    entries = [
+        _DBEntry(fname="file1.txt"),
+        _DBEntry(fname="file2.txt"),
+        _DBEntry(fname="file3.txt"),
+    ]
+    db.insert_multiple(entries)
+    entry = db.get(lambda entry: entry.fname == "file2.txt")
+    assert entry is not None
+    assert entry.fname == "file2.txt"
+    assert db.contains(lambda entry: entry.fname == "file4.txt") is False
+
+
+def test_simple_database_get_all(tmp_path: Path) -> None:
+    """Test getting all entries in the database."""
+    db_fname = tmp_path / "test_db.json"
+    db = SimpleDatabase(db_fname)
+    entries = [
+        _DBEntry(fname="file1.txt", is_done=True),
+        _DBEntry(fname="file2.txt"),
+        _DBEntry(fname="file3.txt", is_done=True),
+    ]
+    db.insert_multiple(entries)
+    done_entries = db.get_all(lambda entry: entry.is_done)
+    assert len(done_entries) == 2
+    assert done_entries[0][1].fname == "file1.txt"
+    assert done_entries[1][1].fname == "file3.txt"
 
 
 @pytest.mark.asyncio()
