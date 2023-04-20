@@ -70,15 +70,18 @@ class _DBEntry:
 
 
 class SimpleDatabase:
-    def __init__(self, db_fname: str | Path) -> None:
+    def __init__(self, db_fname: str | Path, *, clear_existing: bool = False) -> None:
         self.db_fname = Path(db_fname)
         self._data: list[_DBEntry] = []
         self._meta: dict[str, Any] = {}
 
         if self.db_fname.exists():
-            with self.db_fname.open() as f:
-                raw_data = json.load(f)
-                self._data = [_DBEntry(**entry) for entry in raw_data["data"]]
+            if clear_existing:
+                self.db_fname.unlink()
+            else:
+                with self.db_fname.open() as f:
+                    raw_data = json.load(f)
+                    self._data = [_DBEntry(**entry) for entry in raw_data["data"]]
 
     def all(self) -> list[_DBEntry]:  # noqa: A003
         return self._data
@@ -91,6 +94,7 @@ class SimpleDatabase:
         for index, entry in enumerate(self._data):
             if indices is None or index in indices:
                 for key, value in update_dict.items():
+                    assert hasattr(entry, key)
                     setattr(entry, key, value)
         self._save()
 
