@@ -73,11 +73,12 @@ class SimpleDatabase:
     def __init__(self, db_fname: str | Path) -> None:
         self.db_fname = Path(db_fname)
         self._data: list[_DBEntry] = []
+        self._meta: dict[str, Any] = {}
 
         if self.db_fname.exists():
             with self.db_fname.open() as f:
                 raw_data = json.load(f)
-                self._data = [_DBEntry(**entry) for entry in raw_data]
+                self._data = [_DBEntry(**entry) for entry in raw_data["data"]]
 
     def all(self) -> list[_DBEntry]:  # noqa: A003
         return self._data
@@ -116,7 +117,7 @@ class SimpleDatabase:
 
     def _save(self) -> None:
         with self.db_fname.open("w") as f:
-            json.dump([asdict(entry) for entry in self._data], f)
+            json.dump({"data": self.as_dicts(), "meta": self._meta}, f)
 
 
 class DatabaseManager(BaseManager):
@@ -187,7 +188,7 @@ class DatabaseManager(BaseManager):
             queue = self.scheduler.queue(me_only=True)
 
         failed = self._db.get_all(
-            lambda entry: (entry.job_id is not None) and (entry.job_id not in queue),
+            lambda e: (e.job_id is not None) and (e.job_id not in queue),
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
@@ -197,7 +198,7 @@ class DatabaseManager(BaseManager):
         """Return the number of jobs that are done."""
         if self._db is None:
             return 0
-        return self._db.count(lambda entry: entry.is_done)
+        return self._db.count(lambda e: e.is_done)
 
     def is_done(self) -> bool:
         """Return True if all jobs are done."""
@@ -240,8 +241,8 @@ class DatabaseManager(BaseManager):
         job_name: str,
     ) -> str | list[str] | None:
         assert self._db is not None
-        if self._db.contains(lambda entry: entry.job_id == job_id):
-            entry = self._db.get(lambda entry: entry.job_id == job_id)
+        if self._db.contains(lambda e: e.job_id == job_id):
+            entry = self._db.get(lambda e: e.job_id == job_id)
             assert entry is not None
             fname = entry.fname  # already running
             msg = (
@@ -252,7 +253,7 @@ class DatabaseManager(BaseManager):
             )
             raise JobIDExistsInDbError(msg)
         entry = self._db.get(
-            lambda entry: entry.job_id is None and entry.is_done is False,
+            lambda e: e.job_id is None and e.is_done is False,
         )
         log.debug("choose fname", entry=entry)
         if entry is None:
@@ -276,8 +277,7 @@ class DatabaseManager(BaseManager):
         # make sure the entry exists
         assert self._db is not None
         entry_indices = [
-            index
-            for index, _ in self._db.get_all(lambda entry: entry.fname == fname_str)
+            index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
         ]
         self._db.update(reset, entry_indices)
 
@@ -287,10 +287,7 @@ class DatabaseManager(BaseManager):
         fnames_str = {str(fname) for fname in _ensure_str(fnames)}
         reset = {"job_id": None, "is_done": True, "job_name": None}
         entry_indices = [
-            index
-            for index, entry in self._db.get_all(
-                lambda entry: entry.fname in fnames_str,
-            )
+            index for index, _ in self._db.get_all(lambda e: e.fname in fnames_str)
         ]
         self._db.update(reset, entry_indices)
 
