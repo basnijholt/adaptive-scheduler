@@ -7,7 +7,6 @@ from pathlib import Path
 import adaptive
 import pytest
 import zmq
-from tinydb import Query, TinyDB
 
 from adaptive_scheduler._server_support.database_manager import (
     DatabaseManager,
@@ -50,10 +49,10 @@ def test_smart_goal(learners: list) -> None:
 def test_database_manager_create_empty_db(db_manager: DatabaseManager) -> None:
     """Test creating an empty database."""
     db_manager.create_empty_db()
+    assert db_manager._db is not None
     assert Path(db_manager.db_fname).exists()
     n_learners = 2
-    with TinyDB(db_manager.db_fname) as db:
-        assert len(db.all()) == n_learners
+    assert len(db_manager._db.all()) == n_learners
 
 
 def test_database_manager_as_dicts(
@@ -108,11 +107,10 @@ async def test_database_manager_dispatch_start_stop(
     stop_request = ("stop", fname)
     db_manager._dispatch(stop_request)
 
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname)
-        assert entry["job_id"] is None
-        assert entry["is_done"] is True
+    entry = db_manager._db.get(lambda entry: entry.fname == fname)
+    assert entry is not None
+    assert entry.job_id is None
+    assert entry.is_done is True
 
 
 @pytest.mark.asyncio()
@@ -135,34 +133,31 @@ async def test_database_manager_start_and_update(
     assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname)
-        assert entry["job_id"] == job_id
-        assert entry["log_fname"] == log_fname
-        assert entry["job_name"] == job_name
+    entry = db_manager._db.get(lambda entry: entry.fname == fname)
+    assert entry is not None
+    assert entry.job_id == job_id
+    assert entry.log_fname == log_fname
+    assert entry.job_name == job_name
 
     # Say that the job is still running
     queue = {"1000": {"job_id": "1000"}}
     db_manager.update(queue)
 
     # Check that the database is the same
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname)
-        assert entry["job_id"] == job_id
-        assert entry["log_fname"] == log_fname
-        assert entry["job_name"] == job_name
+    entry = db_manager._db.get(lambda entry: entry.fname == fname)
+    assert entry is not None
+    assert entry.job_id == job_id
+    assert entry.log_fname == log_fname
+    assert entry.job_name == job_name
 
     # Say that the job is died
     queue = {}
     db_manager.update(queue)
 
     # Check that the database is updated correctly
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname)
-        assert entry["job_id"] is None
+    entry = db_manager._db.get(lambda entry: entry.fname == fname)
+    assert entry is not None
+    assert entry.job_id is None
 
 
 @pytest.mark.asyncio()
@@ -191,12 +186,11 @@ async def test_database_manager_start_stop(
     assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
-    with TinyDB(db_manager.db_fname) as db:
-        query = Query()
-        entry = db.get(query.fname == fname)
-        assert entry["job_id"] == job_id
-        assert entry["log_fname"] == log_fname
-        assert entry["job_name"] == job_name
+    entry = db_manager._db.get(lambda entry: entry.fname == fname)
+    assert entry is not None
+    assert entry.job_id == job_id
+    assert entry.log_fname == log_fname
+    assert entry.job_name == job_name
 
     # Check that task is still running
     assert db_manager.task is not None
@@ -207,10 +201,9 @@ async def test_database_manager_start_stop(
     reply = await send_message(socket, stop_message)
     assert reply is None
 
-    with TinyDB(db_manager.db_fname) as db:
-        query = Query()
-        entry = db.get(query.fname == _ensure_str(fnames[0]))
-        assert entry["job_id"] is None
+    entry = db_manager._db.get(lambda entry: entry.fname == _ensure_str(fnames[0]))
+    assert entry is not None
+    assert entry.job_id is None
 
     # Start and stop the learner2
     fname = await send_message(socket, start_message)
@@ -252,22 +245,20 @@ async def test_database_manager_stop_request_and_requests(
     # Stop the job for learner1 using _stop_request
     db_manager._stop_request(fname1)
 
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname1)
-        assert entry["job_id"] is None
-        assert entry["is_done"] is True
-        assert entry["job_name"] is None
+    entry = db_manager._db.get(lambda entry: entry.fname == fname1)
+    assert entry is not None
+    assert entry.job_id is None
+    assert entry.is_done is True
+    assert entry.job_name is None
 
     # Stop the job for learner2 using _stop_requests
     db_manager._stop_requests([fname2])
 
-    with TinyDB(db_manager.db_fname) as db:
-        entry = Query()
-        entry = db.get(entry.fname == fname2)
-        assert entry["job_id"] is None
-        assert entry["is_done"] is True
-        assert entry["job_name"] is None
+    entry = db_manager._db.get(lambda entry: entry.fname == fname2)
+    assert entry is not None
+    assert entry.job_id is None
+    assert entry.is_done is True
+    assert entry.job_name is None
 
 
 @pytest.mark.parametrize(
