@@ -4,8 +4,9 @@ from __future__ import annotations
 import json
 import pickle
 from dataclasses import asdict, dataclass, field
+from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Union
+from typing import TYPE_CHECKING, Any, Callable, List, NamedTuple, Union
 
 import pandas as pd
 import zmq
@@ -27,10 +28,30 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.scheduler import BaseScheduler
 
-ctx = zmq.asyncio.Context()
 
+ctx = zmq.asyncio.Context()
 FnameType = Union[str, Path, List[str], List[Path]]
 FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
+
+
+class RequestType(Enum):
+    START = auto()
+    STOP = auto()
+
+
+class StartRequest(NamedTuple):
+    request_type: RequestType
+    job_id: str
+    log_fname: str
+    job_name: str
+
+
+class StopRequest(NamedTuple):
+    request_type: RequestType
+    fname: str
+
+
+Request = Union[StartRequest, StopRequest]
 
 
 class JobIDExistsInDbError(Exception):
@@ -190,9 +211,8 @@ class DatabaseManager(BaseManager):
         assert self._db is not None
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
-
         failed = self._db.get_all(
-            lambda e: (e.job_id is not None) and (e.job_id not in queue),
+            lambda e: (e.job_id is not None) and (e.job_id not in queue),  # type: ignore[operator]
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
@@ -257,7 +277,7 @@ class DatabaseManager(BaseManager):
             )
             raise JobIDExistsInDbError(msg)
         entry = self._db.get(
-            lambda e: e.job_id is None and e.is_done is False,
+            lambda e: e.job_id is None and not e.is_done,
         )
         log.debug("choose fname", entry=entry)
         if entry is None:
@@ -273,12 +293,11 @@ class DatabaseManager(BaseManager):
             },
             indices=[index],
         )
-        return _ensure_str(entry.fname)
+        return _ensure_str(entry.fname)  # type: ignore[return-value]
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
         fname_str = _ensure_str(fname)
         reset = {"job_id": None, "is_done": True, "job_name": None}
-        # make sure the entry exists
         assert self._db is not None
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
@@ -295,26 +314,30 @@ class DatabaseManager(BaseManager):
         ]
         self._db.update(reset, entry_indices)
 
-    def _dispatch(self, request: tuple[str, ...]) -> str | list[str] | Exception | None:
+    def _dispatch(
+        self,
+        request: tuple[str, str | list[str]] | tuple[str],
+    ) -> str | list[str] | Exception | None:
         request_type, *request_arg = request
         log.debug("got a request", request=request)
         try:
             if request_type == "start":
                 # workers send us their slurm ID for us to fill in
                 job_id, log_fname, job_name = request_arg
-                kwargs = {
-                    "job_id": job_id,
-                    "log_fname": log_fname,
-                    "job_name": job_name,
-                }
                 # give the worker a job and send back the fname to the worker
-                fname = self._start_request(**kwargs)
+                fname = self._start_request(job_id, log_fname, job_name)  # type: ignore[arg-type]
                 if fname is None:
                     # This should never happen because the _manage co-routine
                     # should have stopped the workers before this happens.
                     msg = "No more learners to run in the database."
                     raise RuntimeError(msg)  # noqa: TRY301
-                log.debug("choose a fname", fname=fname, **kwargs)
+                log.debug(
+                    "choose a fname",
+                    fname=fname,
+                    job_id=job_id,
+                    log_fname=log_fname,
+                    job_name=job_name,
+                )
                 return fname
             if request_type == "stop":
                 fname = request_arg[0]  # workers send us the fname they were given
@@ -357,7 +380,7 @@ class DatabaseManager(BaseManager):
                         )
                 else:
                     assert self._last_request is not None  # for mypy
-                    self._last_reply = self._dispatch(self._last_request)
+                    self._last_reply = self._dispatch(self._last_request)  # type: ignore[arg-type]
                     await socket.send_serialized(self._last_reply, _serialize)
                 if self.is_done():
                     break

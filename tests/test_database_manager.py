@@ -82,7 +82,7 @@ def test_simple_database_get_and_contains(tmp_path: Path) -> None:
     entry = db.get(lambda entry: entry.fname == "file2.txt")
     assert entry is not None
     assert entry.fname == "file2.txt"
-    assert db.contains(lambda entry: entry.fname == "file4.txt") is False
+    assert not db.contains(lambda entry: entry.fname == "file4.txt")
 
 
 def test_simple_database_get_all(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_simple_database_get_all(tmp_path: Path) -> None:
     ]
     db.insert_multiple(entries)
     done_entries = db.get_all(lambda entry: entry.is_done)
-    assert len(done_entries) == 2
+    assert len(done_entries) == 2  # noqa: PLR2004
     assert done_entries[0][1].fname == "file1.txt"
     assert done_entries[1][1].fname == "file3.txt"
 
@@ -180,7 +180,7 @@ async def test_database_manager_dispatch_start_stop(
     db_manager.create_empty_db()
 
     start_request = ("start", "1000", "log_1000.txt", "test_job")
-    fname = db_manager._dispatch(start_request)
+    fname = db_manager._dispatch(start_request)  # type: ignore[arg-type]
     assert fname in _ensure_str(db_manager.fnames)
     if isinstance(learners[0], adaptive.BalancingLearner):
         assert isinstance(fname, list)
@@ -190,7 +190,7 @@ async def test_database_manager_dispatch_start_stop(
 
     stop_request = ("stop", fname)
     db_manager._dispatch(stop_request)
-
+    assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == fname)
     assert entry is not None
     assert entry.job_id is None
@@ -217,6 +217,7 @@ async def test_database_manager_start_and_update(
     assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
+    assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == fname)
     assert entry is not None
     assert entry.job_id == job_id
@@ -328,7 +329,7 @@ async def test_database_manager_stop_request_and_requests(
 
     # Stop the job for learner1 using _stop_request
     db_manager._stop_request(fname1)
-
+    assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == fname1)
     assert entry is not None
     assert entry.job_id is None

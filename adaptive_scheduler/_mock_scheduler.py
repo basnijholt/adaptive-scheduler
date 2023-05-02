@@ -6,7 +6,7 @@ import datetime
 import logging
 import os
 import subprocess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple, Union
 
 import structlog
 import zmq
@@ -24,6 +24,10 @@ logger.setLevel(logging.INFO)
 log = structlog.wrap_logger(logger)
 
 DEFAULT_URL = "tcp://127.0.0.1:60547"
+
+_RequestSubmitType = Tuple[str, str, Union[str, List[str]]]
+_RequestCancelType = Tuple[str, str]
+_RequestQueueType = Tuple[str]
 
 
 class MockScheduler:
@@ -156,7 +160,7 @@ class MockScheduler:
 
     def _dispatch(
         self,
-        request: tuple[str, ...],
+        request: _RequestSubmitType | _RequestCancelType | _RequestQueueType,
     ) -> str | None | dict[str, dict[str, Any]] | Exception:
         log.debug("got a request", request=request)
         request_type, *request_arg = request
@@ -164,10 +168,10 @@ class MockScheduler:
             if request_type == "submit":
                 job_name, fname = request_arg
                 log.debug("submitting a task", fname=fname, job_name=job_name)
-                job_id = self.submit(job_name, fname)
+                job_id = self.submit(job_name, fname)  # type: ignore[arg-type]
                 return job_id
             if request_type == "cancel":
-                job_id = request_arg[0]
+                job_id = request_arg[0]  # type: ignore[assignment]
                 log.debug("got a cancel request", job_id=job_id)
                 self.cancel(job_id)
                 return None
