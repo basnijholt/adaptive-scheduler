@@ -525,6 +525,12 @@ def _info_html(run_manager: RunManager) -> str:
         mem = df.mem_usage.mean()
         mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 50))
 
+        max_mem = df.mem_usage.max()
+        max_mem_html_value = _create_html_tag(
+            max_mem,
+            _interp_red_green(max_mem, 80, 50),
+        )
+
         overhead = df.overhead.mean()
         overhead_html_value = _create_html_tag(
             overhead,
@@ -535,6 +541,7 @@ def _info_html(run_manager: RunManager) -> str:
             ("# of points", df.npoints.sum()),
             ("mean CPU usage", cpu_html_value),
             ("mean memory usage", mem_html_value),
+            ("max memory usage", max_mem_html_value),
             ("mean overhead", overhead_html_value),
             ("last log-entry", f"{t_last}s ago"),
         ]
