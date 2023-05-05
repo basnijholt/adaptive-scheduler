@@ -82,6 +82,7 @@ class SLURM(BaseScheduler):
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
+        batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
         self._cores = cores
@@ -125,6 +126,7 @@ class SLURM(BaseScheduler):
             extra_scheduler=extra_scheduler,
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
+            batch_folder=batch_folder,
         )
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
