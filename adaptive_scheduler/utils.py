@@ -931,7 +931,7 @@ def _at_least_adaptive_version(
         if raises:
             msg = (
                 f"`{name}` requires adaptive version "
-                f"of at least {required}, currently using {current}.",
+                f"of at least '{required}', currently using '{current}'.",
             )
             raise RuntimeError(msg)
         return False

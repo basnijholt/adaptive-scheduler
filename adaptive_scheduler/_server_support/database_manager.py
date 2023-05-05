@@ -300,7 +300,7 @@ class DatabaseManager(BaseManager):
         reset = {"job_id": None, "is_done": True, "job_name": None}
         assert self._db is not None
         entry_indices = [
-            index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
+            index for index, _ in self._db.get_all(lambda e: str(e.fname) == fname_str)
         ]
         self._db.update(reset, entry_indices)
 
@@ -310,7 +310,7 @@ class DatabaseManager(BaseManager):
         fnames_str = {str(fname) for fname in _ensure_str(fnames)}
         reset = {"job_id": None, "is_done": True, "job_name": None}
         entry_indices = [
-            index for index, _ in self._db.get_all(lambda e: e.fname in fnames_str)
+            index for index, _ in self._db.get_all(lambda e: str(e.fname) in fnames_str)
         ]
         self._db.update(reset, entry_indices)
 
