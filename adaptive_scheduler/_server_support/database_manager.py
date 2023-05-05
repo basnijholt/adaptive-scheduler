@@ -4,9 +4,8 @@ from __future__ import annotations
 import json
 import pickle
 from dataclasses import asdict, dataclass, field
-from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, NamedTuple, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Union
 
 import pandas as pd
 import zmq
@@ -32,26 +31,6 @@ if TYPE_CHECKING:
 ctx = zmq.asyncio.Context()
 FnameType = Union[str, Path, List[str], List[Path]]
 FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
-
-
-class RequestType(Enum):
-    START = auto()
-    STOP = auto()
-
-
-class StartRequest(NamedTuple):
-    request_type: RequestType
-    job_id: str
-    log_fname: str
-    job_name: str
-
-
-class StopRequest(NamedTuple):
-    request_type: RequestType
-    fname: str
-
-
-Request = Union[StartRequest, StopRequest]
 
 
 class JobIDExistsInDbError(Exception):
