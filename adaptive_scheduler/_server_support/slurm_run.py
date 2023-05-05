@@ -120,6 +120,7 @@ def slurm_run(
         cores_per_node=cores_per_node,
         partition=partition,
         log_folder=folder / "logs",
+        batch_folder=folder / "batch_scripts",
         executor_type=executor_type,
         num_threads=num_threads,
     )
