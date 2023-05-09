@@ -40,7 +40,6 @@ dependencies = [
     "pyzmq",
     "rich",
     "structlog",
-    "tinydb",
     "toolz",
     "tqdm",
     "versioningit",

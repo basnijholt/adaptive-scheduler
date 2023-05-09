@@ -580,14 +580,6 @@ def log_exception(log: Any, msg: str, exception: Exception) -> None:
         log.exception(msg)
 
 
-def maybe_lst(fname: str | list[str]) -> str | list[str]:
-    """Convert a string to a list if it is not already a list."""
-    if isinstance(fname, tuple):
-        # TinyDB converts tuples to lists
-        return list(fname)
-    return fname
-
-
 def _serialize(msg: Any) -> list:
     return [cloudpickle.dumps(msg)]
 
@@ -931,7 +923,7 @@ def _at_least_adaptive_version(
         if raises:
             msg = (
                 f"`{name}` requires adaptive version "
-                f"of at least {required}, currently using {current}.",
+                f"of at least '{required}', currently using '{current}'.",
             )
             raise RuntimeError(msg)
         return False
