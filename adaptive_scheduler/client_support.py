@@ -17,7 +17,6 @@ from adaptive_scheduler.utils import (
     _serialize,
     fname_to_learner,
     log_exception,
-    maybe_lst,
     sleep_unless_task_is_done,
 )
 
@@ -106,7 +105,7 @@ def get_learner(
         log.info("got fname and loaded learner")
 
     log.info("picked a learner")
-    return learner, maybe_lst(fname)
+    return learner, fname
 
 
 def tell_done(url: str, fname: str | list[str]) -> None:
