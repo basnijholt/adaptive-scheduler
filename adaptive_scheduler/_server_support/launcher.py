@@ -74,7 +74,6 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--job-id", action="store", type=str)
     parser.add_argument("--name", action="store", dest="name", type=str, required=True)
     parser.add_argument("--url", action="store", type=str, required=True)
-
     parser.add_argument("--save-dataframe", action="store_true", default=False)
     parser.add_argument(
         "--dataframe-format",
@@ -103,6 +102,7 @@ def _parse_args() -> argparse.Namespace:
         default=120,
     )
     parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
+    parser.add_argument("--custom-load", action="store", type=str, default=None)
     return parser.parse_args()
 
 
@@ -121,8 +121,15 @@ def main() -> None:
     if args.executor_type == "process-pool":
         learner.function = WrappedFunction(learner.function)
 
+    if args.custom_load is not None:
+        custom_load = _deserialize_from_b64(args.custom_load)
+
     with suppress(Exception):
-        learner.load(fname)
+        if args.custom_load is not None:
+            custom_load(learner, fname)
+        else:
+            learner.load(fname)
+
     npoints_start = learner.npoints
 
     executor = _get_executor(

@@ -64,6 +64,10 @@ class RunManager(BaseManager):
     runner_kwargs : dict, default: None
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
+    custom_load : callable, default: None
+        A function that is called to load the learner. It is called as
+        ``custom_load(learner, fname)``. If None, the learner is loaded with
+        ``learner.load(fname)``.
     url : str, default: None
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
@@ -149,7 +153,7 @@ class RunManager(BaseManager):
 
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
@@ -158,6 +162,7 @@ class RunManager(BaseManager):
         goal: GoalTypes = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
+        custom_load: Callable[[adaptive.BaseLearner, str], None] | None = None,
         url: str | None = None,
         save_interval: int | float = 300,
         log_interval: int | float = 300,
@@ -185,6 +190,7 @@ class RunManager(BaseManager):
         self.goal = smart_goal(goal, learners)
         self.check_goal_on_start = check_goal_on_start
         self.runner_kwargs = runner_kwargs
+        self.custom_load = custom_load
         self.save_interval = save_interval
         self.log_interval = log_interval
         self.job_name = job_name
@@ -264,6 +270,7 @@ class RunManager(BaseManager):
             save_interval=self.save_interval,
             runner_kwargs=self.runner_kwargs,
             goal=self.goal,
+            custom_load=self.custom_load,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None
