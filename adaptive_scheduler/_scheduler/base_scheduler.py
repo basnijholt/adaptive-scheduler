@@ -53,6 +53,8 @@ class BaseScheduler(abc.ABC):
     extra_script : str, optional
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
+    batch_folder : str, default: ""
+        The folder in which to put the batch files.
 
     Returns
     -------
@@ -77,11 +79,13 @@ class BaseScheduler(abc.ABC):
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
+        batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
         self.cores = cores
         self.python_executable = python_executable or sys.executable
         self.log_folder = log_folder
+        self.batch_folder = batch_folder
         self.mpiexec_executable = mpiexec_executable or "mpiexec"
         self.executor_type = executor_type
         self.num_threads = num_threads
@@ -137,7 +141,12 @@ class BaseScheduler(abc.ABC):
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
-        return Path(f"{name}{self.ext}")
+        if self.batch_folder:
+            batch_folder = Path(self.batch_folder)
+            batch_folder.mkdir(exist_ok=True)
+        else:
+            batch_folder = Path.cwd()
+        return batch_folder / f"{name}{self.ext}"
 
     @staticmethod
     def sanatize_job_id(job_id: str) -> str:
