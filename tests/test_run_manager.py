@@ -80,6 +80,7 @@ def test_run_manager_parse_log_files(
 ) -> None:
     """Test parsing log files in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
+    rm.start()
     df = rm.parse_log_files(only_last=True)
     assert df.empty  # nothing has been run yet
 
@@ -148,6 +149,7 @@ def test_run_manager_repr_html(
 ) -> None:
     """Test the _repr_html_ method of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
+    rm.start()
     with patch("IPython.display.display") as mocked_display:
         rm._repr_html_()
         assert mocked_display.called
@@ -162,6 +164,7 @@ def test_run_manager_info(
 ) -> None:
     """Test the info method of RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
+    rm.start()
     with patch("IPython.display.display") as mocked_display:
         rm.info()
         assert mocked_display.called

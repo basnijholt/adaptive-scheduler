@@ -314,25 +314,31 @@ async def test_database_manager_stop_request_and_requests(
     db_manager.start()
     await asyncio.sleep(0.1)  # Give it some time to start
     assert db_manager.task is not None
+    assert db_manager._db is not None
 
     # Start a job for learner1
     job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
     start_message1 = ("start", job_id1, log_fname1, job_name1)
     fname1 = await send_message(socket, start_message1)
     assert fname1 == _ensure_str(fnames[0]), fname1
+    e = db_manager._db.get(lambda entry: entry.fname == fname1)
+    assert isinstance(e, _DBEntry)
+    assert e.job_id == job_id1
 
     # Start a job for learner2
     job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
     start_message2 = ("start", job_id2, log_fname2, job_name2)
     fname2 = await send_message(socket, start_message2)
     assert fname2 == _ensure_str(fnames[1]), fname2
+    e = db_manager._db.get(lambda entry: entry.fname == fname2)
+    assert isinstance(e, _DBEntry)
+    assert e.job_id == job_id2
 
     # Stop the job for learner1 using _stop_request
     db_manager._stop_request(fname1)
-    assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == fname1)
     assert entry is not None
-    assert entry.job_id is None
+    assert entry.job_id is None, (fname1, fname2)
     assert entry.is_done is True
     assert entry.job_name is None
 
@@ -341,7 +347,7 @@ async def test_database_manager_stop_request_and_requests(
 
     entry = db_manager._db.get(lambda entry: entry.fname == fname2)
     assert entry is not None
-    assert entry.job_id is None
+    assert entry.job_id is None, (fname1, fname2)
     assert entry.is_done is True
     assert entry.job_name is None
 
