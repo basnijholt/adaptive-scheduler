@@ -89,7 +89,7 @@ def test_start_job(tmp_path: Path) -> None:
         s.write_job_script("testjob", {})
         s.start_job("testjob")
         mock_submit.assert_called_once_with(
-            f"sbatch --job-name testjob --output {tmp_path}/testjob-%A.out testjob.sbatch",
+            f"sbatch --job-name testjob --output {tmp_path}/testjob-%A.out {tmp_path}/testjob.sbatch",
             "testjob",
         )
         sbatch_file = tmp_path / "testjob.sbatch"

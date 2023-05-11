@@ -17,7 +17,6 @@ from adaptive_scheduler.utils import (
     _serialize,
     fname_to_learner,
     log_exception,
-    maybe_lst,
     sleep_unless_task_is_done,
 )
 
@@ -106,7 +105,7 @@ def get_learner(
         log.info("got fname and loaded learner")
 
     log.info("picked a learner")
-    return learner, maybe_lst(fname)
+    return learner, fname
 
 
 def tell_done(url: str, fname: str | list[str]) -> None:
@@ -152,6 +151,8 @@ def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
             info["npoints/learner"] = info["npoints"] / info["nlearners"]  # type: ignore[operator]
     info["cpu_usage"] = psutil.cpu_percent()
     info["mem_usage"] = psutil.virtual_memory().percent
+    for k, v in psutil.cpu_times()._asdict().items():
+        info[f"cputimes.{k}"] = v
     return info
 
 

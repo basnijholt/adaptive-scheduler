@@ -37,6 +37,7 @@ class LocalMockScheduler(BaseScheduler):
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
+        batch_folder: str | Path = "",
         # LocalMockScheduler specific
         mock_scheduler_kwargs: dict[str, Any] | None = None,
     ) -> None:
@@ -54,6 +55,7 @@ class LocalMockScheduler(BaseScheduler):
             extra_scheduler=extra_scheduler,
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
+            batch_folder=batch_folder,
         )
         # LocalMockScheduler specific
         self.mock_scheduler_kwargs = mock_scheduler_kwargs or {}

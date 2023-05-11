@@ -120,6 +120,7 @@ def slurm_run(
         cores_per_node=cores_per_node,
         partition=partition,
         log_folder=folder / "logs",
+        batch_folder=folder / "batch_scripts",
         executor_type=executor_type,
         num_threads=num_threads,
     )
@@ -136,7 +137,7 @@ def slurm_run(
         save_interval=save_interval,
         log_interval=log_interval,
         move_old_logs_to=folder / "old_logs",
-        db_fname=f"{name}.db.json",
+        db_fname=folder / f"{name}.db.json",
         job_name=name,
         cleanup_first=cleanup_first,
         save_dataframe=save_dataframe,

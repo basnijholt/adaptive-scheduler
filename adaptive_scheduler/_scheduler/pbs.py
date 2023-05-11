@@ -46,6 +46,7 @@ class PBS(BaseScheduler):
         extra_scheduler: list[str] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
+        batch_folder: str | Path = "",
         # Extra PBS specific arguments
         cores_per_node: int | None = None,
     ) -> None:
@@ -60,6 +61,7 @@ class PBS(BaseScheduler):
             extra_scheduler=extra_scheduler,
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
+            batch_folder=batch_folder,
         )
         # PBS specific
         self.cores_per_node = cores_per_node
