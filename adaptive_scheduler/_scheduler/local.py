@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import textwrap
-import warnings
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
@@ -41,7 +40,6 @@ class LocalMockScheduler(BaseScheduler):
         """Initialize the LocalMockScheduler."""
         import adaptive_scheduler._mock_scheduler
 
-        warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
             python_executable=python_executable,
