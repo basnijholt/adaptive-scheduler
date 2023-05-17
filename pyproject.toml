@@ -31,7 +31,6 @@ dependencies = [
     "ipyparallel",
     "ipywidgets",
     "itables",
-    "jinja2",
     "loky",
     "numpy",
     "pandas",
