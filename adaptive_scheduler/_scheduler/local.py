@@ -16,10 +16,7 @@ if TYPE_CHECKING:
 
 
 class LocalMockScheduler(BaseScheduler):
-    """A scheduler that can be used for testing and runs locally.
-
-    CANCELLING DOESN'T WORK ATM, ALSO LEAVES ZOMBIE PROCESSES!
-    """
+    """A scheduler that can be used for testing and runs locally."""
 
     # Attributes that all schedulers need to have
     _ext = ".batch"
@@ -118,7 +115,9 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str) -> None:
         """Start a job."""
-        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
+        print("name", name)
+        name_prefix = name.rsplit("-", 1)[0]
+        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
     @property

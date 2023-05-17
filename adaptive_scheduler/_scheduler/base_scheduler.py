@@ -344,7 +344,7 @@ class BaseScheduler(abc.ABC):
 
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
-        submit_cmd = f"{self.submit_cmd} {self.batch_fname(name)}"
+        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd)
 
     def __getstate__(self) -> dict[str, Any]:
