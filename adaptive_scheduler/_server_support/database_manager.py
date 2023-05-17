@@ -187,7 +187,8 @@ class DatabaseManager(BaseManager):
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
-        assert self._db is not None
+        if self._db is None:
+            return
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
         failed = self._db.get_all(
@@ -222,7 +223,8 @@ class DatabaseManager(BaseManager):
 
     def as_dicts(self) -> list[dict[str, str]]:
         """Return the database as a list of dictionaries."""
-        assert self._db is not None
+        if self._db is None:
+            return []
         return self._db.as_dicts()
 
     def as_df(self) -> pd.DataFrame:
