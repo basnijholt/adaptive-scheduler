@@ -114,7 +114,10 @@ class LocalMockScheduler(BaseScheduler):
     def start_job(self, name: str) -> None:
         """Start a job."""
         name_prefix = name.rsplit("-", 1)[0]
-        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
+        output_log = self.output_fnames(name)[0]
+        submit_cmd = (
+            f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)} {output_log}"
+        )
         run_submit(submit_cmd, name)
 
     @property
