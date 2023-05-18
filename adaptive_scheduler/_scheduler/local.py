@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import textwrap
-import warnings
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
@@ -16,10 +15,7 @@ if TYPE_CHECKING:
 
 
 class LocalMockScheduler(BaseScheduler):
-    """A scheduler that can be used for testing and runs locally.
-
-    CANCELLING DOESN'T WORK ATM, ALSO LEAVES ZOMBIE PROCESSES!
-    """
+    """A scheduler that can be used for testing and runs locally."""
 
     # Attributes that all schedulers need to have
     _ext = ".batch"
@@ -44,7 +40,6 @@ class LocalMockScheduler(BaseScheduler):
         """Initialize the LocalMockScheduler."""
         import adaptive_scheduler._mock_scheduler
 
-        warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
             python_executable=python_executable,
@@ -118,7 +113,8 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str) -> None:
         """Start a job."""
-        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
+        name_prefix = name.rsplit("-", 1)[0]
+        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
     @property

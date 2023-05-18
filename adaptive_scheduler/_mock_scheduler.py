@@ -5,6 +5,7 @@ import asyncio
 import datetime
 import logging
 import os
+import signal
 import subprocess
 from typing import TYPE_CHECKING, List, Tuple, Union
 
@@ -97,20 +98,21 @@ class MockScheduler:
         self._job_id += 1
         return str(job_id)
 
-    async def _submit_coro(self, job_id: str, fname: str) -> None:
+    async def _submit_coro(self, job_name: str, job_id: str, fname: str) -> None:
         await asyncio.sleep(self.startup_delay)
         while self._queue_is_full():
             await asyncio.sleep(self.refresh_interval)
-        self._submit(job_id, fname)
+        self._submit(job_name, job_id, fname)
 
-    def _submit(self, job_id: str, fname: str) -> None:
+    def _submit(self, job_name: str, job_id: str, fname: str) -> None:
         if job_id in self._current_queue:
             # job_id could be cancelled before it started
             cmd = f"{self.bash} {fname}"
             proc = subprocess.Popen(
                 cmd.split(),
                 stdout=subprocess.PIPE,
-                env=dict(os.environ, JOB_ID=job_id),
+                env=dict(os.environ, JOB_ID=job_id, NAME=job_name),
+                preexec_fn=os.setpgrp,  # Set a new process group for the process
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
@@ -124,14 +126,17 @@ class MockScheduler:
             "state": "P",
             "timestamp": str(datetime.datetime.now()),  # noqa: DTZ005
         }
-        self.ioloop.create_task(self._submit_coro(job_id, fname))
+        self.ioloop.create_task(self._submit_coro(job_name, job_id, fname))
         return job_id
 
     def cancel(self, job_id: str) -> None:
         job_id = str(job_id)
         info = self._current_queue.pop(job_id)
         if info["proc"] is not None:
-            info["proc"].kill()
+            os.killpg(
+                os.getpgid(info["proc"].pid),
+                signal.SIGTERM,
+            )  # Kill the process group
 
     async def _refresh_coro(self) -> Coroutine[None, None, None]:
         while True:
