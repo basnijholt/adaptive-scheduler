@@ -176,7 +176,7 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
     """Log explorer widget."""
     import ipywidgets as ipyw
 
-    def _update_fname_dropdown(  # noqa: PLR0913
+    def _update_fname_dropdown(
         run_manager: RunManager,
         fname_dropdown: ipyw.Dropdown,
         only_running_checkbox: ipyw.Checkbox,
@@ -223,7 +223,7 @@ def log_explorer(run_manager: RunManager) -> ipyw.VBox:  # noqa: C901, PLR0915
             except Exception:  # noqa: S110, BLE001
                 pass
 
-    def _tail(  # noqa: PLR0913
+    def _tail(
         dropdown: ipyw.Dropdown,
         tail_button: ipyw.Button,
         textarea: ipyw.Textarea,

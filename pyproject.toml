@@ -113,6 +113,9 @@ ignore = [
     "SLF001",  # Private member accessed
     "S603",    # `subprocess` call: check for execution of untrusted input
     "S607",    # Starting a process with a partial executable path
+    "PLR0913", # Too many arguments to function call (N > 5)
+    "TD002",   # Missing author in TODO; try: `# TODO(<author_name>): ...`
+    "TD003",   # Missing issue link on the line following this TODO
 ]
 
 [tool.ruff.per-file-ignores]
