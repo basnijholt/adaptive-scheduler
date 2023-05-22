@@ -150,7 +150,7 @@ class DatabaseManager(BaseManager):
         A list of entries that have failed and have been removed from the database.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         url: str,
         scheduler: BaseScheduler,
