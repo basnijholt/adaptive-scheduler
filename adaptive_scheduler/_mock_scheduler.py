@@ -159,7 +159,7 @@ class MockScheduler:
     def _refresh(self) -> None:
         for _job_id, info in self._current_queue.items():
             if info["state"] == "RUNNING" and info["proc"].poll() is not None:
-                info["state"] = "finished"
+                info["state"] = "FINISHED"
 
     async def _command_listener(self) -> Coroutine[None, None, None]:
         log.debug("started _command_listener")
