@@ -781,7 +781,7 @@ def cloudpickle_learners(
 
 def fname_to_dataframe(
     fname: str | list[str] | Path | list[Path],
-    format: str = "parquet",  # noqa: A002
+    format: str = "pickle",  # noqa: A002
 ) -> Path:
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
@@ -796,7 +796,7 @@ def fname_to_dataframe(
 def save_dataframe(
     fname: str | list[str],
     *,
-    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
+    format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
     **to_dataframe_kwargs: Any,
@@ -865,7 +865,7 @@ def load_dataframes(  # noqa: PLR0912
     *,
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
-    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
+    format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}

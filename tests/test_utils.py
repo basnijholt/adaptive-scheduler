@@ -429,7 +429,7 @@ def test_add_constant_to_fname_with_folder() -> None:
 def test_fname_to_dataframe_with_folder() -> None:
     """Test `utils.fname_to_dataframe` with `folder`."""
     fname = "test_folder/test.pickle"
-    df_fname = utils.fname_to_dataframe(fname)
+    df_fname = utils.fname_to_dataframe(fname, "parquet")
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
