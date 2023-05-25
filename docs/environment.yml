@@ -37,6 +37,7 @@ dependencies:
   - myst-nb
   - sphinx_fontawesome
   - sphinx
+  - sphinx_autodoc_typehints
   - furo
   - myst-parser
   - emoji

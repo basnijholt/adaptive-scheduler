@@ -128,7 +128,7 @@ class PBS(BaseScheduler):
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to PBS.
         """
         job_script = textwrap.dedent(
