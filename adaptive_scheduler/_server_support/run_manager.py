@@ -173,7 +173,7 @@ class RunManager(BaseManager):
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
-        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        dataframe_format: _DATAFRAME_FORMATS = "pickle",
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,

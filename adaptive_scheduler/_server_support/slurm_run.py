@@ -30,7 +30,7 @@ def slurm_run(
     log_interval: int | float = 300,
     cleanup_first: bool = True,
     save_dataframe: bool = True,
-    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+    dataframe_format: _DATAFRAME_FORMATS = "pickle",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool = True,
@@ -73,7 +73,7 @@ def slurm_run(
         Whether to clean up the folder before starting the run.
     save_dataframe : bool, default: True
         Whether to save the `pandas.DataFrame`s with the learners data.
-    dataframe_format : str, default: "parquet"
+    dataframe_format : str, default: "pickle"
         The format to save the `pandas.DataFrame`s in. See
         `adaptive_scheduler.utils.save_dataframes` for more information.
     max_fails_per_job : int, default: 50

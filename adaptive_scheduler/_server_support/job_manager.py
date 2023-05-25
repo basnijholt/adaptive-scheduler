@@ -29,10 +29,42 @@ def command_line_options(
     log_interval: int | float = 60,
     save_interval: int | float = 300,
     save_dataframe: bool = True,
-    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+    dataframe_format: _DATAFRAME_FORMATS = "pickle",
     loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
-    """Return the command line options for the job_script."""
+    """Return the command line options for the job_script.
+
+    Parameters
+    ----------
+    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    database_manager
+        A database manager instance.
+    runner_kwargs : dict, default: None
+        Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
+        will be serialized and pasted in the ``job_script``.
+    goal : callable, default: None
+        The goal passed to the `adaptive.Runner`. Note that this function will
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
+        that accepts
+        ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
+        See `adaptive_scheduler.utils.smart_goal` for more information.
+    log_interval : int, default: 300
+        Time in seconds between log entries.
+    save_interval : int, default: 300
+        Time in seconds between saving of the learners.
+    save_dataframe : bool
+        Whether to periodically save the learner's data as a `pandas.DataFame`.
+    dataframe_format : str
+        The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    loky_start_method : str
+        Loky start method, by default "loky".
+
+    Returns
+    -------
+    dict
+        The command line options for the job_script.
+    """
     if runner_kwargs is None:
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
@@ -82,6 +114,25 @@ class JobManager(BaseManager):
         because a job might fail instantly because of a bug inside your code.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    save_dataframe : bool
+        Whether to periodically save the learner's data as a `pandas.DataFame`.
+    dataframe_format : str
+        The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    loky_start_method : str
+        Loky start method, by default "loky".
+    log_interval : int, default: 300
+        Time in seconds between log entries.
+    save_interval : int, default: 300
+        Time in seconds between saving of the learners.
+    runner_kwargs : dict, default: None
+        Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
+        will be serialized and pasted in the ``job_script``.
+    goal : callable, default: None
+        The goal passed to the `adaptive.Runner`. Note that this function will
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
+        that accepts
+        ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
+        See `adaptive_scheduler.utils.smart_goal` for more information.
 
     Attributes
     ----------
@@ -100,7 +151,7 @@ class JobManager(BaseManager):
         max_fails_per_job: int = 50,
         # Command line launcher options
         save_dataframe: bool = True,
-        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        dataframe_format: _DATAFRAME_FORMATS = "pickle",
         loky_start_method: LOKY_START_METHODS = "loky",
         log_interval: int | float = 60,
         save_interval: int | float = 300,
