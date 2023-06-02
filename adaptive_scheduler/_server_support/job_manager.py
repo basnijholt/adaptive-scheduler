@@ -10,6 +10,10 @@ from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
+    from typing import Callable
+
+    import adaptive
+
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import (
         _DATAFRAME_FORMATS,
@@ -31,6 +35,7 @@ def command_line_options(
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     loky_start_method: LOKY_START_METHODS = "loky",
+    custom_load: Callable[[adaptive.BaseLearner, str], None] | None = None,
 ) -> dict[str, Any]:
     """Return the command line options for the job_script.
 
@@ -81,6 +86,9 @@ def command_line_options(
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
+    if custom_load:
+        base64_custom_load = _serialize_to_b64(custom_load)
+        opts["--custom-load"] = base64_custom_load
     if scheduler.executor_type == "loky":
         opts["--loky-start-method"] = loky_start_method
     if save_dataframe:
@@ -157,6 +165,7 @@ class JobManager(BaseManager):
         save_interval: int | float = 300,
         runner_kwargs: dict[str, Any] | None = None,
         goal: GoalTypes = None,
+        custom_load: Callable[[adaptive.BaseLearner, str], None] | None = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
@@ -178,6 +187,7 @@ class JobManager(BaseManager):
         self.save_interval = save_interval
         self.runner_kwargs = runner_kwargs
         self.goal = goal
+        self.custom_load = custom_load
 
     @property
     def max_job_starts(self) -> int:
@@ -203,6 +213,7 @@ class JobManager(BaseManager):
             dataframe_format=self.dataframe_format,
             goal=self.goal,
             loky_start_method=self.loky_start_method,
+            custom_load=self.custom_load,
         )
         self.scheduler.write_job_script(name_prefix, options)
 
