@@ -112,12 +112,16 @@ def main() -> None:
     client_support.log.info("parsed args", **vars(args))
 
     # ask the server for a fname and learner
-    learner, fname = client_support.get_learner(
+    learner, fname, initializer = client_support.get_learner(
         args.url,
         args.log_fname,
         args.job_id,
         args.name,
     )
+
+    if initializer is not None:
+        initializer()
+
     if args.executor_type == "process-pool":
         learner.function = WrappedFunction(learner.function)
 

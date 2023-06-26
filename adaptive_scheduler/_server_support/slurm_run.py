@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from adaptive_scheduler.scheduler import SLURM, slurm_partitions
 from adaptive_scheduler.utils import _get_default_args
@@ -37,6 +37,7 @@ def slurm_run(
     executor_type: EXECUTOR_TYPES = "process-pool",
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
+    initializers: list[Callable[[], None]] | None = None,
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
@@ -89,6 +90,9 @@ def slurm_run(
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs : dict, default: None
         Extra keyword arguments to pass to the `SLURMScheduler`.
+    initializers : list of callables, default: None
+        List of functions that are called before the job starts, can populate
+        a cache.
 
     Returns
     -------
@@ -144,6 +148,7 @@ def slurm_run(
         dataframe_format=dataframe_format,
         max_fails_per_job=max_fails_per_job,
         max_simultaneous_jobs=max_simultaneous_jobs,
+        initializers=initializers,
     )
     if extra_run_manager_kwargs is None:
         extra_run_manager_kwargs = {}

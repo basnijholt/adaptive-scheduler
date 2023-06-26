@@ -727,11 +727,16 @@ def fname_to_learner_fname(
 
 def fname_to_learner(
     fname: str | list[str] | Path | list[Path],
-) -> adaptive.BaseLearner:
+    *,
+    return_initializer: bool = False,
+) -> tuple[adaptive.BaseLearner, Callable[[], None] | None] | adaptive.BaseLearner:
     """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
     with learner_name.open("rb") as f:
-        return cloudpickle.load(f)
+        learner, initializer = cloudpickle.load(f)
+    if return_initializer:
+        return learner, initializer
+    return learner
 
 
 def _ensure_folder_exists(
@@ -752,6 +757,7 @@ def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
     fnames: FnamesTypes,
     *,
+    initializers: list[Callable[[], None]] | None = None,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
 ) -> tuple[int, float]:
@@ -762,8 +768,10 @@ def cloudpickle_learners(
     _ensure_folder_exists(fnames)
     total_filesize = 0
     t_start = time.time()
-    for learner, fname in _progress(
-        zip(learners, fnames),
+    if initializers is None:
+        initializers = [None] * len(learners)  # type: ignore[list-item]
+    for learner, fname, initializer in _progress(
+        zip(learners, fnames, initializers),
         with_progress_bar,
         desc="Cloudpickling learners",
     ):
@@ -772,7 +780,7 @@ def cloudpickle_learners(
             _at_least_adaptive_version("0.14.1", "empty_copies")
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
-            cloudpickle.dump(learner, f)
+            cloudpickle.dump((learner, initializer), f)
         filesize = fname_learner.stat().st_size
         total_filesize += filesize
     total_time = time.time() - t_start

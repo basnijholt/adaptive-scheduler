@@ -143,6 +143,9 @@ class DatabaseManager(BaseManager):
         List of `fnames` corresponding to `learners`.
     overwrite_db : bool, default: True
         Overwrite the existing database upon starting.
+    initializers : list of callables, default: None
+        List of functions that are called before the job starts, can populate
+        a cache.
 
     Attributes
     ----------
@@ -159,6 +162,7 @@ class DatabaseManager(BaseManager):
         fnames: FnamesTypes,
         *,
         overwrite_db: bool = True,
+        initializers: list[Callable[[], None]] | None = None,
     ) -> None:
         super().__init__()
         self.url = url
@@ -167,6 +171,7 @@ class DatabaseManager(BaseManager):
         self.learners = learners
         self.fnames = fnames
         self.overwrite_db = overwrite_db
+        self.initializers = initializers
 
         self._last_reply: str | list[str] | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
@@ -182,6 +187,7 @@ class DatabaseManager(BaseManager):
         self._total_learner_size, self._pickling_time = cloudpickle_learners(
             self.learners,
             self.fnames,
+            initializers=self.initializers,
             with_progress_bar=True,
         )
 

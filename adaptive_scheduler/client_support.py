@@ -5,7 +5,7 @@ import datetime
 import logging
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import psutil
 import structlog
@@ -51,7 +51,7 @@ def get_learner(
     log_fname: str,
     job_id: str,
     job_name: str,
-) -> tuple[BaseLearner, str | list[str]]:
+) -> tuple[BaseLearner, str | list[str], Callable[[], None] | None]:
     """Get a learner from the database (running at `url`).
 
     This learner's process will be logged in `log_fname`
@@ -75,6 +75,8 @@ def get_learner(
         Learner that is chosen.
     fname : str
         The filename of the learner that was chosen.
+    initializer : a callable or None
+        A function that runs before the process is forked.
     """
     _add_log_file_handler(log_fname)
     log.info(
@@ -101,11 +103,11 @@ def get_learner(
             log_exception(log, "got an exception", exception=reply)
             raise reply
         fname = reply
-        learner = fname_to_learner(fname)
+        learner, initializer = fname_to_learner(fname, return_initializer=True)
         log.info("got fname and loaded learner")
 
     log.info("picked a learner")
-    return learner, fname
+    return learner, fname, initializer
 
 
 def tell_done(url: str, fname: str | list[str]) -> None:
