@@ -69,13 +69,12 @@ class MockScheduler(BaseScheduler):
             {{executor_specific}}
             """,
         )
-        job_script = job_script.format(
+        return job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options),
         )
-        return job_script
 
     def start_job(self, name: str) -> None:
         """Start a mock job."""

@@ -155,7 +155,7 @@ class RunManager(BaseManager):
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[Path],
         *,
-        goal: GoalTypes = None,
+        goal: GoalTypes | None = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
