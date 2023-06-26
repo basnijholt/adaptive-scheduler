@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Hashable
+from typing import TYPE_CHECKING, Any, Callable
 
 from adaptive_scheduler.scheduler import SLURM, slurm_partitions
 from adaptive_scheduler.utils import _get_default_args
@@ -37,7 +37,7 @@ def slurm_run(
     executor_type: EXECUTOR_TYPES = "process-pool",
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
-    initializers: list[Callable[[], dict[Hashable, Any]]] | None = None,
+    initializers: list[Callable[[], None]] | None = None,
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 

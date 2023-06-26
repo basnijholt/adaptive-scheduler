@@ -727,11 +727,19 @@ def fname_to_learner_fname(
 
 def fname_to_learner(
     fname: str | list[str] | Path | list[Path],
-) -> tuple[adaptive.BaseLearner, Callable[[], dict[Hashable, Any]] | None]:
+    *,
+    return_initializer: bool = False,
+) -> (
+    tuple[adaptive.BaseLearner, Callable[[], dict[Hashable, Any]] | None]
+    | adaptive.BaseLearner
+):
     """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
     with learner_name.open("rb") as f:
-        return cloudpickle.load(f)
+        learner, initializer = cloudpickle.load(f)
+    if return_initializer:
+        return learner, initializer
+    return learner
 
 
 def _ensure_folder_exists(
@@ -752,7 +760,7 @@ def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
     fnames: FnamesTypes,
     *,
-    initializers: list[Callable[[], dict[Hashable, Any]]] | None = None,
+    initializers: list[Callable[[], None]] | None = None,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
 ) -> tuple[int, float]:

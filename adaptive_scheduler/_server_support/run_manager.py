@@ -5,7 +5,7 @@ import shutil
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Hashable
+from typing import TYPE_CHECKING, Any, Callable
 
 import pandas as pd
 
@@ -180,7 +180,7 @@ class RunManager(BaseManager):
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
-        initializers: list[Callable[[], dict[Hashable, Any]]] | None = None,
+        initializers: list[Callable[[], None]] | None = None,
     ) -> None:
         super().__init__()
 

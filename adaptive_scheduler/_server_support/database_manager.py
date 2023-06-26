@@ -5,7 +5,7 @@ import json
 import pickle
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Hashable, List, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Union
 
 import pandas as pd
 import zmq
@@ -162,7 +162,7 @@ class DatabaseManager(BaseManager):
         fnames: FnamesTypes,
         *,
         overwrite_db: bool = True,
-        initializers: list[Callable[[], dict[Hashable, Any]]] | None = None,
+        initializers: list[Callable[[], None]] | None = None,
     ) -> None:
         super().__init__()
         self.url = url
