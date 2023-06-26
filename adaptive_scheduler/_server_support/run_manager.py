@@ -5,7 +5,7 @@ import shutil
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Hashable
 
 import pandas as pd
 
@@ -59,6 +59,9 @@ class RunManager(BaseManager):
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
+    initializers : list of callables, default: None
+        List of functions that are called and return a dictionary that populates
+        a cache.
     check_goal_on_start : bool, default: True
         Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs : dict, default: None
@@ -149,7 +152,7 @@ class RunManager(BaseManager):
 
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
@@ -177,6 +180,7 @@ class RunManager(BaseManager):
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
+        initializers: list[Callable[[], dict[Hashable, Any]]] | None = None,
     ) -> None:
         super().__init__()
 
@@ -202,6 +206,7 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
+        self.initializers = initializers
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
@@ -248,6 +253,7 @@ class RunManager(BaseManager):
             learners=self.learners,
             fnames=self.fnames,
             overwrite_db=self.overwrite_db,
+            initializers=self.initializers,
         )
         self.job_manager = JobManager(
             self.job_names,
