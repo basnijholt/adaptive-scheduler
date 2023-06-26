@@ -60,7 +60,7 @@ class RunManager(BaseManager):
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
     initializers : list of callables, default: None
-        List of functions that are called and return a dictionary that populates
+        List of functions that are called before the job starts, can populate
         a cache.
     check_goal_on_start : bool, default: True
         Checks whether a learner is already done. Only works if the learner is loaded.

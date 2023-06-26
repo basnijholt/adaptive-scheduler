@@ -91,7 +91,7 @@ def slurm_run(
     extra_scheduler_kwargs : dict, default: None
         Extra keyword arguments to pass to the `SLURMScheduler`.
     initializers : list of callables, default: None
-        List of functions that are called and return a dictionary that populates
+        List of functions that are called before the job starts, can populate
         a cache.
 
     Returns

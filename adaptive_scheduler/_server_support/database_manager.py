@@ -144,7 +144,7 @@ class DatabaseManager(BaseManager):
     overwrite_db : bool, default: True
         Overwrite the existing database upon starting.
     initializers : list of callables, default: None
-        List of functions that are called and return a dictionary that populates
+        List of functions that are called before the job starts, can populate
         a cache.
 
     Attributes
