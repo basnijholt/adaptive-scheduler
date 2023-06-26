@@ -780,6 +780,9 @@ def cloudpickle_learners(
             _at_least_adaptive_version("0.14.1", "empty_copies")
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
+            # Make sure that the learner and initializer are ALWAYS pickled together.
+            # Otherwise, the learner function and initializer might not use to the
+            # same objects even when referring to the same objects in a namespace.
             cloudpickle.dump((learner, initializer), f)
         filesize = fname_learner.stat().st_size
         total_filesize += filesize
