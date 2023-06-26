@@ -152,13 +152,13 @@ class RunManager(BaseManager):
 
     """
 
-    def __init__(  # noqa: PLR0915
+    def __init__(
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[Path],
         *,
-        goal: GoalTypes = None,
+        goal: GoalTypes | None = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,

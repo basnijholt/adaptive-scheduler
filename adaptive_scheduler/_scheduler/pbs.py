@@ -150,7 +150,7 @@ class PBS(BaseScheduler):
             """,
         )
 
-        job_script = job_script.format(
+        return job_script.format(
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
@@ -158,7 +158,6 @@ class PBS(BaseScheduler):
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
-        return job_script
 
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""

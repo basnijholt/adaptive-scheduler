@@ -156,7 +156,7 @@ class JobManager(BaseManager):
         log_interval: int | float = 60,
         save_interval: int | float = 300,
         runner_kwargs: dict[str, Any] | None = None,
-        goal: GoalTypes = None,
+        goal: GoalTypes | None = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names

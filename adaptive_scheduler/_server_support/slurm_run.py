@@ -22,7 +22,7 @@ def slurm_run(
     partition: str | None = None,
     nodes: int = 1,
     cores_per_node: int | None = None,
-    goal: GoalTypes = None,
+    goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
     num_threads: int = 1,
