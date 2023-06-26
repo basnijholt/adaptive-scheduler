@@ -106,7 +106,7 @@ def _sort_fnames(
 
     def _vec_timedelta(ts: pd.Timestamp) -> str:
         now = np.datetime64(datetime.now())  # noqa: DTZ005
-        dt = np.timedelta64(now - ts, "s")
+        dt = np.timedelta64(now - ts, "s")  # type: ignore[operator]
         return f"{dt} ago"
 
     mapping = {
@@ -134,7 +134,7 @@ def _sort_fnames(
         df = run_manager.parse_log_files()
         if df.empty:
             return fnames
-        log_fnames = set(df.log_fname.apply(Path))
+        log_fnames = set(df.log_fname.apply(Path))  # type: ignore [arg-type]
         df_key, transform = mapping[sort_by]
         assert df_key is not None  # for mypy
         stems = [fname.stem for fname in log_fnames]
@@ -379,7 +379,7 @@ def _bytes_to_human_readable(size_in_bytes: int) -> str:
 
 
 def _timedelta_to_human_readable(
-    time_input: timedelta | int,
+    time_input: timedelta | int | float,
     *,
     short_format: bool = True,
 ) -> str:
@@ -387,7 +387,7 @@ def _timedelta_to_human_readable(
     if isinstance(time_input, timedelta):
         total_seconds = int(time_input.total_seconds())
     elif isinstance(time_input, (int, float)):
-        total_seconds = time_input
+        total_seconds = int(time_input)
     else:
         msg = "Input must be a datetime.timedelta object or an int (in seconds)"
         raise TypeError(msg)
@@ -510,8 +510,8 @@ def _info_html(run_manager: RunManager) -> str:
 
     starting_times = run_manager.job_starting_times()
     if starting_times:
-        mean_starting_time = _timedelta_to_human_readable(np.mean(starting_times))
-        std_starting_time = _timedelta_to_human_readable(np.std(starting_times))
+        mean_starting_time = _timedelta_to_human_readable(np.mean(starting_times))  # type: ignore[arg-type]
+        std_starting_time = _timedelta_to_human_readable(np.std(starting_times))  # type: ignore[arg-type]
         info.append(("avg job start time", mean_starting_time))
         info.append(("std job start time", std_starting_time))
 
@@ -547,7 +547,7 @@ def _info_html(run_manager: RunManager) -> str:
         ]
         for key in ["npoints/s", "latest_loss", "nlearners"]:
             with suppress(Exception):
-                from_logs.append((f"mean {key}", f"{df[key].mean().round(1)}"))
+                from_logs.append((f"mean {key}", f"{df[key].mean():.1f}"))
         msg = "this is extracted from the log files, so it might not be up-to-date"
         abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
         info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
@@ -691,7 +691,12 @@ def results_widget(
         assert isinstance(df, pd.DataFrame)
 
         if len(df) > max_rows.value:
-            sample_indices = np.linspace(0, len(df) - 1, num=max_rows.value, dtype=int)
+            sample_indices: np.ndarray = np.linspace(
+                0,
+                len(df) - 1,
+                num=max_rows.value,
+                dtype=int,
+            )
             df = df.iloc[sample_indices]
 
         return df  # type: ignore[return-value]

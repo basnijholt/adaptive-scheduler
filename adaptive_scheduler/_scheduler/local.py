@@ -105,7 +105,6 @@ class LocalMockScheduler(BaseScheduler):
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
-
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:  # noqa: ARG002
         """Get the queue of the scheduler."""
         return self.mock_scheduler.queue()

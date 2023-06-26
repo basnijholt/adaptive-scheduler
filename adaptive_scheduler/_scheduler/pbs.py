@@ -158,7 +158,6 @@ class PBS(BaseScheduler):
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
-
     def start_job(self, name: str) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
