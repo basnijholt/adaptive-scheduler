@@ -98,14 +98,12 @@ class LocalMockScheduler(BaseScheduler):
             """,
         )
 
-        job_script = job_script.format(
+        return job_script.format(
             extra_env_vars=self.extra_env_vars,
             executor_specific=self._executor_specific("${NAME}", options),
             extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
-
-        return job_script
 
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:  # noqa: ARG002
         """Get the queue of the scheduler."""

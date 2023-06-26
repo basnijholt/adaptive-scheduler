@@ -173,12 +173,11 @@ class MockScheduler:
             if request_type == "submit":
                 job_name, fname = request_arg
                 log.debug("submitting a task", fname=fname, job_name=job_name)
-                job_id = self.submit(job_name, fname)  # type: ignore[arg-type]
-                return job_id
+                return self.submit(job_name, fname)  # type: ignore[arg-type]
             if request_type == "cancel":
                 job_id = request_arg[0]  # type: ignore[assignment]
                 log.debug("got a cancel request", job_id=job_id)
-                self.cancel(job_id)
+                self.cancel(job_id)  # type: ignore[arg-type]
                 return None
             if request_type == "queue":
                 log.debug("got a queue request")
