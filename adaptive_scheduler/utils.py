@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Hashable, List, Literal, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
 
 import adaptive
 import cloudpickle
@@ -729,10 +729,7 @@ def fname_to_learner(
     fname: str | list[str] | Path | list[Path],
     *,
     return_initializer: bool = False,
-) -> (
-    tuple[adaptive.BaseLearner, Callable[[], dict[Hashable, Any]] | None]
-    | adaptive.BaseLearner
-):
+) -> tuple[adaptive.BaseLearner, Callable[[], None] | None] | adaptive.BaseLearner:
     """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
     with learner_name.open("rb") as f:

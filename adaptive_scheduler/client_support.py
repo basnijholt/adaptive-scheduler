@@ -5,7 +5,7 @@ import datetime
 import logging
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Callable, Hashable
+from typing import TYPE_CHECKING, Any, Callable
 
 import psutil
 import structlog
@@ -51,7 +51,7 @@ def get_learner(
     log_fname: str,
     job_id: str,
     job_name: str,
-) -> tuple[BaseLearner, str | list[str], Callable[[], dict[Hashable, Any]] | None]:
+) -> tuple[BaseLearner, str | list[str], Callable[[], None] | None]:
     """Get a learner from the database (running at `url`).
 
     This learner's process will be logged in `log_fname`
