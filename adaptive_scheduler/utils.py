@@ -820,27 +820,20 @@ def save_dataframe(
         if expand_dicts:
             df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
-        if format == "parquet":
-            df.to_parquet(fname_df, **save_kwargs)
-        elif format == "csv":
-            df.to_csv(fname_df, **save_kwargs)
-        elif format == "hdf":
+
+        try:
+            do_save = getattr(df, f"to_{format}")
+        except AttributeError:
+            msg = f"Unknown format {format}"
+            raise ValueError(msg) from None
+            
+        if format == "hdf":
             assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
-            df.to_hdf(fname_df, **save_kwargs)
-        elif format == "pickle":
-            df.to_pickle(fname_df, **save_kwargs)
-        elif format == "feather":
-            df.to_feather(fname_df, **save_kwargs)
-        elif format == "excel":
-            df.to_excel(fname_df, **save_kwargs)
-        elif format == "json":
-            df.to_json(fname_df, **save_kwargs)
-        else:
-            msg = f"Unknown format {format}."
-            raise ValueError(msg)
 
+        do_save(fname_df, **save_kwargs)
+        
     return save
 
 
