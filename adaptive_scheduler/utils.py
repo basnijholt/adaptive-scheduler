@@ -891,7 +891,7 @@ def load_dataframes(  # noqa: PLR0912
         msg = f"Unknown format {format}."
         raise ValueError(msg)  # noqa: TRY301
 
-    _read = getattr(pd, f"read_{format}")
+    do_read = getattr(pd, f"read_{format}")
 
     dfs = []
     for fn in fnames:
@@ -899,7 +899,7 @@ def load_dataframes(  # noqa: PLR0912
         if not os.path.exists(fn_df):  # noqa: PTH110
             continue
         try:
-            df = _read(fn_df, **read_kwargs)
+            df = do_read(fn_df, **read_kwargs)
         except Exception:  # noqa: BLE001
             msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
             console.print(msg)
