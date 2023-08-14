@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "adaptive >= 0.14.1",
+    "atomicwrites",
     "cloudpickle",
     "dill",
     "ipyparallel",
