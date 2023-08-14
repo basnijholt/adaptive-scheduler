@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
+import typing
 from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
 
 import adaptive
@@ -873,37 +874,31 @@ def load_dataframes(  # noqa: PLR0912
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
+    if format == "hdf":
+        if "key" not in read_kwargs:
+            read_kwargs["key"] = "data"
+
+    if format not in typing.get_args(_DATAFRAME_FORMATS):
+        msg = f"Unknown format {format}."
+        raise ValueError(msg)  # noqa: TRY301
+
+    _read = getattr(pd, f"read_{format}")
+
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
         if not os.path.exists(fn_df):  # noqa: PTH110
             continue
         try:
-            if format == "parquet":
-                df = pd.read_parquet(fn_df, **read_kwargs)
-            elif format == "csv":
-                df = pd.read_csv(fn_df, **read_kwargs)
-            elif format == "hdf":
-                if "key" not in read_kwargs:
-                    read_kwargs["key"] = "data"
-                df = pd.read_hdf(fn_df, **read_kwargs)
-            elif format == "pickle":
-                df = pd.read_pickle(fn_df, **read_kwargs)  # noqa: S301
-            elif format == "feather":
-                df = pd.read_feather(fn_df, **read_kwargs)
-            elif format == "excel":
-                df = pd.read_excel(fn_df, **read_kwargs)
-            elif format == "json":
-                df = pd.read_json(fn_df, **read_kwargs)
-            else:
-                msg = f"Unknown format {format}."
-                raise ValueError(msg)  # noqa: TRY301
+            df = _read(fn_df, **read_kwargs)
         except Exception:  # noqa: BLE001
             msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
             console.print(msg)
             continue
+
         df["fname"] = len(df) * [fn]
         dfs.append(df)
+
     if concat:
         if dfs:
             return pd.concat(dfs, axis=0)
