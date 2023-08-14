@@ -7,6 +7,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+import typing
 from typing import TYPE_CHECKING
 
 import adaptive
@@ -335,25 +336,28 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
         assert fname_learner.exists()
 
 
-def test_save_dataframe(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+@pytest.mark.parametrize("format", ["pickle", "csv", "json"])
+def test_save_dataframe(tmp_path: Path, atomically, format) -> None:
     """Test `utils.save_dataframe`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / ("test.pickle"))
-    save_df = utils.save_dataframe(fname)
+    fname = str(tmp_path / f"test.{format}")
+    save_df = utils.save_dataframe(fname, atomically=atomically, format=format)
 
     learner.ask(10)
     learner.tell(10, 42)
 
     save_df(learner)
 
-    assert utils.fname_to_dataframe(fname).exists()
+    assert utils.fname_to_dataframe(fname, format=format).exists()
 
 
-def test_load_dataframes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes(tmp_path: Path, atomically) -> None:
     """Test `utils.load_dataframes`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(tmp_path / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)
@@ -433,13 +437,14 @@ def test_fname_to_dataframe_with_folder() -> None:
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
-def test_load_dataframes_with_folder(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes_with_folder(tmp_path: Path, atomically) -> None:
     """Test `utils.load_dataframes` with `folder`."""
     folder = tmp_path / "test_folder"
     folder.mkdir()
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(folder / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)

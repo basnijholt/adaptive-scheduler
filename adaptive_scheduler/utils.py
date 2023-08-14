@@ -25,6 +25,7 @@ import typing
 from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
 
 import adaptive
+import atomicwrites
 import cloudpickle
 import numpy as np
 import pandas as pd
@@ -811,6 +812,7 @@ def save_dataframe(
     format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
+    atomically: bool = True,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     """Save the learner's data to disk as pandas.DataFrame."""
@@ -822,18 +824,25 @@ def save_dataframe(
             df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
 
-        try:
-            do_save = getattr(df, f"to_{format}")
-        except AttributeError:
+        if format not in typing.get_args(_DATAFRAME_FORMATS):
             msg = f"Unknown format {format}"
-            raise ValueError(msg) from None
-            
+            raise ValueError(msg)
+        do_save = getattr(df, f"to_{format}")
+
         if format == "hdf":
             assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
 
-        do_save(fname_df, **save_kwargs)
+        if atomically:
+            with atomicwrites.atomic_write(
+                fname_df,
+                overwrite=True,
+                mode="w" if format in ("csv", "json") else "wb",
+            ) as f:
+                do_save(f, **save_kwargs)
+        else:
+            do_save(fname_df, **save_kwargs)
         
     return save
 
