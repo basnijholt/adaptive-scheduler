@@ -14,6 +14,7 @@ import random
 import shutil
 import tempfile
 import time
+import typing
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -21,7 +22,6 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-import typing
 from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
 
 import adaptive
@@ -843,7 +843,7 @@ def save_dataframe(
                 do_save(f, **save_kwargs)
         else:
             do_save(fname_df, **save_kwargs)
-        
+
     return save
 
 
@@ -874,7 +874,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataframes(  # noqa: PLR0912
+def load_dataframes(
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
@@ -883,13 +883,12 @@ def load_dataframes(  # noqa: PLR0912
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
-    if format == "hdf":
-        if "key" not in read_kwargs:
-            read_kwargs["key"] = "data"
+    if format == "hdf" and "key" not in read_kwargs:
+        read_kwargs["key"] = "data"
 
     if format not in typing.get_args(_DATAFRAME_FORMATS):
         msg = f"Unknown format {format}."
-        raise ValueError(msg)  # noqa: TRY301
+        raise ValueError(msg)
 
     do_read = getattr(pd, f"read_{format}")
 

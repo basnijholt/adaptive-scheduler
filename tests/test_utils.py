@@ -4,10 +4,10 @@ from __future__ import annotations
 import platform
 import sys
 import time
+import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
-import typing
 from typing import TYPE_CHECKING
 
 import adaptive
@@ -337,23 +337,31 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("atomically", [False, True])
-@pytest.mark.parametrize("format", ["pickle", "csv", "json"])
-def test_save_dataframe(tmp_path: Path, atomically, format) -> None:
+@pytest.mark.parametrize("fmt", ["pickle", "csv", "json"])
+def test_save_dataframe(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+    fmt: str,
+) -> None:
     """Test `utils.save_dataframe`."""
+    fmt = typing.cast(utils._DATAFRAME_FORMATS, fmt)
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / f"test.{format}")
-    save_df = utils.save_dataframe(fname, atomically=atomically, format=format)
+    fname = str(tmp_path / f"test.{fmt}")
+    save_df = utils.save_dataframe(fname, atomically=atomically, format=fmt)
 
     learner.ask(10)
     learner.tell(10, 42)
 
     save_df(learner)
 
-    assert utils.fname_to_dataframe(fname, format=format).exists()
+    assert utils.fname_to_dataframe(fname, format=fmt).exists()
 
 
 @pytest.mark.parametrize("atomically", [False, True])
-def test_load_dataframes(tmp_path: Path, atomically) -> None:
+def test_load_dataframes(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(tmp_path / "test.pickle")
@@ -438,7 +446,10 @@ def test_fname_to_dataframe_with_folder() -> None:
 
 
 @pytest.mark.parametrize("atomically", [False, True])
-def test_load_dataframes_with_folder(tmp_path: Path, atomically) -> None:
+def test_load_dataframes_with_folder(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes` with `folder`."""
     folder = tmp_path / "test_folder"
     folder.mkdir()
