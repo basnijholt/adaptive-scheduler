@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import contextlib
 import functools
 import hashlib
 import inspect
@@ -19,12 +18,12 @@ import typing
 import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union, get_args as get_type_args
 
 import adaptive
 import cloudpickle
@@ -825,7 +824,7 @@ def save_dataframe(
             df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
 
-        if format not in typing.get_args(_DATAFRAME_FORMATS):
+        if format not in get_type_args(_DATAFRAME_FORMATS):
             msg = f"Unknown format {format}"
             raise ValueError(msg)
         do_save = getattr(df, f"to_{format}")
@@ -844,7 +843,7 @@ def save_dataframe(
     return save
 
 
-@contextlib.contextmanager
+@contextmanager
 def atomic_write(
     dest: os.PathLike,
     mode: str = "w",
@@ -919,7 +918,7 @@ def load_dataframes(
     if format == "hdf" and "key" not in read_kwargs:
         read_kwargs["key"] = "data"
 
-    if format not in typing.get_args(_DATAFRAME_FORMATS):
+    if format not in get_type_args(_DATAFRAME_FORMATS):
         msg = f"Unknown format {format}."
         raise ValueError(msg)
 
