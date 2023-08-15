@@ -445,6 +445,47 @@ def test_fname_to_dataframe_with_folder() -> None:
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
+def test_atomic_write(tmp_path: Path):
+    """Ensure atomic_write works when operated in a basic manner."""
+    path = tmp_path / "testfile"
+    content = "this is some content"
+
+    # Works correctly in basic mode, with no file existing
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+    # Works correctly in basic mode, with the file existing
+    assert path.exists()
+    assert path.is_file()
+    content = "this is some additional content"
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+    # Works correctly when 'return_path' is used.
+    content = "even more content"
+    with utils.atomic_write(path, return_path=True) as tmp_path:
+        with open(tmp_path, "w") as fp:
+            fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+
+def test_atomic_write_nested(tmp_path: Path):
+    """Ensure nested calls to atomic_write on the same file work as expected."""
+    path = tmp_path / "testfile"
+    with utils.atomic_write(path, mode="w") as fp:
+        with utils.atomic_write(path, mode="w") as fp2:
+            fp.write("one")
+            fp2.write("two")
+    # Outer call wins
+    with open(path, mode="r") as fp:
+        assert fp.read() == "one"
+        
+
 @pytest.mark.parametrize("atomically", [False, True])
 def test_load_dataframes_with_folder(
     tmp_path: Path,
