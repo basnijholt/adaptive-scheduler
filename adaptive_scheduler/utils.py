@@ -14,7 +14,6 @@ import random
 import shutil
 import tempfile
 import time
-import typing
 import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -23,7 +22,17 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union, get_args as get_type_args
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Literal,
+    Union,
+)
+from typing import (
+    get_args as get_type_args,
+)
 
 import adaptive
 import cloudpickle
