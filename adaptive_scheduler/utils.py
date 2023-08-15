@@ -846,12 +846,12 @@ def save_dataframe(
 
 @contextlib.contextmanager
 def atomic_write(
-    dest: PathLike,
+    dest: os.PathLike,
     mode: str = "w",
-    *args,
+    *args: Any,
     return_path: bool = False,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> Any:
     """Write atomically to 'dest', using a temporary file in the same directory.
 
     This function has the same signature as 'open', except that the default
@@ -861,22 +861,22 @@ def atomic_write(
     This is useful when calling libraries that expect a path, rather than an
     open file handle.
     """
-    temp_dest = dest.with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
+    temp_dest = Path(dest).with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
     try:
         # First create an empty file; this ensures we have the same semantics
         # as 'open(..., mode="w")'.
-        open(temp_dest, mode="w").close()
+        temp_dest.open("w").close()
         # Now give control back to the caller.
         if return_path:
             yield temp_dest
         else:
-            with open(temp_dest, mode, *args, **kwargs) as fp:
+            with temp_dest.open(mode, *args, **kwargs) as fp:
                 yield fp
         # Atomically change 'dest' to point to the 'temp_dest' inode.
-        os.replace(temp_dest, dest)
+        os.replace(temp_dest, dest)  # noqa: PTH105
     except Exception:
         with suppress(FileNotFoundError):
-            os.remove(temp_dest)
+            os.remove(temp_dest)  # noqa: PTH107
         raise
 
 

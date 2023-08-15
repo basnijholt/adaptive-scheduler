@@ -467,7 +467,9 @@ def test_atomic_write(tmp_path: Path) -> None:
 
     # Works correctly when 'return_path' is used.
     content = "even more content"
-    with utils.atomic_write(path, return_path=True) as tmp_path, tmp_path.open("w") as fp:
+    with utils.atomic_write(path, return_path=True) as tmp_path, tmp_path.open(
+        "w",
+    ) as fp:
         fp.write(content)
     with path.open() as fp:
         assert content == fp.read()
@@ -513,7 +515,8 @@ def test_atomic_write_nested(tmp_path: Path) -> None:
     """Ensure nested calls to atomic_write on the same file work as expected."""
     path = tmp_path / "testfile"
     with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(
-        path, mode="w",
+        path,
+        mode="w",
     ) as fp2:
         fp.write("one")
         fp2.write("two")
