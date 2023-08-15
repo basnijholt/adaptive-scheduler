@@ -4,6 +4,7 @@ from __future__ import annotations
 import platform
 import sys
 import time
+import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -335,25 +336,36 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
         assert fname_learner.exists()
 
 
-def test_save_dataframe(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+@pytest.mark.parametrize("fmt", ["pickle", "csv", "json"])
+def test_save_dataframe(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+    fmt: str,
+) -> None:
     """Test `utils.save_dataframe`."""
+    fmt = typing.cast(utils._DATAFRAME_FORMATS, fmt)
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / ("test.pickle"))
-    save_df = utils.save_dataframe(fname)
+    fname = str(tmp_path / f"test.{fmt}")
+    save_df = utils.save_dataframe(fname, atomically=atomically, format=fmt)
 
     learner.ask(10)
     learner.tell(10, 42)
 
     save_df(learner)
 
-    assert utils.fname_to_dataframe(fname).exists()
+    assert utils.fname_to_dataframe(fname, format=fmt).exists()
 
 
-def test_load_dataframes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(tmp_path / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)
@@ -433,13 +445,56 @@ def test_fname_to_dataframe_with_folder() -> None:
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
-def test_load_dataframes_with_folder(tmp_path: Path) -> None:
+def test_atomic_write(tmp_path: Path):
+    """Ensure atomic_write works when operated in a basic manner."""
+    path = tmp_path / "testfile"
+    content = "this is some content"
+
+    # Works correctly in basic mode, with no file existing
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+    # Works correctly in basic mode, with the file existing
+    assert path.exists()
+    assert path.is_file()
+    content = "this is some additional content"
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+    # Works correctly when 'return_path' is used.
+    content = "even more content"
+    with utils.atomic_write(path, return_path=True) as tmp_path, open(tmp_path, "w") as fp:
+        fp.write(content)
+    with open(path) as fp:
+        assert content == fp.read()
+
+
+def test_atomic_write_nested(tmp_path: Path):
+    """Ensure nested calls to atomic_write on the same file work as expected."""
+    path = tmp_path / "testfile"
+    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(path, mode="w") as fp2:
+        fp.write("one")
+        fp2.write("two")
+    # Outer call wins
+    with open(path) as fp:
+        assert fp.read() == "one"
+
+
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes_with_folder(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes` with `folder`."""
     folder = tmp_path / "test_folder"
     folder.mkdir()
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(folder / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)
