@@ -15,6 +15,8 @@ import random
 import shutil
 import tempfile
 import time
+import typing
+import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -22,12 +24,9 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-import typing
 from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
-import uuid
 
 import adaptive
-import atomicwrites
 import cloudpickle
 import numpy as np
 import pandas as pd
@@ -841,14 +840,16 @@ def save_dataframe(
                 do_save(fname_temp, **save_kwargs)
         else:
             do_save(fname_df, **save_kwargs)
-        
+
     return save
 
 
 @contextlib.contextmanager
-def atomic_write(dest: PathLike, mode: str = "w", *args, return_path: bool = False, **kwargs):
+def atomic_write(
+    dest: PathLike, mode: str = "w", *args, return_path: bool = False, **kwargs,
+):
     """Write atomically to 'dest', using a temporary file in the same directory.
-    
+
     This function has the same signature as 'open', except that the default
     mode is 'w', not 'r', and there is an additional keyword-only parameter,
     'return_path'. If 'return_path=True' then a Path pointing to the (as yet
@@ -863,16 +864,13 @@ def atomic_write(dest: PathLike, mode: str = "w", *args, return_path: bool = Fal
         else:
             with open(temp_dest, mode, *args, **kwargs) as fp:
                 yield fp
-        try:
+        with suppress(FileNotFoundError):
             os.replace(temp_dest, dest)
-        except FileNotFoundError:
-            pass
+
     finally:
-        try:
+        with suppress(FileNotFoundError):
             os.remove(temp_dest)
-        except FileNotFoundError:
-            pass
-   
+
 
 
 _DATAFRAME_FORMATS = Literal[
@@ -902,7 +900,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataframes(  # noqa: PLR0912
+def load_dataframes(
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
@@ -911,13 +909,12 @@ def load_dataframes(  # noqa: PLR0912
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
-    if format == "hdf":
-        if "key" not in read_kwargs:
-            read_kwargs["key"] = "data"
+    if format == "hdf" and "key" not in read_kwargs:
+        read_kwargs["key"] = "data"
 
     if format not in typing.get_args(_DATAFRAME_FORMATS):
         msg = f"Unknown format {format}."
-        raise ValueError(msg)  # noqa: TRY301
+        raise ValueError(msg)
 
     do_read = getattr(pd, f"read_{format}")
 

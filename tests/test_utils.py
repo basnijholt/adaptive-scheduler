@@ -467,9 +467,8 @@ def test_atomic_write(tmp_path: Path):
 
     # Works correctly when 'return_path' is used.
     content = "even more content"
-    with utils.atomic_write(path, return_path=True) as tmp_path:
-        with open(tmp_path, "w") as fp:
-            fp.write(content)
+    with utils.atomic_write(path, return_path=True) as tmp_path, open(tmp_path, "w") as fp:
+        fp.write(content)
     with open(path) as fp:
         assert content == fp.read()
 
@@ -477,14 +476,13 @@ def test_atomic_write(tmp_path: Path):
 def test_atomic_write_nested(tmp_path: Path):
     """Ensure nested calls to atomic_write on the same file work as expected."""
     path = tmp_path / "testfile"
-    with utils.atomic_write(path, mode="w") as fp:
-        with utils.atomic_write(path, mode="w") as fp2:
-            fp.write("one")
-            fp2.write("two")
+    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(path, mode="w") as fp2:
+        fp.write("one")
+        fp2.write("two")
     # Outer call wins
-    with open(path, mode="r") as fp:
+    with open(path) as fp:
         assert fp.read() == "one"
-        
+
 
 @pytest.mark.parametrize("atomically", [False, True])
 def test_load_dataframes_with_folder(
