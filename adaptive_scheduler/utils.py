@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import functools
 import hashlib
 import inspect
@@ -14,7 +15,6 @@ import random
 import shutil
 import tempfile
 import time
-import typing
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -22,7 +22,9 @@ from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
+import typing
 from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
+import uuid
 
 import adaptive
 import atomicwrites
@@ -835,16 +837,42 @@ def save_dataframe(
                 save_kwargs["key"] = "data"
 
         if atomically:
-            with atomicwrites.atomic_write(
-                fname_df,
-                overwrite=True,
-                mode="w" if format in ("csv", "json") else "wb",
-            ) as f:
-                do_save(f, **save_kwargs)
+            with atomic_write(fname_df, return_path=True) as fname_temp:
+                do_save(fname_temp, **save_kwargs)
         else:
             do_save(fname_df, **save_kwargs)
-
+        
     return save
+
+
+@contextlib.contextmanager
+def atomic_write(dest: PathLike, mode: str = "w", *args, return_path: bool = False, **kwargs):
+    """Write atomically to 'dest', using a temporary file in the same directory.
+    
+    This function has the same signature as 'open', except that the default
+    mode is 'w', not 'r', and there is an additional keyword-only parameter,
+    'return_path'. If 'return_path=True' then a Path pointing to the (as yet
+    nonexistant) temporary file is yielded, rather than a file handle.
+    This is useful when calling libraries that expect a path, rather than an
+    open file handle.
+    """
+    temp_dest = dest.with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
+    try:
+        if return_path:
+            yield temp_dest
+        else:
+            with open(temp_dest, mode, *args, **kwargs) as fp:
+                yield fp
+        try:
+            os.replace(temp_dest, dest)
+        except FileNotFoundError:
+            pass
+    finally:
+        try:
+            os.remove(temp_dest)
+        except FileNotFoundError:
+            pass
+   
 
 
 _DATAFRAME_FORMATS = Literal[
@@ -874,7 +902,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataframes(
+def load_dataframes(  # noqa: PLR0912
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
@@ -883,12 +911,13 @@ def load_dataframes(
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
-    if format == "hdf" and "key" not in read_kwargs:
-        read_kwargs["key"] = "data"
+    if format == "hdf":
+        if "key" not in read_kwargs:
+            read_kwargs["key"] = "data"
 
     if format not in typing.get_args(_DATAFRAME_FORMATS):
         msg = f"Unknown format {format}."
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: TRY301
 
     do_read = getattr(pd, f"read_{format}")
 
