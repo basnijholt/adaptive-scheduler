@@ -467,15 +467,15 @@ def test_atomic_write(tmp_path: Path) -> None:
 
     # Works correctly when 'return_path' is used.
     content = "even more content"
-    with utils.atomic_write(path, return_path=True) as tmp_path:
-        with tmp_path.open("w") as fp:
-            fp.write(content)
+    with utils.atomic_write(path, return_path=True) as tmp_path, tmp_path.open("w") as fp:
+        fp.write(content)
     with path.open() as fp:
         assert content == fp.read()
 
+
 def test_atomic_write_no_write(tmp_path: Path) -> None:
     """Ensure atomic_write creates an empty file, if we do nothing.
-    
+
     This gives 'atomic_write' the same semantics as 'open', when
     the file does not exist.
     """
@@ -491,7 +491,7 @@ def test_atomic_write_no_write(tmp_path: Path) -> None:
         pass
     assert path.stat().st_size == 0
 
-    # 
+    #
     with utils.atomic_write(path) as fp:
         fp.write("content")
     assert path.stat().st_size > 0
@@ -508,10 +508,13 @@ def test_atomic_write_no_write(tmp_path: Path) -> None:
         pass
     assert path.stat().st_size == 0
 
+
 def test_atomic_write_nested(tmp_path: Path) -> None:
     """Ensure nested calls to atomic_write on the same file work as expected."""
     path = tmp_path / "testfile"
-    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(path, mode="w") as fp2:
+    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(
+        path, mode="w",
+    ) as fp2:
         fp.write("one")
         fp2.write("two")
     # Outer call wins
