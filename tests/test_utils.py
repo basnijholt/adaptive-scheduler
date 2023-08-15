@@ -445,7 +445,7 @@ def test_fname_to_dataframe_with_folder() -> None:
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
-def test_atomic_write(tmp_path: Path):
+def test_atomic_write(tmp_path: Path) -> None:
     """Ensure atomic_write works when operated in a basic manner."""
     path = tmp_path / "testfile"
     content = "this is some content"
@@ -453,7 +453,7 @@ def test_atomic_write(tmp_path: Path):
     # Works correctly in basic mode, with no file existing
     with utils.atomic_write(path) as fp:
         fp.write(content)
-    with open(path) as fp:
+    with path.open() as fp:
         assert content == fp.read()
 
     # Works correctly in basic mode, with the file existing
@@ -462,25 +462,60 @@ def test_atomic_write(tmp_path: Path):
     content = "this is some additional content"
     with utils.atomic_write(path) as fp:
         fp.write(content)
-    with open(path) as fp:
+    with path.open() as fp:
         assert content == fp.read()
 
     # Works correctly when 'return_path' is used.
     content = "even more content"
-    with utils.atomic_write(path, return_path=True) as tmp_path, open(tmp_path, "w") as fp:
-        fp.write(content)
-    with open(path) as fp:
+    with utils.atomic_write(path, return_path=True) as tmp_path:
+        with tmp_path.open("w") as fp:
+            fp.write(content)
+    with path.open() as fp:
         assert content == fp.read()
 
+def test_atomic_write_no_write(tmp_path: Path) -> None:
+    """Ensure atomic_write creates an empty file, if we do nothing.
+    
+    This gives 'atomic_write' the same semantics as 'open', when
+    the file does not exist.
+    """
+    path = tmp_path / "testfile"
 
-def test_atomic_write_nested(tmp_path: Path):
+    assert not path.exists()  # Sanity check
+
+    with utils.atomic_write(path) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    with utils.atomic_write(path, return_path=True) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    # 
+    with utils.atomic_write(path) as fp:
+        fp.write("content")
+    assert path.stat().st_size > 0
+
+    with utils.atomic_write(path) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    with utils.atomic_write(path) as fp:
+        fp.write("content")
+    assert path.stat().st_size > 0
+
+    with utils.atomic_write(path, return_path=True) as _:
+        pass
+    assert path.stat().st_size == 0
+
+def test_atomic_write_nested(tmp_path: Path) -> None:
     """Ensure nested calls to atomic_write on the same file work as expected."""
     path = tmp_path / "testfile"
     with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(path, mode="w") as fp2:
         fp.write("one")
         fp2.write("two")
     # Outer call wins
-    with open(path) as fp:
+    with path.open() as fp:
         assert fp.read() == "one"
 
 

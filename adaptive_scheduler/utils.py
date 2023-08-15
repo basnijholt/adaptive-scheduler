@@ -846,7 +846,11 @@ def save_dataframe(
 
 @contextlib.contextmanager
 def atomic_write(
-    dest: PathLike, mode: str = "w", *args, return_path: bool = False, **kwargs,
+    dest: PathLike,
+    mode: str = "w",
+    *args,
+    return_path: bool = False,
+    **kwargs,
 ):
     """Write atomically to 'dest', using a temporary file in the same directory.
 
@@ -859,18 +863,21 @@ def atomic_write(
     """
     temp_dest = dest.with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
     try:
+        # First create an empty file; this ensures we have the same semantics
+        # as 'open(..., mode="w")'.
+        open(temp_dest, mode="w").close()
+        # Now give control back to the caller.
         if return_path:
             yield temp_dest
         else:
             with open(temp_dest, mode, *args, **kwargs) as fp:
                 yield fp
-        with suppress(FileNotFoundError):
-            os.replace(temp_dest, dest)
-
-    finally:
+        # Atomically change 'dest' to point to the 'temp_dest' inode.
+        os.replace(temp_dest, dest)
+    except Exception:
         with suppress(FileNotFoundError):
             os.remove(temp_dest)
-
+        raise
 
 
 _DATAFRAME_FORMATS = Literal[
