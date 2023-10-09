@@ -996,7 +996,7 @@ def smart_goal(
             stacklevel=2,
         )
         return lambda _: False
-    msg = "goal must be `callable | int | float | None`"
+    msg = "goal must be `callable | float | None`"
     raise ValueError(msg)
 
 
@@ -1135,7 +1135,7 @@ def _time_between(start: str, end: str) -> float:
 
 async def sleep_unless_task_is_done(
     task: asyncio.Task,
-    sleep_duration: int | float,
+    sleep_duration: float,
 ) -> bool:
     """Sleep for an interval, unless the task is done before then."""
     # Create the sleep task separately

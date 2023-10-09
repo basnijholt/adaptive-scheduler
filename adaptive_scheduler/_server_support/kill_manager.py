@@ -98,7 +98,7 @@ class KillManager(BaseManager):
         database_manager: DatabaseManager,
         *,
         error: str | Callable[[list[str]], bool] = "srun: error:",
-        interval: int | float = 600,
+        interval: float = 600,
         max_cancel_tries: int = 5,
         move_to: str | Path | None = None,
     ) -> None:
@@ -146,7 +146,7 @@ class KillManager(BaseManager):
                     self.interval,
                 ):  # if true, we are done
                     return
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # noqa: PERF203
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except Exception as e:  # noqa: BLE001
