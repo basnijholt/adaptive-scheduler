@@ -43,15 +43,15 @@ class MockScheduler:
 
     Parameters
     ----------
-    startup_delay : int
+    startup_delay
         The waiting before starting the process.
-    max_running_jobs : int
+    max_running_jobs
         Maximum number of simultaneously running jobs.
-    refresh_interval : int
+    refresh_interval
         Refresh interval of checking whether proccesses are still running.
-    bash : str
+    bash
         ``bash`` executable.
-    url : str, optional
+    url
         The URL of the socket. Defaults to {DEFAULT_URL}.
     """
 

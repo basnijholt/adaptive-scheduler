@@ -36,28 +36,28 @@ def command_line_options(
 
     Parameters
     ----------
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
     database_manager
         A database manager instance.
-    runner_kwargs : dict
+    runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
-    goal : callable
+    goal
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
-    log_interval : int
+    log_interval
         Time in seconds between log entries.
-    save_interval : int
+    save_interval
         Time in seconds between saving of the learners.
-    save_dataframe : bool
+    save_dataframe
         Whether to periodically save the learner's data as a `pandas.DataFame`.
-    dataframe_format : str
+    dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
-    loky_start_method : str
+    loky_start_method
         Loky start method, by default "loky".
 
     Returns
@@ -94,40 +94,40 @@ class JobManager(BaseManager):
 
     Parameters
     ----------
-    job_names : list
+    job_names
         List of unique names used for the jobs with the same length as
         `learners`. Note that a job name does not correspond to a certain
         specific learner.
-    database_manager : `DatabaseManager`
+    database_manager
         A `DatabaseManager` instance.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    interval : int
+    interval
         Time in seconds between checking and starting jobs.
-    max_simultaneous_jobs : int
+    max_simultaneous_jobs
         Maximum number of simultaneously running jobs. By default no more than 500
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
-    max_fails_per_job : int
+    max_fails_per_job
         Maximum number of times that a job can fail. This is here as a fail switch
         because a job might fail instantly because of a bug inside your code.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
-    save_dataframe : bool
+    save_dataframe
         Whether to periodically save the learner's data as a `pandas.DataFame`.
-    dataframe_format : str
+    dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
-    loky_start_method : str
+    loky_start_method
         Loky start method, by default "loky".
-    log_interval : int
+    log_interval
         Time in seconds between log entries.
-    save_interval : int
+    save_interval
         Time in seconds between saving of the learners.
-    runner_kwargs : dict
+    runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
-    goal : callable
+    goal
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts

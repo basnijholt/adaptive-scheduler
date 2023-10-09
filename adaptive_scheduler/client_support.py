@@ -59,23 +59,23 @@ def get_learner(
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    log_fname : str
+    log_fname
         The filename of the log-file. Should be passed in the job-script.
-    job_id : str
+    job_id
         The job_id of the process the job. Should be passed in the job-script.
-    job_name : str
+    job_name
         The name of the job. Should be passed in the job-script.
 
     Returns
     -------
-    learner : `adaptive.BaseLearner`
+    learner
         Learner that is chosen.
-    fname : str
+    fname
         The filename of the learner that was chosen.
-    initializer : a callable or None
+    initializer
         A function that runs before the process is forked.
     """
     _add_log_file_handler(log_fname)
@@ -115,10 +115,10 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    fname : str
+    fname
         The filename of the learner that is done.
     """
     log.info("goal reached! 🎉🎊🥳")
@@ -169,14 +169,10 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
 
     Parameters
     ----------
-    runner : `adaptive.Runner` instance
+    runner
         Adaptive Runner instance.
-    interval : int | float
+    interval
         Time in seconds between log entries.
-
-    Returns
-    -------
-    asyncio.Task
     """
 
     async def coro(runner: AsyncRunner, interval: int | float) -> None:

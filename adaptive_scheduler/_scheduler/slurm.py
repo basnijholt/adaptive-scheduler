@@ -23,38 +23,38 @@ class SLURM(BaseScheduler):
 
     Parameters
     ----------
-    cores : int | None
+    cores
         Number of cores per job (so per learner.)
         Either use `cores` or `nodes` and `cores_per_node`.
-    nodes : int | None
+    nodes
         Number of nodes per job (so per learner.)
         Either `nodes` and `cores_per_node` or use `cores`.
-    cores_per_node: int | None
+    cores_per_node
         Number of cores per node.
         Either `nodes` and `cores_per_node` or use `cores`.
-    partition: str | None
+    partition
         The SLURM partition to submit the job to.
-    exclusive : bool
+    exclusive
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
-    log_folder : str
+    log_folder
         The folder in which to put the log-files.
-    mpiexec_executable : str, optional
+    mpiexec_executable
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
-    executor_type : str
+    executor_type
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
         ``"loky"``, or ``"process-pool"``.
-    num_threads : int
+    num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
-    extra_scheduler : list, optional
+    extra_scheduler
         Extra ``#SLURM`` (depending on scheduler type)
         arguments, e.g. ``["--exclusive=user", "--time=1"]``.
-    extra_env_vars : list, optional
+    extra_env_vars
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
-    extra_script : str, optional
+    extra_script
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
     """
@@ -183,7 +183,7 @@ class SLURM(BaseScheduler):
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to SLURM.
         """
         job_script = textwrap.dedent(

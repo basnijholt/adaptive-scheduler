@@ -44,7 +44,7 @@ def get_allowed_url() -> str:
 
     Returns
     -------
-    url : str
+    url
         An url that can be used for the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``.
     """
@@ -87,15 +87,17 @@ def cleanup_scheduler_files(
 
     Parameters
     ----------
-    job_names : list
+    job_names
         List of job names.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    with_progress_bar : bool
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    move_to : str
+    move_to
         Move the file to a different directory.
         If None the file is removed.
+    log_file_folder
+        The folder in which to delete the log-files.
     """
     to_rm = _get_all_files(job_names, scheduler)
 
@@ -152,9 +154,9 @@ def periodically_clean_ipython_profiles(
 
     Parameters
     ----------
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    interval : int
+    interval
         The interval at which to remove old profiles.
 
     Returns
