@@ -40,3 +40,4 @@ dependencies:
   - furo
   - myst-parser
   - emoji
+  - sphinx-autodoc-typehints
