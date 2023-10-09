@@ -46,7 +46,7 @@ def parse_log_files(
         A `DatabaseManager` instance.
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    only_last : bool, default: True
+    only_last : bool
         Only look use the last printed status message.
 
     Returns

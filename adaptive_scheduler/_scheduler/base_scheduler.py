@@ -29,10 +29,10 @@ class BaseScheduler(abc.ABC):
     ----------
     cores : int
         Number of cores per job (so per learner.)
-    python_executable : str, default: `sys.executable`
+    python_executable : str
         The Python executable that should run adaptive-scheduler. By default
         it uses the same Python as where this function is called.
-    log_folder : str, default: ""
+    log_folder : str
         The folder in which to put the log-files.
     mpiexec_executable : str, optional
         ``mpiexec`` executable. By default `mpiexec` will be
@@ -41,7 +41,7 @@ class BaseScheduler(abc.ABC):
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
         ``"loky"``, or ``"process-pool"``.
-    num_threads : int, default 1
+    num_threads : int
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
     extra_scheduler : list, optional
@@ -53,7 +53,7 @@ class BaseScheduler(abc.ABC):
     extra_script : str, optional
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
-    batch_folder : str, default: ""
+    batch_folder : str
         The folder in which to put the batch files.
 
     Returns
@@ -99,7 +99,7 @@ class BaseScheduler(abc.ABC):
 
         Parameters
         ----------
-        me_only : bool, default: True
+        me_only : bool
             Only see your jobs.
 
         Returns
@@ -176,9 +176,9 @@ class BaseScheduler(abc.ABC):
         ----------
         job_names : list
             List of job names.
-        with_progress_bar : bool, default: True
+        with_progress_bar : bool
             Display a progress bar using `tqdm`.
-        max_tries : int, default: 5
+        max_tries : int
             Maximum number of attempts to cancel a job.
         """
 

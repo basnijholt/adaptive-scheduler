@@ -91,13 +91,11 @@ def cleanup_scheduler_files(
         List of job names.
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    with_progress_bar : bool, default: True
+    with_progress_bar : bool
         Display a progress bar using `tqdm`.
-    move_to : str, default: None
+    move_to : str
         Move the file to a different directory.
         If None the file is removed.
-    log_file_folder : str, default: ''
-        The folder in which to delete the log-files.
     """
     to_rm = _get_all_files(job_names, scheduler)
 
@@ -156,7 +154,7 @@ def periodically_clean_ipython_profiles(
     ----------
     scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    interval : int, default: 600
+    interval : int
         The interval at which to remove old profiles.
 
     Returns

@@ -399,12 +399,12 @@ def _remove_or_move_files(
     ----------
     fnames : list
         List of filenames.
-    with_progress_bar : bool, default: True
+    with_progress_bar : bool
         Display a progress bar using `tqdm`.
-    move_to : str | Path, default None
+    move_to : str | Path
         Move the file to a different directory.
         If None the file is removed.
-    desc : str, default: None
+    desc : str
         Description of the progressbar.
     """
     n_failed = 0
@@ -444,7 +444,7 @@ def load_parallel(
         The learners to be loaded.
     fnames : sequence of str
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar : bool
         Display a progress bar using `tqdm`.
     max_workers : int, optional
         The maximum number of parallel threads when loading the data.
@@ -476,7 +476,7 @@ def save_parallel(
         The learners to be saved.
     fnames : sequence of str
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar : bool
         Display a progress bar using `tqdm`.
     """
 

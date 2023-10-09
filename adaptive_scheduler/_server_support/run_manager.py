@@ -53,49 +53,49 @@ class RunManager(BaseManager):
         List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
-    goal : callable, default: None
+    goal : callable
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
-    initializers : list of callables, default: None
+    initializers : list of callables
         List of functions that are called before the job starts, can populate
         a cache.
-    check_goal_on_start : bool, default: True
+    check_goal_on_start : bool
         Checks whether a learner is already done. Only works if the learner is loaded.
-    runner_kwargs : dict, default: None
+    runner_kwargs : dict
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
-    url : str, default: None
+    url : str
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. If None, a correct url will be chosen.
-    save_interval : int, default: 300
+    save_interval : int
         Time in seconds between saving of the learners.
-    log_interval : int, default: 300
+    log_interval : int
         Time in seconds between log entries.
-    job_name : str, default: "adaptive-scheduler"
+    job_name : str
         From this string the job names will be created, e.g.
         ``["adaptive-scheduler-1", "adaptive-scheduler-2", ...]``.
-    job_manager_interval : int, default: 60
+    job_manager_interval : int
         Time in seconds between checking and starting jobs.
-    kill_interval : int, default: 60
+    kill_interval : int
         Check for `kill_on_error` string inside the log-files every `kill_interval` seconds.
-    kill_on_error : str or callable, default: "srun: error:"
+    kill_on_error : str or callable
         If ``error`` is a string and is found in the log files, the job will
         be cancelled and restarted. If it is a callable, it is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not. Set to None if no `KillManager` is needed.
-    move_old_logs_to : str, default: "old_logs"
+    move_old_logs_to : str
         Move logs of killed jobs to this directory. If None the logs will be deleted.
-    db_fname : str, default: "running.json"
+    db_fname : str
         Filename of the database, e.g. 'running.json'.
-    overwrite_db : bool, default: True
+    overwrite_db : bool
         Overwrite the existing database.
-    job_manager_kwargs : dict, default: None
+    job_manager_kwargs : dict
         Keyword arguments for the `JobManager` function that aren't set in ``__init__`` here.
-    kill_manager_kwargs : dict, default: None
+    kill_manager_kwargs : dict
         Keyword arguments for the `KillManager` function that aren't set in ``__init__`` here.
     loky_start_method : str
         Loky start method, by default "loky".
@@ -377,7 +377,7 @@ class RunManager(BaseManager):
 
         Parameters
         ----------
-        only_last : bool, default: True
+        only_last : bool
             Only look use the last printed status message.
 
         Returns
@@ -513,12 +513,12 @@ def start_one_by_one(
     ----------
     run_managers : list[RunManager]
         A list of RunManagers.
-    goal : callable, default: None
+    goal : callable
         A callable that takes a RunManager as argument and returns a boolean.
         If `goal` is not None, the RunManagers will be started after `goal`
         returns True for the previous RunManager. If `goal` is None, the
         RunManagers will be started after the previous RunManager has finished.
-    interval : int, default: 120
+    interval : int
         The interval at which to check if `goal` is True. Only used if `goal`
         is not None.
 

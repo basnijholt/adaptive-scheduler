@@ -77,15 +77,15 @@ class KillManager(BaseManager):
         A scheduler instance from `adaptive_scheduler.scheduler`.
     database_manager : `DatabaseManager`
         A `DatabaseManager` instance.
-    error : str or callable, default: "srun: error:"
+    error : str or callable
         If ``error`` is a string and is found in the log files, the job will
         be cancelled and restarted. If it is a callable, it is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
-    interval : int, default: 600
+    interval : int
         Time in seconds between checking for the condition.
-    max_cancel_tries : int, default: 5
+    max_cancel_tries : int
         Try maximum `max_cancel_tries` times to cancel a job.
     move_to : str, optional
         If a job is cancelled the log is either removed (if ``move_to=None``)

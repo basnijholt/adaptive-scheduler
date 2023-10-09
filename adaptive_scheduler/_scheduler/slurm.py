@@ -36,7 +36,7 @@ class SLURM(BaseScheduler):
         The SLURM partition to submit the job to.
     exclusive : bool
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
-    log_folder : str, default: ""
+    log_folder : str
         The folder in which to put the log-files.
     mpiexec_executable : str, optional
         ``mpiexec`` executable. By default `mpiexec` will be
@@ -45,7 +45,7 @@ class SLURM(BaseScheduler):
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
         ``"loky"``, or ``"process-pool"``.
-    num_threads : int, default 1
+    num_threads : int
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
     extra_scheduler : list, optional

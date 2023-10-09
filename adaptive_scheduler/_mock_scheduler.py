@@ -49,7 +49,7 @@ class MockScheduler:
         Maximum number of simultaneously running jobs.
     refresh_interval : int
         Refresh interval of checking whether proccesses are still running.
-    bash : str, default: "bash"
+    bash : str
         ``bash`` executable.
     url : str, optional
         The URL of the socket. Defaults to {DEFAULT_URL}.
