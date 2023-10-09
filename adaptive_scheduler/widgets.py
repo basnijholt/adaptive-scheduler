@@ -37,7 +37,7 @@ def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
         return sorted(map(Path, fnames))
     pattern = f"{run_manager.job_name}-*"
     logs = set(Path(run_manager.scheduler.log_folder).glob(pattern))
-    logs |= set(Path(".").glob(pattern))
+    logs |= set(Path().glob(pattern))
     return sorted(logs)
 
 
@@ -621,7 +621,7 @@ def _create_widget(
         widget_list = additional_widgets + widget_list
 
     if extra_widget_config:
-        for _key, config in extra_widget_config.items():
+        for config in extra_widget_config.values():
             widget_list.insert(config["position"], config["widget"])
 
     vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))

@@ -147,7 +147,7 @@ class MockScheduler:
                 print(e)
 
     def _refresh(self) -> None:
-        for _job_id, info in self._current_queue.items():
+        for info in self._current_queue.values():
             if info["state"] == "R" and info["proc"].poll() is not None:
                 info["state"] = "F"
 
