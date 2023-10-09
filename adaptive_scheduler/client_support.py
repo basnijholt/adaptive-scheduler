@@ -173,10 +173,6 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         Adaptive Runner instance.
     interval
         Time in seconds between log entries.
-
-    Returns
-    -------
-    asyncio.Task
     """
 
     async def coro(runner: AsyncRunner, interval: int | float) -> None:

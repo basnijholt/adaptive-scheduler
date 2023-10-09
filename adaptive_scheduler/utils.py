@@ -85,10 +85,6 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
         A list or other iterable that has to be split up.
     n_parts
         The sequence will be split up in this many parts.
-
-    Returns
-    -------
-    iterable of tuples
     """
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
