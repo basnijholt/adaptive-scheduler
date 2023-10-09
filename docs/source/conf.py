@@ -53,7 +53,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "myst_nb",
     "sphinx_fontawesome",
-    "sphinx_autodoc_typehints"
+    "sphinx_autodoc_typehints",
 ]
 
 source_parsers = {}
