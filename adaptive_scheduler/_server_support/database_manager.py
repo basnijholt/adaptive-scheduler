@@ -141,9 +141,9 @@ class DatabaseManager(BaseManager):
         List of `learners` corresponding to `fnames`.
     fnames : list
         List of `fnames` corresponding to `learners`.
-    overwrite_db : bool, default: True
+    overwrite_db : bool
         Overwrite the existing database upon starting.
-    initializers : list of callables, default: None
+    initializers : list of callables
         List of functions that are called before the job starts, can populate
         a cache.
 
