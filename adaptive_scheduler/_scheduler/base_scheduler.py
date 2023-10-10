@@ -185,7 +185,11 @@ class BaseScheduler(abc.ABC):
         def cancel_jobs(job_ids: list[str]) -> None:
             for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
                 cmd = f"{self._cancel_cmd} {job_id}".split()
-                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
+                returncode = subprocess.run(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                ).returncode
                 if returncode != 0:
                     warnings.warn(
                         f"Couldn't cancel '{job_id}'.",
