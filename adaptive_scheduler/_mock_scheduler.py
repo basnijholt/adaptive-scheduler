@@ -43,15 +43,15 @@ class MockScheduler:
 
     Parameters
     ----------
-    startup_delay : int
+    startup_delay
         The waiting before starting the process.
-    max_running_jobs : int
+    max_running_jobs
         Maximum number of simultaneously running jobs.
-    refresh_interval : int
+    refresh_interval
         Refresh interval of checking whether proccesses are still running.
-    bash : str, default: "bash"
+    bash
         ``bash`` executable.
-    url : str, optional
+    url
         The URL of the socket. Defaults to {DEFAULT_URL}.
     """
 
@@ -112,7 +112,8 @@ class MockScheduler:
                 cmd.split(),
                 stdout=subprocess.PIPE,
                 env=dict(os.environ, JOB_ID=job_id, NAME=job_name),
-                preexec_fn=os.setpgrp,  # Set a new process group for the process
+                # Set a new process group for the process
+                preexec_fn=os.setpgrp,  # noqa: PLW1509
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
@@ -143,7 +144,7 @@ class MockScheduler:
             try:
                 await asyncio.sleep(self.refresh_interval)
                 self._refresh()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001, PERF203
                 print(e)
 
     def _refresh(self) -> None:
