@@ -92,7 +92,7 @@ def test_split_sequence_in_sequence_learners() -> None:
 def test_combine_sequence_learners() -> None:
     """Test `utils.combine_sequence_learners`."""
     learners = [
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
         adaptive.SequenceLearner(lambda x: x, sequence=list(range(5, 10))),
     ]
     big_learner = utils.combine_sequence_learners(learners)
@@ -102,8 +102,8 @@ def test_combine_sequence_learners() -> None:
 
 def test_copy_from_sequence_learner() -> None:
     """Test `utils.copy_from_sequence_learner`."""
-    learner1 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5)))
-    learner2 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5)))
+    learner1 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(5)))
+    learner2 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(5)))
     for i, x in enumerate(learner1.sequence):
         learner1.tell((i, x), x * 2)
     utils.copy_from_sequence_learner(learner1, learner2)
@@ -179,7 +179,7 @@ def test_load_parallel(tmp_path: Path) -> None:
     """Test `utils.load_parallel`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
@@ -197,7 +197,7 @@ def test_save_parallel(tmp_path: Path) -> None:
     """Test `utils.save_parallel`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
@@ -324,7 +324,7 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
     """Test `utils.cloudpickle_learners`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [tmp_path / "learner1.pickle", tmp_path / "learner2.pickle"]
 

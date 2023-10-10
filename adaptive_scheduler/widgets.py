@@ -37,7 +37,7 @@ def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
         return sorted(map(Path, fnames))
     pattern = f"{run_manager.job_name}-*"
     logs = set(Path(run_manager.scheduler.log_folder).glob(pattern))
-    logs |= set(Path(".").glob(pattern))
+    logs |= set(Path().glob(pattern))
     return sorted(logs)
 
 
@@ -56,7 +56,7 @@ def _failed_job_logs(
         fname.stem for fname in fnames if fname.suffix != run_manager.scheduler.ext
     }
     failed_set = fnames_set - running
-    failed = [Path(f) for stem in failed_set for f in glob(f"{stem}*")]
+    failed = [Path(f) for stem in failed_set for f in glob(f"{stem}*")]  # noqa: PTH207
 
     def maybe_append(fname: str, other_dir: Path, lst: list[Path]) -> None:
         p = Path(fname)
@@ -145,12 +145,12 @@ def _sort_fnames(
         for val, stem in val_stem:
             val = _try(transform)(val)  # noqa: PLW2901
             for fname in fname_mapping[stem]:
-                result.append((f"{val}: {fname.name}", fname))
+                result.append((f"{val}: {fname.name}", fname))  # noqa: PERF401
 
         missing = fname_mapping.keys() - set(stems)
         for stem in sorted(missing):
             for fname in fname_mapping[stem]:
-                result.append((f"?: {fname.name}", fname))
+                result.append((f"?: {fname.name}", fname))  # noqa: PERF401
         return result
 
     return fnames
@@ -379,7 +379,7 @@ def _bytes_to_human_readable(size_in_bytes: int) -> str:
 
 
 def _timedelta_to_human_readable(
-    time_input: timedelta | int | float,
+    time_input: timedelta | float,
     *,
     short_format: bool = True,
 ) -> str:
@@ -429,7 +429,7 @@ def _total_size(fnames: FnamesTypes) -> int:
 
     flattened_fnames = list(flatten(fnames))
     return sum(
-        os.path.getsize(str(fname))
+        os.path.getsize(str(fname))  # noqa: PTH202
         for fname in flattened_fnames
         if os.path.isfile(fname)  # noqa: PTH113
     )
@@ -621,7 +621,7 @@ def _create_widget(
         widget_list = additional_widgets + widget_list
 
     if extra_widget_config:
-        for _key, config in extra_widget_config.items():
+        for config in extra_widget_config.values():
             widget_list.insert(config["position"], config["widget"])
 
     vbox = ipyw.VBox(widget_list, layout=ipyw.Layout(border="solid 2px gray"))

@@ -134,7 +134,7 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
-    info: dict[str, int | float | str] = {}
+    info: dict[str, float | str] = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()
@@ -164,7 +164,7 @@ def log_now(runner: AsyncRunner, npoints_start: int) -> None:
     log.info("current status", **info)
 
 
-def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
+def log_info(runner: AsyncRunner, interval: float = 300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
@@ -175,7 +175,7 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         Time in seconds between log entries.
     """
 
-    async def coro(runner: AsyncRunner, interval: int | float) -> None:
+    async def coro(runner: AsyncRunner, interval: float) -> None:
         log.info(f"started logger on hostname {socket.gethostname()}")  # noqa: G004
         learner = runner.learner
         npoints_start = _get_npoints(learner)

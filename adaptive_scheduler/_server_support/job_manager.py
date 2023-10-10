@@ -26,8 +26,8 @@ def command_line_options(
     database_manager: DatabaseManager,
     runner_kwargs: dict[str, Any] | None = None,
     goal: GoalTypes,
-    log_interval: int | float = 60,
-    save_interval: int | float = 300,
+    log_interval: float = 60,
+    save_interval: float = 300,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     loky_start_method: LOKY_START_METHODS = "loky",
@@ -47,7 +47,7 @@ def command_line_options(
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
-        ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
+        ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
     log_interval
         Time in seconds between log entries.
@@ -131,7 +131,7 @@ class JobManager(BaseManager):
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
-        ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
+        ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
 
     Attributes
@@ -145,7 +145,7 @@ class JobManager(BaseManager):
         job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
-        interval: int | float = 30,
+        interval: float = 30,
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
@@ -153,8 +153,8 @@ class JobManager(BaseManager):
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
         loky_start_method: LOKY_START_METHODS = "loky",
-        log_interval: int | float = 60,
-        save_interval: int | float = 300,
+        log_interval: float = 60,
+        save_interval: float = 300,
         runner_kwargs: dict[str, Any] | None = None,
         goal: GoalTypes | None = None,
     ) -> None:
@@ -257,7 +257,7 @@ class JobManager(BaseManager):
                         self.interval,
                     ):  # if true, we are done
                         return
-                except asyncio.CancelledError:
+                except asyncio.CancelledError:  # noqa: PERF203
                     log.info("task was cancelled because of a CancelledError")
                     raise
                 except MaxRestartsReachedError as e:

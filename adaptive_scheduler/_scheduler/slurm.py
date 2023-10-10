@@ -248,7 +248,7 @@ class SLURM(BaseScheduler):
         if me_only:
             username = getpass.getuser()
             cmd.append(f"--user={username}")
-        proc = subprocess.run(cmd, text=True, capture_output=True)
+        proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
         output = proc.stdout
 
         if (
@@ -297,6 +297,7 @@ def slurm_partitions(
         ["sinfo", "-ahO", "partition"],
         capture_output=True,
         timeout=timeout,
+        check=False,
     )
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))

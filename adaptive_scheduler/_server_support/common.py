@@ -145,7 +145,7 @@ def _delete_old_ipython_profiles(
 
 def periodically_clean_ipython_profiles(
     scheduler: BaseScheduler,
-    interval: int | float = 600,
+    interval: float = 600,
 ) -> asyncio.Task:
     """Periodically remove old IPython profiles.
 
@@ -164,7 +164,7 @@ def periodically_clean_ipython_profiles(
     asyncio.Task
     """
 
-    async def clean(interval: int | float) -> None:
+    async def clean(interval: float) -> None:
         while True:
             with suppress(Exception):
                 _delete_old_ipython_profiles(scheduler, with_progress_bar=False)

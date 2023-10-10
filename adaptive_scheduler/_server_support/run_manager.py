@@ -57,7 +57,7 @@ class RunManager(BaseManager):
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
         that accepts
-        ``Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None``.
+        ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
     initializers
         List of functions that are called before the job starts, can populate
@@ -162,11 +162,11 @@ class RunManager(BaseManager):
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
-        save_interval: int | float = 300,
-        log_interval: int | float = 300,
+        save_interval: float = 300,
+        log_interval: float = 300,
         job_name: str = "adaptive-scheduler",
-        job_manager_interval: int | float = 60,
-        kill_interval: int | float = 60,
+        job_manager_interval: float = 60,
+        kill_interval: float = 60,
         kill_on_error: str | Callable[[list[str]], bool] | None = "srun: error:",
         move_old_logs_to: str | Path | None = "old_logs",
         db_fname: str | Path | None = None,
@@ -478,7 +478,7 @@ async def _wait_for_finished(
     manager_first: RunManager,
     manager_second: RunManager,
     goal: Callable[[RunManager], bool] | None = None,
-    interval: int | float = 120,
+    interval: float = 120,
 ) -> None:
     if goal is None:
         assert manager_first.task is not None  # for mpypy
@@ -493,7 +493,7 @@ def _start_after(
     manager_first: RunManager,
     manager_second: RunManager,
     goal: Callable[[RunManager], bool] | None = None,
-    interval: int | float = 120,
+    interval: float = 120,
 ) -> asyncio.Task:
     if manager_second.is_started:
         msg = "The second manager must not be started yet."
@@ -505,7 +505,7 @@ def _start_after(
 def start_one_by_one(
     *run_managers: RunManager,
     goal: Callable[[RunManager], bool] | None = None,
-    interval: int | float = 120,
+    interval: float = 120,
 ) -> tuple[asyncio.Future, list[asyncio.Task]]:
     """Start a list of RunManagers after each other.
 

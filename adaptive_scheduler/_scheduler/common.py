@@ -17,7 +17,7 @@ def run_submit(cmd: str, name: str | None = None) -> None:
     if name is not None:
         env["NAME"] = name
     for _ in range(10):
-        proc = subprocess.run(cmd.split(), env=env, capture_output=True)
+        proc = subprocess.run(cmd.split(), env=env, capture_output=True, check=False)
         if proc.returncode == 0:
             return
         stderr = proc.stderr.decode()

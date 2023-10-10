@@ -112,7 +112,8 @@ class MockScheduler:
                 cmd.split(),
                 stdout=subprocess.PIPE,
                 env=dict(os.environ, JOB_ID=job_id, NAME=job_name),
-                preexec_fn=os.setpgrp,  # Set a new process group for the process
+                # Set a new process group for the process
+                preexec_fn=os.setpgrp,  # noqa: PLW1509
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
@@ -143,11 +144,11 @@ class MockScheduler:
             try:
                 await asyncio.sleep(self.refresh_interval)
                 self._refresh()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001, PERF203
                 print(e)
 
     def _refresh(self) -> None:
-        for _job_id, info in self._current_queue.items():
+        for info in self._current_queue.values():
             if info["state"] == "R" and info["proc"].poll() is not None:
                 info["state"] = "F"
 
