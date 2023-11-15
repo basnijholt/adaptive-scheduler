@@ -77,7 +77,7 @@ class LocalMockScheduler(BaseScheduler):
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to PBS.
 
         Notes

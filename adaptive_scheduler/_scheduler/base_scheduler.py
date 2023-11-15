@@ -27,33 +27,33 @@ class BaseScheduler(abc.ABC):
 
     Parameters
     ----------
-    cores : int
+    cores
         Number of cores per job (so per learner.)
-    python_executable : str, default: `sys.executable`
+    python_executable
         The Python executable that should run adaptive-scheduler. By default
         it uses the same Python as where this function is called.
-    log_folder : str, default: ""
+    log_folder
         The folder in which to put the log-files.
-    mpiexec_executable : str, optional
+    mpiexec_executable
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
-    executor_type : str
+    executor_type
         The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
         ``"loky"``, or ``"process-pool"``.
-    num_threads : int, default 1
+    num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
-    extra_scheduler : list, optional
+    extra_scheduler
         Extra ``#SLURM`` (depending on scheduler type)
         arguments, e.g. ``["--exclusive=user", "--time=1"]``.
-    extra_env_vars : list, optional
+    extra_env_vars
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
-    extra_script : str, optional
+    extra_script
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
-    batch_folder : str, default: ""
+    batch_folder
         The folder in which to put the batch files.
 
     Returns
@@ -99,12 +99,12 @@ class BaseScheduler(abc.ABC):
 
         Parameters
         ----------
-        me_only : bool, default: True
+        me_only
             Only see your jobs.
 
         Returns
         -------
-        queue : dict
+        queue
             Mapping of ``job_id`` -> `dict` with ``name`` and ``state``, for
             example ``{job_id: {"job_name": "TEST_JOB-1", "state": "R" or "Q"}}``.
 
@@ -135,7 +135,7 @@ class BaseScheduler(abc.ABC):
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to the scheduler.
         """
 
@@ -174,18 +174,22 @@ class BaseScheduler(abc.ABC):
 
         Parameters
         ----------
-        job_names : list
+        job_names
             List of job names.
-        with_progress_bar : bool, default: True
+        with_progress_bar
             Display a progress bar using `tqdm`.
-        max_tries : int, default: 5
+        max_tries
             Maximum number of attempts to cancel a job.
         """
 
         def cancel_jobs(job_ids: list[str]) -> None:
             for job_id in _progress(job_ids, with_progress_bar, "Canceling jobs"):
                 cmd = f"{self._cancel_cmd} {job_id}".split()
-                returncode = subprocess.run(cmd, stderr=subprocess.PIPE).returncode
+                returncode = subprocess.run(
+                    cmd,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                ).returncode
                 if returncode != 0:
                     warnings.warn(
                         f"Couldn't cancel '{job_id}'.",

@@ -129,21 +129,21 @@ class DatabaseManager(BaseManager):
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
         to get a `url` that will work.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    db_fname : str
+    db_fname
         Filename of the database, e.g. 'running.json'.
-    learners : list of `adaptive.BaseLearner` isinstances
+    learners
         List of `learners` corresponding to `fnames`.
-    fnames : list
+    fnames
         List of `fnames` corresponding to `learners`.
-    overwrite_db : bool, default: True
+    overwrite_db
         Overwrite the existing database upon starting.
-    initializers : list of callables, default: None
+    initializers
         List of functions that are called before the job starts, can populate
         a cache.
 

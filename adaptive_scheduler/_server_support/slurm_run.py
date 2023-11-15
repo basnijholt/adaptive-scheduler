@@ -26,8 +26,8 @@ def slurm_run(
     folder: str | Path = "",
     name: str = "adaptive",
     num_threads: int = 1,
-    save_interval: int | float = 300,
-    log_interval: int | float = 300,
+    save_interval: float = 300,
+    log_interval: float = 300,
     cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
@@ -43,54 +43,54 @@ def slurm_run(
 
     Parameters
     ----------
-    learners : list[adaptive.BaseLearner]
+    learners
         A list of learners.
-    fnames : list[str]
+    fnames
         A list of filenames to save the learners.
-    partition : str
+    partition
         The partition to use. If None, then the default partition will be used.
         (The one marked with a * in `sinfo`). Use
         `adaptive_scheduler.scheduler.slurm_partitions` to see the
         available partitions.
-    nodes : int, default: 1
+    nodes
         The number of nodes to use.
-    cores_per_node : int, default: None
+    cores_per_node
         The number of cores per node to use. If None, then all cores on the partition
         will be used.
-    goal : callable, int, float, datetime.timedelta, datetime.datetime, default: None
+    goal
         The goal of the adaptive run. If None, then the run will continue
         indefinitely.
-    folder : str or pathlib.Path, default: ""
+    folder
         The folder to save the learners in.
-    name : str, default: "adaptive"
+    name
         The name of the job.
-    num_threads : int, default: 1
+    num_threads
         The number of threads to use.
-    save_interval : int, default: 300
+    save_interval
         The interval at which to save the learners.
-    log_interval : int, default: 300
+    log_interval
         The interval at which to log the status of the run.
-    cleanup_first : bool, default: True
+    cleanup_first
         Whether to clean up the folder before starting the run.
-    save_dataframe : bool, default: True
+    save_dataframe
         Whether to save the `pandas.DataFrame`s with the learners data.
-    dataframe_format : str, default: "pickle"
+    dataframe_format
         The format to save the `pandas.DataFrame`s in. See
         `adaptive_scheduler.utils.save_dataframes` for more information.
-    max_fails_per_job : int, default: 50
+    max_fails_per_job
         The maximum number of times a job can fail before it is cancelled.
-    max_simultaneous_jobs : int, default: 500
+    max_simultaneous_jobs
         The maximum number of simultaneous jobs.
-    executor_type : str
+    executor_type
         The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
         "loky", or "process-pool".
-    exclusive : bool, default: True
+    exclusive
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
-    extra_run_manager_kwargs : dict, default: None
+    extra_run_manager_kwargs
         Extra keyword arguments to pass to the `RunManager`.
-    extra_scheduler_kwargs : dict, default: None
+    extra_scheduler_kwargs
         Extra keyword arguments to pass to the `SLURMScheduler`.
-    initializers : list of callables, default: None
+    initializers
         List of functions that are called before the job starts, can populate
         a cache.
 

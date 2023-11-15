@@ -28,17 +28,17 @@ def logs_with_string_or_condition(
 
     Parameters
     ----------
-    error : str or callable
+    error
         String that is searched for or callable that is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
-    database_manager : `DatabaseManager`
+    database_manager
         A `DatabaseManager` instance.
 
     Returns
     -------
-    has_string : dict
+    has_string
         A list ``(job_name, fnames)``, which have the string inside their log-file.
     """
     if isinstance(error, str):
@@ -73,21 +73,21 @@ class KillManager(BaseManager):
 
     Parameters
     ----------
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    database_manager : `DatabaseManager`
+    database_manager
         A `DatabaseManager` instance.
-    error : str or callable, default: "srun: error:"
+    error
         If ``error`` is a string and is found in the log files, the job will
         be cancelled and restarted. If it is a callable, it is applied
         to the log text. Must take a single argument, a list of
         strings, and return True if the job has to be killed, or
         False if not.
-    interval : int, default: 600
+    interval
         Time in seconds between checking for the condition.
-    max_cancel_tries : int, default: 5
+    max_cancel_tries
         Try maximum `max_cancel_tries` times to cancel a job.
-    move_to : str, optional
+    move_to
         If a job is cancelled the log is either removed (if ``move_to=None``)
         or moved to a folder (e.g. if ``move_to='old_logs'``).
     """
@@ -98,7 +98,7 @@ class KillManager(BaseManager):
         database_manager: DatabaseManager,
         *,
         error: str | Callable[[list[str]], bool] = "srun: error:",
-        interval: int | float = 600,
+        interval: float = 600,
         max_cancel_tries: int = 5,
         move_to: str | Path | None = None,
     ) -> None:
@@ -146,7 +146,7 @@ class KillManager(BaseManager):
                     self.interval,
                 ):  # if true, we are done
                     return
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # noqa: PERF203
                 log.info("task was cancelled because of a CancelledError")
                 raise
             except Exception as e:  # noqa: BLE001

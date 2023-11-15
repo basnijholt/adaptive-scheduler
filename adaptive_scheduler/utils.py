@@ -72,7 +72,7 @@ GoalTypes = Union[
 ]
 
 
-def shuffle_list(*lists: list, seed: int | None = 0) -> zip | zip:
+def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
     combined = list(zip(*lists))
     random.Random(seed).shuffle(combined)
@@ -92,14 +92,10 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
 
     Parameters
     ----------
-    seq : sequence
+    seq
         A list or other iterable that has to be split up.
-    n_parts : int
+    n_parts
         The sequence will be split up in this many parts.
-
-    Returns
-    -------
-    iterable of tuples
     """
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
@@ -116,13 +112,13 @@ def split_in_balancing_learners(
 
     Parameters
     ----------
-    learners : list
+    learners
         List of learners.
-    fnames : list
+    fnames
         List of filenames.
-    n_parts : int
+    n_parts
         Total number of `~adaptive.BalancingLearner`\s.
-    strategy : str
+    strategy
         Learning strategy of the `~adaptive.BalancingLearner`.
 
     Returns
@@ -155,16 +151,16 @@ def split_sequence_learner(
     ----------
     big_learner
         A `~adaptive.SequenceLearner` instance
-    n_learners : int
+    n_learners
         Total number of `~adaptive.SequenceLearner`\s.
-    folder : pathlib.Path or str
+    folder
         Folder to prepend to fnames.
 
     Returns
     -------
-    new_learners : List[adaptive.SequenceLearner]
+    new_learners
         List of `~adaptive.SequenceLearner`\s.
-    new_fnames : List[Path]
+    new_fnames
         List of str based on a hash of the sequence.
     """
     new_learners, new_fnames = split_sequence_in_sequence_learners(
@@ -196,20 +192,20 @@ def split_sequence_in_sequence_learners(
 
     Parameters
     ----------
-    function : callable
+    function
         Function for `adaptive.SequenceLearner`\s.
-    sequence : sequence
+    sequence
         The sequence to split into ``n_learners``.
-    n_learners : int
+    n_learners
         Total number of `~adaptive.SequenceLearner`\s.
-    folder : pathlib.Path or str
+    folder
         Folder to prepend to fnames.
 
     Returns
     -------
-    new_learners : List[adaptive.SequenceLearner]
+    new_learners
         List of `~adaptive.SequenceLearner`\s.
-    new_fnames : List[Path]
+    new_fnames
         List of str based on a hash of the sequence.
     """
     folder = Path(folder)
@@ -236,9 +232,9 @@ def combine_sequence_learners(
 
     Parameters
     ----------
-    learners : List[adaptive.SequenceLearner]
+    learners
         List of `~adaptive.SequenceLearner`\s.
-    big_learner : Optional[adaptive.SequenceLearner]
+    big_learner
         A learner to load, if None, a new learner will be generated.
 
     Returns
@@ -275,9 +271,9 @@ def copy_from_sequence_learner(
 
     Parameters
     ----------
-    learner_from : adaptive.SequenceLearner
+    learner_from
         Learner to take the data from.
-    learner_to : adaptive.SequenceLearner
+    learner_to
         Learner to tell the data to.
     """
     mapping = {
@@ -408,14 +404,14 @@ def _remove_or_move_files(
 
     Parameters
     ----------
-    fnames : list
+    fnames
         List of filenames.
-    with_progress_bar : bool, default: True
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    move_to : str | Path, default None
+    move_to
         Move the file to a different directory.
         If None the file is removed.
-    desc : str, default: None
+    desc
         Description of the progressbar.
     """
     n_failed = 0
@@ -451,13 +447,13 @@ def load_parallel(
 
     Parameters
     ----------
-    learners : sequence of `adaptive.BaseLearner`\s
+    learners
         The learners to be loaded.
-    fnames : sequence of str
+    fnames
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    max_workers : int, optional
+    max_workers
         The maximum number of parallel threads when loading the data.
         If ``None``, use the maximum number of threads that is possible.
     """
@@ -483,11 +479,11 @@ def save_parallel(
 
     Parameters
     ----------
-    learners : sequence of `adaptive.BaseLearner`\s
+    learners
         The learners to be saved.
-    fnames : sequence of str
+    fnames
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar
         Display a progress bar using `tqdm`.
     """
 
@@ -544,20 +540,20 @@ def connect_to_ipyparallel(
 
     Parameters
     ----------
-    n : int
+    n
         Number of engines to be started.
-    profile : str
+    profile
         Profile name of IPython profile.
-    timeout : int
+    timeout
         Time for which we try to connect to get all the engines.
-    folder : str, optional
+    folder
         Folder that is added to the path of the engines, e.g. ``"~/Work/my_current_project"``.
     client_kwargs
         Keyword arguments passed to `ipyparallel.Client`.
 
     Returns
     -------
-    client : `ipyparallel.Client` object
+    client
         An IPyparallel client.
     """
     from ipyparallel import Client
@@ -615,10 +611,10 @@ class LRUCachedCallable:
 
     Parameters
     ----------
-    function : Callable[..., Any]
-    max_size : int, optional
+    function
+    max_size
         Cache size of the LRU cache, by default 128.
-    with_cloudpickle : bool
+    with_cloudpickle
         Use cloudpickle for storing the data in memory.
     """
 
@@ -1033,7 +1029,7 @@ def smart_goal(
             stacklevel=2,
         )
         return lambda _: False
-    msg = "goal must be `callable | int | float | None`"
+    msg = "goal must be `callable | float | None`"
     raise ValueError(msg)
 
 
@@ -1069,7 +1065,7 @@ class WrappedFunction:
 
     Attributes
     ----------
-    _cache_key : str
+    _cache_key
         The key used to access the deserialized function in the global cache.
 
     Examples
@@ -1119,9 +1115,9 @@ class WrappedFunction:
 
         Parameters
         ----------
-        *args : tuple
+        *args
             Positional arguments to pass to the deserialized function.
-        **kwargs : dict
+        **kwargs
             Keyword arguments to pass to the deserialized function.
 
         Returns
@@ -1172,7 +1168,7 @@ def _time_between(start: str, end: str) -> float:
 
 async def sleep_unless_task_is_done(
     task: asyncio.Task,
-    sleep_duration: int | float,
+    sleep_duration: float,
 ) -> bool:
     """Sleep for an interval, unless the task is done before then."""
     # Create the sleep task separately

@@ -128,7 +128,7 @@ class PBS(BaseScheduler):
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to PBS.
         """
         job_script = textwrap.dedent(
@@ -194,6 +194,7 @@ class PBS(BaseScheduler):
             cmd,
             text=True,
             capture_output=True,
+            check=False,
             env=dict(os.environ, SGE_LONG_QNAMES="1000"),
         )
         output = proc.stdout
@@ -228,7 +229,7 @@ class PBS(BaseScheduler):
         return running
 
     def _qnodes(self) -> dict[str, dict[str, str]]:
-        proc = subprocess.run(["qnodes"], text=True, capture_output=True)
+        proc = subprocess.run(["qnodes"], text=True, capture_output=True, check=False)
         output = proc.stdout
 
         if proc.returncode != 0:

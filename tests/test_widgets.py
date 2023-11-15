@@ -43,10 +43,14 @@ def create_temp_files(num_files: int) -> list[str]:
     return temp_files
 
 
+def _sum_size(files: list[str]) -> int:
+    return sum(os.path.getsize(f) for f in files)  # noqa: PTH202
+
+
 def test_total_size_single_list() -> None:
     """Test the _total_size function with a single list."""
     temp_files = create_temp_files(5)
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(temp_files) == total_size
 
 
@@ -54,7 +58,7 @@ def test_total_size_nested_list() -> None:
     """Test the _total_size function with nested lists."""
     temp_files = create_temp_files(5)
     nested_files = [temp_files[:2], [temp_files[2]], temp_files[3:]]
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(nested_files) == total_size
 
 
@@ -63,7 +67,7 @@ def test_total_size_mixed_types() -> None:
     temp_files = create_temp_files(5)
     temp_paths = [Path(f) for f in temp_files[1:4]]
     mixed_files = [temp_files[0], temp_paths, temp_files[4]]
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(mixed_files) == total_size  # type: ignore[arg-type]
 
 

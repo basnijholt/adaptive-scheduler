@@ -53,6 +53,7 @@ docs = [
     "furo",
     "myst-parser",
     "emoji",
+    "sphinx-autodoc-typehints",
 ]
 [project.urls]
 homepage = "https://adaptive-scheduler.readthedocs.io/"
