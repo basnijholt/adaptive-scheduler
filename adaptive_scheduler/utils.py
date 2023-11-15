@@ -14,14 +14,25 @@ import random
 import shutil
 import tempfile
 import time
+import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from inspect import signature
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Literal,
+    Union,
+)
+from typing import (
+    get_args as get_type_args,
+)
 
 import adaptive
 import cloudpickle
@@ -806,6 +817,7 @@ def save_dataframe(
     format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
+    atomically: bool = True,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     """Save the learner's data to disk as pandas.DataFrame."""
@@ -816,28 +828,60 @@ def save_dataframe(
         if expand_dicts:
             df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
-        if format == "parquet":
-            df.to_parquet(fname_df, **save_kwargs)
-        elif format == "csv":
-            df.to_csv(fname_df, **save_kwargs)
-        elif format == "hdf":
+
+        if format not in get_type_args(_DATAFRAME_FORMATS):
+            msg = f"Unknown format {format}"
+            raise ValueError(msg)
+        do_save = getattr(df, f"to_{format}")
+
+        if format == "hdf":
             assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
-            df.to_hdf(fname_df, **save_kwargs)
-        elif format == "pickle":
-            df.to_pickle(fname_df, **save_kwargs)
-        elif format == "feather":
-            df.to_feather(fname_df, **save_kwargs)
-        elif format == "excel":
-            df.to_excel(fname_df, **save_kwargs)
-        elif format == "json":
-            df.to_json(fname_df, **save_kwargs)
+
+        if atomically:
+            with atomic_write(fname_df, return_path=True) as fname_temp:
+                do_save(fname_temp, **save_kwargs)
         else:
-            msg = f"Unknown format {format}."
-            raise ValueError(msg)
+            do_save(fname_df, **save_kwargs)
 
     return save
+
+
+@contextmanager
+def atomic_write(
+    dest: os.PathLike,
+    mode: str = "w",
+    *args: Any,
+    return_path: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """Write atomically to 'dest', using a temporary file in the same directory.
+
+    This function has the same signature as 'open', except that the default
+    mode is 'w', not 'r', and there is an additional keyword-only parameter,
+    'return_path'. If 'return_path=True' then a Path pointing to the (as yet
+    nonexistant) temporary file is yielded, rather than a file handle.
+    This is useful when calling libraries that expect a path, rather than an
+    open file handle.
+    """
+    temp_dest = Path(dest).with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
+    try:
+        # First create an empty file; this ensures we have the same semantics
+        # as 'open(..., mode="w")'.
+        temp_dest.open("w").close()
+        # Now give control back to the caller.
+        if return_path:
+            yield temp_dest
+        else:
+            with temp_dest.open(mode, *args, **kwargs) as fp:
+                yield fp
+        # Atomically change 'dest' to point to the 'temp_dest' inode.
+        os.replace(temp_dest, dest)  # noqa: PTH105
+    except Exception:
+        with suppress(FileNotFoundError):
+            os.remove(temp_dest)  # noqa: PTH107
+        raise
 
 
 _DATAFRAME_FORMATS = Literal[
@@ -867,7 +911,7 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataframes(  # noqa: PLR0912
+def load_dataframes(
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
@@ -876,37 +920,30 @@ def load_dataframes(  # noqa: PLR0912
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
+    if format == "hdf" and "key" not in read_kwargs:
+        read_kwargs["key"] = "data"
+
+    if format not in get_type_args(_DATAFRAME_FORMATS):
+        msg = f"Unknown format {format}."
+        raise ValueError(msg)
+
+    do_read = getattr(pd, f"read_{format}")
+
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
         if not os.path.exists(fn_df):  # noqa: PTH110
             continue
         try:
-            if format == "parquet":
-                df = pd.read_parquet(fn_df, **read_kwargs)
-            elif format == "csv":
-                df = pd.read_csv(fn_df, **read_kwargs)
-            elif format == "hdf":
-                if "key" not in read_kwargs:
-                    read_kwargs["key"] = "data"
-                df = pd.read_hdf(fn_df, **read_kwargs)
-            elif format == "pickle":
-                df = pd.read_pickle(fn_df, **read_kwargs)  # noqa: S301
-            elif format == "feather":
-                df = pd.read_feather(fn_df, **read_kwargs)
-            elif format == "excel":
-                df = pd.read_excel(fn_df, **read_kwargs)
-            elif format == "json":
-                df = pd.read_json(fn_df, **read_kwargs)
-            else:
-                msg = f"Unknown format {format}."
-                raise ValueError(msg)  # noqa: TRY301
+            df = do_read(fn_df, **read_kwargs)
         except Exception:  # noqa: BLE001
             msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
             console.print(msg)
             continue
+
         df["fname"] = len(df) * [fn]
         dfs.append(df)
+
     if concat:
         if dfs:
             return pd.concat(dfs, axis=0)
