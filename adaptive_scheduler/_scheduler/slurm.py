@@ -5,6 +5,7 @@ import getpass
 import re
 import subprocess
 import textwrap
+from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING
 
@@ -239,8 +240,10 @@ class SLURM(BaseScheduler):
         }  # (key -> length) mapping
 
         slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
+        squeue_executable = find_executable("squeue")
+        assert isinstance(squeue_executable, str)
         cmd = [
-            "/usr/bin/squeue",
+            squeue_executable,
             rf'--Format=",{slurm_format},"',
             "--noheader",
             "--array",
