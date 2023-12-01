@@ -284,8 +284,10 @@ class SLURM(BaseScheduler):
         return slurm_partitions()  # type: ignore[return-value]
 
 
-def _get_ncores(partition: str) -> int:
+def _get_ncores(partition: str) -> int | None:
     numbers = re.findall(r"\d+", partition)
+    if not numbers:
+        return None
     return int(numbers[0])
 
 
@@ -294,7 +296,7 @@ def slurm_partitions(
     *,
     timeout: int = 5,
     with_ncores: bool = True,
-) -> list[str] | dict[str, int]:
+) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     output = subprocess.run(
         ["sinfo", "-ahO", "partition"],
