@@ -284,7 +284,7 @@ class SLURM(BaseScheduler):
         return slurm_partitions()  # type: ignore[return-value]
 
 
-def _get_ncores(partition: str) -> int:
+def _get_ncores(partition: str) -> int | None:
     numbers = re.findall(r"\d+", partition)
     if not numbers:
         return None
