@@ -1292,7 +1292,18 @@ def track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
     interval: int = 1,
 ) -> asyncio.Task:
-    """Initialize and start asynchronous tracking of file creation progress.
+    """Initialize and asynchronously track the progress of file creation.
+
+    This function sets up an asynchronous monitoring system that periodically
+    checks for the existence of specified files. For each file in the provided
+    dictionary, it updates individual and, if applicable, total progress bars to
+    reflect the current state of file creation. The tracking occurs at regular
+    intervals, specified by the user.
+
+    The function is designed to be used in environments where files are expected
+    to be created over time, and there is a need to visually and quantitatively
+    track this process. It leverages the `rich` library's progress bar for a
+    clear and interactive display.
 
     Parameters
     ----------
