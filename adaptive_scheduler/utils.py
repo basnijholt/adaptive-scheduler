@@ -42,7 +42,9 @@ import toolz
 from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
 from rich.progress import (
+    MofNCompleteColumn,
     Progress,
+    SpinnerColumn,
     TimeElapsedColumn,
     get_console,
 )
@@ -1248,7 +1250,12 @@ def _remove_completed_paths(
 def _initialize_progress_for_paths(
     paths_dict: dict[str, set[Path | tuple[Path, ...]]],
 ) -> tuple[Progress, dict[str, TaskID], TaskID | None, int]:
-    columns = (*Progress.get_default_columns(), TimeElapsedColumn())
+    columns = (
+        SpinnerColumn(),
+        *Progress.get_default_columns(),
+        TimeElapsedColumn(),
+        MofNCompleteColumn(),
+    )
     progress = Progress(*columns, auto_refresh=False)
 
     # create total_files and add_total_progress before updating paths_dict
