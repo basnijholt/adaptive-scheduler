@@ -1197,7 +1197,6 @@ async def sleep_unless_task_is_done(
 
 def _update_progress_for_paths(
     paths_dict: dict[str, set[Path]],
-    n_completed: dict[str, int],
     progress: Progress,
     total_task: TaskID | None,
     task_ids: dict[str, TaskID],
@@ -1205,21 +1204,16 @@ def _update_progress_for_paths(
     """Update progress bars for each set of paths."""
     total_processed = 0
     for key, paths in paths_dict.items():
-        if key not in task_ids:
-            n_done = n_completed.get(key, 0)
-            task_ids[key] = progress.add_task(
-                f"[green]{key}",
-                total=len(paths) + n_done,
-                completed=n_done,
-            )
-
-        for path in tuple(paths):
+        to_discard = set()
+        for path in paths:
             if path.exists():
                 progress.update(task_ids[key], advance=1)
                 if total_task is not None:
                     progress.update(total_task, advance=1)
                 total_processed += 1
-                paths_dict[key].discard(path)
+                to_discard.add(path)
+        for path in to_discard:
+            paths_dict[key].discard(path)
 
     return total_processed
 
@@ -1254,26 +1248,32 @@ async def _track_file_creation_progress(
     add_total_progress = len(paths_dict) > 1
     total_task = (
         progress.add_task(
-            "[cyan bold]Total progress",
+            "[cyan bold underline]Total",
             total=total_files + total_done,
             completed=total_done,
         )
         if add_total_progress
         else None
     )
-
+    for key, paths in paths_dict.items():
+        n_done = n_completed.get(key, 0)
+        task_ids[key] = progress.add_task(
+            f"[green]{key}",
+            total=len(paths) + n_done,
+            completed=n_done,
+        )
     try:
         progress.start()  # Start the progress display
         total_processed = 0
         while True:
             total_processed += _update_progress_for_paths(
                 paths_dict_copy,
-                n_completed,
                 progress,
                 total_task,
                 task_ids,
             )
             if total_processed >= total_files:
+                progress.refresh()  # Final refresh to ensure 100%
                 break  # Exit loop if all files are processed
             await asyncio.sleep(interval)
             progress.refresh()
