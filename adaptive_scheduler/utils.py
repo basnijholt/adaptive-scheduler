@@ -1263,7 +1263,9 @@ async def _track_file_creation_progress(
     progress
         The Progress object from the rich library for displaying progress.
     interval
-        The time interval (in seconds) at which to update the progress.
+        The time interval (in seconds) at which to update the progress. The interval is dynamically
+        adjusted to be at least 50 times the time it takes to update the progress. This ensures that
+        updating the progress does not take up a significant amount of time.
     """
     # create total_files and add_total_progress before updating paths_dict
     total_files = sum(len(paths) for paths in paths_dict.values())
