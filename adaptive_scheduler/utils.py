@@ -1312,6 +1312,8 @@ def track_file_creation_progress(
 ) -> asyncio.Task:
     """Initialize and asynchronously track the progress of file creation.
 
+    WARNING: This function modifies the provided dictionary in-place.
+
     This function sets up an asynchronous monitoring system that periodically
     checks for the existence of specified files or groups of files. Each item
     in the provided dictionary can be a single file (Path object) or a group
