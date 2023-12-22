@@ -1280,13 +1280,17 @@ async def _track_file_creation_progress(
 
 def track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
-) -> None:
+) -> asyncio.Task:
     """Initialize and start asynchronous tracking of file creation progress.
 
     Parameters
     ----------
     paths_dict
         A dictionary with keys representing categories and values being sets of file paths to monitor.
+
+    Returns
+    -------
+    The task that is tracking the progress.
 
     Examples
     --------
@@ -1300,4 +1304,4 @@ def track_file_creation_progress(
     progress = Progress(auto_refresh=False)
     coro = _track_file_creation_progress(paths_dict, progress)
     ioloop = asyncio.get_event_loop()
-    ioloop.create_task(coro)
+    return ioloop.create_task(coro)
