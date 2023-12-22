@@ -41,11 +41,18 @@ import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
+from rich.progress import (
+    Progress,
+    TimeElapsedColumn,
+    get_console,
+)
 from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from multiprocessing.managers import ListProxy
+
+    from rich.progress import TaskID
 
 console = Console()
 
@@ -1185,3 +1192,128 @@ async def sleep_unless_task_is_done(
         sleep_task.cancel()
         return True  # means that the task is done
     return False
+
+
+def _update_progress_for_paths(
+    paths_dict: dict[str, set[Path]],
+    progress: Progress,
+    total_task: TaskID | None,
+    task_ids: dict[str, TaskID],
+) -> int:
+    """Update progress bars for each set of paths."""
+    total_processed = 0
+    for key, paths in paths_dict.items():
+        to_discard = set()
+        for path in paths:
+            if path.exists():
+                progress.update(task_ids[key], advance=1)
+                if total_task is not None:
+                    progress.update(total_task, advance=1)
+                total_processed += 1
+                to_discard.add(path)
+        for path in to_discard:
+            paths_dict[key].discard(path)
+
+    return total_processed
+
+
+async def _track_file_creation_progress(
+    paths_dict: dict[str, set[Path]],
+    progress: Progress,
+    interval: int = 1,
+) -> None:
+    """Asynchronously track and update the progress of file creation.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets of file paths to monitor.
+    progress
+        The Progress object from the rich library for displaying progress.
+    interval
+        The time interval (in seconds) at which to update the progress.
+    """
+    # Count the number of files that already exist
+    n_completed = {
+        key: sum(path.exists() for path in paths) for key, paths in paths_dict.items()
+    }
+    # Remove the paths that already exist
+    paths_dict = {
+        key: {p for p in paths if not p.exists()}
+        for key, paths in paths_dict.items()
+        if paths
+    }
+    total_files = sum(len(paths) for paths in paths_dict.values())
+    total_done = sum(n_completed.values())
+    task_ids: dict[str, TaskID] = {}
+
+    # Add a total progress bar only if there are multiple entries in the dictionary
+    add_total_progress = len(paths_dict) > 1
+    total_task = (
+        progress.add_task(
+            "[cyan bold underline]Total",
+            total=total_files + total_done,
+            completed=total_done,
+        )
+        if add_total_progress
+        else None
+    )
+    for key, paths in paths_dict.items():
+        n_done = n_completed.get(key, 0)
+        task_ids[key] = progress.add_task(
+            f"[green]{key}",
+            total=len(paths) + n_done,
+            completed=n_done,
+        )
+    try:
+        progress.start()  # Start the progress display
+        total_processed = 0
+        while True:
+            total_processed += _update_progress_for_paths(
+                paths_dict,
+                progress,
+                total_task,
+                task_ids,
+            )
+            if total_processed >= total_files:
+                progress.refresh()  # Final refresh to ensure 100%
+                break  # Exit loop if all files are processed
+            await asyncio.sleep(interval)
+            progress.refresh()
+
+    finally:
+        progress.stop()  # Stop the progress display, regardless of what happens
+
+
+def track_file_creation_progress(
+    paths_dict: dict[str, set[Path]],
+    interval: int = 1,
+) -> asyncio.Task:
+    """Initialize and start asynchronous tracking of file creation progress.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets
+        of file paths to monitor.
+    interval
+        The time interval (in seconds) at which to update the progress.
+
+    Returns
+    -------
+    The task that is tracking the progress.
+
+    Examples
+    --------
+    >>> paths_dict = {
+    ...     "docs": {Path("docs/environment.yml"), Path("yolo")},
+    ...     "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
+    ... }
+    >>> track_file_creation_progress(paths_dict)
+    """
+    get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
+    columns = (*Progress.get_default_columns(), TimeElapsedColumn())
+    progress = Progress(*columns, auto_refresh=False)
+    coro = _track_file_creation_progress(paths_dict, progress, interval)
+    ioloop = asyncio.get_event_loop()
+    return ioloop.create_task(coro)
