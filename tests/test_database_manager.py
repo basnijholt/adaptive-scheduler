@@ -38,7 +38,7 @@ def test_simple_database_insert_multiple(tmp_path: Path) -> None:
         _DBEntry(fname="file3.txt"),
     ]
     db.insert_multiple(entries)
-    assert len(db.all()) == 3  # noqa: PLR2004
+    assert len(db.all()) == 3
 
 
 def test_simple_database_update(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ def test_simple_database_count(tmp_path: Path) -> None:
     ]
     db.insert_multiple(entries)
     count_done = db.count(lambda entry: entry.is_done)
-    assert count_done == 2  # noqa: PLR2004
+    assert count_done == 2
 
 
 def test_simple_database_get_and_contains(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_simple_database_get_all(tmp_path: Path) -> None:
     ]
     db.insert_multiple(entries)
     done_entries = db.get_all(lambda entry: entry.is_done)
-    assert len(done_entries) == 2  # noqa: PLR2004
+    assert len(done_entries) == 2
     assert done_entries[0][1].fname == "file1.txt"
     assert done_entries[1][1].fname == "file3.txt"
 

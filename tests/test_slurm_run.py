@@ -41,8 +41,8 @@ def test_slurm_run_with_default_arguments(
     rm = slurm_run(learners, fnames)
     assert isinstance(rm, RunManager)
     assert isinstance(rm.scheduler, SLURM)
-    assert rm.save_interval == 300  # noqa: PLR2004
-    assert rm.log_interval == 300  # noqa: PLR2004
+    assert rm.save_interval == 300
+    assert rm.log_interval == 300
     assert rm.learners == learners
     assert rm.fnames == fnames
     assert rm.scheduler.exclusive is True
@@ -50,7 +50,7 @@ def test_slurm_run_with_default_arguments(
 
 def goal_example(learner: adaptive.Learner1D) -> bool:
     """Example goal function for testing."""
-    return len(learner.data) >= 10  # noqa: PLR2004
+    return len(learner.data) >= 10
 
 
 @pytest.mark.parametrize(

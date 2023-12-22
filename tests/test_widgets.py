@@ -185,10 +185,10 @@ def test_get_fnames(tmp_path: Path) -> None:
     run_manager = MockRunManager(tmp_path)
 
     fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
-    assert len(fnames) == 2  # noqa: PLR2004
+    assert len(fnames) == 2
 
     fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
-    assert len(fnames) == 6  # noqa: PLR2004
+    assert len(fnames) == 6
 
 
 def test_failed_job_logs(tmp_path: Path) -> None:
@@ -272,7 +272,7 @@ def test_get_fnames_only_running(tmp_path: Path) -> None:
     """Test the _get_fnames function with only_running=True."""
     run_manager = MockRunManager(tmp_path)
     fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
-    assert len(fnames) == 6  # noqa: PLR2004
+    assert len(fnames) == 6
 
 
 def test_get_fnames_only_running_false(tmp_path: Path) -> None:
@@ -282,7 +282,7 @@ def test_get_fnames_only_running_false(tmp_path: Path) -> None:
     with open(log_fname, "w") as f:  # noqa: PTH123
         f.write("This is a test log file.")
     fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
-    assert len(fnames) == 3  # noqa: PLR2004
+    assert len(fnames) == 3
     # TODO: it is picking up the database file and scheduler file
     # we should probably filter those out?
 

@@ -201,7 +201,7 @@ async def test_start_one_by_one(
     """Test starting RunManagers one by one."""
 
     def goal(rm: RunManager) -> bool:
-        return rm.elapsed_time() >= 2  # noqa: PLR2004
+        return rm.elapsed_time() >= 2
 
     rm1 = RunManager(mock_scheduler, learners[:1], fnames[:1], job_name="rm1")
     rm2 = RunManager(mock_scheduler, learners[1:], fnames[1:], job_name="rm2")
@@ -210,7 +210,7 @@ async def test_start_one_by_one(
     tasks = start_one_by_one(rm1, rm2, goal=goal)
     await asyncio.sleep(0.2)
     assert isinstance(tasks, tuple)
-    assert len(tasks) == 2  # noqa: PLR2004
+    assert len(tasks) == 2
     assert isinstance(tasks[0], asyncio.Future)
     assert isinstance(tasks[1], list)
     assert isinstance(tasks[1][0], asyncio.Future)
@@ -290,7 +290,7 @@ async def test_run_manager_auto_restart(
 
     # Check if the new job is started in the database
     db = rm.database_manager.as_dicts()
-    assert len(db) == 2  # noqa: PLR2004
+    assert len(db) == 2
     jobs = [
         ("2", "log2.log", job_name0),
         (job_id1, "log1.log", job_name1),
@@ -311,7 +311,7 @@ async def test_run_manager_auto_restart(
 
     # Check that the jobs are now done
     db = rm.database_manager.as_dicts()
-    assert len(db) == 2  # noqa: PLR2004
+    assert len(db) == 2
     for i, (_, log_fname, _) in enumerate(jobs):
         assert db[i]["job_id"] is None
         assert db[i]["job_name"] is None

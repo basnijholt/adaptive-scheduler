@@ -41,7 +41,7 @@ def test_init_nodes_cores_per_node() -> None:
 def test_slurm_scheduler() -> None:
     """Test that the slurm scheduler is set correctly."""
     s = SLURM(cores=4)
-    assert s._cores == 4  # noqa: PLR2004
+    assert s._cores == 4
     assert s.nodes is None
     assert s.cores_per_node is None
 
@@ -52,9 +52,9 @@ def test_slurm_scheduler_nodes_cores_per_node() -> None:
     s = SLURM(nodes=2, cores_per_node=2, partition="nc24-low")
     assert s.partition == "nc24-low"
     assert s._cores is None
-    assert s.cores == 4  # noqa: PLR2004
-    assert s.nodes == 2  # noqa: PLR2004
-    assert s.cores_per_node == 2  # noqa: PLR2004
+    assert s.cores == 4
+    assert s.nodes == 2
+    assert s.cores_per_node == 2
 
 
 def test_getstate_setstate() -> None:

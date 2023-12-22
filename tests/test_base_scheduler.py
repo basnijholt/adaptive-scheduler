@@ -49,7 +49,7 @@ def test_base_scheduler_job_script() -> None:
 def test_base_scheduler() -> None:
     """Test that the base scheduler is set correctly."""
     s = MockScheduler(cores=4)
-    assert s.cores == 4  # noqa: PLR2004
+    assert s.cores == 4
 
 
 def test_queue() -> None:
@@ -59,7 +59,7 @@ def test_queue() -> None:
     scheduler.start_job("test_job2")
 
     queue_info = scheduler.queue()
-    assert len(queue_info) == 2  # noqa: PLR2004
+    assert len(queue_info) == 2
     assert queue_info["0"]["job_name"] == "test_job1"
     assert queue_info["1"]["job_name"] == "test_job2"
 
@@ -69,7 +69,7 @@ def test_cancel() -> None:
     scheduler = MockScheduler(cores=2)
     scheduler.start_job("test_job1")
     scheduler.start_job("test_job2")
-    assert len(scheduler.queue()) == 2  # noqa: PLR2004
+    assert len(scheduler.queue()) == 2
     scheduler.cancel(["test_job1"])
 
     queue_info = scheduler.queue()
@@ -86,7 +86,7 @@ def test_update_queue() -> None:
     scheduler.update_queue("test_job1", "COMPLETED")
 
     queue_info = scheduler.queue()
-    assert len(queue_info) == 2  # noqa: PLR2004
+    assert len(queue_info) == 2
     assert queue_info[j1]["status"] == "COMPLETED"
 
 
