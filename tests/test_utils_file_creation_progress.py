@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
@@ -131,5 +130,3 @@ async def test_track_file_creation_progress(tmp_path: Path) -> None:
     # Stop the progress and the task
     progress.stop()
     task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
