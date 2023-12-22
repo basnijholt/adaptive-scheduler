@@ -62,10 +62,10 @@ def test_remove_completed_paths(tmp_path: Path) -> None:
         "category2": {(tmp_path / "file3", tmp_path / "file4")},
     }
 
-    new_paths_dict, n_completed = _remove_completed_paths(paths_dict)
+    n_completed = _remove_completed_paths(paths_dict)
 
     assert n_completed == {"category1": 1, "category2": 1}
-    assert new_paths_dict == {"category1": {tmp_path / "file2"}}
+    assert paths_dict == {"category1": {tmp_path / "file2"}, "category2": set()}
 
 
 @pytest.mark.asyncio()
@@ -107,6 +107,7 @@ async def test_track_file_creation_progress(tmp_path: Path) -> None:
     assert "category2" in progress._tasks[2].description
     assert progress._tasks[2].total == 1
     assert progress._tasks[2].completed == 0
+    assert paths_dict["category2"] == {(tmp_path / "file4",)}
 
     # Create the other file of category2, should now be completed
     create_test_files(tmp_path, ["file4"])
@@ -114,6 +115,7 @@ async def test_track_file_creation_progress(tmp_path: Path) -> None:
     assert "category2" in progress._tasks[2].description
     assert progress._tasks[2].total == 1
     assert progress._tasks[2].completed == 1
+    assert paths_dict["category2"] == set()
 
     # Create the other file of category1, should now be completed
     create_test_files(tmp_path, ["file2"])

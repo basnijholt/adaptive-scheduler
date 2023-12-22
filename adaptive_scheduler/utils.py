@@ -1201,52 +1201,44 @@ def _update_progress_for_paths(
     task_ids: dict[str, TaskID],
 ) -> int:
     """Update progress bars for each set of paths."""
-    total_processed = 0
-    for key, paths in paths_dict.items():
-        to_discard = set()
-        for path_unit in paths:
-            # Check if the path_unit is a Path or a tuple of Paths
-            paths_to_check = [path_unit] if isinstance(path_unit, Path) else path_unit
-
-            # Progress only if all paths in the path_unit exist
-            if all(path.exists() for path in paths_to_check):
-                progress.update(task_ids[key], advance=1)
-                if total_task is not None:
-                    progress.update(total_task, advance=1)
-                total_processed += 1
-                to_discard.add(path_unit)
-
-        for path_unit in to_discard:
-            paths_dict[key].discard(path_unit)
-
-    return total_processed
+    n_completed = _remove_completed_paths(paths_dict)
+    total_completed = sum(n_completed.values())
+    for key, n_done in n_completed.items():
+        progress.update(task_ids[key], advance=n_done)
+    if total_task is not None:
+        progress.update(total_task, advance=total_completed)
+    return total_completed
 
 
 def _remove_completed_paths(
     paths_dict: dict[str, set[Path | tuple[Path, ...]]],
-) -> tuple[dict[str, set[Path | tuple[Path, ...]]], dict[str, int]]:
+) -> dict[str, int]:
     n_completed = {}
-    new_paths_dict = {}
 
     for key, paths in paths_dict.items():
         completed_count = 0
-        new_paths = set()
+        to_discard = set()
+        to_add = set()
 
         for path_unit in paths:
             # Check if it's a single Path or a tuple of Paths
             paths_to_check = [path_unit] if isinstance(path_unit, Path) else path_unit
 
             # Check if all paths in the path_unit exist
-            if all(path.exists() for path in paths_to_check):
+            if all(p.exists() for p in paths_to_check):
                 completed_count += 1
-            else:
-                new_paths.add(path_unit)
+                to_discard.add(path_unit)
+            elif isinstance(path_unit, tuple):
+                exists = {p for p in path_unit if p.exists()}
+                if any(exists):
+                    to_discard.add(path_unit)
+                    to_add.add(tuple(p for p in path_unit if p not in exists))
 
         n_completed[key] = completed_count
-        if new_paths:
-            new_paths_dict[key] = new_paths
+        paths_dict[key] -= to_discard
+        paths_dict[key] |= to_add
 
-    return new_paths_dict, n_completed
+    return n_completed
 
 
 async def _track_file_creation_progress(
@@ -1270,7 +1262,7 @@ async def _track_file_creation_progress(
     # create total_files and add_total_progress before updating paths_dict
     total_files = sum(len(paths) for paths in paths_dict.values())
     add_total_progress = len(paths_dict) > 1
-    paths_dict, n_completed = _remove_completed_paths(paths_dict)
+    n_completed = _remove_completed_paths(paths_dict)  # updates paths_dict in-place
     total_done = sum(n_completed.values())
     task_ids: dict[str, TaskID] = {}
 
@@ -1319,6 +1311,8 @@ def track_file_creation_progress(
     interval: int = 1,
 ) -> asyncio.Task:
     """Initialize and asynchronously track the progress of file creation.
+
+    WARNING: This function modifies the provided dictionary in-place.
 
     This function sets up an asynchronous monitoring system that periodically
     checks for the existence of specified files or groups of files. Each item
