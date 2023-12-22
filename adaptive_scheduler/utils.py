@@ -1269,6 +1269,7 @@ async def _track_file_creation_progress(
         progress.start()  # Start the progress display
         total_processed = 0
         while True:
+            t_start = time.time()
             total_processed += _update_progress_for_paths(
                 paths_dict,
                 progress,
@@ -1278,8 +1279,10 @@ async def _track_file_creation_progress(
             if total_processed >= total_files:
                 progress.refresh()  # Final refresh to ensure 100%
                 break  # Exit loop if all files are processed
-            await asyncio.sleep(interval)
             progress.refresh()
+            # Sleep for at least 50 times the update time
+            t_update = time.time() - t_start
+            await asyncio.sleep(max(interval, 50 * t_update))
 
     finally:
         progress.stop()  # Stop the progress display, regardless of what happens
