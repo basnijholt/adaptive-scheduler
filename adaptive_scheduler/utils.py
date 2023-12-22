@@ -42,7 +42,11 @@ import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
-from rich.progress import Progress, get_console
+from rich.progress import (
+    Progress,
+    TimeElapsedColumn,
+    get_console,
+)
 from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
@@ -1260,15 +1264,16 @@ async def _track_file_creation_progress(
 
     try:
         progress.start()  # Start the progress display
-
+        total_processed = 0
         while True:
-            total_processed = _update_progress_for_paths(
+            total_processed += _update_progress_for_paths(
                 paths_dict_copy,
                 n_completed,
                 progress,
                 total_task,
                 task_ids,
             )
+            print(total_files, total_processed)
             if total_processed >= total_files:
                 break  # Exit loop if all files are processed
             await asyncio.sleep(interval)
@@ -1281,6 +1286,7 @@ async def _track_file_creation_progress(
 def track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
     n_completed: dict[str, int] | None = None,
+    interval: int = 1,
 ) -> asyncio.Task:
     """Initialize and start asynchronous tracking of file creation progress.
 
@@ -1292,6 +1298,8 @@ def track_file_creation_progress(
     n_completed
         A dictionary with the same keys as `paths_dict` and values being the number
         of files already created.
+    interval
+        The time interval (in seconds) at which to update the progress.
 
     Returns
     -------
@@ -1306,7 +1314,11 @@ def track_file_creation_progress(
     >>> track_file_creation_progress(paths_dict)
     """
     get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
-    progress = Progress(auto_refresh=False)
-    coro = _track_file_creation_progress(paths_dict, n_completed, progress)
+    columns = (*Progress.get_default_columns(), TimeElapsedColumn())
+    progress = Progress(
+        *columns,
+        auto_refresh=False,
+    )
+    coro = _track_file_creation_progress(paths_dict, n_completed, progress, interval)
     ioloop = asyncio.get_event_loop()
     return ioloop.create_task(coro)
