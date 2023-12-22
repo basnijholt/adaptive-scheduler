@@ -1195,7 +1195,7 @@ async def sleep_unless_task_is_done(
 
 
 def _update_progress_for_paths(
-    paths_dict: dict[str, set[Path]],
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
     progress: Progress,
     total_task: TaskID | None,
     task_ids: dict[str, TaskID],
@@ -1204,23 +1204,55 @@ def _update_progress_for_paths(
     total_processed = 0
     for key, paths in paths_dict.items():
         to_discard = set()
-        for path in paths:
-            if path.exists():
+        for path_unit in paths:
+            # Check if the path_unit is a Path or a tuple of Paths
+            paths_to_check = [path_unit] if isinstance(path_unit, Path) else path_unit
+
+            # Progress only if all paths in the path_unit exist
+            if all(path.exists() for path in paths_to_check):
                 progress.update(task_ids[key], advance=1)
                 if total_task is not None:
                     progress.update(total_task, advance=1)
                 total_processed += 1
-                to_discard.add(path)
-        for path in to_discard:
-            paths_dict[key].discard(path)
+                to_discard.add(path_unit)
+
+        for path_unit in to_discard:
+            paths_dict[key].discard(path_unit)
 
     return total_processed
 
 
+def _remove_completed_paths(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+) -> tuple[dict[str, set[Path | tuple[Path, ...]]], dict[str, int]]:
+    n_completed = {}
+    new_paths_dict = {}
+
+    for key, paths in paths_dict.items():
+        completed_count = 0
+        new_paths = set()
+
+        for path_unit in paths:
+            # Check if it's a single Path or a tuple of Paths
+            paths_to_check = [path_unit] if isinstance(path_unit, Path) else path_unit
+
+            # Check if all paths in the path_unit exist
+            if all(path.exists() for path in paths_to_check):
+                completed_count += 1
+            else:
+                new_paths.add(path_unit)
+
+        n_completed[key] = completed_count
+        if new_paths:
+            new_paths_dict[key] = new_paths
+
+    return new_paths_dict, n_completed
+
+
 async def _track_file_creation_progress(
-    paths_dict: dict[str, set[Path]],
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
     progress: Progress,
-    interval: int = 1,
+    interval: float = 1,
 ) -> None:
     """Asynchronously track and update the progress of file creation.
 
@@ -1231,38 +1263,32 @@ async def _track_file_creation_progress(
     progress
         The Progress object from the rich library for displaying progress.
     interval
-        The time interval (in seconds) at which to update the progress.
+        The time interval (in seconds) at which to update the progress. The interval is dynamically
+        adjusted to be at least 50 times the time it takes to update the progress. This ensures that
+        updating the progress does not take up a significant amount of time.
     """
-    # Count the number of files that already exist
-    n_completed = {
-        key: sum(path.exists() for path in paths) for key, paths in paths_dict.items()
-    }
-    # Remove the paths that already exist
-    paths_dict = {
-        key: {p for p in paths if not p.exists()}
-        for key, paths in paths_dict.items()
-        if paths
-    }
+    # create total_files and add_total_progress before updating paths_dict
     total_files = sum(len(paths) for paths in paths_dict.values())
+    add_total_progress = len(paths_dict) > 1
+    paths_dict, n_completed = _remove_completed_paths(paths_dict)
     total_done = sum(n_completed.values())
     task_ids: dict[str, TaskID] = {}
 
     # Add a total progress bar only if there are multiple entries in the dictionary
-    add_total_progress = len(paths_dict) > 1
     total_task = (
         progress.add_task(
             "[cyan bold underline]Total",
-            total=total_files + total_done,
+            total=total_files,
             completed=total_done,
         )
         if add_total_progress
         else None
     )
-    for key, paths in paths_dict.items():
-        n_done = n_completed.get(key, 0)
+    for key, n_done in n_completed.items():
+        n_remaining = len(paths_dict.get(key, []))
         task_ids[key] = progress.add_task(
             f"[green]{key}",
-            total=len(paths) + n_done,
+            total=n_remaining + n_done,
             completed=n_done,
         )
     try:
@@ -1289,41 +1315,45 @@ async def _track_file_creation_progress(
 
 
 def track_file_creation_progress(
-    paths_dict: dict[str, set[Path]],
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
     interval: int = 1,
 ) -> asyncio.Task:
     """Initialize and asynchronously track the progress of file creation.
 
     This function sets up an asynchronous monitoring system that periodically
-    checks for the existence of specified files. For each file in the provided
-    dictionary, it updates individual and, if applicable, total progress bars to
-    reflect the current state of file creation. The tracking occurs at regular
-    intervals, specified by the user.
+    checks for the existence of specified files or groups of files. Each item
+    in the provided dictionary can be a single file (Path object) or a group
+    of files (tuple of Path objects). The progress is updated for each file or
+    group of files only when all files in the group exist. This allows tracking
+    of complex file creation processes where multiple files together constitute
+    a single unit of work.
 
-    The function is designed to be used in environments where files are expected
-    to be created over time, and there is a need to visually and quantitatively
-    track this process. It leverages the `rich` library's progress bar for a
-    clear and interactive display.
+    The tracking occurs at regular intervals, specified by the user, and updates
+    individual and, if applicable, total progress bars to reflect the current
+    state of file creation. It is particularly useful in environments where files
+    are expected to be created over time and need to be monitored collectively.
 
     Parameters
     ----------
-    paths_dict
-        A dictionary with keys representing categories and values being sets
-        of file paths to monitor.
-    interval
-        The time interval (in seconds) at which to update the progress.
+    paths_dict : dict[str, set[Union[Path, Tuple[Path, ...]]]]
+        A dictionary with keys representing categories and values being sets of
+        file paths (Path objects) or groups of file paths (tuples of Path objects)
+        to monitor.
+    interval : int
+        The time interval (in seconds) at which the progress is updated.
 
     Returns
     -------
-    The task that is tracking the progress.
+    asyncio.Task
+        The asyncio Task object that is tracking the file creation progress.
 
     Examples
     --------
     >>> paths_dict = {
-    ...     "docs": {Path("docs/environment.yml"), Path("yolo")},
-    ...     "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
-    ... }
-    >>> track_file_creation_progress(paths_dict)
+        "docs": {Path("docs/environment.yml"), (Path("doc1.md"), Path("doc2.md"))},
+        "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
+    }
+    >>> task = track_file_creation_progress(paths_dict)
     """
     get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
     columns = (*Progress.get_default_columns(), TimeElapsedColumn())

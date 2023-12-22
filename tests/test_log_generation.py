@@ -79,7 +79,7 @@ async def test_log_info(
         if log_task.done():
             assert log_task.exception() is None
         await asyncio.sleep(0.1)
-        if len(caplog.records) > 10:  # noqa: PLR2004
+        if len(caplog.records) > 10:
             break
 
     # Filter the captured log records based on level and logger name

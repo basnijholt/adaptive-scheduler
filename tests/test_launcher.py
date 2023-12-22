@@ -35,7 +35,7 @@ def test_parse_args() -> None:
 
     # Call _parse_args and check the results
     args = launcher._parse_args()
-    assert args.n == 4  # noqa: PLR2004
+    assert args.n == 4
     assert args.name == "test"
 
     # Restore the original sys.argv

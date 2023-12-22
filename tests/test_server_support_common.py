@@ -46,12 +46,12 @@ def test_cleanup_scheduler_files(mock_scheduler: MockScheduler, tmp_path: Path) 
         (tmp_path / f"{name}-JOBID.out").touch()
         (tmp_path / f"{name}-JOBID.log").touch()
 
-    assert len(list(tmp_path.glob("*"))) == 6  # noqa: PLR2004
+    assert len(list(tmp_path.glob("*"))) == 6
     move_to = tmp_path / "moved"
     with temporary_working_directory(tmp_path):
         cleanup_scheduler_files(job_names, mock_scheduler, move_to=move_to)
     assert len(list(tmp_path.glob("*"))) == 1
-    assert len(list(move_to.glob("*"))) == 6  # noqa: PLR2004
+    assert len(list(move_to.glob("*"))) == 6
 
 
 def test__get_all_files(mock_scheduler: MockScheduler, tmp_path: Path) -> None:
@@ -63,7 +63,7 @@ def test__get_all_files(mock_scheduler: MockScheduler, tmp_path: Path) -> None:
         (tmp_path / f"{name}-JOBID.log").touch()
     with temporary_working_directory(tmp_path):
         all_files = _get_all_files(job_names, mock_scheduler)
-        assert len(all_files) == 6  # noqa: PLR2004
+        assert len(all_files) == 6
 
 
 def test__ipython_profiles() -> None:

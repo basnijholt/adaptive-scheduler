@@ -153,15 +153,15 @@ def test_add_constant_to_fname() -> None:
 
 def test_maybe_round() -> None:
     """Test `utils.maybe_round`."""
-    assert utils.maybe_round(3.14159265, 3) == 3.14  # noqa: PLR2004
+    assert utils.maybe_round(3.14159265, 3) == 3.14
     assert utils.maybe_round(1 + 2j, 3) == 1 + 2j
     assert utils.maybe_round("test", 3) == "test"
 
 
 def test_round_sigfigs() -> None:
     """Test `utils.round_sigfigs`."""
-    assert utils.round_sigfigs(3.14159265, 3) == 3.14  # noqa: PLR2004
-    assert utils.round_sigfigs(123456789, 3) == 123000000  # noqa: PLR2004
+    assert utils.round_sigfigs(3.14159265, 3) == 3.14
+    assert utils.round_sigfigs(123456789, 3) == 123000000
 
 
 def test_remove_or_move_files(tmp_path: Path) -> None:
@@ -225,14 +225,14 @@ def test_lru_cached_callable() -> None:
         return x**2
 
     assert cached_function.cache_dict == {}
-    assert cached_function(2) == 4  # noqa: PLR2004
+    assert cached_function(2) == 4
     assert (
         cached_function.cache_dict == {"{'x': 2}": 4}
         if sys.version_info >= (3, 9)
         else {"OrderedDict([('x', 2)])": 4}
     )
 
-    assert cached_function(3) == 9  # noqa: PLR2004
+    assert cached_function(3) == 9
     assert (
         cached_function.cache_dict == {"{'x': 2}": 4, "{'x': 3}": 9}
         if sys.version_info >= (3, 9)
@@ -245,7 +245,7 @@ def test_smart_goal() -> None:
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
 
     goal_callable = utils.smart_goal(
-        lambda lrn: lrn.npoints >= 10,  # noqa: PLR2004
+        lambda lrn: lrn.npoints >= 10,
         [learner],
     )
     assert not goal_callable(learner)
@@ -606,7 +606,7 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     fut = ex.submit(wrapped_function, 4)
     result = fut.result()
 
-    assert result == 16, f"Expected 16, but got {result}"  # noqa: PLR2004
+    assert result == 16, f"Expected 16, but got {result}"
 
     # Check if the global cache contains the key in the executor
     fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)
