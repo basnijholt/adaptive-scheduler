@@ -1193,32 +1193,21 @@ async def sleep_unless_task_is_done(
 
 def _update_progress_for_paths(
     paths_dict: dict[str, set[Path]],
+    n_completed: dict[str, int],
     progress: Progress,
     total_task: TaskID | None,
     task_ids: dict[str, TaskID],
 ) -> int:
-    """Update progress bars for each set of paths.
-
-    Parameters
-    ----------
-    paths_dict
-        Dictionary with sets of paths to monitor.
-    progress
-        The Progress object from the rich library to manage progress bars.
-    total_task
-        The task ID for the total progress bar, if any.
-    task_ids
-        Dictionary mapping each set of paths to its corresponding progress bar task ID.
-
-    Returns
-    -------
-    The total number of processed paths.
-
-    """
+    """Update progress bars for each set of paths."""
     total_processed = 0
     for key, paths in paths_dict.items():
         if key not in task_ids:
-            task_ids[key] = progress.add_task(f"[green]{key}", total=len(paths))
+            n_done = n_completed.get(key, 0)
+            task_ids[key] = progress.add_task(
+                f"[green]{key}",
+                total=len(paths) + n_done,
+                completed=n_done,
+            )
 
         for path in tuple(paths):
             if path.exists():
@@ -1233,6 +1222,7 @@ def _update_progress_for_paths(
 
 async def _track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
+    n_completed: dict[str, int] | None,
     progress: Progress,
     interval: int = 1,
 ) -> None:
@@ -1242,19 +1232,28 @@ async def _track_file_creation_progress(
     ----------
     paths_dict
         A dictionary with keys representing categories and values being sets of file paths to monitor.
+    n_completed
+        A dictionary with the same keys as `paths_dict` and values being the number
+        of files already created.
     progress
         The Progress object from the rich library for displaying progress.
     interval
         The time interval (in seconds) at which to update the progress.
     """
+    n_completed = n_completed or {}
     total_files = sum(len(paths) for paths in paths_dict.values())
+    total_done = sum(n_completed.values())
     task_ids: dict[str, TaskID] = {}
     paths_dict_copy = copy.deepcopy(paths_dict)
 
     # Add a total progress bar only if there are multiple entries in the dictionary
     add_total_progress = len(paths_dict) > 1
     total_task = (
-        progress.add_task("[cyan]Total Progress", total=total_files)
+        progress.add_task(
+            "[cyan]Total Progress",
+            total=total_files + total_done,
+            completed=total_done,
+        )
         if add_total_progress
         else None
     )
@@ -1265,6 +1264,7 @@ async def _track_file_creation_progress(
         while True:
             total_processed = _update_progress_for_paths(
                 paths_dict_copy,
+                n_completed,
                 progress,
                 total_task,
                 task_ids,
@@ -1280,13 +1280,18 @@ async def _track_file_creation_progress(
 
 def track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
+    n_completed: dict[str, int] | None = None,
 ) -> asyncio.Task:
     """Initialize and start asynchronous tracking of file creation progress.
 
     Parameters
     ----------
     paths_dict
-        A dictionary with keys representing categories and values being sets of file paths to monitor.
+        A dictionary with keys representing categories and values being sets
+        of file paths to monitor.
+    n_completed
+        A dictionary with the same keys as `paths_dict` and values being the number
+        of files already created.
 
     Returns
     -------
@@ -1302,6 +1307,6 @@ def track_file_creation_progress(
     """
     get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
     progress = Progress(auto_refresh=False)
-    coro = _track_file_creation_progress(paths_dict, progress)
+    coro = _track_file_creation_progress(paths_dict, n_completed, progress)
     ioloop = asyncio.get_event_loop()
     return ioloop.create_task(coro)
