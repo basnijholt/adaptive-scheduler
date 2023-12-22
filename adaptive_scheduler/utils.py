@@ -1241,24 +1241,10 @@ def _remove_completed_paths(
     return n_completed
 
 
-async def _track_file_creation_progress(
+def _initialize_progress_for_paths(
     paths_dict: dict[str, set[Path | tuple[Path, ...]]],
     progress: Progress,
-    interval: float = 1,
-) -> None:
-    """Asynchronously track and update the progress of file creation.
-
-    Parameters
-    ----------
-    paths_dict
-        A dictionary with keys representing categories and values being sets of file paths to monitor.
-    progress
-        The Progress object from the rich library for displaying progress.
-    interval
-        The time interval (in seconds) at which to update the progress. The interval is dynamically
-        adjusted to be at least 50 times the time it takes to update the progress. This ensures that
-        updating the progress does not take up a significant amount of time.
-    """
+) -> tuple[dict[str, TaskID], TaskID | None, int]:
     # create total_files and add_total_progress before updating paths_dict
     total_files = sum(len(paths) for paths in paths_dict.values())
     add_total_progress = len(paths_dict) > 1
@@ -1283,6 +1269,31 @@ async def _track_file_creation_progress(
             total=n_remaining + n_done,
             completed=n_done,
         )
+    return task_ids, total_task, total_files
+
+
+async def _track_file_creation_progress(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+    progress: Progress,
+    interval: float = 1,
+) -> None:
+    """Asynchronously track and update the progress of file creation.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets of file paths to monitor.
+    progress
+        The Progress object from the rich library for displaying progress.
+    interval
+        The time interval (in seconds) at which to update the progress. The interval is dynamically
+        adjusted to be at least 50 times the time it takes to update the progress. This ensures that
+        updating the progress does not take up a significant amount of time.
+    """
+    task_ids, total_task, total_files = _initialize_progress_for_paths(
+        paths_dict,
+        progress,
+    )
     try:
         progress.start()  # Start the progress display
         total_processed = 0
@@ -1308,7 +1319,7 @@ async def _track_file_creation_progress(
 
 def track_file_creation_progress(
     paths_dict: dict[str, set[Path | tuple[Path, ...]]],
-    interval: int = 1,
+    interval: float = 1,
 ) -> asyncio.Task:
     """Initialize and asynchronously track the progress of file creation.
 
