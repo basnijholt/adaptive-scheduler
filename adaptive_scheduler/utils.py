@@ -1254,7 +1254,7 @@ async def _track_file_creation_progress(
     add_total_progress = len(paths_dict) > 1
     total_task = (
         progress.add_task(
-            "[cyan]Total Progress",
+            "[cyan bold]Total progress",
             total=total_files + total_done,
             completed=total_done,
         )
@@ -1273,7 +1273,6 @@ async def _track_file_creation_progress(
                 total_task,
                 task_ids,
             )
-            print(total_files, total_processed)
             if total_processed >= total_files:
                 break  # Exit loop if all files are processed
             await asyncio.sleep(interval)
