@@ -42,13 +42,14 @@ import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
+from rich.progress import Progress, get_console
 from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from multiprocessing.managers import ListProxy
 
-    from rich.progress import Progress, TaskID
+    from rich.progress import TaskID
 
 console = Console()
 
@@ -1190,12 +1191,30 @@ async def sleep_unless_task_is_done(
     return False
 
 
-def process_paths(
+def _update_progress_for_paths(
     paths_dict: dict[str, set[Path]],
     progress: Progress,
-    total_task: TaskID,
+    total_task: TaskID | None,
     task_ids: dict[str, TaskID],
 ) -> int:
+    """Update progress bars for each set of paths.
+
+    Parameters
+    ----------
+    paths_dict
+        Dictionary with sets of paths to monitor.
+    progress
+        The Progress object from the rich library to manage progress bars.
+    total_task
+        The task ID for the total progress bar, if any.
+    task_ids
+        Dictionary mapping each set of paths to its corresponding progress bar task ID.
+
+    Returns
+    -------
+    The total number of processed paths.
+
+    """
     total_processed = 0
     for key, paths in paths_dict.items():
         if key not in task_ids:
@@ -1204,36 +1223,81 @@ def process_paths(
         for path in tuple(paths):
             if path.exists():
                 progress.update(task_ids[key], advance=1)
-                progress.update(total_task, advance=1)
+                if total_task is not None:
+                    progress.update(total_task, advance=1)
                 total_processed += 1
                 paths_dict[key].discard(path)
 
     return total_processed
 
 
-async def file_watcher(
+async def _track_file_creation_progress(
     paths_dict: dict[str, set[Path]],
     progress: Progress,
     interval: int = 1,
 ) -> None:
-    """Examples
+    """Asynchronously track and update the progress of file creation.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets of file paths to monitor.
+    progress
+        The Progress object from the rich library for displaying progress.
+    interval
+        The time interval (in seconds) at which to update the progress.
+    """
+    total_files = sum(len(paths) for paths in paths_dict.values())
+    task_ids: dict[str, TaskID] = {}
+    paths_dict_copy = copy.deepcopy(paths_dict)
+
+    # Add a total progress bar only if there are multiple entries in the dictionary
+    add_total_progress = len(paths_dict) > 1
+    total_task = (
+        progress.add_task("[cyan]Total Progress", total=total_files)
+        if add_total_progress
+        else None
+    )
+
+    try:
+        progress.start()  # Start the progress display
+
+        while True:
+            total_processed = _update_progress_for_paths(
+                paths_dict_copy,
+                progress,
+                total_task,
+                task_ids,
+            )
+            if total_processed >= total_files:
+                break  # Exit loop if all files are processed
+            await asyncio.sleep(interval)
+            progress.refresh()
+
+    finally:
+        progress.stop()  # Stop the progress display, regardless of what happens
+
+
+def track_file_creation_progress(
+    paths_dict: dict[str, set[Path]],
+) -> None:
+    """Initialize and start asynchronous tracking of file creation progress.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets of file paths to monitor.
+
+    Examples
     --------
     >>> paths_dict = {
     ...     "docs": {Path("docs/environment.yml"), Path("yolo")},
     ...     "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
-    ... }.
-
-    >>> progress = Progress()
-    >>> with progress:
-    ...     await periodic_task(paths_dict, progress)
+    ... }
+    >>> track_file_creation_progress(paths_dict)
     """
-    total_files = sum(len(paths) for paths in paths_dict.values())
-    total_task = progress.add_task("[cyan]Total Progress", total=total_files)
-    task_ids = {}
-    # Make a copy of the dict to avoid modifying the original
-    paths_dict = copy.deepcopy(paths_dict)
-    while True:
-        total_processed = process_paths(paths_dict, progress, total_task, task_ids)
-        if total_processed >= total_files:
-            break  # Exit loop if all files are processed
-        await asyncio.sleep(interval)
+    get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
+    progress = Progress(auto_refresh=False)
+    coro = _track_file_creation_progress(paths_dict, progress)
+    ioloop = asyncio.get_event_loop()
+    ioloop.create_task(coro)
