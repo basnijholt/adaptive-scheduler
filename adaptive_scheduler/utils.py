@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import functools
 import hashlib
 import inspect
@@ -46,6 +47,8 @@ from tqdm import tqdm, tqdm_notebook
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from multiprocessing.managers import ListProxy
+
+    from rich.progress import Progress, TaskID
 
 console = Console()
 
@@ -1185,3 +1188,52 @@ async def sleep_unless_task_is_done(
         sleep_task.cancel()
         return True  # means that the task is done
     return False
+
+
+def process_paths(
+    paths_dict: dict[str, set[Path]],
+    progress: Progress,
+    total_task: TaskID,
+    task_ids: dict[str, TaskID],
+) -> int:
+    total_processed = 0
+    for key, paths in paths_dict.items():
+        if key not in task_ids:
+            task_ids[key] = progress.add_task(f"[green]{key}", total=len(paths))
+
+        for path in tuple(paths):
+            if path.exists():
+                progress.update(task_ids[key], advance=1)
+                progress.update(total_task, advance=1)
+                total_processed += 1
+                paths_dict[key].discard(path)
+
+    return total_processed
+
+
+async def file_watcher(
+    paths_dict: dict[str, set[Path]],
+    progress: Progress,
+    interval: int = 1,
+) -> None:
+    """Examples
+    --------
+    >>> paths_dict = {
+    ...     "docs": {Path("docs/environment.yml"), Path("yolo")},
+    ...     "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
+    ... }.
+
+    >>> progress = Progress()
+    >>> with progress:
+    ...     await periodic_task(paths_dict, progress)
+    """
+    total_files = sum(len(paths) for paths in paths_dict.values())
+    total_task = progress.add_task("[cyan]Total Progress", total=total_files)
+    task_ids = {}
+    # Make a copy of the dict to avoid modifying the original
+    paths_dict = copy.deepcopy(paths_dict)
+    while True:
+        total_processed = process_paths(paths_dict, progress, total_task, task_ids)
+        if total_processed >= total_files:
+            break  # Exit loop if all files are processed
+        await asyncio.sleep(interval)
