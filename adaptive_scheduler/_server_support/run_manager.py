@@ -262,7 +262,7 @@ class RunManager(BaseManager):
             interval=self.job_manager_interval,
             max_fails_per_job=self.max_fails_per_job,
             max_simultaneous_jobs=self.max_simultaneous_jobs,
-            # Laucher command line options
+            # Launcher command line options
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
             loky_start_method=self.loky_start_method,

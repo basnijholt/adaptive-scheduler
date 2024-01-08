@@ -254,7 +254,9 @@ class DatabaseManager(BaseManager):
         entry = self._db.get(
             lambda e: e.job_id is None and not e.is_done and not e.is_pending,
         )
-        assert entry is not None
+        if entry is None:
+            msg = "Requested a new job but no more learners to run in the database."
+            raise RuntimeError(msg)
         log.debug("choose fname", entry=entry)
         index = self._db.all().index(entry)
         self._db.update(
