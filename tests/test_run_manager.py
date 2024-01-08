@@ -256,6 +256,7 @@ async def test_run_manager_auto_restart(
 
     with get_socket(rm.database_manager) as socket:
         for job_id, log_fname, job_name in jobs:
+            rm.database_manager._choose_fname(job_name)
             start_message = ("start", job_id, log_fname, job_name)
             await send_message(socket, start_message)
 

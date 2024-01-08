@@ -151,6 +151,7 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     kill_manager.start()
     assert kill_manager.task is not None
     # Marks the job as running, and sets the job_id, job_name, and log_fname
+    kill_manager.database_manager._choose_fname("test_job")
     kill_manager.database_manager._start_request("0", "log_fname.log", "test_job")
     kill_manager.scheduler.start_job("test_job")
     await asyncio.sleep(0.1)  # Give it some time to start and cancel the job

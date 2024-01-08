@@ -62,6 +62,7 @@ def _ensure_str(
 class _DBEntry:
     fname: str | list[str]
     job_id: str | None = None
+    is_pending: bool = False
     is_done: bool = False
     log_fname: str | None = None
     job_name: str | None = None
@@ -121,7 +122,7 @@ class SimpleDatabase:
 
     def _save(self) -> None:
         with self.db_fname.open("w") as f:
-            json.dump({"data": self.as_dicts(), "meta": self._meta}, f)
+            json.dump({"data": self.as_dicts(), "meta": self._meta}, f, indent=4)
 
 
 class DatabaseManager(BaseManager):
@@ -202,7 +203,10 @@ class DatabaseManager(BaseManager):
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
-        self._db.update({"job_id": None, "job_name": None}, indices)
+        self._db.update(
+            {"job_id": None, "job_name": None, "is_pending": False},
+            indices,
+        )
 
     def n_done(self) -> int:
         """Return the number of jobs that are done."""
@@ -245,6 +249,23 @@ class DatabaseManager(BaseManager):
             for f in output_fnames
         ]
 
+    def _choose_fname(self, job_name: str) -> tuple[int, str | list[str] | None]:
+        assert self._db is not None
+        entry = self._db.get(
+            lambda e: e.job_id is None and not e.is_done,
+        )
+        assert entry is not None
+        log.debug("choose fname", entry=entry)
+        index = self._db.all().index(entry)
+        self._db.update(
+            {
+                "job_name": job_name,
+                "is_pending": True,
+            },
+            indices=[index],
+        )
+        return index, _ensure_str(entry.fname)  # type: ignore[return-value]
+
     def _start_request(
         self,
         job_id: str,
@@ -263,9 +284,7 @@ class DatabaseManager(BaseManager):
                 "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation.",
             )
             raise JobIDExistsInDbError(msg)
-        entry = self._db.get(
-            lambda e: e.job_id is None and not e.is_done,
-        )
+        entry = self._db.get(lambda e: e.job_name == job_name and e.is_pending)
         log.debug("choose fname", entry=entry)
         if entry is None:
             return None
@@ -274,9 +293,9 @@ class DatabaseManager(BaseManager):
             {
                 "job_id": job_id,
                 "log_fname": log_fname,
-                "job_name": job_name,
                 "output_logs": _ensure_str(self._output_logs(job_id, job_name)),
                 "start_time": _now(),
+                "is_pending": False,
             },
             indices=[index],
         )
