@@ -237,6 +237,7 @@ class JobManager(BaseManager):
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
+            # TODO: pick the right resources for the job (not yet implemented!)
             await loop.run_in_executor(ex, self.scheduler.start_job, job_name)
             self.n_started += 1
             self._request_times[job_name] = _now()
