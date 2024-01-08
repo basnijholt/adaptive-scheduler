@@ -303,7 +303,7 @@ class DatabaseManager(BaseManager):
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
         fname_str = _ensure_str(fname)
-        reset = {"job_id": None, "is_done": True, "job_name": None}
+        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
         assert self._db is not None
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
@@ -314,7 +314,7 @@ class DatabaseManager(BaseManager):
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         assert self._db is not None
         fnames_str = {str(fname) for fname in _ensure_str(fnames)}
-        reset = {"job_id": None, "is_done": True, "job_name": None}
+        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: str(e.fname) in fnames_str)
         ]
