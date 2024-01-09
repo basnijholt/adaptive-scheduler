@@ -285,12 +285,12 @@ class BaseScheduler(abc.ABC):
         index: int | None = None,
     ) -> str:
         start = ""
-        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
         if self.executor_type == "mpi4py":
             opts = self._mpi4py(index=index)
         elif self.executor_type == "dask-mpi":
             opts = self._dask_mpi(index=index)
         elif self.executor_type == "ipyparallel":
+            cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
             if cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
