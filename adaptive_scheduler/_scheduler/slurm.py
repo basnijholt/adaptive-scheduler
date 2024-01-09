@@ -147,14 +147,18 @@ class SLURM(BaseScheduler):
         """Set the state of the SLURM scheduler."""
         self.__init__(**state)  # type: ignore[misc]
 
-    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
+    def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
+        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
-        cores = self.cores - 1
+        # We need to reserve one core for the controller
         if self.nodes is not None and self.partition is not None and self.exclusive:
+            # Limit the number of cores to the maximum number of cores per node
             max_cores_per_node = self.partitions[self.partition]
             tot_cores = self.nodes * max_cores_per_node
-            cores = min(self.cores, tot_cores - 1)
+            cores = min(cores, tot_cores - 1)
+        else:
+            cores = cores - 1
         start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
@@ -209,7 +213,7 @@ class SLURM(BaseScheduler):
             executor_specific=self._executor_specific("${NAME}", options),
         )
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
         name_prefix = name.rsplit("-", 1)[0]
         (output_fname,) = self.output_fnames(name)

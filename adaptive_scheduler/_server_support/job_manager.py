@@ -70,8 +70,8 @@ def command_line_options(
     runner_kwargs["goal"] = goal
     base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
     n = scheduler.cores
-    if scheduler.executor_type == "ipyparallel":
-        n -= 1
+    if scheduler.executor_type == "ipyparallel" and isinstance(n, int):
+        n -= 1  # if cores is a list then we set it when writing to the job script
 
     opts = {
         "--n": n,
@@ -85,7 +85,7 @@ def command_line_options(
         opts["--loky-start-method"] = loky_start_method
     if save_dataframe:
         opts["--dataframe-format"] = dataframe_format
-        opts["--save-dataframe"] = None
+        opts["--save-dataframe"] = None  # type: ignore[assignment]
     return opts
 
 
@@ -204,6 +204,7 @@ class JobManager(BaseManager):
             goal=self.goal,
             loky_start_method=self.loky_start_method,
         )
+        self.scheduler._command_line_options = options
         self.scheduler.write_job_script(name_prefix, options)
 
     async def _update_database_and_get_not_queued(

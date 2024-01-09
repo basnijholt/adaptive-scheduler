@@ -83,6 +83,7 @@ class PBS(BaseScheduler):
         return job_id.split(".")[0]
 
     def _calculate_nnodes(self) -> None:
+        assert isinstance(self.cores, int), "self.cores must be an integer for PBS."
         if self.cores_per_node is None:
             partial_msg = "Use set `cores_per_node=...` before passing the scheduler."
             try:
@@ -158,8 +159,11 @@ class PBS(BaseScheduler):
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
+        if index is not None:
+            msg = "PBS does not support `index`."
+            raise NotImplementedError(msg)
         name_prefix = name.rsplit("-", 1)[0]
         name_opt = f"-N {name}"
         submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"

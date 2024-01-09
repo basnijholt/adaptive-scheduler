@@ -109,7 +109,7 @@ class LocalMockScheduler(BaseScheduler):
         """Get the queue of the scheduler."""
         return self.mock_scheduler.queue()
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Start a job."""
         name_prefix = name.rsplit("-", 1)[0]
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"

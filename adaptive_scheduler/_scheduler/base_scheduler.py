@@ -69,7 +69,7 @@ class BaseScheduler(abc.ABC):
 
     def __init__(
         self,
-        cores: int,
+        cores: int | list[int],
         *,
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -92,6 +92,7 @@ class BaseScheduler(abc.ABC):
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
         self._extra_script = extra_script if extra_script is not None else ""
+        self._command_line_options: dict[str, Any] | None = None
 
     @abc.abstractmethod
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:
@@ -227,20 +228,23 @@ class BaseScheduler(abc.ABC):
             ),
         )
 
-    def _mpi4py(self) -> tuple[str, ...]:
+    def _mpi4py(self, *, index: int | None = None) -> tuple[str, ...]:
+        cores = self.cores if index is None else self.cores[index]  # type: ignore[index]
         return (
             f"{self.mpiexec_executable}",
-            f"-n {self.cores} {self.python_executable}",
+            f"-n {cores} {self.python_executable}",
             f"-m mpi4py.futures {self.launcher}",
         )
 
-    def _dask_mpi(self) -> tuple[str, ...]:
+    def _dask_mpi(self, *, index: int | None = None) -> tuple[str, ...]:
+        cores = self.cores if index is None else self.cores[index]  # type: ignore[index]
         return (
             f"{self.mpiexec_executable}",
-            f"-n {self.cores} {self.python_executable} {self.launcher}",
+            f"-n {cores} {self.python_executable} {self.launcher}",
         )
 
-    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
+    def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
+        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         start = textwrap.dedent(
@@ -256,7 +260,7 @@ class BaseScheduler(abc.ABC):
 
             echo "Launching engines"
             {self.mpiexec_executable} \\
-                -n {self.cores-1} \\
+                -n {cores-1} \\
                 ipengine \\
                 --profile={profile} \\
                 --mpi \\
@@ -267,26 +271,33 @@ class BaseScheduler(abc.ABC):
             {self.python_executable} {self.launcher} \\
             """,
         )
-        custom = (f"    --profile {profile}", f"--n {self.cores-1}")
+        custom = (f"    --profile {profile}", f"--n {cores-1}")
         return start, custom
 
     def _process_pool(self) -> tuple[str, ...]:
         return (f"{self.python_executable} {self.launcher}",)
 
-    def _executor_specific(self, name: str, options: dict[str, Any]) -> str:
+    def _executor_specific(
+        self,
+        name: str,
+        options: dict[str, Any],
+        *,
+        index: int | None = None,
+    ) -> str:
         start = ""
+        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
         if self.executor_type == "mpi4py":
-            opts = self._mpi4py()
+            opts = self._mpi4py(index=index)
         elif self.executor_type == "dask-mpi":
-            opts = self._dask_mpi()
+            opts = self._dask_mpi(index=index)
         elif self.executor_type == "ipyparallel":
-            if self.cores <= 1:
+            if cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     " the rest of the cores for the engines, so use more than 1 core."
                 )
                 raise ValueError(msg)
-            start, opts = self._ipyparallel()
+            start, opts = self._ipyparallel(index=index)
         elif self.executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         else:
@@ -346,8 +357,18 @@ class BaseScheduler(abc.ABC):
             job_script = self.job_script(options)
             f.write(job_script)
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
+        if index is not None:
+            with self.batch_fname(name).open("w", encoding="utf-8") as f:
+                assert self._command_line_options is not None
+                assert isinstance(self.cores, list)
+                options = dict(self._command_line_options)  # copy
+                if self.executor_type == "ipyparallel":
+                    options["--n"] = self.cores[index] - 1
+                job_script = self.job_script(options)
+                f.write(job_script)
+
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd)
 
