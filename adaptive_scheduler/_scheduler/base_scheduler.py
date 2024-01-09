@@ -228,8 +228,17 @@ class BaseScheduler(abc.ABC):
             ),
         )
 
+    def _get_cores(self, index: int | None = None) -> int:
+        if index is None:
+            cores = self.cores
+        else:
+            assert isinstance(self.cores, list)
+            return self.cores[index]
+        assert isinstance(cores, int)
+        return cores
+
     def _mpi4py(self, *, index: int | None = None) -> tuple[str, ...]:
-        cores = self.cores if index is None else self.cores[index]  # type: ignore[index]
+        cores = self._get_cores(index=index)
         return (
             f"{self.mpiexec_executable}",
             f"-n {cores} {self.python_executable}",
@@ -237,14 +246,14 @@ class BaseScheduler(abc.ABC):
         )
 
     def _dask_mpi(self, *, index: int | None = None) -> tuple[str, ...]:
-        cores = self.cores if index is None else self.cores[index]  # type: ignore[index]
+        cores = self._get_cores(index=index)
         return (
             f"{self.mpiexec_executable}",
             f"-n {cores} {self.python_executable} {self.launcher}",
         )
 
     def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
-        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
+        cores = self._get_cores(index=index)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         start = textwrap.dedent(
@@ -290,7 +299,7 @@ class BaseScheduler(abc.ABC):
         elif self.executor_type == "dask-mpi":
             opts = self._dask_mpi(index=index)
         elif self.executor_type == "ipyparallel":
-            cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
+            cores = self._get_cores(index=index)
             if cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"

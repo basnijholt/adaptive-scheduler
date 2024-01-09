@@ -148,7 +148,7 @@ class SLURM(BaseScheduler):
         self.__init__(**state)  # type: ignore[misc]
 
     def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
-        cores: int = self.cores if index is None else self.cores[index]  # type: ignore[index, assignment]
+        cores = self._get_cores(index=index)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         # We need to reserve one core for the controller
