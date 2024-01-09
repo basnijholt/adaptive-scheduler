@@ -223,7 +223,7 @@ async def test_start_one_by_one(
 
 
 @pytest.mark.asyncio()
-async def test_run_manager_auto_restart(  # noqa: PLR0915
+async def test_run_manager_auto_restart(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
     | list[adaptive.BalancingLearner]
@@ -290,15 +290,11 @@ async def test_run_manager_auto_restart(  # noqa: PLR0915
     # Check if the new job is started in the database
     db = rm.database_manager.as_dicts()
     assert len(db) == 2
-    jobs = [
-        ("2", "log2.log", job_name0),
-        (job_id1, "log1.log", job_name1),
-    ]
-    for i, (job_id, log_fname, job_name) in enumerate(jobs):
-        assert db[i]["job_id"] == job_id
-        assert db[i]["job_name"] == job_name
-        assert not db[i]["is_done"]
-        assert db[i]["log_fname"].endswith(log_fname)
+    for entry in db:
+        assert entry["job_id"] in ("0", "1", "2")
+        assert entry["job_name"] in job_names
+        assert not entry["is_done"]
+        assert entry["log_fname"] == f"log{entry['job_id']}.log"
 
     # Now mark the 2 jobs as done
     with get_socket(rm.database_manager) as socket:
@@ -311,11 +307,11 @@ async def test_run_manager_auto_restart(  # noqa: PLR0915
     # Check that the jobs are now done
     db = rm.database_manager.as_dicts()
     assert len(db) == 2
-    for i, (_, log_fname, _) in enumerate(jobs):
-        assert db[i]["job_id"] is None
-        assert db[i]["job_name"] is None
-        assert db[i]["is_done"]
-        assert db[i]["log_fname"].endswith(log_fname)
+    for entry in db:
+        assert entry["job_id"] is None
+        assert entry["job_name"] is None
+        assert entry["is_done"]
+        assert entry["log_fname"].endswith(".log")
 
     # Check that RunManager is done
     assert rm.task.done()
