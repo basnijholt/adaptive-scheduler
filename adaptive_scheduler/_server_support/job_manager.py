@@ -204,6 +204,7 @@ class JobManager(BaseManager):
             goal=self.goal,
             loky_start_method=self.loky_start_method,
         )
+        # hack to get the options in the job_script  # noqa: FIX004
         self.scheduler._command_line_options = options
         self.scheduler.write_job_script(name_prefix, options)
 
