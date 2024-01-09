@@ -76,7 +76,7 @@ class MockScheduler(BaseScheduler):
             executor_specific=self._executor_specific("${NAME}", options),
         )
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:  # noqa: ARG002
         """Start a mock job."""
         print("Starting a mock job:", name)
         self._started_jobs.append(name)
