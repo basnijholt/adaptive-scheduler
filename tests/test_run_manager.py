@@ -276,7 +276,7 @@ async def test_run_manager_auto_restart(
     }
     rm.scheduler._queue_info.pop(job_id0)
     await asyncio.sleep(0.15)
-    # Check that the job is restarted automatically with a new job_id:_
+    # Check that the job is restarted automatically with a new job_id:
     q = rm.scheduler.queue()
     assert q["2"] == {"job_name": job_name0, "state": "RUNNING", "status": "R"}
 
