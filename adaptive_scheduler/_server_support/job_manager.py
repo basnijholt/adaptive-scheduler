@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.utils import _now, _serialize_to_b64, sleep_unless_task_is_done
@@ -240,7 +241,11 @@ class JobManager(BaseManager):
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
             # TODO: pick the right resources for the job (not yet implemented!)
-            await loop.run_in_executor(ex, self.scheduler.start_job, job_name)
+            await loop.run_in_executor(
+                ex,
+                partial(self.scheduler.start_job, index=index),
+                job_name,
+            )
             self.n_started += 1
             self._request_times[job_name] = _now()
 
