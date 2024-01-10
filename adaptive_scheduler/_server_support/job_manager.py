@@ -70,18 +70,21 @@ def command_line_options(
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
     base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
-    n = scheduler.cores
-    if scheduler.executor_type == "ipyparallel" and isinstance(n, int):
-        n -= 1  # if cores is a list then we set it when writing to the job script
 
     opts = {
-        "--n": n,
         "--url": database_manager.url,
         "--executor-type": scheduler.executor_type,
         "--log-interval": log_interval,
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
+    if scheduler.single_job_script:
+        # if cores is a list then we set it when writing to the job script
+        assert isinstance(scheduler.cores, int)
+        n = scheduler.cores
+        if scheduler.executor_type == "ipyparallel":
+            n -= 1
+        opts["--n"] = n
     if scheduler.executor_type == "loky":
         opts["--loky-start-method"] = loky_start_method
     if save_dataframe:

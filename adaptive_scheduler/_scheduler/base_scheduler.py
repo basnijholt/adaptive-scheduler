@@ -76,7 +76,7 @@ class BaseScheduler(abc.ABC):
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str] | list[list[str]] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
@@ -236,12 +236,13 @@ class BaseScheduler(abc.ABC):
         )
 
     def _get_cores(self, index: int | None = None) -> int:
-        if isinstance(self.cores, list):
-            assert index is not None
-            cores = self.cores[index]
-        else:
+        if self.single_job_script:
             cores = self.cores
-        assert isinstance(cores, int), (cores, index)
+        else:
+            assert index is not None
+            assert isinstance(self.cores, list)
+            cores = self.cores[index]
+        assert isinstance(cores, int)
         return cores
 
     def _mpi4py(self, *, index: int | None = None) -> tuple[str, ...]:
@@ -341,10 +342,16 @@ class BaseScheduler(abc.ABC):
 
         return Path(_server_support.__file__).parent / "launcher.py"
 
-    @property
-    def extra_scheduler(self) -> str:
+    def extra_scheduler(self, *, index: int | None = None) -> str:
         """Scheduler options that go in the job script."""
-        extra_scheduler = self._extra_scheduler or []
+        if self._extra_scheduler is None:
+            return ""
+        if self.single_job_script:
+            extra_scheduler = self._extra_scheduler
+        else:
+            assert index is not None
+            extra_scheduler = self._extra_scheduler[index]  # type: ignore[assignment]
+            assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     @property

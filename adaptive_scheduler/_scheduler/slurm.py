@@ -174,7 +174,7 @@ class SLURM(BaseScheduler):
             mpiexec_executable=mpiexec_executable,
             executor_type=executor_type,
             num_threads=num_threads,
-            extra_scheduler=extra_scheduler,
+            extra_scheduler=extra_scheduler,  # type: ignore[arg-type]
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
             batch_folder=batch_folder,
@@ -207,10 +207,13 @@ class SLURM(BaseScheduler):
                 partition = self.partition
                 nodes = self.nodes
             else:
-                assert isinstance(self.partion, list)
+                assert isinstance(self.partition, list)
                 assert isinstance(self.nodes, list)
+                assert index is not None
                 partition = self.partition[index]
                 nodes = self.nodes[index]
+            assert isinstance(partition, str)
+            assert isinstance(nodes, int)
             # Limit the number of cores to the maximum number of cores per node
             max_cores_per_node = self.partitions[partition]
             tot_cores = nodes * max_cores_per_node
@@ -268,7 +271,7 @@ class SLURM(BaseScheduler):
         )
 
         return job_script.format(
-            extra_scheduler=self.extra_scheduler,
+            extra_scheduler=self.extra_scheduler(index=index),
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options, index=index),
