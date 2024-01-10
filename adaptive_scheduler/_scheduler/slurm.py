@@ -22,24 +22,27 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-def _maybe_list(x: T | list[T] | None, n: int | None) -> list[T] | T | None:
+def _maybe_as_tuple(
+    x: T | tuple[T, ...] | None,
+    n: int | None,
+) -> tuple[T, ...] | T | None:
     if n is None or x is None:
         return x
-    if isinstance(x, list):
+    if isinstance(x, tuple):
         assert len(x) == n
         return x
-    return [x] * n
+    return (x,) * n
 
 
-def _list_lengths(x: list[Any]) -> int | None:
+def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
     """Get the length of the items that are in lists."""
     length = None
-    for y in x:
-        if isinstance(y, list):
+    for y in maybe_tuple:
+        if isinstance(y, tuple):
             if length is None:
                 length = len(y)
             elif length != len(y):
-                msg = "All lists should have the same length."
+                msg = "All tuples should have the same length."
                 raise ValueError(msg)
     return length
 
@@ -92,20 +95,20 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(
+    def __init__(  # noqa: PLR0912, PLR0915
         self,
         *,
-        cores: int | list[int] | None = None,
-        nodes: int | list[int] | None = None,
-        cores_per_node: int | list[int] | None = None,
-        partition: str | list[str] | None = None,
+        cores: int | tuple[int, ...] | None = None,
+        nodes: int | tuple[int, ...] | None = None,
+        cores_per_node: int | tuple[int, ...] | None = None,
+        partition: str | tuple[str, ...] | None = None,
         exclusive: bool = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str | list[str]] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
@@ -130,42 +133,57 @@ class SLURM(BaseScheduler):
             extra_scheduler = []
 
         # If any is a list, then all should be a list
-        n = _list_lengths([cores, nodes, cores_per_node, partition, extra_scheduler])
+        n = _tuple_lengths([cores, nodes, cores_per_node, partition, extra_scheduler])
         single_job_script = n is None
-        cores = _maybe_list(cores, n)
-        self.nodes = nodes = _maybe_list(nodes, n)
-        self.cores_per_node = cores_per_node = _maybe_list(cores_per_node, n)
-        self.partition = partition = _maybe_list(partition, n)
-        extra_scheduler = _maybe_list(extra_scheduler, n)  # type: ignore[assignment, arg-type]
+        cores = _maybe_as_tuple(cores, n)
+        self.nodes = nodes = _maybe_as_tuple(nodes, n)
+        self.cores_per_node = cores_per_node = _maybe_as_tuple(cores_per_node, n)
+        self.partition = partition = _maybe_as_tuple(partition, n)
+        extra_scheduler = _maybe_as_tuple(extra_scheduler, n)  # type: ignore[assignment, arg-type]
 
         if cores_per_node is not None:
             if single_job_script:
                 assert isinstance(cores_per_node, int)
                 assert isinstance(nodes, int)
+                assert isinstance(extra_scheduler, list)
                 extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
                 cores = cores_per_node * nodes
             else:
                 assert isinstance(cores_per_node, list)
                 assert isinstance(nodes, list)
-                extra_scheduler.append(
-                    [f"--ntasks-per-node={cpn}" for cpn in cores_per_node],
-                )
-                cores = [cpn * n for cpn, n in zip(cores_per_node, nodes)]
+                assert isinstance(extra_scheduler, tuple)
+                for lst in extra_scheduler:
+                    assert isinstance(lst, list)
+                    lst.append(f"--ntasks-per-node={cores_per_node}")
+                cores = tuple(cpn * n for cpn, n in zip(cores_per_node, nodes))
 
         if partition is not None:
-            if any(
-                p not in self.partitions
-                for p in ([partition] if single_job_script else partition)
-            ):
-                msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                raise ValueError(msg)
-            extra_scheduler.append(
-                f"--partition={partition}"
-                if single_job_script
-                else [f"--partition={p}" for p in partition],
-            )
+            if single_job_script:
+                assert isinstance(partition, str)
+                assert isinstance(extra_scheduler, list)
+                if partition not in self.partitions:
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                extra_scheduler.append(f"--partition={partition}")
+            else:
+                if any(p not in self.partitions for p in partition):
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                assert isinstance(extra_scheduler, tuple)
+                for lst in extra_scheduler:
+                    assert isinstance(lst, list)
+                    lst.append(f"--partition={partition}")
+
         if exclusive:
-            extra_scheduler.append("--exclusive")
+            if single_job_script:
+                assert isinstance(extra_scheduler, list)
+                extra_scheduler.append("--exclusive")
+            else:
+                assert isinstance(extra_scheduler, tuple)
+                for lst in extra_scheduler:
+                    assert isinstance(lst, list)
+                    lst.append("--exclusive")
+
         assert cores is not None
         super().__init__(
             cores,

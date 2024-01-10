@@ -69,14 +69,14 @@ class BaseScheduler(abc.ABC):
 
     def __init__(
         self,
-        cores: int | list[int],
+        cores: int | tuple[int, ...],
         *,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | list[list[str]] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",

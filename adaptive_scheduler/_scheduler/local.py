@@ -30,7 +30,7 @@ class LocalMockScheduler(BaseScheduler):
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | list[list[str]] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
