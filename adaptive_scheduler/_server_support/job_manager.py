@@ -206,7 +206,8 @@ class JobManager(BaseManager):
         )
         # hack to get the options in the job_script  # noqa: FIX004
         self.scheduler._command_line_options = options
-        self.scheduler.write_job_script(name_prefix, options, index=None)
+        if self.scheduler.single_job_script:
+            self.scheduler.write_job_script(name_prefix, options, index=None)
 
     async def _update_database_and_get_not_queued(
         self,

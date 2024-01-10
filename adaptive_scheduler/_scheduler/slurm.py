@@ -113,7 +113,6 @@ class SLURM(BaseScheduler):
                 msg = f"Invalid partition: {partition}, only {self.partitions} are available."
                 raise ValueError(msg)
             extra_scheduler.append(f"--partition={partition}")
-
         if exclusive:
             extra_scheduler.append("--exclusive")
         assert cores is not None
@@ -194,10 +193,11 @@ class SLURM(BaseScheduler):
             The index of the job that is being run. This is used when
             specifying different resources for different jobs.
         """
+        cores = self._get_cores(index=index)
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
-            #SBATCH --ntasks {self.cores}
+            #SBATCH --ntasks {cores}
             #SBATCH --no-requeue
             {{extra_scheduler}}
 
@@ -218,13 +218,14 @@ class SLURM(BaseScheduler):
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        if index is not None and isinstance(self.cores, list):
+        if not self.single_job_script:
             name_prefix = name
             with self.batch_fname(name_prefix).open("w", encoding="utf-8") as f:
                 assert self._command_line_options is not None
                 options = dict(self._command_line_options)  # copy
+                options["--n"] = self._get_cores(index=index)
                 if self.executor_type == "ipyparallel":
-                    options["--n"] = self.cores[index] - 1
+                    options["--n"] -= 1
                 job_script = self.job_script(options, index=index)
                 f.write(job_script)
         else:

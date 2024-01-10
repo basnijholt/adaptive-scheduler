@@ -143,6 +143,10 @@ class BaseScheduler(abc.ABC):
             specifying different resources for different jobs.
         """
 
+    @property
+    def single_job_script(self) -> bool:
+        return isinstance(self.cores, int)
+
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
         if self.batch_folder:
@@ -232,12 +236,12 @@ class BaseScheduler(abc.ABC):
         )
 
     def _get_cores(self, index: int | None = None) -> int:
-        if index is None:
-            cores = self.cores
+        if isinstance(self.cores, list):
+            assert index is not None
+            cores = self.cores[index]
         else:
-            assert isinstance(self.cores, list)
-            return self.cores[index]
-        assert isinstance(cores, int)
+            cores = self.cores
+        assert isinstance(cores, int), (cores, index)
         return cores
 
     def _mpi4py(self, *, index: int | None = None) -> tuple[str, ...]:
@@ -376,7 +380,8 @@ class BaseScheduler(abc.ABC):
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        if index is not None:
+        if not self.single_job_script:
+            assert index is not None
             with self.batch_fname(name).open("w", encoding="utf-8") as f:
                 assert self._command_line_options is not None
                 assert isinstance(self.cores, list)
