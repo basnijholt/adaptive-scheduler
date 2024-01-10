@@ -70,7 +70,7 @@ class MockScheduler(BaseScheduler):
             """,
         )
         return job_script.format(
-            extra_scheduler=self.extra_scheduler,
+            extra_scheduler=self.extra_scheduler(index=index),
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options, index=index),
