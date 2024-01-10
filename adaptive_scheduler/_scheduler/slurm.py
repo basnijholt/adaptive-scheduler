@@ -297,7 +297,9 @@ class SLURM(BaseScheduler):
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        if not self.single_job_script:
+        if self.single_job_script:
+            name_prefix = name.rsplit("-", 1)[0]
+        else:
             name_prefix = name
             with self.batch_fname(name_prefix).open("w", encoding="utf-8") as f:
                 assert self._command_line_options is not None
@@ -307,14 +309,9 @@ class SLURM(BaseScheduler):
                     options["--n"] -= 1
                 job_script = self.job_script(options, index=index)
                 f.write(job_script)
-        else:
-            name_prefix = name.rsplit("-", 1)[0]
 
         (output_fname,) = self.output_fnames(name)
-        output_str = str(output_fname).replace(
-            self._JOB_ID_VARIABLE,
-            "%A",
-        )
+        output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")
         output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
         submit_cmd = (
