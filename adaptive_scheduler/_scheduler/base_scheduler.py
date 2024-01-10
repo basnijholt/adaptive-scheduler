@@ -240,7 +240,7 @@ class BaseScheduler(abc.ABC):
             cores = self.cores
         else:
             assert index is not None
-            assert isinstance(self.cores, list)
+            assert isinstance(self.cores, tuple)
             cores = self.cores[index]
         assert isinstance(cores, int)
         return cores
@@ -351,7 +351,7 @@ class BaseScheduler(abc.ABC):
         else:
             assert index is not None
             extra_scheduler = self._extra_scheduler[index]  # type: ignore[assignment]
-            assert isinstance(extra_scheduler, list)
+        assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     @property

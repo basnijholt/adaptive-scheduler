@@ -1,6 +1,7 @@
 """SLURM for Adaptive Scheduler."""
 from __future__ import annotations
 
+import copy
 import getpass
 import re
 import subprocess
@@ -31,11 +32,11 @@ def _maybe_as_tuple(
     if isinstance(x, tuple):
         assert len(x) == n
         return x
-    return (x,) * n
+    return tuple(copy.deepcopy(x) for _ in range(n))
 
 
 def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
-    """Get the length of the items that are in lists."""
+    """Get the length of the items that are in tuples."""
     length = None
     for y in maybe_tuple:
         if isinstance(y, tuple):
@@ -133,15 +134,13 @@ class SLURM(BaseScheduler):
             extra_scheduler = []
 
         # If any is a list, then all should be a list
-        n = _tuple_lengths([cores, nodes, cores_per_node, partition, extra_scheduler])
-        print(n)
+        n = _tuple_lengths(cores, nodes, cores_per_node, partition, extra_scheduler)
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n)
         self.nodes = nodes = _maybe_as_tuple(nodes, n)
         self.cores_per_node = cores_per_node = _maybe_as_tuple(cores_per_node, n)
         self.partition = partition = _maybe_as_tuple(partition, n)
-        extra_scheduler = _maybe_as_tuple(extra_scheduler, n)  # type: ignore[assignment, arg-type]
-
+        extra_scheduler = _maybe_as_tuple(extra_scheduler, n)
         if cores_per_node is not None:
             if single_job_script:
                 assert isinstance(cores_per_node, int)
@@ -150,12 +149,12 @@ class SLURM(BaseScheduler):
                 extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
                 cores = cores_per_node * nodes
             else:
-                assert isinstance(cores_per_node, list)
-                assert isinstance(nodes, list)
+                assert isinstance(cores_per_node, tuple)
+                assert isinstance(nodes, tuple)
                 assert isinstance(extra_scheduler, tuple)
-                for lst in extra_scheduler:
+                for lst, cpn in zip(extra_scheduler, cores_per_node):
                     assert isinstance(lst, list)
-                    lst.append(f"--ntasks-per-node={cores_per_node}")
+                    lst.append(f"--ntasks-per-node={cpn}")
                 cores = tuple(cpn * n for cpn, n in zip(cores_per_node, nodes))
 
         if partition is not None:
@@ -171,9 +170,9 @@ class SLURM(BaseScheduler):
                     msg = f"Invalid partition: {partition}, only {self.partitions} are available."
                     raise ValueError(msg)
                 assert isinstance(extra_scheduler, tuple)
-                for lst in extra_scheduler:
+                for lst, p in zip(extra_scheduler, partition):
                     assert isinstance(lst, list)
-                    lst.append(f"--partition={partition}")
+                    lst.append(f"--partition={p}")
 
         if exclusive:
             if single_job_script:
