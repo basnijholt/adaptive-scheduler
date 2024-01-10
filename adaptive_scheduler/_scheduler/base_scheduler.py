@@ -131,13 +131,16 @@ class BaseScheduler(abc.ABC):
         return self._submit_cmd
 
     @abc.abstractmethod
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to the scheduler.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
         """
 
     def batch_fname(self, name: str) -> Path:
@@ -360,10 +363,12 @@ class BaseScheduler(abc.ABC):
         """Script that will be run before the main scheduler."""
         return str(self._extra_script) or ""
 
-    def write_job_script(self, name: str, options: dict[str, Any]) -> None:
+    def write_job_script(
+        self, name: str, options: dict[str, Any], index: int | None = None,
+    ) -> None:
         """Writes a job script."""
         with self.batch_fname(name).open("w", encoding="utf-8") as f:
-            job_script = self.job_script(options)
+            job_script = self.job_script(options, index=index)
             f.write(job_script)
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
@@ -375,7 +380,7 @@ class BaseScheduler(abc.ABC):
                 options = dict(self._command_line_options)  # copy
                 if self.executor_type == "ipyparallel":
                     options["--n"] = self.cores[index] - 1
-                job_script = self.job_script(options)
+                job_script = self.job_script(options, index=index)
                 f.write(job_script)
 
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"

@@ -124,13 +124,17 @@ class PBS(BaseScheduler):
         stdout, stderr = (home / f"{name}.{x}{self._JOB_ID_VARIABLE}" for x in "oe")
         return [stdout, stderr]
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to PBS.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
+            Currently not implemented for PBS!
         """
         job_script = textwrap.dedent(
             f"""\
@@ -155,7 +159,7 @@ class PBS(BaseScheduler):
             extra_scheduler=self.extra_scheduler,
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}", options),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 

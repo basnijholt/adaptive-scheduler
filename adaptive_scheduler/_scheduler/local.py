@@ -72,13 +72,16 @@ class LocalMockScheduler(BaseScheduler):
             mock_scheduler_kwargs=self.mock_scheduler_kwargs,
         )
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to PBS.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
 
         Notes
         -----
@@ -100,7 +103,7 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script.format(
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self._executor_specific("${NAME}", options),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
             extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
