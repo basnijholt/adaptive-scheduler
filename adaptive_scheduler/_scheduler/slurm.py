@@ -7,7 +7,7 @@ import subprocess
 import textwrap
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import run_submit
@@ -17,6 +17,31 @@ if TYPE_CHECKING:
     from typing import Any
 
     from adaptive_scheduler.utils import EXECUTOR_TYPES
+
+
+T = TypeVar("T")
+
+
+def _maybe_list(x: T | list[T] | None, n: int | None) -> list[T] | T | None:
+    if n is None or x is None:
+        return x
+    if isinstance(x, list):
+        assert len(x) == n
+        return x
+    return [x] * n
+
+
+def _list_lengths(x: list[Any]) -> int | None:
+    """Get the length of the items that are in lists."""
+    length = None
+    for y in x:
+        if isinstance(y, list):
+            if length is None:
+                length = len(y)
+            elif length != len(y):
+                msg = "All lists should have the same length."
+                raise ValueError(msg)
+    return length
 
 
 class SLURM(BaseScheduler):
@@ -70,27 +95,28 @@ class SLURM(BaseScheduler):
     def __init__(
         self,
         *,
-        cores: int | None = None,
-        nodes: int | None = None,
-        cores_per_node: int | None = None,
-        partition: str | None = None,
+        cores: int | list[int] | None = None,
+        nodes: int | list[int] | None = None,
+        cores_per_node: int | list[int] | None = None,
+        partition: str | list[str] | None = None,
         exclusive: bool = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str | list[str]] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
-        self._cores = cores
-        self.nodes = nodes
-        self.cores_per_node = cores_per_node
-        self.partition = partition
         self.exclusive = exclusive
+        # Store the original values
+        self._cores = cores
+        self._nodes = nodes
+        self._cores_per_node = cores_per_node
+        self._partition = partition
         self.__extra_scheduler = extra_scheduler
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
@@ -103,16 +129,41 @@ class SLURM(BaseScheduler):
         if extra_scheduler is None:
             extra_scheduler = []
 
+        # If any is a list, then all should be a list
+        n = _list_lengths([cores, nodes, cores_per_node, partition, extra_scheduler])
+        single_job_script = n is None
+        cores = _maybe_list(cores, n)
+        self.nodes = nodes = _maybe_list(nodes, n)
+        self.cores_per_node = cores_per_node = _maybe_list(cores_per_node, n)
+        self.partition = partition = _maybe_list(partition, n)
+        extra_scheduler = _maybe_list(extra_scheduler, n)  # type: ignore[assignment, arg-type]
+
         if cores_per_node is not None:
-            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-            assert nodes is not None
-            cores = nodes * cores_per_node
+            if single_job_script:
+                assert isinstance(cores_per_node, int)
+                assert isinstance(nodes, int)
+                extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+                cores = cores_per_node * nodes
+            else:
+                assert isinstance(cores_per_node, list)
+                assert isinstance(nodes, list)
+                extra_scheduler.append(
+                    [f"--ntasks-per-node={cpn}" for cpn in cores_per_node],
+                )
+                cores = [cpn * n for cpn, n in zip(cores_per_node, nodes)]
 
         if partition is not None:
-            if partition not in self.partitions:
+            if any(
+                p not in self.partitions
+                for p in ([partition] if single_job_script else partition)
+            ):
                 msg = f"Invalid partition: {partition}, only {self.partitions} are available."
                 raise ValueError(msg)
-            extra_scheduler.append(f"--partition={partition}")
+            extra_scheduler.append(
+                f"--partition={partition}"
+                if single_job_script
+                else [f"--partition={p}" for p in partition],
+            )
         if exclusive:
             extra_scheduler.append("--exclusive")
         assert cores is not None
@@ -135,9 +186,9 @@ class SLURM(BaseScheduler):
         """Get the state of the SLURM scheduler."""
         state = super().__getstate__()
         state["cores"] = self._cores
-        state["nodes"] = self.nodes
-        state["cores_per_node"] = self.cores_per_node
-        state["partition"] = self.partition
+        state["nodes"] = self._nodes
+        state["cores_per_node"] = self._cores_per_node
+        state["partition"] = self._partition
         state["exclusive"] = self.exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         return state
@@ -152,12 +203,19 @@ class SLURM(BaseScheduler):
         profile = "${profile}"
         # We need to reserve one core for the controller
         if self.nodes is not None and self.partition is not None and self.exclusive:
+            if self.single_job_script:
+                partition = self.partition
+                nodes = self.nodes
+            else:
+                assert isinstance(self.partion, list)
+                assert isinstance(self.nodes, list)
+                partition = self.partition[index]
+                nodes = self.nodes[index]
             # Limit the number of cores to the maximum number of cores per node
-            max_cores_per_node = self.partitions[self.partition]
-            tot_cores = self.nodes * max_cores_per_node
+            max_cores_per_node = self.partitions[partition]
+            tot_cores = nodes * max_cores_per_node
             cores = min(cores, tot_cores - 1)
-        else:
-            cores = cores - 1
+
         start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
