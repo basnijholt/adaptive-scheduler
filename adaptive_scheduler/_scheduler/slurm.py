@@ -218,7 +218,7 @@ class SLURM(BaseScheduler):
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        name_prefix = name.rsplit("-", 1)[0]
+        name_prefix = name.rsplit("-", 1)[0] if index is None else name
         (output_fname,) = self.output_fnames(name)
         output_str = str(output_fname).replace(
             self._JOB_ID_VARIABLE,

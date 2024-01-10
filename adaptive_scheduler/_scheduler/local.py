@@ -114,6 +114,9 @@ class LocalMockScheduler(BaseScheduler):
 
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Start a job."""
+        if index is not None:
+            msg = "LocalMockScheduler does not support `index`."
+            raise NotImplementedError(msg)
         name_prefix = name.rsplit("-", 1)[0]
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)

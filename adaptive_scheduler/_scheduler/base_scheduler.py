@@ -147,7 +147,7 @@ class BaseScheduler(abc.ABC):
         """The filename of the job script."""
         if self.batch_folder:
             batch_folder = Path(self.batch_folder)
-            batch_folder.mkdir(exist_ok=True)
+            batch_folder.mkdir(exist_ok=True, parents=True)
         else:
             batch_folder = Path.cwd()
         return batch_folder / f"{name}{self.ext}"
