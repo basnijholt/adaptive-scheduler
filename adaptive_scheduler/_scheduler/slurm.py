@@ -134,6 +134,7 @@ class SLURM(BaseScheduler):
 
         # If any is a list, then all should be a list
         n = _tuple_lengths([cores, nodes, cores_per_node, partition, extra_scheduler])
+        print(n)
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n)
         self.nodes = nodes = _maybe_as_tuple(nodes, n)
