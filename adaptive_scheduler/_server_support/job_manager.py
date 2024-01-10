@@ -166,7 +166,6 @@ class JobManager(BaseManager):
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
-
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
@@ -240,11 +239,9 @@ class JobManager(BaseManager):
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
-            # TODO: pick the right resources for the job (not yet implemented!)
             await loop.run_in_executor(
                 ex,
-                partial(self.scheduler.start_job, index=index),
-                job_name,
+                partial(self.scheduler.start_job, name=job_name, index=index),
             )
             self.n_started += 1
             self._request_times[job_name] = _now()
