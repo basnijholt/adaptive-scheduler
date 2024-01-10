@@ -364,7 +364,10 @@ class BaseScheduler(abc.ABC):
         return str(self._extra_script) or ""
 
     def write_job_script(
-        self, name: str, options: dict[str, Any], index: int | None = None,
+        self,
+        name: str,
+        options: dict[str, Any],
+        index: int | None = None,
     ) -> None:
         """Writes a job script."""
         with self.batch_fname(name).open("w", encoding="utf-8") as f:
