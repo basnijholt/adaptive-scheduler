@@ -303,3 +303,10 @@ def test_multiple_jobs() -> None:
     js = s.job_script(options={}, index=0)
     assert "#SBATCH --time=1" in js
     assert "--ntasks 2" in js
+
+    # Check with incorrect types
+    with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
+        SLURM(cores="4")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="All tuples should have the same length."):
+        SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
