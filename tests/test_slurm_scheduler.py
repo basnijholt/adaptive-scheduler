@@ -298,3 +298,8 @@ def test_multiple_jobs() -> None:
             js = s.job_script(options={}, index=i)
             assert f"#SBATCH --partition={p}" in js
             assert js.count("--partition") == 1
+
+    s = SLURM(cores=cores, extra_scheduler=["--time=1"], executor_type="ipyparallel")
+    js = s.job_script(options={}, index=0)
+    assert "#SBATCH --time=1" in js
+    assert "--ntasks 2" in js
