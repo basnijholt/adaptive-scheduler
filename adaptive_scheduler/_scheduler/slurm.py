@@ -236,6 +236,14 @@ class SLURM(BaseScheduler):
             max_cores_per_node = self.partitions[partition]
             tot_cores = nodes * max_cores_per_node
             cores = min(cores, tot_cores - 1)
+        else:  # noqa: PLR5501
+            if self.single_job_script:
+                assert isinstance(self.cores, int)
+                cores = self.cores - 1
+            else:
+                assert isinstance(self.cores, tuple)
+                assert index is not None
+                cores = self.cores[index] - 1
 
         start = textwrap.dedent(
             f"""\
