@@ -58,6 +58,11 @@ def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler`` and
+    ``partition`` can be either a single value or a tuple of values.
+    If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run.
+
     Parameters
     ----------
     cores
