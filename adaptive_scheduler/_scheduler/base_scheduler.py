@@ -389,14 +389,12 @@ class BaseScheduler(abc.ABC):
         """Writes a job script and submits it to the scheduler."""
         if not self.single_job_script:
             assert index is not None
-            with self.batch_fname(name).open("w", encoding="utf-8") as f:
-                assert self._command_line_options is not None
-                assert isinstance(self.cores, list)
-                options = dict(self._command_line_options)  # copy
-                if self.executor_type == "ipyparallel":
-                    options["--n"] = self.cores[index] - 1
-                job_script = self.job_script(options, index=index)
-                f.write(job_script)
+            assert self._command_line_options is not None
+            assert isinstance(self.cores, list)
+            options = dict(self._command_line_options)  # copy
+            if self.executor_type == "ipyparallel":
+                options["--n"] = self.cores[index] - 1
+            self.write_job_script(name, options, index=index)
 
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd)
