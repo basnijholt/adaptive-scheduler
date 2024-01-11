@@ -287,3 +287,14 @@ def test_multiple_jobs() -> None:
     s = SLURM(cores_per_node=cores, nodes=2)
     assert isinstance(s.nodes, tuple)
     assert s.cores == tuple(2 * n for n in cores)
+
+    partitions = ("nc24-low", "hb120v2-low")
+    with patch("adaptive_scheduler._scheduler.slurm.slurm_partitions") as mock:
+        mock.return_value = {"nc24-low": 24, "hb120v2-low": 120}
+
+        s = SLURM(partition=partitions, cores=1)
+        assert s.cores == (1, 1)
+        for i, p in enumerate(partitions):
+            js = s.job_script(options={}, index=i)
+            assert f"#SBATCH --partition={p}" in js
+            assert js.count("--partition") == 1
