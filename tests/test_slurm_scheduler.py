@@ -271,3 +271,19 @@ def test_slurm_scheduler_ipyparallel() -> None:
         """,
         ).strip()
     )
+
+
+def test_multiple_jobs() -> None:
+    """Test that multiple jobs can be started."""
+    cores = (3, 4, 5)
+    s = SLURM(cores=cores)
+    for i, n in enumerate(cores):
+        js = s.job_script(options={}, index=i)
+        assert f"#SBATCH --ntasks {n}" in js
+        assert js.count("--ntasks") == 1
+    assert isinstance(s._extra_scheduler, tuple)
+    assert len(s._extra_scheduler) == 3
+
+    s = SLURM(cores_per_node=cores, nodes=2)
+    assert isinstance(s.nodes, tuple)
+    assert s.cores == tuple(2 * n for n in cores)

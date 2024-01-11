@@ -26,9 +26,18 @@ T = TypeVar("T")
 def _maybe_as_tuple(
     x: T | tuple[T, ...] | None,
     n: int | None,
+    *,
+    check_type: type | None = None,
 ) -> tuple[T, ...] | T | None:
     if n is None or x is None:
         return x
+    if (
+        check_type is not None
+        and not isinstance(x, check_type)
+        and not isinstance(x, tuple)
+    ):
+        msg = f"Expected `{check_type}` or `tuple[{check_type}, ...]`, got `{type(x)}`"
+        raise TypeError(msg)
     if isinstance(x, tuple):
         assert len(x) == n
         return x
@@ -136,11 +145,15 @@ class SLURM(BaseScheduler):
         # If any is a list, then all should be a list
         n = _tuple_lengths(cores, nodes, cores_per_node, partition, extra_scheduler)
         single_job_script = n is None
-        cores = _maybe_as_tuple(cores, n)
-        self.nodes = nodes = _maybe_as_tuple(nodes, n)
-        self.cores_per_node = cores_per_node = _maybe_as_tuple(cores_per_node, n)
-        self.partition = partition = _maybe_as_tuple(partition, n)
-        extra_scheduler = _maybe_as_tuple(extra_scheduler, n)
+        cores = _maybe_as_tuple(cores, n, check_type=int)
+        self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
+        self.cores_per_node = cores_per_node = _maybe_as_tuple(
+            cores_per_node,
+            n,
+            check_type=int,
+        )
+        self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         if cores_per_node is not None:
             if single_job_script:
                 assert isinstance(cores_per_node, int)
