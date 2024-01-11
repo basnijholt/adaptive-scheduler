@@ -136,5 +136,5 @@ output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
 
 
-def setup(app):
+def setup(app) -> None:
     pass

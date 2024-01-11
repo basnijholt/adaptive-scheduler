@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.utils import _now, _serialize_to_b64, sleep_unless_task_is_done
@@ -69,23 +70,26 @@ def command_line_options(
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
     base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
-    n = scheduler.cores
-    if scheduler.executor_type == "ipyparallel":
-        n -= 1
 
     opts = {
-        "--n": n,
         "--url": database_manager.url,
         "--executor-type": scheduler.executor_type,
         "--log-interval": log_interval,
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
+    if scheduler.single_job_script:
+        # if cores is a list then we set it when writing to the job script
+        assert isinstance(scheduler.cores, int)
+        n = scheduler.cores
+        if scheduler.executor_type == "ipyparallel":
+            n -= 1
+        opts["--n"] = n
     if scheduler.executor_type == "loky":
         opts["--loky-start-method"] = loky_start_method
     if save_dataframe:
         opts["--dataframe-format"] = dataframe_format
-        opts["--save-dataframe"] = None
+        opts["--save-dataframe"] = None  # type: ignore[assignment]
     return opts
 
 
@@ -165,7 +169,6 @@ class JobManager(BaseManager):
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
-
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
@@ -204,7 +207,10 @@ class JobManager(BaseManager):
             goal=self.goal,
             loky_start_method=self.loky_start_method,
         )
-        self.scheduler.write_job_script(name_prefix, options)
+        # hack to get the options in the job_script  # noqa: FIX004
+        self.scheduler._command_line_options = options
+        if self.scheduler.single_job_script:
+            self.scheduler.write_job_script(name_prefix, options, index=None)
 
     async def _update_database_and_get_not_queued(
         self,
@@ -237,8 +243,10 @@ class JobManager(BaseManager):
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
-            # TODO: pick the right resources for the job (not yet implemented!)
-            await loop.run_in_executor(ex, self.scheduler.start_job, job_name)
+            await loop.run_in_executor(
+                ex,
+                partial(self.scheduler.start_job, name=job_name, index=index),
+            )
             self.n_started += 1
             self._request_times[job_name] = _now()
 

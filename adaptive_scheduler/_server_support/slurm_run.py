@@ -19,9 +19,9 @@ def slurm_run(
     learners: list[adaptive.BaseLearner],
     fnames: list[str] | list[Path],
     *,
-    partition: str | None = None,
-    nodes: int = 1,
-    cores_per_node: int | None = None,
+    partition: str | tuple[str, ...] | None = None,
+    nodes: int | tuple[int, ...] = 1,
+    cores_per_node: int | tuple[int, ...] | None = None,
     goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
@@ -40,6 +40,12 @@ def slurm_run(
     initializers: list[Callable[[], None]] | None = None,
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
+
+    ``nodes``, ``cores_per_node``, and ``partition`` can be
+    either a single value or a tuple of values.
+    If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run. This allows for
+    different resources for different jobs.
 
     Parameters
     ----------
@@ -108,7 +114,9 @@ def slurm_run(
             " Use `adaptive_scheduler.scheduler.slurm_partitions`"
             " to see the available partitions.",
         )
-    if executor_type == "process-pool" and nodes > 1:
+    if executor_type == "process-pool" and (
+        nodes > 1 if isinstance(nodes, int) else any(n > 1 for n in nodes)
+    ):
         msg = (
             "process-pool can maximally use a single node,"
             " use e.g., ipyparallel for multi node.",
@@ -117,8 +125,14 @@ def slurm_run(
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:
-        cores_per_node = slurm_partitions()[partition]  # type: ignore[call-overload]
-    kw = dict(
+        partitions = slurm_partitions()
+        assert isinstance(partitions, dict)
+        cores_per_node = (
+            tuple(partitions[p] for p in partition)  # type: ignore[misc]
+            if isinstance(partition, tuple)
+            else partitions[partition]
+        )
+    slurm_kwargs = dict(
         _get_default_args(SLURM),
         nodes=nodes,
         cores_per_node=cores_per_node,
@@ -127,10 +141,10 @@ def slurm_run(
         batch_folder=folder / "batch_scripts",
         executor_type=executor_type,
         num_threads=num_threads,
+        exclusive=exclusive,
+        **(extra_scheduler_kwargs or {}),
     )
-    if extra_scheduler_kwargs is None:
-        extra_scheduler_kwargs = {}
-    scheduler = SLURM(**dict(kw, exclusive=exclusive, **extra_scheduler_kwargs))
+    scheduler = SLURM(**slurm_kwargs)
     # Below are the defaults for the RunManager
     kw = dict(
         _get_default_args(RunManager),

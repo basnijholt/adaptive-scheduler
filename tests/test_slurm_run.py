@@ -235,3 +235,22 @@ def test_slurm_run_with_invalid_nodes_and_executor_type(
         match="process-pool can maximally use a single node",
     ):
         slurm_run(learners, fnames, nodes=2, executor_type="process-pool")
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_slurm_run_with_multiple_partitions(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+) -> None:
+    """Test slurm_run function with multiple partitions."""
+    rm = slurm_run(learners, fnames, partition=("hb120v2-low", "hb60-high"))
+    assert isinstance(rm, RunManager)
+    s = rm.scheduler
+    assert isinstance(s, SLURM)
+    assert s.cores == (120, 60)
+    assert s.partition == ("hb120v2-low", "hb60-high")
+    assert s.nodes == (1, 1)
+    assert s.cores_per_node == (120, 60)

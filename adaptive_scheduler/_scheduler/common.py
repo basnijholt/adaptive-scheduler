@@ -21,6 +21,6 @@ def run_submit(cmd: str, name: str | None = None) -> None:
         if proc.returncode == 0:
             return
         stderr = proc.stderr.decode()
-        if not stderr:
+        if stderr:
             console.log(f"Error: {stderr}")
         time.sleep(0.5)

@@ -69,14 +69,14 @@ class BaseScheduler(abc.ABC):
 
     def __init__(
         self,
-        cores: int,
+        cores: int | tuple[int, ...],
         *,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
@@ -92,6 +92,7 @@ class BaseScheduler(abc.ABC):
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
         self._extra_script = extra_script if extra_script is not None else ""
+        self._command_line_options: dict[str, Any] | None = None
 
     @abc.abstractmethod
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:
@@ -130,20 +131,27 @@ class BaseScheduler(abc.ABC):
         return self._submit_cmd
 
     @abc.abstractmethod
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to the scheduler.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
         """
+
+    @property
+    def single_job_script(self) -> bool:
+        return isinstance(self.cores, int)
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
         if self.batch_folder:
             batch_folder = Path(self.batch_folder)
-            batch_folder.mkdir(exist_ok=True)
+            batch_folder.mkdir(exist_ok=True, parents=True)
         else:
             batch_folder = Path.cwd()
         return batch_folder / f"{name}{self.ext}"
@@ -227,20 +235,33 @@ class BaseScheduler(abc.ABC):
             ),
         )
 
-    def _mpi4py(self) -> tuple[str, ...]:
+    def _get_cores(self, index: int | None = None) -> int:
+        if self.single_job_script:
+            cores = self.cores
+        else:
+            assert index is not None
+            assert isinstance(self.cores, tuple)
+            cores = self.cores[index]
+        assert isinstance(cores, int)
+        return cores
+
+    def _mpi4py(self, *, index: int | None = None) -> tuple[str, ...]:
+        cores = self._get_cores(index=index)
         return (
             f"{self.mpiexec_executable}",
-            f"-n {self.cores} {self.python_executable}",
+            f"-n {cores} {self.python_executable}",
             f"-m mpi4py.futures {self.launcher}",
         )
 
-    def _dask_mpi(self) -> tuple[str, ...]:
+    def _dask_mpi(self, *, index: int | None = None) -> tuple[str, ...]:
+        cores = self._get_cores(index=index)
         return (
             f"{self.mpiexec_executable}",
-            f"-n {self.cores} {self.python_executable} {self.launcher}",
+            f"-n {cores} {self.python_executable} {self.launcher}",
         )
 
-    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
+    def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
+        cores = self._get_cores(index=index)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
         start = textwrap.dedent(
@@ -256,7 +277,7 @@ class BaseScheduler(abc.ABC):
 
             echo "Launching engines"
             {self.mpiexec_executable} \\
-                -n {self.cores-1} \\
+                -n {cores-1} \\
                 ipengine \\
                 --profile={profile} \\
                 --mpi \\
@@ -267,26 +288,33 @@ class BaseScheduler(abc.ABC):
             {self.python_executable} {self.launcher} \\
             """,
         )
-        custom = (f"    --profile {profile}", f"--n {self.cores-1}")
+        custom = (f"    --profile {profile}", f"--n {cores-1}")
         return start, custom
 
     def _process_pool(self) -> tuple[str, ...]:
         return (f"{self.python_executable} {self.launcher}",)
 
-    def _executor_specific(self, name: str, options: dict[str, Any]) -> str:
+    def _executor_specific(
+        self,
+        name: str,
+        options: dict[str, Any],
+        *,
+        index: int | None = None,
+    ) -> str:
         start = ""
         if self.executor_type == "mpi4py":
-            opts = self._mpi4py()
+            opts = self._mpi4py(index=index)
         elif self.executor_type == "dask-mpi":
-            opts = self._dask_mpi()
+            opts = self._dask_mpi(index=index)
         elif self.executor_type == "ipyparallel":
-            if self.cores <= 1:
+            cores = self._get_cores(index=index)
+            if cores <= 1:
                 msg = (
                     "`ipyparalllel` uses 1 cores of the `adaptive.Runner` and"
                     " the rest of the cores for the engines, so use more than 1 core."
                 )
                 raise ValueError(msg)
-            start, opts = self._ipyparallel()
+            start, opts = self._ipyparallel(index=index)
         elif self.executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         else:
@@ -314,10 +342,16 @@ class BaseScheduler(abc.ABC):
 
         return Path(_server_support.__file__).parent / "launcher.py"
 
-    @property
-    def extra_scheduler(self) -> str:
+    def extra_scheduler(self, *, index: int | None = None) -> str:
         """Scheduler options that go in the job script."""
-        extra_scheduler = self._extra_scheduler or []
+        if self._extra_scheduler is None:
+            return ""
+        if self.single_job_script:
+            extra_scheduler = self._extra_scheduler
+        else:
+            assert index is not None
+            extra_scheduler = self._extra_scheduler[index]  # type: ignore[assignment]
+        assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     @property
@@ -340,14 +374,28 @@ class BaseScheduler(abc.ABC):
         """Script that will be run before the main scheduler."""
         return str(self._extra_script) or ""
 
-    def write_job_script(self, name: str, options: dict[str, Any]) -> None:
+    def write_job_script(
+        self,
+        name: str,
+        options: dict[str, Any],
+        index: int | None = None,
+    ) -> None:
         """Writes a job script."""
         with self.batch_fname(name).open("w", encoding="utf-8") as f:
-            job_script = self.job_script(options)
+            job_script = self.job_script(options, index=index)
             f.write(job_script)
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
+        if not self.single_job_script:
+            assert index is not None
+            assert self._command_line_options is not None
+            assert isinstance(self.cores, list)
+            options = dict(self._command_line_options)  # copy
+            if self.executor_type == "ipyparallel":
+                options["--n"] = self.cores[index] - 1
+            self.write_job_script(name, options, index=index)
+
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
         run_submit(submit_cmd)
 

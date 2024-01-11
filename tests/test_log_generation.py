@@ -102,6 +102,6 @@ async def test_log_info(
             assert all(key in log_entry for key in expected_keys)
 
     # Check if there were any "current status" log entries
-    assert current_status_entries > 0
+    assert current_status_entries > 0, filtered_records
 
     runner.cancel()

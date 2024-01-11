@@ -1,13 +1,14 @@
 """SLURM for Adaptive Scheduler."""
 from __future__ import annotations
 
+import copy
 import getpass
 import re
 import subprocess
 import textwrap
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import run_submit
@@ -19,8 +20,49 @@ if TYPE_CHECKING:
     from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
+T = TypeVar("T")
+
+
+def _maybe_as_tuple(
+    x: T | tuple[T, ...] | None,
+    n: int | None,
+    *,
+    check_type: type | None = None,
+) -> tuple[T, ...] | T | None:
+    if x is None:
+        return x
+    if check_type is not None and not isinstance(x, (check_type, tuple)):
+        msg = f"Expected `{check_type}` or `tuple[{check_type}, ...]`, got `{type(x)}`"
+        raise TypeError(msg)
+    if n is None:
+        return x
+    if isinstance(x, tuple):
+        assert len(x) == n
+        return x
+    return tuple(copy.deepcopy(x) for _ in range(n))
+
+
+def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
+    """Get the length of the items that are in tuples."""
+    length = None
+    for y in maybe_tuple:
+        if isinstance(y, tuple):
+            if length is None:
+                length = len(y)
+            elif length != len(y):
+                msg = "All tuples should have the same length."
+                raise ValueError(msg)
+    return length
+
+
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
+
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler`` and
+    ``partition`` can be either a single value or a tuple of values.
+    If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run. This allows for
+    different resources for different jobs.
 
     Parameters
     ----------
@@ -67,30 +109,31 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(
+    def __init__(  # noqa: PLR0912, PLR0915
         self,
         *,
-        cores: int | None = None,
-        nodes: int | None = None,
-        cores_per_node: int | None = None,
-        partition: str | None = None,
+        cores: int | tuple[int, ...] | None = None,
+        nodes: int | tuple[int, ...] | None = None,
+        cores_per_node: int | tuple[int, ...] | None = None,
+        partition: str | tuple[str, ...] | None = None,
         exclusive: bool = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
-        self._cores = cores
-        self.nodes = nodes
-        self.cores_per_node = cores_per_node
-        self.partition = partition
         self.exclusive = exclusive
+        # Store the original values
+        self._cores = cores
+        self._nodes = nodes
+        self._cores_per_node = cores_per_node
+        self._partition = partition
         self.__extra_scheduler = extra_scheduler
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
@@ -103,19 +146,61 @@ class SLURM(BaseScheduler):
         if extra_scheduler is None:
             extra_scheduler = []
 
+        # If any is a list, then all should be a list
+        n = _tuple_lengths(cores, nodes, cores_per_node, partition, extra_scheduler)
+        single_job_script = n is None
+        cores = _maybe_as_tuple(cores, n, check_type=int)
+        self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
+        self.cores_per_node = cores_per_node = _maybe_as_tuple(
+            cores_per_node,
+            n,
+            check_type=int,
+        )
+        self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         if cores_per_node is not None:
-            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-            assert nodes is not None
-            cores = nodes * cores_per_node
+            if single_job_script:
+                assert isinstance(cores_per_node, int)
+                assert isinstance(nodes, int)
+                assert isinstance(extra_scheduler, list)
+                extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+                cores = cores_per_node * nodes
+            else:
+                assert isinstance(cores_per_node, tuple)
+                assert isinstance(nodes, tuple)
+                assert isinstance(extra_scheduler, tuple)
+                for lst, cpn in zip(extra_scheduler, cores_per_node):
+                    assert isinstance(lst, list)
+                    lst.append(f"--ntasks-per-node={cpn}")
+                cores = tuple(cpn * n for cpn, n in zip(cores_per_node, nodes))
 
         if partition is not None:
-            if partition not in self.partitions:
-                msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                raise ValueError(msg)
-            extra_scheduler.append(f"--partition={partition}")
+            if single_job_script:
+                assert isinstance(partition, str)
+                assert isinstance(extra_scheduler, list)
+                if partition not in self.partitions:
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                extra_scheduler.append(f"--partition={partition}")
+            else:
+                if any(p not in self.partitions for p in partition):
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                assert isinstance(extra_scheduler, tuple)
+                for lst, p in zip(extra_scheduler, partition):
+                    assert isinstance(lst, list)
+                    lst.append(f"--partition={p}")
 
         if exclusive:
-            extra_scheduler.append("--exclusive")
+            if single_job_script:
+                assert isinstance(extra_scheduler, list)
+                extra_scheduler.append("--exclusive")
+            else:
+                assert isinstance(extra_scheduler, tuple)
+                for lst in extra_scheduler:
+                    assert isinstance(lst, list)
+                    lst.append("--exclusive")
+
         assert cores is not None
         super().__init__(
             cores,
@@ -124,7 +209,7 @@ class SLURM(BaseScheduler):
             mpiexec_executable=mpiexec_executable,
             executor_type=executor_type,
             num_threads=num_threads,
-            extra_scheduler=extra_scheduler,
+            extra_scheduler=extra_scheduler,  # type: ignore[arg-type]
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
             batch_folder=batch_folder,
@@ -136,9 +221,9 @@ class SLURM(BaseScheduler):
         """Get the state of the SLURM scheduler."""
         state = super().__getstate__()
         state["cores"] = self._cores
-        state["nodes"] = self.nodes
-        state["cores_per_node"] = self.cores_per_node
-        state["partition"] = self.partition
+        state["nodes"] = self._nodes
+        state["cores_per_node"] = self._cores_per_node
+        state["partition"] = self._partition
         state["exclusive"] = self.exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         return state
@@ -147,14 +232,36 @@ class SLURM(BaseScheduler):
         """Set the state of the SLURM scheduler."""
         self.__init__(**state)  # type: ignore[misc]
 
-    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
+    def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
+        cores = self._get_cores(index=index)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
-        cores = self.cores - 1
+        # We need to reserve one core for the controller
         if self.nodes is not None and self.partition is not None and self.exclusive:
-            max_cores_per_node = self.partitions[self.partition]
-            tot_cores = self.nodes * max_cores_per_node
-            cores = min(self.cores, tot_cores - 1)
+            if self.single_job_script:
+                partition = self.partition
+                nodes = self.nodes
+            else:
+                assert isinstance(self.partition, list)
+                assert isinstance(self.nodes, list)
+                assert index is not None
+                partition = self.partition[index]
+                nodes = self.nodes[index]
+            assert isinstance(partition, str)
+            assert isinstance(nodes, int)
+            # Limit the number of cores to the maximum number of cores per node
+            max_cores_per_node = self.partitions[partition]
+            tot_cores = nodes * max_cores_per_node
+            cores = min(cores, tot_cores - 1)
+        else:  # noqa: PLR5501
+            if self.single_job_script:
+                assert isinstance(self.cores, int)
+                cores = self.cores - 1
+            else:
+                assert isinstance(self.cores, tuple)
+                assert index is not None
+                cores = self.cores[index] - 1
+
         start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
@@ -179,18 +286,22 @@ class SLURM(BaseScheduler):
         custom = (f"    --profile {profile}",)
         return start, custom
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to SLURM.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
         """
+        cores = self._get_cores(index=index)
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
-            #SBATCH --ntasks {self.cores}
+            #SBATCH --ntasks {cores}
             #SBATCH --no-requeue
             {{extra_scheduler}}
 
@@ -203,20 +314,29 @@ class SLURM(BaseScheduler):
         )
 
         return job_script.format(
-            extra_scheduler=self.extra_scheduler,
+            extra_scheduler=self.extra_scheduler(index=index),
             extra_env_vars=self.extra_env_vars,
             extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}", options),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        name_prefix = name.rsplit("-", 1)[0]
+        if self.single_job_script:
+            name_prefix = name.rsplit("-", 1)[0]
+        else:
+            name_prefix = name
+            with self.batch_fname(name_prefix).open("w", encoding="utf-8") as f:
+                assert self._command_line_options is not None
+                options = dict(self._command_line_options)  # copy
+                options["--n"] = self._get_cores(index=index)
+                if self.executor_type == "ipyparallel":
+                    options["--n"] -= 1
+                job_script = self.job_script(options, index=index)
+                f.write(job_script)
+
         (output_fname,) = self.output_fnames(name)
-        output_str = str(output_fname).replace(
-            self._JOB_ID_VARIABLE,
-            "%A",
-        )
+        output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")
         output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
         submit_cmd = (

@@ -271,3 +271,42 @@ def test_slurm_scheduler_ipyparallel() -> None:
         """,
         ).strip()
     )
+
+
+def test_multiple_jobs() -> None:
+    """Test that multiple jobs can be started."""
+    cores = (3, 4, 5)
+    s = SLURM(cores=cores)
+    for i, n in enumerate(cores):
+        js = s.job_script(options={}, index=i)
+        assert f"#SBATCH --ntasks {n}" in js
+        assert js.count("--ntasks") == 1
+    assert isinstance(s._extra_scheduler, tuple)
+    assert len(s._extra_scheduler) == 3
+
+    s = SLURM(cores_per_node=cores, nodes=2)
+    assert isinstance(s.nodes, tuple)
+    assert s.cores == tuple(2 * n for n in cores)
+
+    partitions = ("nc24-low", "hb120v2-low")
+    with patch("adaptive_scheduler._scheduler.slurm.slurm_partitions") as mock:
+        mock.return_value = {"nc24-low": 24, "hb120v2-low": 120}
+
+        s = SLURM(partition=partitions, cores=1)
+        assert s.cores == (1, 1)
+        for i, p in enumerate(partitions):
+            js = s.job_script(options={}, index=i)
+            assert f"#SBATCH --partition={p}" in js
+            assert js.count("--partition") == 1
+
+    s = SLURM(cores=cores, extra_scheduler=["--time=1"], executor_type="ipyparallel")
+    js = s.job_script(options={}, index=0)
+    assert "#SBATCH --time=1" in js
+    assert "--ntasks 2" in js
+
+    # Check with incorrect types
+    with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
+        SLURM(cores="4")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="All tuples should have the same length."):
+        SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]

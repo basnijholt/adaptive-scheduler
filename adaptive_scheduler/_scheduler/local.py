@@ -30,7 +30,7 @@ class LocalMockScheduler(BaseScheduler):
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
@@ -72,13 +72,16 @@ class LocalMockScheduler(BaseScheduler):
             mock_scheduler_kwargs=self.mock_scheduler_kwargs,
         )
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
         job_script
             A job script that can be submitted to PBS.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
 
         Notes
         -----
@@ -100,7 +103,7 @@ class LocalMockScheduler(BaseScheduler):
 
         return job_script.format(
             extra_env_vars=self.extra_env_vars,
-            executor_specific=self._executor_specific("${NAME}", options),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
             extra_script=self.extra_script,
             job_id_variable=self._JOB_ID_VARIABLE,
         )
@@ -109,14 +112,16 @@ class LocalMockScheduler(BaseScheduler):
         """Get the queue of the scheduler."""
         return self.mock_scheduler.queue()
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Start a job."""
+        if index is not None:
+            msg = "LocalMockScheduler does not support `index`."
+            raise NotImplementedError(msg)
         name_prefix = name.rsplit("-", 1)[0]
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
-    @property
-    def extra_scheduler(self) -> str:
+    def extra_scheduler(self, *, index: int | None = None) -> str:  # noqa: ARG002
         """Get the extra scheduler options."""
         msg = "extra_scheduler is not implemented."
         raise NotImplementedError(msg)
