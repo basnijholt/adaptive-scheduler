@@ -44,7 +44,8 @@ def slurm_run(
     ``nodes``, ``cores_per_node``, and ``partition`` can be
     either a single value or a tuple of values.
     If a tuple is given, then the length of the tuple should be the same
-    as the number of learners (jobs) that are run.
+    as the number of learners (jobs) that are run. This allows for
+    different resources for different jobs.
 
     Parameters
     ----------

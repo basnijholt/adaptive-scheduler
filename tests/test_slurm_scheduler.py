@@ -308,5 +308,5 @@ def test_multiple_jobs() -> None:
     with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
         SLURM(cores="4")  # type: ignore[arg-type]
 
-    with pytest.raises(TypeError, match="All tuples should have the same length."):
+    with pytest.raises(ValueError, match="All tuples should have the same length."):
         SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
