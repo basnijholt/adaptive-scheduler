@@ -10,10 +10,7 @@ def generate_environment_yml(
     default_packages: tuple[str, ...] = ("python", "mpich"),
 ) -> str:
     """Generate environment.yml from pyproject.toml."""
-    env_yaml = (
-        "# This file is generated from pyproject.toml"
-        " using .github/update-environment.py\n"
-    )
+    env_yaml = "# This file is generated from pyproject.toml using .github/update-environment.py\n"
     env_yaml += "name: adaptive-scheduler\n\n"
     env_yaml += "channels:\n- conda-forge\n\n"
     env_yaml += "dependencies:\n"
