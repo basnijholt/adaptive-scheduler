@@ -67,7 +67,8 @@ def slurm_run(
         The goal of the adaptive run. If None, then the run will continue
         indefinitely.
     folder
-        The folder to save the learners in.
+        The folder to save the adaptive_scheduler files such as logs, database,
+        and ``.sbatch`` files in.
     name
         The name of the job.
     num_threads
