@@ -67,7 +67,21 @@ file = "README.rst"
 [project.scripts]
 adaptive-scheduler-launcher = "adaptive_scheduler._server_support.launcher:main"
 
+[tool.setuptools.cmdclass]
+sdist = "versioningit.cmdclass.sdist"
+build_py = "versioningit.cmdclass.build_py"
+
 [tool.versioningit]
+
+[tool.versioningit.vcs]
+method = "git"
+match = ["v*"]
+default-tag = "0.0.0"
+
+[tool.versioningit.format]
+dirty = "{version}.dev{distance}+{branch}.{vcs}{rev}.dirty"
+distance = "{version}.dev{distance}+{branch}.{vcs}{rev}"
+distance-dirty = "{version}.dev{distance}+{branch}.{vcs}{rev}.dirty"
 
 [tool.versioningit.onbuild]
 build-file = "adaptive_scheduler/_version.py"
