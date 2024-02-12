@@ -96,11 +96,12 @@ def slurm_run(
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_scheduler
         Extra ``#SLURM`` (depending on scheduler type)
-        arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+        arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
+        e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
     extra_run_manager_kwargs
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs
-        Extra keyword arguments to pass to the `SLURMScheduler`.
+        Extra keyword arguments to pass to the `adaptive_scheduler.scheduler.SLURM`.
     initializers
         List of functions that are called before the job starts, can populate
         a cache.
