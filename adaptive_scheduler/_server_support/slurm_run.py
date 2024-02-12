@@ -104,6 +104,7 @@ def slurm_run(
     Returns
     -------
     RunManager
+
     """
     if partition is None:
         partitions = slurm_partitions()

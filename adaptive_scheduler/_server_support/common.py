@@ -47,6 +47,7 @@ def get_allowed_url() -> str:
     url
         An url that can be used for the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``.
+
     """
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
@@ -98,6 +99,7 @@ def cleanup_scheduler_files(
         If None the file is removed.
     log_file_folder
         The folder in which to delete the log-files.
+
     """
     to_rm = _get_all_files(job_names, scheduler)
 
@@ -162,6 +164,7 @@ def periodically_clean_ipython_profiles(
     Returns
     -------
     asyncio.Task
+
     """
 
     async def clean(interval: float) -> None:

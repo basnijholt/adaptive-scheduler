@@ -65,6 +65,7 @@ def command_line_options(
     -------
     dict
         The command line options for the job_script.
+
     """
     if runner_kwargs is None:
         runner_kwargs = {}
@@ -142,6 +143,7 @@ class JobManager(BaseManager):
     ----------
     n_started : int
         Total number of jobs started by the `JobManager`.
+
     """
 
     def __init__(

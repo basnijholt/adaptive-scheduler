@@ -40,6 +40,7 @@ def logs_with_string_or_condition(
     -------
     has_string
         A list ``(job_name, fnames)``, which have the string inside their log-file.
+
     """
     if isinstance(error, str):
         has_error = lambda lines: error in "".join(lines)  # noqa: E731
@@ -90,6 +91,7 @@ class KillManager(BaseManager):
     move_to
         If a job is cancelled the log is either removed (if ``move_to=None``)
         or moved to a folder (e.g. if ``move_to='old_logs'``).
+
     """
 
     def __init__(

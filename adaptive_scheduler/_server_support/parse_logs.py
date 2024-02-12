@@ -52,6 +52,7 @@ def parse_log_files(
     Returns
     -------
     `~pandas.core.frame.DataFrame`
+
     """
     _queue = scheduler.queue()
     database_manager.update(_queue)

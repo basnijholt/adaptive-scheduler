@@ -77,6 +77,7 @@ def get_learner(
         The filename of the learner that was chosen.
     initializer
         A function that runs before the process is forked.
+
     """
     _add_log_file_handler(log_fname)
     log.info(
@@ -120,6 +121,7 @@ def tell_done(url: str, fname: str | list[str]) -> None:
         (`adaptive_scheduler.server_support.manage_database`).
     fname
         The filename of the learner that is done.
+
     """
     log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
@@ -173,6 +175,7 @@ def log_info(runner: AsyncRunner, interval: float = 300) -> asyncio.Task:
         Adaptive Runner instance.
     interval
         Time in seconds between log entries.
+
     """
 
     async def coro(runner: AsyncRunner, interval: float) -> None:
