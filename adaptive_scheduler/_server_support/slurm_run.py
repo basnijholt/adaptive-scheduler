@@ -35,6 +35,7 @@ def slurm_run(
     max_simultaneous_jobs: int = 100,
     exclusive: bool = True,
     executor_type: EXECUTOR_TYPES = "process-pool",
+    extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
     initializers: list[Callable[[], None]] | None = None,
@@ -93,10 +94,14 @@ def slurm_run(
         "loky", or "process-pool".
     exclusive
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
+    extra_scheduler
+        Extra ``#SLURM`` (depending on scheduler type)
+        arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
+        e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
     extra_run_manager_kwargs
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs
-        Extra keyword arguments to pass to the `SLURMScheduler`.
+        Extra keyword arguments to pass to the `adaptive_scheduler.scheduler.SLURM`.
     initializers
         List of functions that are called before the job starts, can populate
         a cache.
@@ -104,6 +109,7 @@ def slurm_run(
     Returns
     -------
     RunManager
+
     """
     if partition is None:
         partitions = slurm_partitions()
@@ -143,6 +149,7 @@ def slurm_run(
         executor_type=executor_type,
         num_threads=num_threads,
         exclusive=exclusive,
+        extra_scheduler=extra_scheduler,
         **(extra_scheduler_kwargs or {}),
     )
     scheduler = SLURM(**slurm_kwargs)

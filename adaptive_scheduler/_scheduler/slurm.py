@@ -93,7 +93,8 @@ class SLURM(BaseScheduler):
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
     extra_scheduler
         Extra ``#SLURM`` (depending on scheduler type)
-        arguments, e.g. ``["--exclusive=user", "--time=1"]``.
+        arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
+        e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
     extra_env_vars
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
