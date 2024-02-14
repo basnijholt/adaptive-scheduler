@@ -85,9 +85,9 @@ class SLURM(BaseScheduler):
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
     executor_type
-        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
-        ``"loky"``, or ``"process-pool"``.
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
     num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
@@ -101,6 +101,7 @@ class SLURM(BaseScheduler):
     extra_script
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
+
     """
 
     # Attributes that all schedulers need to have

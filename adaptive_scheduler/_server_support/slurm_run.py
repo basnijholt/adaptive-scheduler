@@ -90,8 +90,9 @@ def slurm_run(
     max_simultaneous_jobs
         The maximum number of simultaneous jobs.
     executor_type
-        The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
-        "loky", or "process-pool".
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
     exclusive
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_scheduler
