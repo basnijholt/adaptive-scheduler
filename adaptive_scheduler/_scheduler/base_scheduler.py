@@ -59,6 +59,7 @@ class BaseScheduler(abc.ABC):
     Returns
     -------
     `BaseScheduler` object.
+
     """
 
     _ext: ClassVar[str]
@@ -317,8 +318,10 @@ class BaseScheduler(abc.ABC):
             start, opts = self._ipyparallel(index=index)
         elif self.executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
+        elif self.executor_type == "sequential":
+            raise NotImplementedError
         else:
-            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky' or 'process-pool'."
+            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
             raise NotImplementedError(msg)
         return start + self._expand_options(opts, name, options)
 

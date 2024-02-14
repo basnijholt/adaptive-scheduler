@@ -62,6 +62,10 @@ def _get_executor(
         from concurrent.futures import ProcessPoolExecutor
 
         return ProcessPoolExecutor(max_workers=n)
+    if executor_type == "sequential":
+        from adaptive.runner import SequentialExecutor
+
+        return SequentialExecutor()
     msg = f"Unknown executor_type: {executor_type}"
     raise ValueError(msg)
 
