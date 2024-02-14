@@ -123,14 +123,6 @@ def _delete_old_ipython_profiles(
     *,
     with_progress_bar: bool = True,
 ) -> None:
-    if isinstance(scheduler.executor_type, tuple):
-        msg = (
-            "This function is not implemented for multiple executors."
-            " Please open an issue on GitHub if you need this feature."
-        )
-        raise NotImplementedError(msg)
-    if scheduler.executor_type != "ipyparallel":
-        return
     # We need the job_ids because only job_names wouldn't be
     # enough information. There might be other job_managers
     # running.

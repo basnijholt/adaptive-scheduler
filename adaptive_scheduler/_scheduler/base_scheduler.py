@@ -93,6 +93,7 @@ class BaseScheduler(abc.ABC):
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
         self._extra_script = extra_script if extra_script is not None else ""
+        # This attribute is set in JobManager._setup ATM (hacky)
         self._command_line_options: dict[str, Any] | None = None
 
     @abc.abstractmethod
