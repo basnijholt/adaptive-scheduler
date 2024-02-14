@@ -74,20 +74,22 @@ def command_line_options(
 
     opts = {
         "--url": database_manager.url,
-        "--executor-type": scheduler.executor_type,
         "--log-interval": log_interval,
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
     if scheduler.single_job_script:
-        # if cores is a list then we set it when writing to the job script
+        # if `cores` or `executor_type` is a tuple then we set it
+        # in `Scheduler.start_job`
         assert isinstance(scheduler.cores, int)
         n = scheduler.cores
         if scheduler.executor_type == "ipyparallel":
             n -= 1
         opts["--n"] = n
-    if scheduler.executor_type == "loky":
-        opts["--loky-start-method"] = loky_start_method
+        opts["--executor-type"] = scheduler.executor_type
+
+    opts["--loky-start-method"] = loky_start_method
+
     if save_dataframe:
         opts["--dataframe-format"] = dataframe_format
         opts["--save-dataframe"] = None  # type: ignore[assignment]

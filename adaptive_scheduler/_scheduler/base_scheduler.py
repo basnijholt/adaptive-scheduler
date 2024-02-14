@@ -405,7 +405,9 @@ class BaseScheduler(abc.ABC):
             assert self._command_line_options is not None
             assert isinstance(self.cores, list)
             options = dict(self._command_line_options)  # copy
-            if self.executor_type == "ipyparallel":
+            executor_type = self._get_executor_type(index=index)
+            options["--executor-type"] = executor_type
+            if executor_type == "ipyparallel":
                 options["--n"] = self.cores[index] - 1
             self.write_job_script(name, options, index=index)
 

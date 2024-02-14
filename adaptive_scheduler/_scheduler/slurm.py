@@ -339,14 +339,16 @@ class SLURM(BaseScheduler):
             name_prefix = name.rsplit("-", 1)[0]
         else:
             name_prefix = name
-            with self.batch_fname(name_prefix).open("w", encoding="utf-8") as f:
-                assert self._command_line_options is not None
-                options = dict(self._command_line_options)  # copy
-                options["--n"] = self._get_cores(index=index)
-                if self._get_executor_type(index=index) == "ipyparallel":
-                    options["--n"] -= 1
-                job_script = self.job_script(options, index=index)
-                f.write(job_script)
+            assert index is not None
+            assert self._command_line_options is not None
+            assert isinstance(self.cores, list)
+            options = dict(self._command_line_options)  # copy
+            executor_type = self._get_executor_type(index=index)
+            options["--executor-type"] = executor_type
+            options["--n"] = self._get_cores(index=index)
+            if executor_type == "ipyparallel":
+                options["--n"] -= 1
+            self.write_job_script(name_prefix, options, index=index)
 
         (output_fname,) = self.output_fnames(name)
         output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")
