@@ -398,17 +398,22 @@ class BaseScheduler(abc.ABC):
             job_script = self.job_script(options, index=index)
             f.write(job_script)
 
+    def _multi_job_script_options(self, index: int) -> dict[str, Any]:
+        assert self._command_line_options is not None
+        assert isinstance(self.cores, list)
+        options = dict(self._command_line_options)  # copy
+        executor_type = self._get_executor_type(index=index)
+        options["--executor-type"] = executor_type
+        options["--n"] = self._get_cores(index=index)
+        if executor_type == "ipyparallel":
+            options["--n"] -= 1
+        return options
+
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
         if not self.single_job_script:
             assert index is not None
-            assert self._command_line_options is not None
-            assert isinstance(self.cores, list)
-            options = dict(self._command_line_options)  # copy
-            executor_type = self._get_executor_type(index=index)
-            options["--executor-type"] = executor_type
-            if executor_type == "ipyparallel":
-                options["--n"] = self.cores[index] - 1
+            options = self._multi_job_script_options(index)
             self.write_job_script(name, options, index=index)
 
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"

@@ -340,14 +340,7 @@ class SLURM(BaseScheduler):
         else:
             name_prefix = name
             assert index is not None
-            assert self._command_line_options is not None
-            assert isinstance(self.cores, list)
-            options = dict(self._command_line_options)  # copy
-            executor_type = self._get_executor_type(index=index)
-            options["--executor-type"] = executor_type
-            options["--n"] = self._get_cores(index=index)
-            if executor_type == "ipyparallel":
-                options["--n"] -= 1
+            options = self._multi_job_script_options(index)
             self.write_job_script(name_prefix, options, index=index)
 
         (output_fname,) = self.output_fnames(name)
