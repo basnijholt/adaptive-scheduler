@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from inspect import signature
+from itertools import chain
 from multiprocessing import Manager
 from pathlib import Path
 from typing import (
@@ -140,7 +141,7 @@ def split_in_balancing_learners(
         learners_part, fnames_part = zip(*x)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
-        new_fnames.append(fnames_part)
+        new_fnames.append(list(fnames_part))
     return new_learners, new_fnames
 
 
@@ -255,9 +256,8 @@ def combine_sequence_learners(
 
     """
     if big_learner is None:
-        big_sequence: list[Any] = sum(
-            (list(learner.sequence) for learner in learners),
-            [],
+        big_sequence: list[Any] = list(
+            chain.from_iterable(learner.sequence for learner in learners),
         )
         big_learner = adaptive.SequenceLearner(
             learners[0]._original_function,
