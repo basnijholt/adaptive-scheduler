@@ -60,7 +60,7 @@ def test_split_in_balancing_learners(
     )
     assert len(new_learners) == n_parts
     assert all(isinstance(lrn, adaptive.BalancingLearner) for lrn in new_learners)
-    assert new_fnames == [(fnames[0],), (fnames[1],)]
+    assert new_fnames == [[fnames[0]], [fnames[1]]]
 
 
 def test_split_sequence_learner() -> None:

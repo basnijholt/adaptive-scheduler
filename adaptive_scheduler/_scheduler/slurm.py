@@ -101,6 +101,7 @@ class SLURM(BaseScheduler):
     extra_script
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
+
     """
 
     # Attributes that all schedulers need to have
@@ -297,6 +298,7 @@ class SLURM(BaseScheduler):
         index
             The index of the job that is being run. This is used when
             specifying different resources for different jobs.
+
         """
         cores = self._get_cores(index=index)
         job_script = textwrap.dedent(

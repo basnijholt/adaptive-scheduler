@@ -84,7 +84,7 @@ class SimpleDatabase:
                     raw_data = json.load(f)
                     self._data = [_DBEntry(**entry) for entry in raw_data["data"]]
 
-    def all(self) -> list[_DBEntry]:  # noqa: A003
+    def all(self) -> list[_DBEntry]:
         return self._data
 
     def insert_multiple(self, entries: list[_DBEntry]) -> None:
@@ -152,6 +152,7 @@ class DatabaseManager(BaseManager):
     ----------
     failed : list
         A list of entries that have failed and have been removed from the database.
+
     """
 
     def __init__(
@@ -363,6 +364,7 @@ class DatabaseManager(BaseManager):
         Returns
         -------
         coroutine
+
         """
         log.debug("started database")
         socket = ctx.socket(zmq.REP)

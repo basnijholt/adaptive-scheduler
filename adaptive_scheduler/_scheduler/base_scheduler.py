@@ -59,6 +59,7 @@ class BaseScheduler(abc.ABC):
     Returns
     -------
     `BaseScheduler` object.
+
     """
 
     _ext: ClassVar[str]
@@ -113,6 +114,7 @@ class BaseScheduler(abc.ABC):
         -----
         This function might return extra information about the job, however
         this is not used elsewhere in this package.
+
         """
 
     def queue_df(self) -> pd.DataFrame:
@@ -141,6 +143,7 @@ class BaseScheduler(abc.ABC):
         index
             The index of the job that is being run. This is used when
             specifying different resources for different jobs.
+
         """
 
     @property
@@ -188,6 +191,7 @@ class BaseScheduler(abc.ABC):
             Display a progress bar using `tqdm`.
         max_tries
             Maximum number of attempts to cancel a job.
+
         """
 
         def cancel_jobs(job_ids: list[str]) -> None:

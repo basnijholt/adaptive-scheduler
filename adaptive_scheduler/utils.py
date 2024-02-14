@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from inspect import signature
+from itertools import chain
 from multiprocessing import Manager
 from pathlib import Path
 from typing import (
@@ -103,6 +104,7 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
         A list or other iterable that has to be split up.
     n_parts
         The sequence will be split up in this many parts.
+
     """
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
@@ -131,6 +133,7 @@ def split_in_balancing_learners(
     Returns
     -------
     new_learners, new_fnames
+
     """
     new_learners = []
     new_fnames = []
@@ -138,7 +141,7 @@ def split_in_balancing_learners(
         learners_part, fnames_part = zip(*x)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
-        new_fnames.append(fnames_part)
+        new_fnames.append(list(fnames_part))
     return new_learners, new_fnames
 
 
@@ -169,6 +172,7 @@ def split_sequence_learner(
         List of `~adaptive.SequenceLearner`\s.
     new_fnames
         List of str based on a hash of the sequence.
+
     """
     new_learners, new_fnames = split_sequence_in_sequence_learners(
         function=big_learner._original_function,
@@ -214,6 +218,7 @@ def split_sequence_in_sequence_learners(
         List of `~adaptive.SequenceLearner`\s.
     new_fnames
         List of str based on a hash of the sequence.
+
     """
     folder = Path(folder)
     new_learners = []
@@ -248,11 +253,11 @@ def combine_sequence_learners(
     -------
     adaptive.SequenceLearner
         Big `~adaptive.SequenceLearner` with data from ``learners``.
+
     """
     if big_learner is None:
-        big_sequence: list[Any] = sum(
-            (list(learner.sequence) for learner in learners),
-            [],
+        big_sequence: list[Any] = list(
+            chain.from_iterable(learner.sequence for learner in learners),
         )
         big_learner = adaptive.SequenceLearner(
             learners[0]._original_function,
@@ -282,6 +287,7 @@ def copy_from_sequence_learner(
         Learner to take the data from.
     learner_to
         Learner to tell the data to.
+
     """
     mapping = {
         hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()
@@ -420,6 +426,7 @@ def _remove_or_move_files(
         If None the file is removed.
     desc
         Description of the progressbar.
+
     """
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, desc or "Removing files"):
@@ -463,6 +470,7 @@ def load_parallel(
     max_workers
         The maximum number of parallel threads when loading the data.
         If ``None``, use the maximum number of threads that is possible.
+
     """
 
     def load(learner: adaptive.BaseLearner, fname: str) -> None:
@@ -492,6 +500,7 @@ def save_parallel(
         A list of filenames corresponding to `learners`.
     with_progress_bar
         Display a progress bar using `tqdm`.
+
     """
 
     def save(learner: adaptive.BaseLearner, fname: str) -> None:
@@ -562,6 +571,7 @@ def connect_to_ipyparallel(
     -------
     client
         An IPyparallel client.
+
     """
     from ipyparallel import Client
 
@@ -623,6 +633,7 @@ class LRUCachedCallable:
         Cache size of the LRU cache, by default 128.
     with_cloudpickle
         Use cloudpickle for storing the data in memory.
+
     """
 
     def __init__(
@@ -1015,6 +1026,7 @@ def smart_goal(
     Returns
     -------
     Callable[[adaptive.BaseLearner], bool]
+
     """
     if callable(goal):
         return goal
@@ -1083,6 +1095,7 @@ class WrappedFunction:
     >>> wrapped_function = WrappedFunction(square)
     >>> wrapped_function(4)
     16
+
     """
 
     def __init__(
@@ -1132,6 +1145,7 @@ class WrappedFunction:
         Any
             The result of calling the deserialized function with the provided
             arguments and keyword arguments.
+
         """
         global _GLOBAL_CACHE  # noqa: PLW0602
 
@@ -1258,6 +1272,7 @@ async def _track_file_creation_progress(
         The time interval (in seconds) at which to update the progress. The interval is dynamically
         adjusted to be at least 50 times the time it takes to update the progress. This ensures that
         updating the progress does not take up a significant amount of time.
+
     """
     # create total_files and add_total_progress before updating paths_dict
     total_files = sum(len(paths) for paths in paths_dict.values())
@@ -1348,6 +1363,7 @@ def track_file_creation_progress(
         "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
     }
     >>> task = track_file_creation_progress(paths_dict)
+
     """
     get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
     columns = (*Progress.get_default_columns(), TimeElapsedColumn())

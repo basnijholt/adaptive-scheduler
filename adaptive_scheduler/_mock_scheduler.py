@@ -53,6 +53,7 @@ class MockScheduler:
         ``bash`` executable.
     url
         The URL of the socket. Defaults to {DEFAULT_URL}.
+
     """
 
     def __init__(
