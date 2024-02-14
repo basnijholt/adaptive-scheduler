@@ -158,7 +158,7 @@ class PBS(BaseScheduler):
 
         return job_script.format(
             extra_scheduler=self.extra_scheduler(index=index),
-            extra_env_vars=self.extra_env_vars,
+            extra_env_vars=self.extra_env_vars(index=index),
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options, index=index),
             job_id_variable=self._JOB_ID_VARIABLE,

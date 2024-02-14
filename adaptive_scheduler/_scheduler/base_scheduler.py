@@ -75,7 +75,7 @@ class BaseScheduler(abc.ABC):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "process-pool",
+        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
@@ -149,6 +149,13 @@ class BaseScheduler(abc.ABC):
     @property
     def single_job_script(self) -> bool:
         return isinstance(self.cores, int)
+
+    def _get_executor_type(self, *, index: int | None = None) -> str:
+        return (
+            self.executor_type
+            if isinstance(self.executor_type, str)
+            else self.executor_type[index]  # type: ignore[index]
+        )
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
@@ -306,11 +313,12 @@ class BaseScheduler(abc.ABC):
         index: int | None = None,
     ) -> str:
         start = ""
-        if self.executor_type == "mpi4py":
+        executor_type = self._get_executor_type(index=index)
+        if executor_type == "mpi4py":
             opts = self._mpi4py(index=index)
-        elif self.executor_type == "dask-mpi":
+        elif executor_type == "dask-mpi":
             opts = self._dask_mpi(index=index)
-        elif self.executor_type == "ipyparallel":
+        elif executor_type == "ipyparallel":
             cores = self._get_cores(index=index)
             if cores <= 1:
                 msg = (
@@ -319,9 +327,9 @@ class BaseScheduler(abc.ABC):
                 )
                 raise ValueError(msg)
             start, opts = self._ipyparallel(index=index)
-        elif self.executor_type in ("process-pool", "loky"):
+        elif executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
-        elif self.executor_type == "sequential":
+        elif executor_type == "sequential":
             raise NotImplementedError
         else:
             msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
@@ -360,13 +368,12 @@ class BaseScheduler(abc.ABC):
         assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
-    @property
-    def extra_env_vars(self) -> str:
+    def extra_env_vars(self, *, index: int | None = None) -> str:
         """Environment variables that need to exist in the job script."""
         extra_env_vars = self._extra_env_vars or []
         extra_env_vars.extend(
             [
-                f"EXECUTOR_TYPE={self.executor_type}",
+                f"EXECUTOR_TYPE={self._get_executor_type(index=index)}",
                 f"MKL_NUM_THREADS={self.num_threads}",
                 f"OPENBLAS_NUM_THREADS={self.num_threads}",
                 f"OMP_NUM_THREADS={self.num_threads}",

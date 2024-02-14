@@ -58,10 +58,10 @@ def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler`` and
-    ``partition`` can be either a single value or a tuple of values.
-    If a tuple is given, then the length of the tuple should be the same
-    as the number of learners (jobs) that are run. This allows for
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``executor_type``, and ``partition`` can be either a single value or a tuple
+    of values. If a tuple is given, then the length of the tuple should be the
+    same as the number of learners (jobs) that are run. This allows for
     different resources for different jobs.
 
     Parameters
@@ -122,7 +122,7 @@ class SLURM(BaseScheduler):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "process-pool",
+        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
@@ -136,6 +136,7 @@ class SLURM(BaseScheduler):
         self._nodes = nodes
         self._cores_per_node = cores_per_node
         self._partition = partition
+        self._executor_type = executor_type
         self.__extra_scheduler = extra_scheduler
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
@@ -149,7 +150,14 @@ class SLURM(BaseScheduler):
             extra_scheduler = []
 
         # If any is a list, then all should be a list
-        n = _tuple_lengths(cores, nodes, cores_per_node, partition, extra_scheduler)
+        n = _tuple_lengths(
+            cores,
+            nodes,
+            cores_per_node,
+            partition,
+            executor_type,
+            extra_scheduler,
+        )
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n, check_type=int)
         self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
@@ -159,6 +167,7 @@ class SLURM(BaseScheduler):
             check_type=int,
         )
         self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         if cores_per_node is not None:
             if single_job_script:
@@ -226,6 +235,7 @@ class SLURM(BaseScheduler):
         state["nodes"] = self._nodes
         state["cores_per_node"] = self._cores_per_node
         state["partition"] = self._partition
+        state["executor_type"] = self._executor_type
         state["exclusive"] = self.exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         return state
@@ -318,7 +328,7 @@ class SLURM(BaseScheduler):
 
         return job_script.format(
             extra_scheduler=self.extra_scheduler(index=index),
-            extra_env_vars=self.extra_env_vars,
+            extra_env_vars=self.extra_env_vars(index=index),
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
@@ -333,7 +343,7 @@ class SLURM(BaseScheduler):
                 assert self._command_line_options is not None
                 options = dict(self._command_line_options)  # copy
                 options["--n"] = self._get_cores(index=index)
-                if self.executor_type == "ipyparallel":
+                if self._get_executor_type(index=index) == "ipyparallel":
                     options["--n"] -= 1
                 job_script = self.job_script(options, index=index)
                 f.write(job_script)
