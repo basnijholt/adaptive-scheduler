@@ -88,6 +88,7 @@ class LocalMockScheduler(BaseScheduler):
         Currently, there is a problem that this will not properly cleanup.
         for example `ipengine ... &` will be detached and go on,
         normally a scheduler will take care of this.
+
         """
         job_script = textwrap.dedent(
             """\

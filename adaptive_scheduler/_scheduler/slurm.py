@@ -298,6 +298,7 @@ class SLURM(BaseScheduler):
         index
             The index of the job that is being run. This is used when
             specifying different resources for different jobs.
+
         """
         cores = self._get_cores(index=index)
         job_script = textwrap.dedent(
