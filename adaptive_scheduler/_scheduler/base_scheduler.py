@@ -331,6 +331,7 @@ class BaseScheduler(abc.ABC):
         elif executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         elif executor_type == "sequential":
+            # TODO
             raise NotImplementedError
         else:
             msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
