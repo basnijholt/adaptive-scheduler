@@ -281,6 +281,7 @@ class BaseScheduler(abc.ABC):
 
             echo "Launching engines"
             {self.mpiexec_executable} \\
+                --exclusive \\
                 -n {cores-1} \\
                 ipengine \\
                 --profile={profile} \\
