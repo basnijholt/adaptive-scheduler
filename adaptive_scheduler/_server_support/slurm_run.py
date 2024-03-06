@@ -43,10 +43,10 @@ def slurm_run(
     """Run adaptive on a SLURM cluster.
 
     ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
-    ``exclusive``, ``extra_env_vars`` and ``partition`` can be either a single
-    value or a tuple of values. If a tuple is given, then the length of the
-    tuple should be the same as the number of learners (jobs) that are run. This
-    allows for different resources for different jobs.
+    ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
+    either a single value or a tuple of values. If a tuple is given, then the
+    length of the tuple should be the same as the number of learners (jobs) that
+    are run. This allows for different resources for different jobs.
 
     Parameters
     ----------
