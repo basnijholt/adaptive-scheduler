@@ -1,4 +1,5 @@
 """BaseScheduler for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import abc
@@ -78,7 +79,7 @@ class BaseScheduler(abc.ABC):
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | None = None,
+        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
     ) -> None:
@@ -358,10 +359,18 @@ class BaseScheduler(abc.ABC):
         assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
-    @property
-    def extra_env_vars(self) -> str:
+    def extra_env_vars(self, *, index: int | None = None) -> str:
         """Environment variables that need to exist in the job script."""
-        extra_env_vars = self._extra_env_vars or []
+        extra_env_vars: list[str]
+        if self._extra_env_vars is None:
+            extra_env_vars = []
+        elif self.single_job_script:
+            assert isinstance(self._extra_env_vars, list)
+            extra_env_vars = self._extra_env_vars
+        else:
+            assert index is not None
+            extra_env_vars = self._extra_env_vars[index]  # type: ignore[assignment]
+
         extra_env_vars.extend(
             [
                 f"EXECUTOR_TYPE={self.executor_type}",

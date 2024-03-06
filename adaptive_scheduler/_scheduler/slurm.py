@@ -1,4 +1,5 @@
 """SLURM for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import copy
@@ -58,11 +59,11 @@ def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler`` and
-    ``partition`` can be either a single value or a tuple of values.
-    If a tuple is given, then the length of the tuple should be the same
-    as the number of learners (jobs) that are run. This allows for
-    different resources for different jobs.
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``exclusive``, ``extra_env_vars`` and ``partition`` can be either a single
+    value or a tuple of values. If a tuple is given, then the length of the
+    tuple should be the same as the number of learners (jobs) that are run. This
+    allows for different resources for different jobs.
 
     Parameters
     ----------
@@ -118,25 +119,26 @@ class SLURM(BaseScheduler):
         nodes: int | tuple[int, ...] | None = None,
         cores_per_node: int | tuple[int, ...] | None = None,
         partition: str | tuple[str, ...] | None = None,
-        exclusive: bool = True,
+        exclusive: bool | tuple[bool, ...] = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | None = None,
+        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
-        self.exclusive = exclusive
         # Store the original values
+        self._exclusive = exclusive
         self._cores = cores
         self._nodes = nodes
         self._cores_per_node = cores_per_node
         self._partition = partition
         self.__extra_scheduler = extra_scheduler
+        self.__extra_env_vars = extra_env_vars
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
@@ -147,34 +149,43 @@ class SLURM(BaseScheduler):
 
         if extra_scheduler is None:
             extra_scheduler = []
+        if extra_env_vars is None:
+            extra_env_vars = []
 
-        # If any is a list, then all should be a list
-        n = _tuple_lengths(cores, nodes, cores_per_node, partition, extra_scheduler)
+        # If any is a tuple, then all should be a tuple
+        n = _tuple_lengths(
+            cores,
+            nodes,
+            cores_per_node,
+            partition,
+            exclusive,
+            extra_scheduler,
+            extra_env_vars,
+        )
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n, check_type=int)
         self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
-        self.cores_per_node = cores_per_node = _maybe_as_tuple(
-            cores_per_node,
-            n,
-            check_type=int,
-        )
+        self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
         self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
-        if cores_per_node is not None:
+        extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
+
+        if self.cores_per_node is not None:
             if single_job_script:
-                assert isinstance(cores_per_node, int)
+                assert isinstance(self.cores_per_node, int)
                 assert isinstance(nodes, int)
                 assert isinstance(extra_scheduler, list)
-                extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-                cores = cores_per_node * nodes
+                extra_scheduler.append(f"--ntasks-per-node={self.cores_per_node}")
+                cores = self.cores_per_node * nodes
             else:
-                assert isinstance(cores_per_node, tuple)
+                assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(nodes, tuple)
                 assert isinstance(extra_scheduler, tuple)
-                for lst, cpn in zip(extra_scheduler, cores_per_node):
+                for lst, cpn in zip(extra_scheduler, self.cores_per_node):
                     assert isinstance(lst, list)
                     lst.append(f"--ntasks-per-node={cpn}")
-                cores = tuple(cpn * n for cpn, n in zip(cores_per_node, nodes))
+                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes))
 
         if partition is not None:
             if single_job_script:
@@ -193,14 +204,17 @@ class SLURM(BaseScheduler):
                     assert isinstance(lst, list)
                     lst.append(f"--partition={p}")
 
-        if exclusive:
-            if single_job_script:
-                assert isinstance(extra_scheduler, list)
+        if single_job_script:
+            assert isinstance(extra_scheduler, list)
+            assert isinstance(exclusive, bool)
+            if self.exclusive:
                 extra_scheduler.append("--exclusive")
-            else:
-                assert isinstance(extra_scheduler, tuple)
-                for lst in extra_scheduler:
-                    assert isinstance(lst, list)
+        else:
+            assert isinstance(extra_scheduler, tuple)
+            assert isinstance(self.exclusive, tuple)
+            for _ex, lst in zip(self.exclusive, extra_scheduler):
+                assert isinstance(lst, list)
+                if _ex:
                     lst.append("--exclusive")
 
         assert cores is not None
@@ -211,7 +225,7 @@ class SLURM(BaseScheduler):
             mpiexec_executable=mpiexec_executable,
             executor_type=executor_type,
             num_threads=num_threads,
-            extra_scheduler=extra_scheduler,  # type: ignore[arg-type]
+            extra_scheduler=extra_scheduler,
             extra_env_vars=extra_env_vars,
             extra_script=extra_script,
             batch_folder=batch_folder,
@@ -226,8 +240,9 @@ class SLURM(BaseScheduler):
         state["nodes"] = self._nodes
         state["cores_per_node"] = self._cores_per_node
         state["partition"] = self._partition
-        state["exclusive"] = self.exclusive
+        state["exclusive"] = self._exclusive
         state["extra_scheduler"] = self.__extra_scheduler
+        state["extra_env_vars"] = self.__extra_env_vars
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
@@ -318,7 +333,7 @@ class SLURM(BaseScheduler):
 
         return job_script.format(
             extra_scheduler=self.extra_scheduler(index=index),
-            extra_env_vars=self.extra_env_vars,
+            extra_env_vars=self.extra_env_vars(index=index),
             extra_script=self.extra_script,
             executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
