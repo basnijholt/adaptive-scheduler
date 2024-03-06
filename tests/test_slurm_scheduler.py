@@ -327,3 +327,10 @@ def test_multiple_jobs() -> None:
     assert "export YOLO=1" in js
     js = s.job_script(options={}, index=1)
     assert "export YOLO=1" not in js
+
+    s = SLURM(cores=1, extra_script=("echo 'YOLO'", ""))
+    js = s.job_script(options={}, index=0)
+    print(js)
+    assert "echo 'YOLO'" in js
+    js = s.job_script(options={}, index=1)
+    assert "echo 'YOLO'" not in js

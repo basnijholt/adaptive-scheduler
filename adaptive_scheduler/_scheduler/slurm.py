@@ -112,7 +112,7 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(  # noqa: PLR0912, PLR0915
+    def __init__(  # noqa: PLR0912, PLR0915, C901
         self,
         *,
         cores: int | tuple[int, ...] | None = None,
@@ -127,7 +127,7 @@ class SLURM(BaseScheduler):
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
-        extra_script: str | None = None,
+        extra_script: str | tuple[str, ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
@@ -139,6 +139,7 @@ class SLURM(BaseScheduler):
         self._partition = partition
         self.__extra_scheduler = extra_scheduler
         self.__extra_env_vars = extra_env_vars
+        self.__extra_script = extra_script
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
@@ -151,6 +152,8 @@ class SLURM(BaseScheduler):
             extra_scheduler = []
         if extra_env_vars is None:
             extra_env_vars = []
+        if extra_script is None:
+            extra_script = ""
 
         # If any is a tuple, then all should be a tuple
         n = _tuple_lengths(
@@ -161,6 +164,7 @@ class SLURM(BaseScheduler):
             exclusive,
             extra_scheduler,
             extra_env_vars,
+            extra_script,
         )
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n, check_type=int)
@@ -170,6 +174,7 @@ class SLURM(BaseScheduler):
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
+        extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
 
         if self.cores_per_node is not None:
             if single_job_script:
@@ -243,6 +248,7 @@ class SLURM(BaseScheduler):
         state["exclusive"] = self._exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         state["extra_env_vars"] = self.__extra_env_vars
+        state["extra_script"] = self.__extra_script
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
@@ -334,7 +340,7 @@ class SLURM(BaseScheduler):
         return job_script.format(
             extra_scheduler=self.extra_scheduler(index=index),
             extra_env_vars=self.extra_env_vars(index=index),
-            extra_script=self.extra_script,
+            extra_script=self.extra_script(index=index),
             executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
 

@@ -80,7 +80,7 @@ class BaseScheduler(abc.ABC):
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
-        extra_script: str | None = None,
+        extra_script: str | tuple[str, ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
@@ -382,10 +382,15 @@ class BaseScheduler(abc.ABC):
         )
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    @property
-    def extra_script(self) -> str:
+    def extra_script(self, *, index: int | None = None) -> str:
         """Script that will be run before the main scheduler."""
-        return str(self._extra_script) or ""
+        assert self._extra_script is not None
+        if self.single_job_script:
+            assert isinstance(self._extra_script, str)
+            return self._extra_script
+        assert index is not None
+        assert isinstance(self._extra_script, tuple), self._extra_script
+        return self._extra_script[index]
 
     def write_job_script(
         self,
