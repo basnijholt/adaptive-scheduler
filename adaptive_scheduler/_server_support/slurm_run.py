@@ -33,7 +33,7 @@ def slurm_run(
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
-    exclusive: bool = True,
+    exclusive: bool | tuple[bool, ...] = True,
     executor_type: EXECUTOR_TYPES = "process-pool",
     extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
     extra_run_manager_kwargs: dict[str, Any] | None = None,
@@ -42,11 +42,11 @@ def slurm_run(
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``nodes``, ``cores_per_node``, and ``partition`` can be
-    either a single value or a tuple of values.
-    If a tuple is given, then the length of the tuple should be the same
-    as the number of learners (jobs) that are run. This allows for
-    different resources for different jobs.
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
+    either a single value or a tuple of values. If a tuple is given, then the
+    length of the tuple should be the same as the number of learners (jobs) that
+    are run. This allows for different resources for different jobs.
 
     Parameters
     ----------

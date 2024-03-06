@@ -1,4 +1,5 @@
 """BaseScheduler for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import abc
@@ -78,8 +79,8 @@ class BaseScheduler(abc.ABC):
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | None = None,
-        extra_script: str | None = None,
+        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
+        extra_script: str | tuple[str, ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
@@ -358,10 +359,18 @@ class BaseScheduler(abc.ABC):
         assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
-    @property
-    def extra_env_vars(self) -> str:
+    def extra_env_vars(self, *, index: int | None = None) -> str:
         """Environment variables that need to exist in the job script."""
-        extra_env_vars = self._extra_env_vars or []
+        extra_env_vars: list[str]
+        if self._extra_env_vars is None:
+            extra_env_vars = []
+        elif self.single_job_script:
+            assert isinstance(self._extra_env_vars, list)
+            extra_env_vars = self._extra_env_vars
+        else:
+            assert index is not None
+            extra_env_vars = self._extra_env_vars[index]  # type: ignore[assignment]
+
         extra_env_vars.extend(
             [
                 f"EXECUTOR_TYPE={self.executor_type}",
@@ -373,10 +382,15 @@ class BaseScheduler(abc.ABC):
         )
         return "\n".join(f"export {arg}" for arg in extra_env_vars)
 
-    @property
-    def extra_script(self) -> str:
+    def extra_script(self, *, index: int | None = None) -> str:
         """Script that will be run before the main scheduler."""
-        return str(self._extra_script) or ""
+        assert self._extra_script is not None
+        if self.single_job_script:
+            assert isinstance(self._extra_script, str)
+            return self._extra_script
+        assert index is not None
+        assert isinstance(self._extra_script, tuple), self._extra_script
+        return self._extra_script[index]
 
     def write_job_script(
         self,
