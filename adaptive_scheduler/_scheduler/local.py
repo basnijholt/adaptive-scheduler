@@ -103,9 +103,9 @@ class LocalMockScheduler(BaseScheduler):
         )
 
         return job_script.format(
-            extra_env_vars=self.extra_env_vars,
+            extra_env_vars=self.extra_env_vars(index=index),
             executor_specific=self._executor_specific("${NAME}", options, index=index),
-            extra_script=self.extra_script,
+            extra_script=self.extra_script(index=index),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
