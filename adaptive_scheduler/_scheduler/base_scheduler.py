@@ -153,11 +153,11 @@ class BaseScheduler(abc.ABC):
         return isinstance(self.cores, int)
 
     def _get_executor_type(self, *, index: int | None = None) -> str:
-        return (
-            self.executor_type
-            if isinstance(self.executor_type, str)
-            else self.executor_type[index]  # type: ignore[index]
-        )
+        if self.single_job_script:
+            assert isinstance(self.executor_type, str)
+            return self.executor_type
+        assert index is not None
+        return self.executor_type[index]
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
@@ -307,6 +307,9 @@ class BaseScheduler(abc.ABC):
     def _process_pool(self) -> tuple[str, ...]:
         return (f"{self.python_executable} {self.launcher}",)
 
+    def _sequential_executor(self) -> tuple[str, ...]:
+        return (f"{self.python_executable} {self.launcher}",)
+
     def _executor_specific(
         self,
         name: str,
@@ -332,8 +335,7 @@ class BaseScheduler(abc.ABC):
         elif executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
         elif executor_type == "sequential":
-            # TODO
-            raise NotImplementedError
+            opts = self._sequential_executor()
         else:
             msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
             raise NotImplementedError(msg)
