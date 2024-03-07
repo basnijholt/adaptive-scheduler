@@ -59,7 +59,7 @@ def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``, ``executor_type``,
     ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
     either a single value or a tuple of values. If a tuple is given, then the
     length of the tuple should be the same as the number of learners (jobs) that
@@ -86,9 +86,9 @@ class SLURM(BaseScheduler):
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
     executor_type
-        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
-        ``"loky"``, or ``"process-pool"``.
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
     num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
@@ -123,7 +123,7 @@ class SLURM(BaseScheduler):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "process-pool",
+        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
@@ -137,6 +137,7 @@ class SLURM(BaseScheduler):
         self._nodes = nodes
         self._cores_per_node = cores_per_node
         self._partition = partition
+        self._executor_type = executor_type
         self.__extra_scheduler = extra_scheduler
         self.__extra_env_vars = extra_env_vars
         self.__extra_script = extra_script
@@ -161,6 +162,7 @@ class SLURM(BaseScheduler):
             nodes,
             cores_per_node,
             partition,
+            executor_type,
             exclusive,
             extra_scheduler,
             extra_env_vars,
@@ -171,6 +173,7 @@ class SLURM(BaseScheduler):
         self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
         self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
         self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
@@ -245,6 +248,7 @@ class SLURM(BaseScheduler):
         state["nodes"] = self._nodes
         state["cores_per_node"] = self._cores_per_node
         state["partition"] = self._partition
+        state["executor_type"] = self._executor_type
         state["exclusive"] = self._exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         state["extra_env_vars"] = self.__extra_env_vars
@@ -350,14 +354,9 @@ class SLURM(BaseScheduler):
             name_prefix = name.rsplit("-", 1)[0]
         else:
             name_prefix = name
-            with self.batch_fname(name_prefix).open("w", encoding="utf-8") as f:
-                assert self._command_line_options is not None
-                options = dict(self._command_line_options)  # copy
-                options["--n"] = self._get_cores(index=index)
-                if self.executor_type == "ipyparallel":
-                    options["--n"] -= 1
-                job_script = self.job_script(options, index=index)
-                f.write(job_script)
+            assert index is not None
+            options = self._multi_job_script_options(index)
+            self.write_job_script(name_prefix, options, index=index)
 
         (output_fname,) = self.output_fnames(name)
         output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")

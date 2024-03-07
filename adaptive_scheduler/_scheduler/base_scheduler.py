@@ -39,9 +39,9 @@ class BaseScheduler(abc.ABC):
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
     executor_type
-        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
-        ``"loky"``, or ``"process-pool"``.
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
     num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
@@ -76,7 +76,7 @@ class BaseScheduler(abc.ABC):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "process-pool",
+        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
         num_threads: int = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
@@ -94,6 +94,7 @@ class BaseScheduler(abc.ABC):
         self._extra_scheduler = extra_scheduler
         self._extra_env_vars = extra_env_vars
         self._extra_script = extra_script if extra_script is not None else ""
+        # This attribute is set in JobManager._setup ATM (hacky)
         self._command_line_options: dict[str, Any] | None = None
 
     @abc.abstractmethod
@@ -150,6 +151,13 @@ class BaseScheduler(abc.ABC):
     @property
     def single_job_script(self) -> bool:
         return isinstance(self.cores, int)
+
+    def _get_executor_type(self, *, index: int | None = None) -> str:
+        if self.single_job_script:
+            assert isinstance(self.executor_type, str)
+            return self.executor_type
+        assert index is not None
+        return self.executor_type[index]
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
@@ -299,6 +307,9 @@ class BaseScheduler(abc.ABC):
     def _process_pool(self) -> tuple[str, ...]:
         return (f"{self.python_executable} {self.launcher}",)
 
+    def _sequential_executor(self) -> tuple[str, ...]:
+        return (f"{self.python_executable} {self.launcher}",)
+
     def _executor_specific(
         self,
         name: str,
@@ -307,11 +318,12 @@ class BaseScheduler(abc.ABC):
         index: int | None = None,
     ) -> str:
         start = ""
-        if self.executor_type == "mpi4py":
+        executor_type = self._get_executor_type(index=index)
+        if executor_type == "mpi4py":
             opts = self._mpi4py(index=index)
-        elif self.executor_type == "dask-mpi":
+        elif executor_type == "dask-mpi":
             opts = self._dask_mpi(index=index)
-        elif self.executor_type == "ipyparallel":
+        elif executor_type == "ipyparallel":
             cores = self._get_cores(index=index)
             if cores <= 1:
                 msg = (
@@ -320,10 +332,12 @@ class BaseScheduler(abc.ABC):
                 )
                 raise ValueError(msg)
             start, opts = self._ipyparallel(index=index)
-        elif self.executor_type in ("process-pool", "loky"):
+        elif executor_type in ("process-pool", "loky"):
             opts = self._process_pool()
+        elif executor_type == "sequential":
+            opts = self._sequential_executor()
         else:
-            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky' or 'process-pool'."
+            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
             raise NotImplementedError(msg)
         return start + self._expand_options(opts, name, options)
 
@@ -373,7 +387,7 @@ class BaseScheduler(abc.ABC):
 
         extra_env_vars.extend(
             [
-                f"EXECUTOR_TYPE={self.executor_type}",
+                f"EXECUTOR_TYPE={self._get_executor_type(index=index)}",
                 f"MKL_NUM_THREADS={self.num_threads}",
                 f"OPENBLAS_NUM_THREADS={self.num_threads}",
                 f"OMP_NUM_THREADS={self.num_threads}",
@@ -403,15 +417,22 @@ class BaseScheduler(abc.ABC):
             job_script = self.job_script(options, index=index)
             f.write(job_script)
 
+    def _multi_job_script_options(self, index: int) -> dict[str, Any]:
+        assert self._command_line_options is not None
+        assert isinstance(self.cores, tuple)
+        options = dict(self._command_line_options)  # copy
+        executor_type = self._get_executor_type(index=index)
+        options["--executor-type"] = executor_type
+        options["--n"] = self._get_cores(index=index)
+        if executor_type == "ipyparallel":
+            options["--n"] -= 1
+        return options
+
     def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
         if not self.single_job_script:
             assert index is not None
-            assert self._command_line_options is not None
-            assert isinstance(self.cores, list)
-            options = dict(self._command_line_options)  # copy
-            if self.executor_type == "ipyparallel":
-                options["--n"] = self.cores[index] - 1
+            options = self._multi_job_script_options(index)
             self.write_job_script(name, options, index=index)
 
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"

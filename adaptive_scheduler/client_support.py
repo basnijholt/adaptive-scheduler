@@ -1,8 +1,11 @@
 """Client support for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import datetime
+import json
 import logging
+import os
 import socket
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Callable
@@ -21,10 +24,17 @@ from adaptive_scheduler.utils import (
 )
 
 if TYPE_CHECKING:
+    import argparse
     import asyncio
     from pathlib import Path
 
     from adaptive import AsyncRunner, BaseLearner
+
+
+def _dumps(event_dict: dict[str, Any], **kwargs: Any) -> str:
+    """Custom json.dumps to ensure 'event' key is always first in the JSON output."""
+    event = event_dict.pop("event", None)
+    return json.dumps({"event": event, **event_dict}, **kwargs)
 
 
 ctx = zmq.Context()
@@ -36,12 +46,13 @@ log = structlog.wrap_logger(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
-        structlog.processors.JSONRenderer(),
+        structlog.processors.JSONRenderer(serializer=_dumps),
     ],
 )
 
 
-def _add_log_file_handler(log_fname: str | Path) -> None:  # pragma: no cover
+def add_log_file_handler(log_fname: str | Path) -> None:  # pragma: no cover
+    """Add a file handler to the logger."""
     fh = logging.FileHandler(log_fname)
     logger.addHandler(fh)
 
@@ -79,7 +90,6 @@ def get_learner(
         A function that runs before the process is forked.
 
     """
-    _add_log_file_handler(log_fname)
     log.info(
         "trying to get learner",
         job_id=job_id,
@@ -192,3 +202,13 @@ def log_info(runner: AsyncRunner, interval: float = 300) -> asyncio.Task:
         log.info("current status", **_get_log_entry(runner, npoints_start))
 
     return runner.ioloop.create_task(coro(runner, interval))
+
+
+def args_to_env(args: argparse.Namespace, prefix: str = "ADAPTIVE_SCHEDULER_") -> None:
+    """Convert parsed arguments to environment variables."""
+    env_vars = {}
+    for arg, value in vars(args).items():
+        if value is not None:
+            env_vars[f"{prefix}{arg.upper()}"] = str(value)
+    os.environ.update(env_vars)
+    log.info("set environment variables", **env_vars)

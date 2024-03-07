@@ -34,7 +34,7 @@ def slurm_run(
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool | tuple[bool, ...] = True,
-    executor_type: EXECUTOR_TYPES = "process-pool",
+    executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
     extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
@@ -42,7 +42,7 @@ def slurm_run(
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``, ``executor_type``,
     ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
     either a single value or a tuple of values. If a tuple is given, then the
     length of the tuple should be the same as the number of learners (jobs) that
@@ -90,8 +90,9 @@ def slurm_run(
     max_simultaneous_jobs
         The maximum number of simultaneous jobs.
     executor_type
-        The type of executor to use. One of "ipyparallel", "dask-mpi", "mpi4py",
-        "loky", or "process-pool".
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
+        One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
     exclusive
         Whether to use exclusive nodes, adds ``"--exclusive"`` if True.
     extra_scheduler

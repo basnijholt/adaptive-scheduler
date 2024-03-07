@@ -69,7 +69,14 @@ LOKY_START_METHODS = Literal[
     "forkserver",
 ]
 
-EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool", "loky"]
+EXECUTOR_TYPES = Literal[
+    "mpi4py",
+    "ipyparallel",
+    "dask-mpi",
+    "process-pool",
+    "loky",
+    "sequential",
+]
 GoalTypes = Union[
     Callable[[adaptive.BaseLearner], bool],
     int,

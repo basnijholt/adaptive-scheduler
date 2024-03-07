@@ -359,8 +359,9 @@ class RunManager(BaseManager):
             fname_cloudpickle = fname_to_learner_fname(fname)
             with suppress(FileNotFoundError):
                 fname_cloudpickle.unlink()
-
-        _delete_old_ipython_profiles(self.scheduler)
+        if "ipyparallel" in self.scheduler.executor_type:
+            # executor_type is a tuple or string
+            _delete_old_ipython_profiles(self.scheduler)
 
         cleanup_scheduler_files(
             job_names=self.job_names,

@@ -334,3 +334,26 @@ def test_multiple_jobs() -> None:
     assert "echo 'YOLO'" in js
     js = s.job_script(options={}, index=1)
     assert "echo 'YOLO'" not in js
+
+
+def test_multi_job_script_options() -> None:
+    """Test the SLURM.job_script method."""
+    s = SLURM(cores=2, executor_type=("ipyparallel", "sequential"))
+    assert not s.single_job_script
+    s._command_line_options = {"--n": 2}
+
+    # Test ipyparallel
+    with patch("adaptive_scheduler._scheduler.slurm.run_submit") as mock_submit:
+        s.start_job("testjob", index=0)
+        mock_submit.assert_called_once()
+        args, _ = mock_submit.call_args
+        assert args[0].startswith("sbatch")
+    assert "--executor-type ipyparallel" in s.batch_fname("testjob").read_text()
+
+    # Test sequential
+    with patch("adaptive_scheduler._scheduler.slurm.run_submit") as mock_submit:
+        s.start_job("testjob", index=1)
+        mock_submit.assert_called_once()
+        args, _ = mock_submit.call_args
+        assert args[0].startswith("sbatch")
+    assert "--executor-type sequential" in s.batch_fname("testjob").read_text()
