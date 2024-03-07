@@ -110,21 +110,12 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _args_to_env(args: argparse.Namespace) -> None:
-    """Convert parsed arguments to environment variables."""
-    env_vars = {}
-    for arg, value in vars(args).items():
-        if value is not None:
-            env_vars[arg.upper()] = str(value)
-    os.environ.update(env_vars)
-    client_support.log.info("set environment variables", **env_vars)
-
-
 def main() -> None:
     """The main function that is called by the launcher script."""
     args = _parse_args()
+    client_support.add_log_file_handler(args.log_fname)
     client_support.log.info("parsed args", **vars(args))
-    _args_to_env(args)
+    client_support.args_to_env(args)
 
     # ask the server for a fname and learner
     learner, fname, initializer = client_support.get_learner(
