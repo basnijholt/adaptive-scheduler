@@ -139,6 +139,15 @@ def slurm_run(
             if isinstance(partition, tuple)
             else partitions[partition]
         )
+
+    if extra_scheduler_kwargs is None:
+        extra_scheduler_kwargs = {}
+    if extra_scheduler is not None:
+        # "extra_scheduler" used to be passed via the extra_scheduler_kwargs
+        # this ensures backwards compatibility
+        assert "extra_scheduler" not in extra_scheduler_kwargs
+        extra_scheduler_kwargs["extra_scheduler"] = extra_scheduler
+
     slurm_kwargs = dict(
         _get_default_args(SLURM),
         nodes=nodes,
@@ -149,8 +158,7 @@ def slurm_run(
         executor_type=executor_type,
         num_threads=num_threads,
         exclusive=exclusive,
-        extra_scheduler=extra_scheduler,
-        **(extra_scheduler_kwargs or {}),
+        **extra_scheduler_kwargs,
     )
     scheduler = SLURM(**slurm_kwargs)
     # Below are the defaults for the RunManager
