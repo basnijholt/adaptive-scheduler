@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from adaptive import AsyncRunner, BaseLearner
 
 
-def dumps(event_dict: dict[str, Any], **kwargs: Any) -> str:
+def _dumps(event_dict: dict[str, Any], **kwargs: Any) -> str:
     """Custom json.dumps to ensure 'event' key is always first in the JSON output."""
     event = event_dict.pop("event", None)
     return json.dumps({"event": event, **event_dict}, **kwargs)
@@ -46,7 +46,7 @@ log = structlog.wrap_logger(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
-        structlog.processors.JSONRenderer(serializer=dumps),
+        structlog.processors.JSONRenderer(serializer=_dumps),
     ],
 )
 
