@@ -33,7 +33,7 @@ def slurm_run(
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
-    exclusive: bool = True,
+    exclusive: bool | tuple[bool, ...] = True,
     executor_type: EXECUTOR_TYPES = "process-pool",
     extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
     extra_run_manager_kwargs: dict[str, Any] | None = None,
@@ -42,11 +42,11 @@ def slurm_run(
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``nodes``, ``cores_per_node``, and ``partition`` can be
-    either a single value or a tuple of values.
-    If a tuple is given, then the length of the tuple should be the same
-    as the number of learners (jobs) that are run. This allows for
-    different resources for different jobs.
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
+    either a single value or a tuple of values. If a tuple is given, then the
+    length of the tuple should be the same as the number of learners (jobs) that
+    are run. This allows for different resources for different jobs.
 
     Parameters
     ----------
@@ -139,6 +139,15 @@ def slurm_run(
             if isinstance(partition, tuple)
             else partitions[partition]
         )
+
+    if extra_scheduler_kwargs is None:
+        extra_scheduler_kwargs = {}
+    if extra_scheduler is not None:
+        # "extra_scheduler" used to be passed via the extra_scheduler_kwargs
+        # this ensures backwards compatibility
+        assert "extra_scheduler" not in extra_scheduler_kwargs
+        extra_scheduler_kwargs["extra_scheduler"] = extra_scheduler
+
     slurm_kwargs = dict(
         _get_default_args(SLURM),
         nodes=nodes,
@@ -149,8 +158,7 @@ def slurm_run(
         executor_type=executor_type,
         num_threads=num_threads,
         exclusive=exclusive,
-        extra_scheduler=extra_scheduler,
-        **(extra_scheduler_kwargs or {}),
+        **extra_scheduler_kwargs,
     )
     scheduler = SLURM(**slurm_kwargs)
     # Below are the defaults for the RunManager

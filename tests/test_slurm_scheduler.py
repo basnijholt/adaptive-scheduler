@@ -310,3 +310,27 @@ def test_multiple_jobs() -> None:
 
     with pytest.raises(ValueError, match="All tuples should have the same length."):
         SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
+
+    s = SLURM(cores=1, exclusive=(True, False))
+    js = s.job_script(options={}, index=0)
+    opt = "#SBATCH --exclusive"
+    assert opt in js
+    js = s.job_script(options={}, index=1)
+    assert opt not in js
+
+    s = SLURM(cores=1, exclusive=True)
+    js = s.job_script(options={})
+    assert opt in js
+
+    s = SLURM(cores=1, extra_env_vars=(["YOLO=1"], []))
+    js = s.job_script(options={}, index=0)
+    assert "export YOLO=1" in js
+    js = s.job_script(options={}, index=1)
+    assert "export YOLO=1" not in js
+
+    s = SLURM(cores=1, extra_script=("echo 'YOLO'", ""))
+    js = s.job_script(options={}, index=0)
+    print(js)
+    assert "echo 'YOLO'" in js
+    js = s.job_script(options={}, index=1)
+    assert "echo 'YOLO'" not in js
