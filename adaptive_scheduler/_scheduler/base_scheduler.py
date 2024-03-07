@@ -419,7 +419,7 @@ class BaseScheduler(abc.ABC):
 
     def _multi_job_script_options(self, index: int) -> dict[str, Any]:
         assert self._command_line_options is not None
-        assert isinstance(self.cores, list)
+        assert isinstance(self.cores, tuple)
         options = dict(self._command_line_options)  # copy
         executor_type = self._get_executor_type(index=index)
         options["--executor-type"] = executor_type
