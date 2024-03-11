@@ -173,12 +173,12 @@ class JobManager(BaseManager):
         # Command line launcher options
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
+        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
         loky_start_method: LOKY_START_METHODS = "loky",
         log_interval: float = 60,
         save_interval: float = 300,
         runner_kwargs: dict[str, Any] | None = None,
         goal: GoalTypes | None = None,
-        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
