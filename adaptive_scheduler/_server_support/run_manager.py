@@ -280,12 +280,12 @@ class RunManager(BaseManager):
             # Launcher command line options
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
+            periodic_callable=self.periodic_callable,
             loky_start_method=self.loky_start_method,
             log_interval=self.log_interval,
             save_interval=self.save_interval,
             runner_kwargs=self.runner_kwargs,
             goal=self.goal,
-            periodic_callable=self.periodic_callable,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None
