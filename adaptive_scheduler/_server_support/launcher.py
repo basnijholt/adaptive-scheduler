@@ -156,6 +156,10 @@ def main() -> None:
         save_method = save_dataframe(fname, format=args.dataframe_format)
         runner.start_periodic_saving(interval=args.save_interval, method=save_method)
 
+    if args.periodic_callable:
+        save_interval, periodic_callable = args.periodic_callable
+        runner.start_periodic_saving(interval=save_interval, method=periodic_callable)
+
     # log progress info in the job output script, optional
     _log_task = client_support.log_info(runner, interval=args.log_interval)
 
@@ -167,6 +171,10 @@ def main() -> None:
 
     if args.save_dataframe:
         save_method(learner)
+
+    if args.periodic_callable:
+        save_interval, periodic_callable = args.periodic_callable
+        periodic_callable(learner)
 
     # log once more after the runner is done
     client_support.log_now(runner, npoints_start)

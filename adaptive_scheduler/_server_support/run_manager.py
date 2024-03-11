@@ -36,7 +36,10 @@ from .kill_manager import KillManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
+    from typing import Callable
+
     import adaptive
+    from adaptive.learner.base_learner import LearnerType
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
@@ -107,6 +110,13 @@ class RunManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
+    max_fails_per_job
+        The maximum number of times a job can fail before it is not restarted.
+    max_simultaneous_jobs
+        The maximum number of jobs that can run simultaneously.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner as its only argument.
 
     Attributes
     ----------
@@ -152,7 +162,7 @@ class RunManager(BaseManager):
 
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
@@ -181,6 +191,7 @@ class RunManager(BaseManager):
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
         initializers: list[Callable[[], None]] | None = None,
+        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
     ) -> None:
         super().__init__()
 
@@ -207,6 +218,7 @@ class RunManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.initializers = initializers
+        self.periodic_callable = periodic_callable
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
@@ -224,10 +236,13 @@ class RunManager(BaseManager):
         # Set in methods
         self.start_time: float | None = None
         self.end_time: float | None = None
-        self._start_one_by_one_task: tuple[
-            asyncio.Future,
-            list[asyncio.Task],
-        ] | None = None
+        self._start_one_by_one_task: (
+            tuple[
+                asyncio.Future,
+                list[asyncio.Task],
+            ]
+            | None
+        ) = None
 
         # Set on init
         self.learners = learners
@@ -270,6 +285,7 @@ class RunManager(BaseManager):
             save_interval=self.save_interval,
             runner_kwargs=self.runner_kwargs,
             goal=self.goal,
+            periodic_callable=self.periodic_callable,
             **self.job_manager_kwargs,
         )
         self.kill_manager: KillManager | None
