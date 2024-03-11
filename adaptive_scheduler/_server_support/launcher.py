@@ -175,7 +175,7 @@ def main() -> None:
         save_method(learner)
 
     if periodic_callable:
-        _callable, save_interval = periodic_callable
+        _callable, _ = periodic_callable
         _callable(learner)
 
     # log once more after the runner is done
