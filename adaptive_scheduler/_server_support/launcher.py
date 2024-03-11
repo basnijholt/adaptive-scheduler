@@ -159,7 +159,7 @@ def main() -> None:
         runner.start_periodic_saving(interval=args.save_interval, method=save_method)
 
     if periodic_callable:
-        save_interval, _callable = periodic_callable
+        _callable, save_interval = periodic_callable
         runner.start_periodic_saving(interval=save_interval, method=_callable)
 
     # log progress info in the job output script, optional
@@ -175,7 +175,7 @@ def main() -> None:
         save_method(learner)
 
     if periodic_callable:
-        save_interval, _callable = periodic_callable
+        _callable, save_interval = periodic_callable
         _callable(learner)
 
     # log once more after the runner is done
