@@ -35,8 +35,8 @@ def command_line_options(
     save_interval: float = 300,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
-    loky_start_method: LOKY_START_METHODS = "loky",
     periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
+    loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
     """Return the command line options for the job_script.
 
@@ -63,11 +63,11 @@ def command_line_options(
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
-    loky_start_method
-        Loky start method, by default "loky".
     periodic_callable
         A tuple of a callable and an interval in seconds. The callable will be called
         every `interval` seconds and takes the learner as its only argument.
+    loky_start_method
+        Loky start method, by default "loky".
 
     Returns
     -------
@@ -135,6 +135,9 @@ class JobManager(BaseManager):
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner as its only argument.
     loky_start_method
         Loky start method, by default "loky".
     log_interval
@@ -150,9 +153,6 @@ class JobManager(BaseManager):
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
-    periodic_callable
-        A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
 
     Attributes
     ----------
@@ -223,9 +223,9 @@ class JobManager(BaseManager):
             save_interval=self.save_interval,
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
+            periodic_callable=self.periodic_callable,
             goal=self.goal,
             loky_start_method=self.loky_start_method,
-            periodic_callable=self.periodic_callable,
         )
         # hack to get the options in the job_script  # noqa: FIX004
         self.scheduler._command_line_options = options

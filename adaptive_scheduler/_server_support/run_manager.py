@@ -187,11 +187,11 @@ class RunManager(BaseManager):
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
+        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
         initializers: list[Callable[[], None]] | None = None,
-        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
     ) -> None:
         super().__init__()
 
@@ -214,11 +214,11 @@ class RunManager(BaseManager):
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
+        self.periodic_callable = periodic_callable
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.initializers = initializers
-        self.periodic_callable = periodic_callable
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
