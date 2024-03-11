@@ -143,6 +143,7 @@ def main() -> None:
     )
 
     runner_kwargs = _deserialize_from_b64(args.serialized_runner_kwargs)
+    periodic_callable = _deserialize_from_b64(args.serialized_periodic_callable)
 
     runner_kwargs.setdefault("shutdown_executor", True)
     runner = adaptive.Runner(learner, executor=executor, **runner_kwargs)
@@ -156,9 +157,9 @@ def main() -> None:
         save_method = save_dataframe(fname, format=args.dataframe_format)
         runner.start_periodic_saving(interval=args.save_interval, method=save_method)
 
-    if args.periodic_callable:
-        save_interval, periodic_callable = args.periodic_callable
-        runner.start_periodic_saving(interval=save_interval, method=periodic_callable)
+    if periodic_callable:
+        save_interval, _callable = periodic_callable
+        runner.start_periodic_saving(interval=save_interval, method=_callable)
 
     # log progress info in the job output script, optional
     _log_task = client_support.log_info(runner, interval=args.log_interval)
@@ -172,9 +173,9 @@ def main() -> None:
     if args.save_dataframe:
         save_method(learner)
 
-    if args.periodic_callable:
-        save_interval, periodic_callable = args.periodic_callable
-        periodic_callable(learner)
+    if periodic_callable:
+        save_interval, _callable = periodic_callable
+        _callable(learner)
 
     # log once more after the runner is done
     client_support.log_now(runner, npoints_start)
