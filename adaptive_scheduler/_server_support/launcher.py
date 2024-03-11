@@ -107,6 +107,7 @@ def _parse_args() -> argparse.Namespace:
         default=120,
     )
     parser.add_argument("--serialized-runner-kwargs", action="store", type=str)
+    parser.add_argument("--serialized-periodic-callable", action="store", type=str)
     return parser.parse_args()
 
 

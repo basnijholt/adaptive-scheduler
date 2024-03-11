@@ -108,15 +108,15 @@ class RunManager(BaseManager):
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner as its only argument.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
     max_fails_per_job
         The maximum number of times a job can fail before it is not restarted.
     max_simultaneous_jobs
         The maximum number of jobs that can run simultaneously.
-    periodic_callable
-        A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
 
     Attributes
     ----------
