@@ -1,4 +1,5 @@
 """Tests for the SLURM scheduler."""
+
 from __future__ import annotations
 
 import textwrap

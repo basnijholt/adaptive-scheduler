@@ -1,4 +1,5 @@
 """Test module for JobManager."""
+
 from __future__ import annotations
 
 import asyncio
