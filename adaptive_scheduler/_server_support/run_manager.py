@@ -36,8 +36,6 @@ from .kill_manager import KillManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
-    from typing import Callable
-
     import adaptive
     from adaptive.learner.base_learner import LearnerType
 
@@ -110,7 +108,7 @@ class RunManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     periodic_callable
         A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
+        every `interval` seconds and takes the learner name and learner as arguments.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
     max_fails_per_job
@@ -187,7 +185,7 @@ class RunManager(BaseManager):
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
-        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
+        periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
@@ -317,7 +315,8 @@ class RunManager(BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    def start(self, wait_for: RunManager | None = None) -> RunManager:  # type: ignore[override]
+    # type: ignore[override]
+    def start(self, wait_for: RunManager | None = None) -> RunManager:
         """Start the RunManager and optionally wait for another RunManager to finish."""
         if wait_for is not None:
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
@@ -483,12 +482,13 @@ class RunManager(BaseManager):
     def info(self) -> None:
         return info(self)
 
-    def load_dataframes(self) -> pd.DataFrame:
+    def load_dataframes(self) -> pd.DataFrame | list[pd.DataFrame]:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
-        return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
+        # type: ignore[return-value]
+        return load_dataframes(self.fnames, format=self.dataframe_format)
 
 
 async def _wait_for_finished(

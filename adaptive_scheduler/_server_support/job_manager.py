@@ -35,7 +35,7 @@ def command_line_options(
     save_interval: float = 300,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
-    periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
+    periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
     loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
     """Return the command line options for the job_script.
@@ -65,7 +65,7 @@ def command_line_options(
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     periodic_callable
         A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
+        every `interval` seconds and takes the learner name and learner as arguments.
     loky_start_method
         Loky start method, by default "loky".
 
@@ -137,7 +137,7 @@ class JobManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     periodic_callable
         A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
+        every `interval` seconds and takes the learner name and learner as arguments.
     loky_start_method
         Loky start method, by default "loky".
     log_interval
@@ -173,7 +173,7 @@ class JobManager(BaseManager):
         # Command line launcher options
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
-        periodic_callable: tuple[Callable[[LearnerType], None], int] | None = None,
+        periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
         loky_start_method: LOKY_START_METHODS = "loky",
         log_interval: float = 60,
         save_interval: float = 300,
@@ -261,7 +261,8 @@ class JobManager(BaseManager):
             queued.add(job_name)
             index, fname = self.database_manager._choose_fname(job_name)
             log.debug(
-                f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
+                f"Starting `job_name={job_name}` with `index={
+                    index}` and `fname={fname}`",
             )
             await loop.run_in_executor(
                 ex,

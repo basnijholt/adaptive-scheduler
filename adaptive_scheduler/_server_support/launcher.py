@@ -10,6 +10,7 @@ if os.environ.get("EXECUTOR_TYPE") == "dask-mpi":
 import argparse
 import os
 from contextlib import suppress
+from functools import partial
 from typing import TYPE_CHECKING, Any, get_args
 
 import adaptive
@@ -160,7 +161,10 @@ def main() -> None:
 
     if periodic_callable:
         _callable, save_interval = periodic_callable
-        runner.start_periodic_saving(interval=save_interval, method=_callable)
+        runner.start_periodic_saving(
+            interval=save_interval,
+            method=partial(_callable, fname),
+        )
 
     # log progress info in the job output script, optional
     _log_task = client_support.log_info(runner, interval=args.log_interval)
@@ -176,7 +180,7 @@ def main() -> None:
 
     if periodic_callable:
         _callable, _ = periodic_callable
-        _callable(learner)
+        _callable(fname, learner)
 
     # log once more after the runner is done
     client_support.log_now(runner, npoints_start)

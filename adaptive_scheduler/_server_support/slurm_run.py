@@ -11,6 +11,7 @@ from .run_manager import RunManager
 
 if TYPE_CHECKING:
     import adaptive
+    from adaptive.learner.base_learner import LearnerType
 
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes
 
@@ -31,7 +32,7 @@ def slurm_run(
     cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
-    periodic_callable: tuple[Callable[[], None], float] | None = None,
+    periodic_callable: tuple[Callable[[str, LearnerType], None], float] | None = None,
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
     exclusive: bool | tuple[bool, ...] = True,
@@ -88,7 +89,7 @@ def slurm_run(
         `adaptive_scheduler.utils.save_dataframes` for more information.
     periodic_callable
         A tuple of a callable and an interval in seconds. The callable will be called
-        every `interval` seconds and takes the learner as its only argument.
+        every `interval` seconds and takes the learner name and learner as arguments.
     max_fails_per_job
         The maximum number of times a job can fail before it is cancelled.
     max_simultaneous_jobs
