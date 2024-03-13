@@ -224,10 +224,13 @@ class RunManager(BaseManager):
         # Set in methods
         self.start_time: float | None = None
         self.end_time: float | None = None
-        self._start_one_by_one_task: tuple[
-            asyncio.Future,
-            list[asyncio.Task],
-        ] | None = None
+        self._start_one_by_one_task: (
+            tuple[
+                asyncio.Future,
+                list[asyncio.Task],
+            ]
+            | None
+        ) = None
 
         # Set on init
         self.learners = learners

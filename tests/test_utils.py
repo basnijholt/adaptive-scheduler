@@ -1,4 +1,5 @@
 """Tests for `adaptive_scheduler.utils`."""
+
 from __future__ import annotations
 
 import platform

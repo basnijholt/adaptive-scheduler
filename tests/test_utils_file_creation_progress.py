@@ -1,4 +1,5 @@
 """Test the file creation progress tracking utilities."""
+
 from __future__ import annotations
 
 import asyncio

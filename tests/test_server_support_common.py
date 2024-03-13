@@ -1,4 +1,5 @@
 """Tests for the common module of the server_support module."""
+
 from __future__ import annotations
 
 import asyncio
