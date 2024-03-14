@@ -261,8 +261,8 @@ class JobManager(BaseManager):
             queued.add(job_name)
             index, fname = self.database_manager._choose_fname(job_name)
             log.debug(
-                f"Starting `job_name={job_name}` with `index={
-                    index}` and `fname={fname}`",
+                f"Starting `job_name={job_name}` with "
+                f"`index={index}` and `fname={fname}`",
             )
             await loop.run_in_executor(
                 ex,
