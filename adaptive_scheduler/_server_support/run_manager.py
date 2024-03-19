@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import shutil
 import time
+import warnings
+import weakref
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -40,6 +42,10 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+
+
+# This is a global list of all active run managers.
+ACTIVE_RUN_MANAGERS: list[weakref.ReferenceType[RunManager]] = []
 
 
 class RunManager(BaseManager):
@@ -310,6 +316,7 @@ class RunManager(BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
+        _track_and_maybe_cancel_existing(self)
         return self
 
     async def _manage(self) -> None:
@@ -577,3 +584,44 @@ def start_one_by_one(
         for i in range(len(run_managers) - 1)
     ]
     return asyncio.gather(*tasks), tasks
+
+
+def _track_and_maybe_cancel_existing(current_run_manager: RunManager) -> None:
+    """Cancel the existing run manager with the same name.
+
+    Additionally, update the ACTIVE_RUN_MANAGERS list with the new run manager.
+    Emit a warning when canceling another run manager.
+    """
+    # First, cancel and remove the old run manager(s) with the same job_name
+    to_cancel = [
+        weak_rm
+        for weak_rm in ACTIVE_RUN_MANAGERS
+        if weak_rm() is not None
+        and weak_rm().job_name == current_run_manager.job_name  # type: ignore[union-attr]
+        and weak_rm() is not current_run_manager  # type: ignore[union-attr]
+    ]
+
+    for weak_rm in to_cancel:
+        rm = weak_rm()
+        if rm is not None:
+            # Emit a warning before canceling
+            warnings.warn(
+                f"Cancelling a RunManager with job_name '{rm.job_name}' because"
+                " another instance is created with the same name.",
+                UserWarning,
+                stacklevel=2,
+            )
+            rm.cancel()
+            ACTIVE_RUN_MANAGERS.remove(weak_rm)
+
+    # Then, check if the current run manager is already in the list
+    current_weak_rm = weakref.ref(current_run_manager)
+    if not any(current_weak_rm() is rm() for rm in ACTIVE_RUN_MANAGERS):
+        ACTIVE_RUN_MANAGERS.append(current_weak_rm)
+
+    # Cleanup: Remove all run_managers that are done, cancelled, or have been garbage collected
+    ACTIVE_RUN_MANAGERS[:] = [
+        rm
+        for rm in ACTIVE_RUN_MANAGERS
+        if rm() is not None and rm().end_time is None  # type: ignore[union-attr]
+    ]
