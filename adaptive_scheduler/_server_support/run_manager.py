@@ -622,8 +622,14 @@ def _track_active_run_managers(run_manager: RunManager) -> None:
 
 def cancel_duplicate_run_managers(job_name: str) -> None:
     """Cancel all run managers with the same `job_name`."""
-    for weak_rm in ACTIVE_RUN_MANAGERS:
+    to_cancel = [
+        weak_rm
+        for weak_rm in ACTIVE_RUN_MANAGERS
+        if weak_rm() is not None and weak_rm().job_name == job_name  # type: ignore[union-attr]
+    ]
+
+    for weak_rm in to_cancel:
         rm = weak_rm()
-        if rm is not None and rm.job_name == job_name:
+        if rm is not None:
             rm.cancel()
             ACTIVE_RUN_MANAGERS.remove(weak_rm)
