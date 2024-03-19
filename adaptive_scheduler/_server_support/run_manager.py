@@ -606,7 +606,8 @@ def _track_and_maybe_cancel_existing(current_run_manager: RunManager) -> None:
         if rm is not None:
             # Emit a warning before canceling
             warnings.warn(
-                f"Cancelling a RunManager with job_name '{rm.job_name}' because another instance is being added.",
+                f"Cancelling a RunManager with job_name '{rm.job_name}' because"
+                " another instance is created with the same name.",
                 UserWarning,
                 stacklevel=2,
             )
