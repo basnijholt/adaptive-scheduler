@@ -316,7 +316,7 @@ class RunManager(BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
-        _track_active_run_managers(self)
+        _track_and_maybe_cancel_existing(self)
         return self
 
     async def _manage(self) -> None:
@@ -586,50 +586,41 @@ def start_one_by_one(
     return asyncio.gather(*tasks), tasks
 
 
-def _track_active_run_managers(run_manager: RunManager) -> None:
-    # Convert to a weak reference
-    weak_rm = weakref.ref(run_manager)
+def _track_and_maybe_cancel_existing(current_run_manager: RunManager) -> None:
+    """Cancel the existing run manager with the same name.
 
-    # Check if the run_manager is already in ACTIVE_RUN_MANAGERS as a weak reference
-    if not any(weak_rm() is rm() for rm in ACTIVE_RUN_MANAGERS):
-        ACTIVE_RUN_MANAGERS.append(weak_rm)
-
-    # Remove all run_managers that are done, cancelled, or have been garbage collected
-    ACTIVE_RUN_MANAGERS[:] = [
-        rm
-        for rm in ACTIVE_RUN_MANAGERS
-        if rm() is not None and rm().end_time is None  # type: ignore[union-attr]
-    ]
-
-    # Warn if a run_manager with the same name is already running
-    for weak_rm in ACTIVE_RUN_MANAGERS:
-        rm = weak_rm()
-        if rm is None:
-            continue
-        if rm is run_manager:
-            continue
-        if run_manager.job_name == rm.job_name:
-            warnings.warn(
-                f"RunManager with name {run_manager.job_name} already "
-                "exists and is still running. This can lead to unexpected behavior. "
-                "If you no longer have a reference to the old RunManager, "
-                f"you can cancel all `RunManager`s with the same job name using."
-                f" `adaptive_scheduler.cancel_duplicate_run_managers('{run_manager.job_name}')`",
-                UserWarning,
-                stacklevel=2,
-            )
-
-
-def cancel_duplicate_run_managers(job_name: str) -> None:
-    """Cancel all run managers with the same `job_name`."""
+    Additionally, update the ACTIVE_RUN_MANAGERS list with the new run manager.
+    Emit a warning when canceling another run manager.
+    """
+    # First, cancel and remove the old run manager(s) with the same job_name
     to_cancel = [
         weak_rm
         for weak_rm in ACTIVE_RUN_MANAGERS
-        if weak_rm() is not None and weak_rm().job_name == job_name  # type: ignore[union-attr]
+        if weak_rm() is not None
+        and weak_rm().job_name == current_run_manager.job_name  # type: ignore[union-attr]
+        and weak_rm() is not current_run_manager  # type: ignore[union-attr]
     ]
 
     for weak_rm in to_cancel:
         rm = weak_rm()
         if rm is not None:
+            # Emit a warning before canceling
+            warnings.warn(
+                f"Cancelling a RunManager with job_name '{rm.job_name}' because another instance is being added.",
+                UserWarning,
+                stacklevel=2,
+            )
             rm.cancel()
             ACTIVE_RUN_MANAGERS.remove(weak_rm)
+
+    # Then, check if the current run manager is already in the list
+    current_weak_rm = weakref.ref(current_run_manager)
+    if not any(current_weak_rm() is rm() for rm in ACTIVE_RUN_MANAGERS):
+        ACTIVE_RUN_MANAGERS.append(current_weak_rm)
+
+    # Cleanup: Remove all run_managers that are done, cancelled, or have been garbage collected
+    ACTIVE_RUN_MANAGERS[:] = [
+        rm
+        for rm in ACTIVE_RUN_MANAGERS
+        if rm() is not None and rm().end_time is None  # type: ignore[union-attr]
+    ]

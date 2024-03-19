@@ -5,14 +5,12 @@ from adaptive_scheduler._version import __version__
 from adaptive_scheduler.scheduler import PBS, SLURM
 from adaptive_scheduler.server_support import (
     RunManager,
-    cancel_duplicate_run_managers,
     slurm_run,
     start_one_by_one,
 )
 
 __all__ = [
     "__version__",
-    "cancel_duplicate_run_managers",
     "client_support",
     "PBS",
     "RunManager",
