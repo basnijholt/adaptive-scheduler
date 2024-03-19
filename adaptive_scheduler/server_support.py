@@ -20,6 +20,7 @@ from ._server_support.run_manager import (
     RunManager,
     _start_after,
     _wait_for_finished,
+    cancel_duplicate_run_managers,
     start_one_by_one,
 )
 from ._server_support.slurm_run import slurm_run
@@ -45,4 +46,5 @@ __all__ = [
     "cleanup_scheduler_files",
     "_delete_old_ipython_profiles",
     "periodically_clean_ipython_profiles",
+    "cancel_duplicate_run_managers",
 ]
