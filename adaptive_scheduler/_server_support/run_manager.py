@@ -4,6 +4,7 @@ import asyncio
 import shutil
 import time
 import warnings
+import weakref
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 
 
 # This is a global list of all active run managers.
-ACTIVE_RUN_MANAGERS = []
+ACTIVE_RUN_MANAGERS: list[weakref.ReferenceType[RunManager]] = []
 
 
 class RunManager(BaseManager):
@@ -586,30 +587,43 @@ def start_one_by_one(
 
 
 def _track_active_run_managers(run_manager: RunManager) -> None:
-    if run_manager not in ACTIVE_RUN_MANAGERS:
-        ACTIVE_RUN_MANAGERS.append(run_manager)
+    # Convert to a weak reference
+    weak_rm = weakref.ref(run_manager)
 
-    # Remove all run_managers that are done or cancelled
-    to_remove = []
-    for i, rm in enumerate(ACTIVE_RUN_MANAGERS):
-        if rm is run_manager:
-            continue
-        if rm.end_time is not None:
-            to_remove.append(i)
-    for i in reversed(to_remove):
-        ACTIVE_RUN_MANAGERS.pop(i)
+    # Check if the run_manager is already in ACTIVE_RUN_MANAGERS as a weak reference
+    if not any(weak_rm() is rm() for rm in ACTIVE_RUN_MANAGERS):
+        ACTIVE_RUN_MANAGERS.append(weak_rm)
+
+    # Remove all run_managers that are done, cancelled, or have been garbage collected
+    ACTIVE_RUN_MANAGERS[:] = [
+        rm
+        for rm in ACTIVE_RUN_MANAGERS
+        if rm() is not None and rm().end_time is None  # type: ignore[union-attr]
+    ]
 
     # Warn if a run_manager with the same name is already running
-    for i, rm in enumerate(ACTIVE_RUN_MANAGERS):
+    for weak_rm in ACTIVE_RUN_MANAGERS:
+        rm = weak_rm()
+        if rm is None:
+            continue
         if rm is run_manager:
             continue
         if run_manager.job_name == rm.job_name:
             warnings.warn(
                 f"RunManager with name {run_manager.job_name} already "
-                "exists and is still running. This can lead to unexpected behavior."
-                " If you no longer have a reference to the old RunManager, "
-                " you can access it through"
-                f" `adaptive_scheduler._server_support.run_manager.ACTIVE_RUN_MANAGERS[{i}]`.",
+                "exists and is still running. This can lead to unexpected behavior. "
+                "If you no longer have a reference to the old RunManager, "
+                f"you can cancel all `RunManager`s with the same job name using."
+                f" `adaptive_scheduler.cancel_duplicate_run_managers('{run_manager.job_name}')`",
                 UserWarning,
                 stacklevel=2,
             )
+
+
+def cancel_duplicate_run_managers(job_name: str) -> None:
+    """Cancel all run managers with the same `job_name`."""
+    for weak_rm in ACTIVE_RUN_MANAGERS:
+        rm = weak_rm()
+        if rm is not None and rm.job_name == job_name:
+            rm.cancel()
+            ACTIVE_RUN_MANAGERS.remove(weak_rm)
