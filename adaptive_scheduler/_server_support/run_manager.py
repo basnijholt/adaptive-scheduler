@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 import time
+import warnings
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -40,6 +41,10 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
+
+
+# This is a global list of all active run managers.
+ACTIVE_RUN_MANAGERS = []
 
 
 class RunManager(BaseManager):
@@ -310,6 +315,7 @@ class RunManager(BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
+        _track_active_run_managers(self)
         return self
 
     async def _manage(self) -> None:
@@ -577,3 +583,33 @@ def start_one_by_one(
         for i in range(len(run_managers) - 1)
     ]
     return asyncio.gather(*tasks), tasks
+
+
+def _track_active_run_managers(run_manager: RunManager) -> None:
+    if run_manager not in ACTIVE_RUN_MANAGERS:
+        ACTIVE_RUN_MANAGERS.append(run_manager)
+
+    # Remove all run_managers that are done or cancelled
+    to_remove = []
+    for i, rm in enumerate(ACTIVE_RUN_MANAGERS):
+        if rm is run_manager:
+            continue
+        if rm.end_time is not None:
+            to_remove.append(i)
+    for i in reversed(to_remove):
+        ACTIVE_RUN_MANAGERS.pop(i)
+
+    # Warn if a run_manager with the same name is already running
+    for i, rm in enumerate(ACTIVE_RUN_MANAGERS):
+        if rm is run_manager:
+            continue
+        if run_manager.job_name == rm.job_name:
+            warnings.warn(
+                f"RunManager with name {run_manager.job_name} already "
+                "exists and is still running. This can lead to unexpected behavior."
+                " If you no longer have a reference to the old RunManager, "
+                " you can access it through"
+                f" `adaptive_scheduler._server_support.run_manager.ACTIVE_RUN_MANAGERS[{i}]`.",
+                UserWarning,
+                stacklevel=2,
+            )
