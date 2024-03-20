@@ -312,11 +312,11 @@ class RunManager(BaseManager):
 
     def start(self, wait_for: RunManager | None = None) -> RunManager:  # type: ignore[override]
         """Start the RunManager and optionally wait for another RunManager to finish."""
+        _track_and_maybe_cancel_existing(self)
         if wait_for is not None:
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
-        _track_and_maybe_cancel_existing(self)
         return self
 
     async def _manage(self) -> None:
