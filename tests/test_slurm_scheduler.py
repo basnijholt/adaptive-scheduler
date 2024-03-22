@@ -274,7 +274,7 @@ def test_slurm_scheduler_ipyparallel() -> None:
     )
 
 
-def test_multiple_jobs() -> None:
+def test_multiple_jobs() -> None:  # noqa: PLR0915
     """Test that multiple jobs can be started."""
     cores = (3, 4, 5)
     s = SLURM(cores=cores)
@@ -335,6 +335,13 @@ def test_multiple_jobs() -> None:
     assert "echo 'YOLO'" in js
     js = s.job_script(options={}, index=1)
     assert "echo 'YOLO'" not in js
+
+    s = SLURM(cores=1, num_threads=(1, 2))
+    js = s.job_script(options={}, index=0)
+    print(js)
+    assert "export OPENBLAS_NUM_THREADS=1" in js
+    js = s.job_script(options={}, index=1)
+    assert "export OPENBLAS_NUM_THREADS=2" in js
 
 
 def test_multi_job_script_options() -> None:
