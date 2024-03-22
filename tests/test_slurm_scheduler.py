@@ -365,3 +365,15 @@ def test_multi_job_script_options() -> None:
         args, _ = mock_submit.call_args
         assert args[0].startswith("sbatch")
     assert "--executor-type sequential" in s.batch_fname("testjob").read_text()
+
+
+def test_not_changing_attributes() -> None:
+    """Tests bug fixed in https://github.com/basnijholt/adaptive-scheduler/pull/215."""
+    s = SLURM(cores_per_node=100, nodes=(1, 2))
+    assert s._extra_env_vars == ([], [])
+    js0 = s.job_script(options={}, index=0)
+    assert s._extra_env_vars == ([], [])
+    js1 = s.job_script(options={}, index=1)
+    assert s._extra_env_vars == ([], [])
+    assert js0.count("MKL_NUM_THREADS") == 1
+    assert js1.count("MKL_NUM_THREADS") == 1
