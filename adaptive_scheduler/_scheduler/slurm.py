@@ -59,11 +59,12 @@ def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``, ``executor_type``,
-    ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
-    either a single value or a tuple of values. If a tuple is given, then the
-    length of the tuple should be the same as the number of learners (jobs) that
-    are run. This allows for different resources for different jobs.
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``executor_type``, ``extra_script``, ``exclusive``, ``extra_env_vars``,
+    ``num_threads`` and ``partition`` can be either a single value or a tuple of
+    values. If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run. This allows for different
+    resources for different jobs.
 
     Parameters
     ----------
@@ -124,7 +125,7 @@ class SLURM(BaseScheduler):
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-        num_threads: int = 1,
+        num_threads: int | tuple[int, ...] = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
         extra_script: str | tuple[str, ...] | None = None,
@@ -132,12 +133,13 @@ class SLURM(BaseScheduler):
     ) -> None:
         """Initialize the scheduler."""
         # Store the original values
-        self._exclusive = exclusive
         self._cores = cores
         self._nodes = nodes
         self._cores_per_node = cores_per_node
         self._partition = partition
         self._executor_type = executor_type
+        self._num_threads = num_threads
+        self._exclusive = exclusive
         self.__extra_scheduler = extra_scheduler
         self.__extra_env_vars = extra_env_vars
         self.__extra_script = extra_script
@@ -163,6 +165,7 @@ class SLURM(BaseScheduler):
             cores_per_node,
             partition,
             executor_type,
+            num_threads,
             exclusive,
             extra_scheduler,
             extra_env_vars,
@@ -174,6 +177,7 @@ class SLURM(BaseScheduler):
         self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
         self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
         executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
+        num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
@@ -249,6 +253,7 @@ class SLURM(BaseScheduler):
         state["cores_per_node"] = self._cores_per_node
         state["partition"] = self._partition
         state["executor_type"] = self._executor_type
+        state["num_threads"] = self._num_threads
         state["exclusive"] = self._exclusive
         state["extra_scheduler"] = self.__extra_scheduler
         state["extra_env_vars"] = self.__extra_env_vars
