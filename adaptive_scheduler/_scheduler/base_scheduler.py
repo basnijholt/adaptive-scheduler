@@ -77,7 +77,7 @@ class BaseScheduler(abc.ABC):
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-        num_threads: int = 1,
+        num_threads: int | tuple[int, ...] = 1,
         extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
         extra_script: str | tuple[str, ...] | None = None,
@@ -373,6 +373,13 @@ class BaseScheduler(abc.ABC):
         assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
+    def _get_num_threads(self, *, index: int | None = None) -> int:
+        if self.single_job_script:
+            assert isinstance(self.num_threads, int)
+            return self.num_threads
+        assert index is not None
+        return self.num_threads[index]  # type: ignore[index]
+
     def extra_env_vars(self, *, index: int | None = None) -> str:
         """Environment variables that need to exist in the job script."""
         extra_env_vars: list[str]
@@ -384,14 +391,14 @@ class BaseScheduler(abc.ABC):
         else:
             assert index is not None
             extra_env_vars = self._extra_env_vars[index]  # type: ignore[assignment]
-
+        num_threads = self._get_num_threads(index=index)
         extra_env_vars.extend(
             [
                 f"EXECUTOR_TYPE={self._get_executor_type(index=index)}",
-                f"MKL_NUM_THREADS={self.num_threads}",
-                f"OPENBLAS_NUM_THREADS={self.num_threads}",
-                f"OMP_NUM_THREADS={self.num_threads}",
-                f"NUMEXPR_NUM_THREADS={self.num_threads}",
+                f"MKL_NUM_THREADS={num_threads}",
+                f"OPENBLAS_NUM_THREADS={num_threads}",
+                f"OMP_NUM_THREADS={num_threads}",
+                f"NUMEXPR_NUM_THREADS={num_threads}",
             ],
         )
         return "\n".join(f"export {arg}" for arg in extra_env_vars)

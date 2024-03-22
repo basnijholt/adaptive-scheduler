@@ -25,7 +25,7 @@ def slurm_run(
     goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
-    num_threads: int = 1,
+    num_threads: int | tuple[int, ...] = 1,
     save_interval: float = 300,
     log_interval: float = 300,
     cleanup_first: bool = True,
@@ -42,11 +42,12 @@ def slurm_run(
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``, ``executor_type``,
-    ``extra_script``, ``exclusive``, ``extra_env_vars`` and ``partition`` can be
-    either a single value or a tuple of values. If a tuple is given, then the
-    length of the tuple should be the same as the number of learners (jobs) that
-    are run. This allows for different resources for different jobs.
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``executor_type``, ``extra_script``, ``exclusive``, ``extra_env_vars``,
+    ``num_threads`` and ``partition`` can be either a single value or a tuple of
+    values. If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run. This allows for different
+    resources for different jobs.
 
     Parameters
     ----------
