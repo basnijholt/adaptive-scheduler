@@ -387,10 +387,10 @@ class BaseScheduler(abc.ABC):
             extra_env_vars = []
         elif self.single_job_script:
             assert isinstance(self._extra_env_vars, list)
-            extra_env_vars = self._extra_env_vars
+            extra_env_vars = self._extra_env_vars.copy()
         else:
             assert index is not None
-            extra_env_vars = self._extra_env_vars[index]  # type: ignore[assignment]
+            extra_env_vars = self._extra_env_vars[index].copy()  # type: ignore[union-attr]
         num_threads = self._get_num_threads(index=index)
         extra_env_vars.extend(
             [
