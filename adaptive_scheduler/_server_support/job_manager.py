@@ -216,7 +216,7 @@ class JobManager(BaseManager):
         if self.scheduler.single_job_script:
             self.scheduler.write_job_script(name_prefix, options, index=None)
 
-    async def _update_database_and_get_not_queued(
+    def _update_database_and_get_not_queued(
         self,
     ) -> tuple[set[str], set[str]] | None:
         running = self.scheduler.queue(me_only=True)
@@ -259,7 +259,7 @@ class JobManager(BaseManager):
         with ThreadPoolExecutor() as ex:  # TODO: use asyncio.to_thread when Python≥3.9
             while True:
                 try:
-                    update = await self._update_database_and_get_not_queued()
+                    update = self._update_database_and_get_not_queued()
                     if update is None:  # we are finished!
                         return
                     queued, not_queued = update
