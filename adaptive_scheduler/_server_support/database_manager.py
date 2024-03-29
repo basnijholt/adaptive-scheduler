@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import pickle
 from dataclasses import asdict, dataclass, field
@@ -182,11 +183,16 @@ class DatabaseManager(BaseManager):
         self._pickling_time: float | None = None
         self._total_learner_size: int | None = None
         self._db: SimpleDatabase | None = None
+        self._db_history = []
+
+    def _push_history(self, context):
+        self._db_history.append((context, copy.deepcopy(self._db._data)))
 
     def _setup(self) -> None:
         if self.db_fname.exists() and not self.overwrite_db:
             return
         self.create_empty_db()
+        self._push_history(context=("setup",))
         self._total_learner_size, self._pickling_time = cloudpickle_learners(
             self.learners,
             self.fnames,
@@ -209,6 +215,8 @@ class DatabaseManager(BaseManager):
             {"job_id": None, "job_name": None, "is_pending": False},
             indices,
         )
+        if indices:
+            self._push_history(context=("update", queue, copy.deepcopy(failed)))
 
     def n_done(self) -> int:
         """Return the number of jobs that are done."""
@@ -268,6 +276,7 @@ class DatabaseManager(BaseManager):
             },
             indices=[index],
         )
+        self._push_history(context=("choose_fname", (index, copy.deepcopy(entry))))
         return index, _ensure_str(entry.fname)  # type: ignore[return-value]
 
     def _start_request(
@@ -303,6 +312,7 @@ class DatabaseManager(BaseManager):
             },
             indices=[index],
         )
+        self._push_history(context=("_start_request", (index, copy.deepcopy(entry), job_id, job_name)))
         return _ensure_str(entry.fname)  # type: ignore[return-value]
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
@@ -313,6 +323,7 @@ class DatabaseManager(BaseManager):
             index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
         ]
         self._db.update(reset, entry_indices)
+        self._push_history(context=("_stop_request", fname_str, entry_indices))
 
     def _stop_requests(self, fnames: FnamesTypes) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once

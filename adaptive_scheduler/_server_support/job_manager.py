@@ -286,6 +286,9 @@ class JobManager(BaseManager):
                         exception=str(e),
                     )
                     raise
+                except RuntimeError:
+                    # Exit without logging to avoid log flooding in the buggy case
+                    raise
                 except Exception as e:  # noqa: BLE001
                     log.exception("got exception when starting a job", exception=str(e))
                     if await sleep_unless_task_is_done(
