@@ -215,8 +215,7 @@ class DatabaseManager(BaseManager):
             {"job_id": None, "job_name": None, "is_pending": False},
             indices,
         )
-        if indices:
-            self._push_history(context=("update", queue, copy.deepcopy(failed)))
+        self._push_history(context=("update", queue, copy.deepcopy(failed)))
 
     def n_done(self) -> int:
         """Return the number of jobs that are done."""
