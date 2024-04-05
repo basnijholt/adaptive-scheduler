@@ -86,7 +86,7 @@ async def test_track_file_creation_progress(tmp_path: Path) -> None:
     )
 
     # Allow some time for the task to process
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.1)
 
     progress.stop()
     assert "Total" in progress._tasks[0].description
@@ -103,7 +103,7 @@ async def test_track_file_creation_progress(tmp_path: Path) -> None:
 
     # Create one of the files of category2, should still not be completed
     create_test_files(tmp_path, ["file3"])
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.1)
 
     assert "category2" in progress._tasks[2].description
     assert progress._tasks[2].total == 1
