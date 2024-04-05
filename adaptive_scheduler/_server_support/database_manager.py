@@ -252,7 +252,7 @@ class DatabaseManager(BaseManager):
             for f in output_fnames
         ]
 
-    def _choose_fname(self, job_name: str) -> tuple[int, str | list[str] | None]:
+    def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
         entry = self._db.get(
             lambda e: e.job_id is None and not e.is_done and not e.is_pending,
@@ -262,6 +262,10 @@ class DatabaseManager(BaseManager):
             raise RuntimeError(msg)
         log.debug("choose fname", entry=entry)
         index = self._db.all().index(entry)
+        return index, _ensure_str(entry.fname)  # type: ignore[return-value]
+
+    def _confirm_submitted(self, index: int, job_name: str) -> None:
+        assert self._db is not None
         self._db.update(
             {
                 "job_name": job_name,
@@ -269,7 +273,6 @@ class DatabaseManager(BaseManager):
             },
             indices=[index],
         )
-        return index, _ensure_str(entry.fname)  # type: ignore[return-value]
 
     def _start_request(
         self,
