@@ -234,7 +234,7 @@ async def test_database_manager_start_and_update(
     assert entry.job_name == job_name
 
     # Say that the job is still running
-    queue = {"1000": {"job_id": "1000"}}
+    queue = {"1000": {"job_id": job_id, "job_name": job_name}}
     db_manager.update(queue)
 
     # Check that the database is the same
@@ -367,6 +367,59 @@ async def test_database_manager_stop_request_and_requests(
     assert entry.job_id is None, (fname1, fname2)
     assert entry.is_done is True
     assert entry.job_name is None
+
+
+def test_job_failure_after_start_request(db_manager: DatabaseManager) -> None:
+    """Ensure jobs that fail after they send a start request are updated in the DB."""
+    db_manager.create_empty_db()
+    assert not db_manager.failed
+
+    _, fname = db_manager._choose_fname("job1")
+    # job is launched and appears in queue
+    db_manager.update({"1": {"job_name": "job1"}})
+    # job reports back that it started
+    db_manager._start_request("1", "log", "job1")
+    # job dies, disappearing from queue
+    db_manager.update({})
+    assert db_manager.failed
+
+
+def test_job_failure_before_start_request(db_manager: DatabaseManager) -> None:
+    """Ensure jobs that fail before they send a start request are updated in the DB.
+
+    This is a regression test against
+    https://github.com/basnijholt/adaptive-scheduler/issues/216
+    """
+    db_manager.create_empty_db()
+    assert not db_manager.failed
+
+    db_manager._choose_fname("job1")
+    # Job is launched, appears in queue, and one of our "update" calls sees it
+    db_manager.update({"2": {"job_name": "job1"}})
+    # Job dies, disappearing from queue
+    db_manager.update({})
+    assert db_manager.failed
+
+
+def test_job_failure_before_start_request_slow_update(
+    db_manager: DatabaseManager,
+) -> None:
+    """Ensure jobs that fail before they send a start request are updated in the DB, even if db manager updates slowly.
+
+    This is a regression test against
+    https://github.com/basnijholt/adaptive-scheduler/issues/216
+    """
+    db_manager.create_empty_db()
+    assert not db_manager.failed
+
+    db_manager._choose_fname("job1")
+    # Job is launched, but dies before the next call to "update".
+    # NOTE: another way this could happen is if 'update' gets called by another task
+    #       after '_choose_fname' is called, but before the job is actually launched.
+    #       In that case we do _not_ want to consider the job failed, but there is
+    #       no way to detect this: _this is a race condition_.
+    db_manager.update({})
+    assert db_manager.failed
 
 
 @pytest.mark.parametrize(
