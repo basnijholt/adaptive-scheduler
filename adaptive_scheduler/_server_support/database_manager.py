@@ -200,8 +200,9 @@ class DatabaseManager(BaseManager):
             return
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
+        job_names_in_queue = [x["job_name"] for x in queue.values()]
         failed = self._db.get_all(
-            lambda e: (e.job_id is not None) and (e.job_id not in queue),  # type: ignore[operator]
+            lambda e: e.job_name is not None and e.job_name not in job_names_in_queue,  # type: ignore[operator]
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
