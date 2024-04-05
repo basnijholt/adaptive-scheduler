@@ -181,7 +181,8 @@ async def test_database_manager_dispatch_start_stop(
     """Test starting and stopping jobs using the dispatch method."""
     db_manager.learners, db_manager.fnames = learners, fnames
     db_manager.create_empty_db()
-    index, _fname = db_manager._choose_fname("test_job")
+    index, _fname = db_manager._choose_fname()
+    db_manager._confirm_submitted(index, "test_job")
     assert index == 0  # The first learner is chosen
     start_request = ("start", "1000", "log_1000.txt", "test_job")
     fname = db_manager._dispatch(start_request)  # type: ignore[arg-type]
@@ -213,11 +214,13 @@ async def test_database_manager_start_and_update(
     db_manager.start()
     await asyncio.sleep(0.1)  # Give it some time to start
 
-    # Choose fname for "job_name"
-    _, _fname = db_manager._choose_fname("job_name")
+    job_id, log_fname, job_name = "1000", "log.log", "job_name"
+
+    # Choose fname for "job_name" and tell the DB the job is launched
+    index, _fname = db_manager._choose_fname()
+    db_manager._confirm_submitted(index, job_name)
 
     # Send a start message to the DatabaseManager
-    job_id, log_fname, job_name = "1000", "log.log", "job_name"
     start_message = ("start", job_id, log_fname, job_name)
     fname = await send_message(socket, start_message)
     assert fname == _fname
@@ -266,20 +269,18 @@ async def test_database_manager_start_stop(
     await asyncio.sleep(0.1)  # Give it some time to start
     assert db_manager.task is not None
 
-    # Choose fname for "job_name"
-    index, _fname = db_manager._choose_fname("job_name")
+    job_id, log_fname, job_name = "1000", "log.log", "job_name"
+
+    # Choose fname for "job_name" and tell the DB the job is launched
+    index, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index, job_name)
 
     # Send a start message to the DatabaseManager
-    job_id, log_fname, job_name = "1000", "log.log", "job_name"
     start_message = ("start", job_id, log_fname, job_name)
     fname = await send_message(socket, start_message)
     # Try starting again:
     exception = await send_message(socket, start_message)
-    with pytest.raises(
-        Exception,
-        match="The job_id 1000 already exists in the database and runs",
-    ):
-        raise exception
+    assert "The job_id 1000 already exists in the database and runs" in str(exception)
     assert fname == _ensure_str(fnames[0]), fname
 
     # Check that the database is updated correctly
@@ -303,7 +304,8 @@ async def test_database_manager_start_stop(
     assert entry.job_id is None
 
     # Start and stop the learner2
-    _index, _fname = db_manager._choose_fname("job_name")
+    index2, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index2, job_name)
     fname = await send_message(socket, start_message)
     assert fname == _ensure_str(fnames[1])
 
@@ -332,7 +334,8 @@ async def test_database_manager_stop_request_and_requests(
     # Start a job for learner1
     job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
     start_message1 = ("start", job_id1, log_fname1, job_name1)
-    _, _fname1 = db_manager._choose_fname(job_name1)
+    _index1, _fname1 = db_manager._choose_fname()
+    db_manager._confirm_submitted(_index1, job_name1)
     fname1 = await send_message(socket, start_message1)
     assert fname1 == _fname1
     assert fname1 == _ensure_str(fnames[0]), fname1
@@ -343,7 +346,8 @@ async def test_database_manager_stop_request_and_requests(
     # Start a job for learner2
     job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
     start_message2 = ("start", job_id2, log_fname2, job_name2)
-    _, _fname2 = db_manager._choose_fname(job_name2)
+    _index2, _fname2 = db_manager._choose_fname()
+    db_manager._confirm_submitted(_index2, job_name2)
     fname2 = await send_message(socket, start_message2)
     assert fname2 == _fname2
     assert fname2 == _ensure_str(fnames[1]), fname2
@@ -374,7 +378,8 @@ def test_job_failure_after_start_request(db_manager: DatabaseManager) -> None:
     db_manager.create_empty_db()
     assert not db_manager.failed
 
-    _, fname = db_manager._choose_fname("job1")
+    index, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index, "job1")
     # job is launched and appears in queue
     db_manager.update({"1": {"job_name": "job1"}})
     # job reports back that it started
