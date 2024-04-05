@@ -283,6 +283,7 @@ async def test_database_manager_start_stop(
     assert "The job_id 1000 already exists in the database and runs" in str(exception)
     assert fname == _ensure_str(fnames[0]), fname
 
+    assert db_manager._db is not None
     # Check that the database is updated correctly
     entry = db_manager._db.get(lambda entry: entry.fname == fname)
     assert entry is not None
@@ -299,6 +300,7 @@ async def test_database_manager_start_stop(
     reply = await send_message(socket, stop_message)
     assert reply is None
 
+    assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == _ensure_str(fnames[0]))
     assert entry is not None
     assert entry.job_id is None
@@ -398,9 +400,11 @@ def test_job_failure_before_start_request(db_manager: DatabaseManager) -> None:
     db_manager.create_empty_db()
     assert not db_manager.failed
 
-    db_manager._choose_fname("job1")
-    # Job is launched, appears in queue, and one of our "update" calls sees it
-    db_manager.update({"2": {"job_name": "job1"}})
+    index, _ = db_manager._choose_fname()
+    # Job is launched
+    db_manager._confirm_submitted(index, "job1")
+    # Job appears in queue, and one of our "update" calls sees it
+    db_manager.update({"1": {"job_name": "job1"}})
     # Job dies, disappearing from queue
     db_manager.update({})
     assert db_manager.failed
@@ -417,13 +421,61 @@ def test_job_failure_before_start_request_slow_update(
     db_manager.create_empty_db()
     assert not db_manager.failed
 
-    db_manager._choose_fname("job1")
-    # Job is launched, but dies before the next call to "update".
-    # NOTE: another way this could happen is if 'update' gets called by another task
-    #       after '_choose_fname' is called, but before the job is actually launched.
-    #       In that case we do _not_ want to consider the job failed, but there is
-    #       no way to detect this: _this is a race condition_.
+    index, _ = db_manager._choose_fname()
+    # Job is launched...
+    db_manager._confirm_submitted(index, "job1")
+    # But dies before the next time our DB updates.
     db_manager.update({})
+    assert db_manager.failed
+
+
+def test_job_failure_before_start_request_interleaved(
+    db_manager: DatabaseManager,
+) -> None:
+    """Ensure jobs that fail before they send a start request are updated in the DB, even if db manager updates slowly.
+
+    This is a regression test against
+    https://github.com/basnijholt/adaptive-scheduler/issues/216
+    """
+    db_manager.create_empty_db()
+    assert not db_manager.failed
+
+    # fname is chosen...
+    index, _ = db_manager._choose_fname()
+    # Database is updated by another task efore launch is confirmed;
+    # this does not result in the job being marked as failed.
+    db_manager.update({})
+    assert not db_manager.failed
+    # Launch is later confirmed...
+    db_manager._confirm_submitted(index, "job1")
+    # But job is still not in queue...
+    db_manager.update({})
+    # which means that it will be marked as failed
+    assert db_manager.failed
+
+
+def test_job_failure_before_start_request_interleaved2(
+    db_manager: DatabaseManager,
+) -> None:
+    """Ensure jobs that fail before they send a start request are updated in the DB, even if db manager updates slowly.
+
+    This is a regression test against
+    https://github.com/basnijholt/adaptive-scheduler/issues/216
+    """
+    db_manager.create_empty_db()
+    assert not db_manager.failed
+
+    # fname is chosen...
+    index, _ = db_manager._choose_fname()
+    # Database is updated after job is in the queue, but before
+    # launch is confirmed by the job manager
+    db_manager.update({"1": {"job_name": "job1"}})
+    assert not db_manager.failed
+    # launch is confirmed by job manager
+    db_manager._confirm_submitted(index, "job1")
+    # job disappears from queue...
+    db_manager.update({})
+    # which means that it will be marked as failed
     assert db_manager.failed
 
 
