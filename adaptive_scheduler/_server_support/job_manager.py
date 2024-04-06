@@ -243,7 +243,8 @@ class JobManager(BaseManager):
         for _ in range(num_jobs_to_start):
             job_name = not_queued.pop()
             queued.add(job_name)
-            index, fname = self.database_manager._choose_fname(job_name)
+
+            index, fname = self.database_manager._choose_fname()
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
@@ -251,6 +252,8 @@ class JobManager(BaseManager):
                 ex,
                 partial(self.scheduler.start_job, name=job_name, index=index),
             )
+            self.database_manager._confirm_submitted(index, job_name)
+
             self.n_started += 1
             self._request_times[job_name] = _now()
 

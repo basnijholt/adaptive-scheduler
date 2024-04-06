@@ -274,7 +274,7 @@ def test_slurm_scheduler_ipyparallel() -> None:
     )
 
 
-def test_multiple_jobs() -> None:  # noqa: PLR0915
+def test_multiple_jobs() -> None:
     """Test that multiple jobs can be started."""
     cores = (3, 4, 5)
     s = SLURM(cores=cores)

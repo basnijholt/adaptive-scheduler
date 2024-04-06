@@ -135,7 +135,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["SLF001", "PLR2004"]
+"tests/*" = ["SLF001", "PLR2004", "PLR0915"]
 "tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
 

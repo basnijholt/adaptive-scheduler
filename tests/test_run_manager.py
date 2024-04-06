@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import adaptive
@@ -235,6 +235,7 @@ async def test_run_manager_auto_restart(
     rm = RunManager(mock_scheduler, learners, fnames, job_manager_interval=0.1)
     rm.start()
     await asyncio.sleep(0.1)
+    assert rm.task is not None
     assert rm.status() == "running"
     q = rm.scheduler.queue()
     assert "0" in q
@@ -247,7 +248,10 @@ async def test_run_manager_auto_restart(
     log_fnames = ("log0.log", "log1.log")
 
     db = rm.database_manager.as_dicts()
-    assert db[0]["job_id"] is None  # no jobs are started yet
+    # jobs were all assigned...
+    assert all(x["job_name"] is not None for x in db)
+    # but they have not yet reported that they started.
+    assert all(x["job_id"] is None for x in db)
 
     # Send a start message to the DatabaseManager
     # This is coming from the client
@@ -275,7 +279,7 @@ async def test_run_manager_auto_restart(
             "state": "RUNNING",
         },
     }
-    rm.scheduler._queue_info.pop(job_id0)
+    cast(MockScheduler, rm.scheduler)._queue_info.pop(job_id0)
     await asyncio.sleep(0.15)
     # Check that the job is restarted automatically with a new job_id:
     q = rm.scheduler.queue()
