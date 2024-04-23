@@ -15,6 +15,7 @@ from adaptive_scheduler.utils import (
     LOKY_START_METHODS,
     GoalTypes,
     _at_least_adaptive_version,
+    _remove_or_move_files,
     _time_between,
     fname_to_learner_fname,
     load_dataframes,
@@ -483,6 +484,31 @@ class RunManager(BaseManager):
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
+
+    def remove_existing_data(
+        self,
+        *,
+        move_to: str | Path | None = None,
+        force: bool = False,
+    ) -> None:
+        """Remove the existing data files.
+
+        Parameters
+        ----------
+        move_to
+            Move the files to this directory. If None the files will be deleted.
+        force
+            Remove the files even if the `RunManager` is already started.
+
+        """
+        if self.status() != "running" and not force:
+            msg = (
+                "Data files can only be removed if the `RunManager` is not running."
+                " Use `force=True` to remove them anyway."
+            )
+            raise RuntimeError(msg)
+
+        _remove_or_move_files(self.fnames, move_to=move_to)
 
 
 async def _wait_for_finished(
