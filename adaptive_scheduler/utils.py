@@ -91,7 +91,7 @@ GoalTypes = Union[
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
     combined = list(zip(*lists))
-    random.Random(seed).shuffle(combined)
+    random.Random(seed).shuffle(combined)  # noqa: S311
     return zip(*combined)
 
 
