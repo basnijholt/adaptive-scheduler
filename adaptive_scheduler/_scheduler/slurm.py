@@ -372,7 +372,8 @@ class SLURM(BaseScheduler):
         )
         run_submit(submit_cmd, name)
 
-    def queue(self, *, me_only: bool = True) -> dict[str, dict[str, str]]:
+    @staticmethod
+    def queue(*, me_only: bool = True) -> dict[str, dict[str, str]]:
         """Get the queue of jobs."""
         python_format = {
             "JobID": 100,
@@ -430,6 +431,30 @@ class SLURM(BaseScheduler):
     def partitions(self) -> dict[str, int]:
         """Get the partitions of the SLURM scheduler."""
         return slurm_partitions()  # type: ignore[return-value]
+
+    @staticmethod
+    def cancel_jobs(name: str) -> None:
+        """Cancel the jobs with names matching the pattern '{name}-{i}' where i is an integer."""
+        running_jobs = SLURM.queue()
+        job_ids_to_cancel = []
+
+        for job_id, job_info in running_jobs.items():
+            job_name = job_info["job_name"]
+            if job_name.startswith(f"{name}-"):
+                suffix = job_name[len(name) + 1 :]
+                if suffix.isdigit():
+                    job_ids_to_cancel.append(job_id)
+
+        if job_ids_to_cancel:
+            job_ids_str = ",".join(job_ids_to_cancel)
+            cmd = f"{SLURM._cancel_cmd} {job_ids_str}"
+            try:
+                subprocess.run(cmd.split(), check=True)
+            except subprocess.CalledProcessError as e:
+                msg = f"Failed to cancel jobs with name {name}. Error: {e}"
+                raise RuntimeError(msg) from e
+        else:
+            print(f"No running jobs found with name pattern '{name}-<integer>'")
 
 
 def _get_ncores(partition: str) -> int | None:
