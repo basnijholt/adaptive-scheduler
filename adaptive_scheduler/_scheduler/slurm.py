@@ -434,7 +434,31 @@ class SLURM(BaseScheduler):
 
     @staticmethod
     def cancel_jobs(name: str, *, dry: bool = False) -> None:
-        """Cancel the jobs with names matching the pattern '{name}-{i}' where i is an integer."""
+        """Cancel jobs with names matching the pattern '{name}-{i}' where i is an integer.
+
+        Parameters
+        ----------
+        name
+            The base name of the jobs to cancel. Jobs with names that start with '{name}-'
+            followed by an integer will be canceled.
+        dry
+            If True, perform a dry run and print the job IDs that would be canceled without
+            actually canceling them. Default is False.
+
+        Raises
+        ------
+        RuntimeError
+            If there is an error while canceling the jobs.
+
+        Examples
+        --------
+        >>> SLURM.cancel_jobs("my_job")
+        # Cancels all running jobs with names like "my_job-1", "my_job-2", etc.
+
+        >>> SLURM.cancel_jobs("my_job", dry=True)
+        # Prints the job IDs that would be canceled without actually canceling them.
+
+        """
         running_jobs = SLURM.queue()
         job_ids_to_cancel = []
 
@@ -455,7 +479,9 @@ class SLURM(BaseScheduler):
                     subprocess.run(cmd.split(), check=True)
                 except subprocess.CalledProcessError as e:
                     msg = f"Failed to cancel jobs with name {name}. Error: {e}"
-                    raise RuntimeError(msg) from e
+                    raise RuntimeError(
+                        msg,
+                    ) from e
         else:
             print(f"No running jobs found with name pattern '{name}-<integer>'")
 
