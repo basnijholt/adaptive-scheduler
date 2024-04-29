@@ -372,7 +372,8 @@ class SLURM(BaseScheduler):
         )
         run_submit(submit_cmd, name)
 
-    def queue(self, *, me_only: bool = True) -> dict[str, dict[str, str]]:
+    @staticmethod
+    def queue(*, me_only: bool = True) -> dict[str, dict[str, str]]:
         """Get the queue of jobs."""
         python_format = {
             "JobID": 100,
@@ -430,6 +431,59 @@ class SLURM(BaseScheduler):
     def partitions(self) -> dict[str, int]:
         """Get the partitions of the SLURM scheduler."""
         return slurm_partitions()  # type: ignore[return-value]
+
+    @staticmethod
+    def cancel_jobs(name: str, *, dry: bool = False) -> None:
+        """Cancel jobs with names matching the pattern '{name}-{i}' where i is an integer.
+
+        Parameters
+        ----------
+        name
+            The base name of the jobs to cancel. Jobs with names that start with '{name}-'
+            followed by an integer will be canceled.
+        dry
+            If True, perform a dry run and print the job IDs that would be canceled without
+            actually canceling them. Default is False.
+
+        Raises
+        ------
+        RuntimeError
+            If there is an error while canceling the jobs.
+
+        Examples
+        --------
+        >>> SLURM.cancel_jobs("my_job")
+        # Cancels all running jobs with names like "my_job-1", "my_job-2", etc.
+
+        >>> SLURM.cancel_jobs("my_job", dry=True)
+        # Prints the job IDs that would be canceled without actually canceling them.
+
+        """
+        running_jobs = SLURM.queue()
+        job_ids_to_cancel = []
+
+        for job_id, job_info in running_jobs.items():
+            job_name = job_info["job_name"]
+            if job_name.startswith(f"{name}-"):
+                suffix = job_name[len(name) + 1 :]
+                if suffix.isdigit():
+                    job_ids_to_cancel.append(job_id)
+
+        if job_ids_to_cancel:
+            job_ids_str = ",".join(job_ids_to_cancel)
+            cmd = f"{SLURM._cancel_cmd} {job_ids_str}"
+            if dry:
+                print(f"Dry run: would cancel jobs with IDs: {job_ids_str}")
+            else:
+                try:
+                    subprocess.run(cmd.split(), check=True)
+                except subprocess.CalledProcessError as e:
+                    msg = f"Failed to cancel jobs with name {name}. Error: {e}"
+                    raise RuntimeError(
+                        msg,
+                    ) from e
+        else:
+            print(f"No running jobs found with name pattern '{name}-<integer>'")
 
 
 def _get_ncores(partition: str) -> int | None:
