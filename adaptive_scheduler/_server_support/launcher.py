@@ -62,6 +62,10 @@ def _get_executor(
         from concurrent.futures import ProcessPoolExecutor
 
         return ProcessPoolExecutor(max_workers=n)
+    if executor_type == "sequential":
+        from adaptive.runner import SequentialExecutor
+
+        return SequentialExecutor()
     msg = f"Unknown executor_type: {executor_type}"
     raise ValueError(msg)
 
@@ -109,15 +113,21 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """The main function that is called by the launcher script."""
     args = _parse_args()
+    client_support.add_log_file_handler(args.log_fname)
     client_support.log.info("parsed args", **vars(args))
+    client_support.args_to_env(args)
 
     # ask the server for a fname and learner
-    learner, fname = client_support.get_learner(
+    learner, fname, initializer = client_support.get_learner(
         args.url,
         args.log_fname,
         args.job_id,
         args.name,
     )
+
+    if initializer is not None:
+        initializer()
+
     if args.executor_type == "process-pool":
         learner.function = WrappedFunction(learner.function)
 

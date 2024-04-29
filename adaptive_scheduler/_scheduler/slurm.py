@@ -1,12 +1,15 @@
 """SLURM for Adaptive Scheduler."""
+
 from __future__ import annotations
 
+import copy
 import getpass
 import re
 import subprocess
 import textwrap
+from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.common import run_submit
@@ -18,45 +21,89 @@ if TYPE_CHECKING:
     from adaptive_scheduler.utils import EXECUTOR_TYPES
 
 
+T = TypeVar("T")
+
+
+def _maybe_as_tuple(
+    x: T | tuple[T, ...] | None,
+    n: int | None,
+    *,
+    check_type: type | None = None,
+) -> tuple[T, ...] | T | None:
+    if x is None:
+        return x
+    if check_type is not None and not isinstance(x, (check_type, tuple)):
+        msg = f"Expected `{check_type}` or `tuple[{check_type}, ...]`, got `{type(x)}`"
+        raise TypeError(msg)
+    if n is None:
+        return x
+    if isinstance(x, tuple):
+        assert len(x) == n
+        return x
+    return tuple(copy.deepcopy(x) for _ in range(n))
+
+
+def _tuple_lengths(*maybe_tuple: tuple[Any, ...] | Any) -> int | None:
+    """Get the length of the items that are in tuples."""
+    length = None
+    for y in maybe_tuple:
+        if isinstance(y, tuple):
+            if length is None:
+                length = len(y)
+            elif length != len(y):
+                msg = "All tuples should have the same length."
+                raise ValueError(msg)
+    return length
+
+
 class SLURM(BaseScheduler):
     """Base object for a Scheduler.
 
+    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
+    ``executor_type``, ``extra_script``, ``exclusive``, ``extra_env_vars``,
+    ``num_threads`` and ``partition`` can be either a single value or a tuple of
+    values. If a tuple is given, then the length of the tuple should be the same
+    as the number of learners (jobs) that are run. This allows for different
+    resources for different jobs.
+
     Parameters
     ----------
-    cores : int | None
+    cores
         Number of cores per job (so per learner.)
         Either use `cores` or `nodes` and `cores_per_node`.
-    nodes : int | None
+    nodes
         Number of nodes per job (so per learner.)
         Either `nodes` and `cores_per_node` or use `cores`.
-    cores_per_node: int | None
+    cores_per_node
         Number of cores per node.
         Either `nodes` and `cores_per_node` or use `cores`.
-    partition: str | None
+    partition
         The SLURM partition to submit the job to.
-    exclusive : bool
+    exclusive
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
-    log_folder : str, default: ""
+    log_folder
         The folder in which to put the log-files.
-    mpiexec_executable : str, optional
+    mpiexec_executable
         ``mpiexec`` executable. By default `mpiexec` will be
         used (so probably from ``conda``).
-    executor_type : str
-        The executor that is used, by default `mpi4py.futures.MPIPoolExecutor` is used.
+    executor_type
+        The executor that is used, by default `concurrent.futures.ProcessPoolExecutor` is used.
         One can use ``"ipyparallel"``, ``"dask-mpi"``, ``"mpi4py"``,
-        ``"loky"``, or ``"process-pool"``.
-    num_threads : int, default 1
+        ``"loky"``, ``"sequential"``, or ``"process-pool"``.
+    num_threads
         ``MKL_NUM_THREADS``, ``OPENBLAS_NUM_THREADS``, ``OMP_NUM_THREADS``, and
         ``NUMEXPR_NUM_THREADS`` will be set to this number.
-    extra_scheduler : list, optional
+    extra_scheduler
         Extra ``#SLURM`` (depending on scheduler type)
-        arguments, e.g. ``["--exclusive=user", "--time=1"]``.
-    extra_env_vars : list, optional
+        arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
+        e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
+    extra_env_vars
         Extra environment variables that are exported in the job
         script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
-    extra_script : str, optional
+    extra_script
         Extra script that will be executed after any environment variables are set,
         but before the main scheduler is run.
+
     """
 
     # Attributes that all schedulers need to have
@@ -66,31 +113,36 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(
+    def __init__(  # noqa: PLR0912, PLR0915, C901
         self,
         *,
-        cores: int | None = None,
-        nodes: int | None = None,
-        cores_per_node: int | None = None,
-        partition: str | None = None,
-        exclusive: bool = True,
+        cores: int | tuple[int, ...] | None = None,
+        nodes: int | tuple[int, ...] | None = None,
+        cores_per_node: int | tuple[int, ...] | None = None,
+        partition: str | tuple[str, ...] | None = None,
+        exclusive: bool | tuple[bool, ...] = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES = "process-pool",
-        num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
-        extra_env_vars: list[str] | None = None,
-        extra_script: str | None = None,
+        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
+        num_threads: int | tuple[int, ...] = 1,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
+        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
+        extra_script: str | tuple[str, ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
+        # Store the original values
         self._cores = cores
-        self.nodes = nodes
-        self.cores_per_node = cores_per_node
-        self.partition = partition
-        self.exclusive = exclusive
-        self.__extra_scheduler = extra_scheduler  # stores original input
+        self._nodes = nodes
+        self._cores_per_node = cores_per_node
+        self._partition = partition
+        self._executor_type = executor_type
+        self._num_threads = num_threads
+        self._exclusive = exclusive
+        self.__extra_scheduler = extra_scheduler
+        self.__extra_env_vars = extra_env_vars
+        self.__extra_script = extra_script
 
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
@@ -101,20 +153,82 @@ class SLURM(BaseScheduler):
 
         if extra_scheduler is None:
             extra_scheduler = []
+        if extra_env_vars is None:
+            extra_env_vars = []
+        if extra_script is None:
+            extra_script = ""
 
-        if cores_per_node is not None:
-            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-            assert nodes is not None
-            cores = nodes * cores_per_node
+        # If any is a tuple, then all should be a tuple
+        n = _tuple_lengths(
+            cores,
+            nodes,
+            cores_per_node,
+            partition,
+            executor_type,
+            num_threads,
+            exclusive,
+            extra_scheduler,
+            extra_env_vars,
+            extra_script,
+        )
+        single_job_script = n is None
+        cores = _maybe_as_tuple(cores, n, check_type=int)
+        self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
+        self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
+        self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
+        num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
+        self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
+        extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
+        extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
+        extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
+
+        if self.cores_per_node is not None:
+            if single_job_script:
+                assert isinstance(self.cores_per_node, int)
+                assert isinstance(nodes, int)
+                assert isinstance(extra_scheduler, list)
+                extra_scheduler.append(f"--ntasks-per-node={self.cores_per_node}")
+                cores = self.cores_per_node * nodes
+            else:
+                assert isinstance(self.cores_per_node, tuple)
+                assert isinstance(nodes, tuple)
+                assert isinstance(extra_scheduler, tuple)
+                for lst, cpn in zip(extra_scheduler, self.cores_per_node):
+                    assert isinstance(lst, list)
+                    lst.append(f"--ntasks-per-node={cpn}")
+                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes))
 
         if partition is not None:
-            if partition not in self.partitions:
-                msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                raise ValueError(msg)
-            extra_scheduler.append(f"--partition={partition}")
+            if single_job_script:
+                assert isinstance(partition, str)
+                assert isinstance(extra_scheduler, list)
+                if partition not in self.partitions:
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                extra_scheduler.append(f"--partition={partition}")
+            else:
+                if any(p not in self.partitions for p in partition):
+                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
+                    raise ValueError(msg)
+                assert isinstance(extra_scheduler, tuple)
+                for lst, p in zip(extra_scheduler, partition):
+                    assert isinstance(lst, list)
+                    lst.append(f"--partition={p}")
 
-        if exclusive:
-            extra_scheduler.append("--exclusive")
+        if single_job_script:
+            assert isinstance(extra_scheduler, list)
+            assert isinstance(exclusive, bool)
+            if self.exclusive:
+                extra_scheduler.append("--exclusive")
+        else:
+            assert isinstance(extra_scheduler, tuple)
+            assert isinstance(self.exclusive, tuple)
+            for _ex, lst in zip(self.exclusive, extra_scheduler):
+                assert isinstance(lst, list)
+                if _ex:
+                    lst.append("--exclusive")
+
         assert cores is not None
         super().__init__(
             cores,
@@ -135,25 +249,51 @@ class SLURM(BaseScheduler):
         """Get the state of the SLURM scheduler."""
         state = super().__getstate__()
         state["cores"] = self._cores
-        state["nodes"] = self.nodes
-        state["cores_per_node"] = self.cores_per_node
-        state["partition"] = self.partition
-        state["exclusive"] = self.exclusive
+        state["nodes"] = self._nodes
+        state["cores_per_node"] = self._cores_per_node
+        state["partition"] = self._partition
+        state["executor_type"] = self._executor_type
+        state["num_threads"] = self._num_threads
+        state["exclusive"] = self._exclusive
         state["extra_scheduler"] = self.__extra_scheduler
+        state["extra_env_vars"] = self.__extra_env_vars
+        state["extra_script"] = self.__extra_script
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Set the state of the SLURM scheduler."""
         self.__init__(**state)  # type: ignore[misc]
 
-    def _ipyparallel(self) -> tuple[str, tuple[str, ...]]:
+    def _ipyparallel(self, *, index: int | None = None) -> tuple[str, tuple[str, ...]]:
+        cores = self._get_cores(index=index)
         job_id = self._JOB_ID_VARIABLE
         profile = "${profile}"
-        cores = self.cores - 1
+        # We need to reserve one core for the controller
         if self.nodes is not None and self.partition is not None and self.exclusive:
-            max_cores_per_node = self.partitions[self.partition]
-            tot_cores = self.nodes * max_cores_per_node
-            cores = min(self.cores, tot_cores - 1)
+            if self.single_job_script:
+                partition = self.partition
+                nodes = self.nodes
+            else:
+                assert isinstance(self.partition, list)
+                assert isinstance(self.nodes, list)
+                assert index is not None
+                partition = self.partition[index]
+                nodes = self.nodes[index]
+            assert isinstance(partition, str)
+            assert isinstance(nodes, int)
+            # Limit the number of cores to the maximum number of cores per node
+            max_cores_per_node = self.partitions[partition]
+            tot_cores = nodes * max_cores_per_node
+            cores = min(cores, tot_cores - 1)
+        else:  # noqa: PLR5501
+            if self.single_job_script:
+                assert isinstance(self.cores, int)
+                cores = self.cores - 1
+            else:
+                assert isinstance(self.cores, tuple)
+                assert index is not None
+                cores = self.cores[index] - 1
+
         start = textwrap.dedent(
             f"""\
             profile=adaptive_scheduler_{job_id}
@@ -178,18 +318,23 @@ class SLURM(BaseScheduler):
         custom = (f"    --profile {profile}",)
         return start, custom
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to SLURM.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
+
         """
+        cores = self._get_cores(index=index)
         job_script = textwrap.dedent(
             f"""\
             #!/bin/bash
-            #SBATCH --ntasks {self.cores}
+            #SBATCH --ntasks {cores}
             #SBATCH --no-requeue
             {{extra_scheduler}}
 
@@ -201,22 +346,25 @@ class SLURM(BaseScheduler):
             """,
         )
 
-        job_script = job_script.format(
-            extra_scheduler=self.extra_scheduler,
-            extra_env_vars=self.extra_env_vars,
-            extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}", options),
+        return job_script.format(
+            extra_scheduler=self.extra_scheduler(index=index),
+            extra_env_vars=self.extra_env_vars(index=index),
+            extra_script=self.extra_script(index=index),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
-        return job_script
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
-        name_prefix = name.rsplit("-", 1)[0]
+        if self.single_job_script:
+            name_prefix = name.rsplit("-", 1)[0]
+        else:
+            name_prefix = name
+            assert index is not None
+            options = self._multi_job_script_options(index)
+            self.write_job_script(name_prefix, options, index=index)
+
         (output_fname,) = self.output_fnames(name)
-        output_str = str(output_fname).replace(
-            self._JOB_ID_VARIABLE,
-            "%A",
-        )
+        output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")
         output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
         submit_cmd = (
@@ -224,7 +372,8 @@ class SLURM(BaseScheduler):
         )
         run_submit(submit_cmd, name)
 
-    def queue(self, *, me_only: bool = True) -> dict[str, dict[str, str]]:
+    @staticmethod
+    def queue(*, me_only: bool = True) -> dict[str, dict[str, str]]:
         """Get the queue of jobs."""
         python_format = {
             "JobID": 100,
@@ -240,8 +389,10 @@ class SLURM(BaseScheduler):
         }  # (key -> length) mapping
 
         slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
+        squeue_executable = find_executable("squeue")
+        assert isinstance(squeue_executable, str)
         cmd = [
-            "/usr/bin/squeue",
+            squeue_executable,
             rf'--Format=",{slurm_format},"',
             "--noheader",
             "--array",
@@ -249,7 +400,7 @@ class SLURM(BaseScheduler):
         if me_only:
             username = getpass.getuser()
             cmd.append(f"--user={username}")
-        proc = subprocess.run(cmd, text=True, capture_output=True)
+        proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
         output = proc.stdout
 
         if (
@@ -281,9 +432,64 @@ class SLURM(BaseScheduler):
         """Get the partitions of the SLURM scheduler."""
         return slurm_partitions()  # type: ignore[return-value]
 
+    @staticmethod
+    def cancel_jobs(name: str, *, dry: bool = False) -> None:
+        """Cancel jobs with names matching the pattern '{name}-{i}' where i is an integer.
 
-def _get_ncores(partition: str) -> int:
+        Parameters
+        ----------
+        name
+            The base name of the jobs to cancel. Jobs with names that start with '{name}-'
+            followed by an integer will be canceled.
+        dry
+            If True, perform a dry run and print the job IDs that would be canceled without
+            actually canceling them. Default is False.
+
+        Raises
+        ------
+        RuntimeError
+            If there is an error while canceling the jobs.
+
+        Examples
+        --------
+        >>> SLURM.cancel_jobs("my_job")
+        # Cancels all running jobs with names like "my_job-1", "my_job-2", etc.
+
+        >>> SLURM.cancel_jobs("my_job", dry=True)
+        # Prints the job IDs that would be canceled without actually canceling them.
+
+        """
+        running_jobs = SLURM.queue()
+        job_ids_to_cancel = []
+
+        for job_id, job_info in running_jobs.items():
+            job_name = job_info["job_name"]
+            if job_name.startswith(f"{name}-"):
+                suffix = job_name[len(name) + 1 :]
+                if suffix.isdigit():
+                    job_ids_to_cancel.append(job_id)
+
+        if job_ids_to_cancel:
+            job_ids_str = ",".join(job_ids_to_cancel)
+            cmd = f"{SLURM._cancel_cmd} {job_ids_str}"
+            if dry:
+                print(f"Dry run: would cancel jobs with IDs: {job_ids_str}")
+            else:
+                try:
+                    subprocess.run(cmd.split(), check=True)
+                except subprocess.CalledProcessError as e:
+                    msg = f"Failed to cancel jobs with name {name}. Error: {e}"
+                    raise RuntimeError(
+                        msg,
+                    ) from e
+        else:
+            print(f"No running jobs found with name pattern '{name}-<integer>'")
+
+
+def _get_ncores(partition: str) -> int | None:
     numbers = re.findall(r"\d+", partition)
+    if not numbers:
+        return None
     return int(numbers[0])
 
 
@@ -292,12 +498,13 @@ def slurm_partitions(
     *,
     timeout: int = 5,
     with_ncores: bool = True,
-) -> list[str] | dict[str, int]:
+) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     output = subprocess.run(
         ["sinfo", "-ahO", "partition"],
         capture_output=True,
         timeout=timeout,
+        check=False,
     )
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))

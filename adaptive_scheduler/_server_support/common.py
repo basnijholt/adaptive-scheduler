@@ -44,9 +44,10 @@ def get_allowed_url() -> str:
 
     Returns
     -------
-    url : str
+    url
         An url that can be used for the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``.
+
     """
     ip = socket.gethostbyname(socket.gethostname())
     port = zmq.ssh.tunnel.select_random_ports(1)[0]
@@ -87,17 +88,18 @@ def cleanup_scheduler_files(
 
     Parameters
     ----------
-    job_names : list
+    job_names
         List of job names.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    with_progress_bar : bool, default: True
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    move_to : str, default: None
+    move_to
         Move the file to a different directory.
         If None the file is removed.
-    log_file_folder : str, default: ''
+    log_file_folder
         The folder in which to delete the log-files.
+
     """
     to_rm = _get_all_files(job_names, scheduler)
 
@@ -121,8 +123,6 @@ def _delete_old_ipython_profiles(
     *,
     with_progress_bar: bool = True,
 ) -> None:
-    if scheduler.executor_type != "ipyparallel":
-        return
     # We need the job_ids because only job_names wouldn't be
     # enough information. There might be other job_managers
     # running.
@@ -145,7 +145,7 @@ def _delete_old_ipython_profiles(
 
 def periodically_clean_ipython_profiles(
     scheduler: BaseScheduler,
-    interval: int | float = 600,
+    interval: float = 600,
 ) -> asyncio.Task:
     """Periodically remove old IPython profiles.
 
@@ -154,17 +154,24 @@ def periodically_clean_ipython_profiles(
 
     Parameters
     ----------
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    interval : int, default: 600
+    interval
         The interval at which to remove old profiles.
 
     Returns
     -------
     asyncio.Task
-    """
 
-    async def clean(interval: int | float) -> None:
+    """
+    if isinstance(scheduler.executor_type, tuple):
+        msg = (
+            "This function is not implemented for multiple executors."
+            " Please open an issue on GitHub if you need this feature."
+        )
+        raise NotImplementedError(msg)
+
+    async def clean(interval: float) -> None:
         while True:
             with suppress(Exception):
                 _delete_old_ipython_profiles(scheduler, with_progress_bar=False)

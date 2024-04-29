@@ -1,4 +1,5 @@
 """PBS for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import collections
@@ -83,6 +84,7 @@ class PBS(BaseScheduler):
         return job_id.split(".")[0]
 
     def _calculate_nnodes(self) -> None:
+        assert isinstance(self.cores, int), "self.cores must be an integer for PBS."
         if self.cores_per_node is None:
             partial_msg = "Use set `cores_per_node=...` before passing the scheduler."
             try:
@@ -123,13 +125,18 @@ class PBS(BaseScheduler):
         stdout, stderr = (home / f"{name}.{x}{self._JOB_ID_VARIABLE}" for x in "oe")
         return [stdout, stderr]
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to PBS.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
+            Currently not implemented for PBS!
+
         """
         job_script = textwrap.dedent(
             f"""\
@@ -150,18 +157,19 @@ class PBS(BaseScheduler):
             """,
         )
 
-        job_script = job_script.format(
-            extra_scheduler=self.extra_scheduler,
-            extra_env_vars=self.extra_env_vars,
-            extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}", options),
+        return job_script.format(
+            extra_scheduler=self.extra_scheduler(index=index),
+            extra_env_vars=self.extra_env_vars(index=index),
+            extra_script=self.extra_script(index=index),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
 
-        return job_script
-
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Writes a job script and submits it to the scheduler."""
+        if index is not None:
+            msg = "PBS does not support `index`."
+            raise NotImplementedError(msg)
         name_prefix = name.rsplit("-", 1)[0]
         name_opt = f"-N {name}"
         submit_cmd = f"{self.submit_cmd} {name_opt} {self.batch_fname(name_prefix)}"
@@ -196,6 +204,7 @@ class PBS(BaseScheduler):
             cmd,
             text=True,
             capture_output=True,
+            check=False,
             env=dict(os.environ, SGE_LONG_QNAMES="1000"),
         )
         output = proc.stdout
@@ -230,7 +239,7 @@ class PBS(BaseScheduler):
         return running
 
     def _qnodes(self) -> dict[str, dict[str, str]]:
-        proc = subprocess.run(["qnodes"], text=True, capture_output=True)
+        proc = subprocess.run(["qnodes"], text=True, capture_output=True, check=False)
         output = proc.stdout
 
         if proc.returncode != 0:

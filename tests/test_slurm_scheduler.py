@@ -1,4 +1,5 @@
 """Tests for the SLURM scheduler."""
+
 from __future__ import annotations
 
 import textwrap
@@ -41,7 +42,7 @@ def test_init_nodes_cores_per_node() -> None:
 def test_slurm_scheduler() -> None:
     """Test that the slurm scheduler is set correctly."""
     s = SLURM(cores=4)
-    assert s._cores == 4  # noqa: PLR2004
+    assert s._cores == 4
     assert s.nodes is None
     assert s.cores_per_node is None
 
@@ -52,9 +53,9 @@ def test_slurm_scheduler_nodes_cores_per_node() -> None:
     s = SLURM(nodes=2, cores_per_node=2, partition="nc24-low")
     assert s.partition == "nc24-low"
     assert s._cores is None
-    assert s.cores == 4  # noqa: PLR2004
-    assert s.nodes == 2  # noqa: PLR2004
-    assert s.cores_per_node == 2  # noqa: PLR2004
+    assert s.cores == 4
+    assert s.nodes == 2
+    assert s.cores_per_node == 2
 
 
 def test_getstate_setstate() -> None:
@@ -271,3 +272,108 @@ def test_slurm_scheduler_ipyparallel() -> None:
         """,
         ).strip()
     )
+
+
+def test_multiple_jobs() -> None:
+    """Test that multiple jobs can be started."""
+    cores = (3, 4, 5)
+    s = SLURM(cores=cores)
+    for i, n in enumerate(cores):
+        js = s.job_script(options={}, index=i)
+        assert f"#SBATCH --ntasks {n}" in js
+        assert js.count("--ntasks") == 1
+    assert isinstance(s._extra_scheduler, tuple)
+    assert len(s._extra_scheduler) == 3
+
+    s = SLURM(cores_per_node=cores, nodes=2)
+    assert isinstance(s.nodes, tuple)
+    assert s.cores == tuple(2 * n for n in cores)
+
+    partitions = ("nc24-low", "hb120v2-low")
+    with patch("adaptive_scheduler._scheduler.slurm.slurm_partitions") as mock:
+        mock.return_value = {"nc24-low": 24, "hb120v2-low": 120}
+
+        s = SLURM(partition=partitions, cores=1)
+        assert s.cores == (1, 1)
+        for i, p in enumerate(partitions):
+            js = s.job_script(options={}, index=i)
+            assert f"#SBATCH --partition={p}" in js
+            assert js.count("--partition") == 1
+
+    s = SLURM(cores=cores, extra_scheduler=["--time=1"], executor_type="ipyparallel")
+    js = s.job_script(options={}, index=0)
+    assert "#SBATCH --time=1" in js
+    assert "--ntasks 2" in js
+
+    # Check with incorrect types
+    with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
+        SLURM(cores="4")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="All tuples should have the same length."):
+        SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
+
+    s = SLURM(cores=1, exclusive=(True, False))
+    js = s.job_script(options={}, index=0)
+    opt = "#SBATCH --exclusive"
+    assert opt in js
+    js = s.job_script(options={}, index=1)
+    assert opt not in js
+
+    s = SLURM(cores=1, exclusive=True)
+    js = s.job_script(options={})
+    assert opt in js
+
+    s = SLURM(cores=1, extra_env_vars=(["YOLO=1"], []))
+    js = s.job_script(options={}, index=0)
+    assert "export YOLO=1" in js
+    js = s.job_script(options={}, index=1)
+    assert "export YOLO=1" not in js
+
+    s = SLURM(cores=1, extra_script=("echo 'YOLO'", ""))
+    js = s.job_script(options={}, index=0)
+    print(js)
+    assert "echo 'YOLO'" in js
+    js = s.job_script(options={}, index=1)
+    assert "echo 'YOLO'" not in js
+
+    s = SLURM(cores=1, num_threads=(1, 2))
+    js = s.job_script(options={}, index=0)
+    print(js)
+    assert "export OPENBLAS_NUM_THREADS=1" in js
+    js = s.job_script(options={}, index=1)
+    assert "export OPENBLAS_NUM_THREADS=2" in js
+
+
+def test_multi_job_script_options() -> None:
+    """Test the SLURM.job_script method."""
+    s = SLURM(cores=2, executor_type=("ipyparallel", "sequential"))
+    assert not s.single_job_script
+    s._command_line_options = {"--n": 2}
+
+    # Test ipyparallel
+    with patch("adaptive_scheduler._scheduler.slurm.run_submit") as mock_submit:
+        s.start_job("testjob", index=0)
+        mock_submit.assert_called_once()
+        args, _ = mock_submit.call_args
+        assert args[0].startswith("sbatch")
+    assert "--executor-type ipyparallel" in s.batch_fname("testjob").read_text()
+
+    # Test sequential
+    with patch("adaptive_scheduler._scheduler.slurm.run_submit") as mock_submit:
+        s.start_job("testjob", index=1)
+        mock_submit.assert_called_once()
+        args, _ = mock_submit.call_args
+        assert args[0].startswith("sbatch")
+    assert "--executor-type sequential" in s.batch_fname("testjob").read_text()
+
+
+def test_not_changing_attributes() -> None:
+    """Tests bug fixed in https://github.com/basnijholt/adaptive-scheduler/pull/215."""
+    s = SLURM(cores_per_node=100, nodes=(1, 2))
+    assert s._extra_env_vars == ([], [])
+    js0 = s.job_script(options={}, index=0)
+    assert s._extra_env_vars == ([], [])
+    js1 = s.job_script(options={}, index=1)
+    assert s._extra_env_vars == ([], [])
+    assert js0.count("MKL_NUM_THREADS") == 1
+    assert js1.count("MKL_NUM_THREADS") == 1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.utils import _now, _serialize_to_b64, sleep_unless_task_is_done
@@ -26,34 +27,72 @@ def command_line_options(
     database_manager: DatabaseManager,
     runner_kwargs: dict[str, Any] | None = None,
     goal: GoalTypes,
-    log_interval: int | float = 60,
-    save_interval: int | float = 300,
+    log_interval: float = 60,
+    save_interval: float = 300,
     save_dataframe: bool = True,
-    dataframe_format: _DATAFRAME_FORMATS = "parquet",
+    dataframe_format: _DATAFRAME_FORMATS = "pickle",
     loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
-    """Return the command line options for the job_script."""
+    """Return the command line options for the job_script.
+
+    Parameters
+    ----------
+    scheduler
+        A scheduler instance from `adaptive_scheduler.scheduler`.
+    database_manager
+        A database manager instance.
+    runner_kwargs
+        Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
+        will be serialized and pasted in the ``job_script``.
+    goal
+        The goal passed to the `adaptive.Runner`. Note that this function will
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
+        that accepts
+        ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
+        See `adaptive_scheduler.utils.smart_goal` for more information.
+    log_interval
+        Time in seconds between log entries.
+    save_interval
+        Time in seconds between saving of the learners.
+    save_dataframe
+        Whether to periodically save the learner's data as a `pandas.DataFame`.
+    dataframe_format
+        The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    loky_start_method
+        Loky start method, by default "loky".
+
+    Returns
+    -------
+    dict
+        The command line options for the job_script.
+
+    """
     if runner_kwargs is None:
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
     base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
-    n = scheduler.cores
-    if scheduler.executor_type == "ipyparallel":
-        n -= 1
 
     opts = {
-        "--n": n,
         "--url": database_manager.url,
-        "--executor-type": scheduler.executor_type,
         "--log-interval": log_interval,
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
     }
-    if scheduler.executor_type == "loky":
-        opts["--loky-start-method"] = loky_start_method
+    if scheduler.single_job_script:
+        # if `cores` or `executor_type` is a tuple then we set it
+        # in `Scheduler.start_job`
+        assert isinstance(scheduler.cores, int)
+        n = scheduler.cores
+        if scheduler.executor_type == "ipyparallel":
+            n -= 1
+        opts["--n"] = n
+        opts["--executor-type"] = scheduler.executor_type
+
+    opts["--loky-start-method"] = loky_start_method
+
     if save_dataframe:
         opts["--dataframe-format"] = dataframe_format
-        opts["--save-dataframe"] = None
+        opts["--save-dataframe"] = None  # type: ignore[assignment]
     return opts
 
 
@@ -62,31 +101,51 @@ class JobManager(BaseManager):
 
     Parameters
     ----------
-    job_names : list
+    job_names
         List of unique names used for the jobs with the same length as
         `learners`. Note that a job name does not correspond to a certain
         specific learner.
-    database_manager : `DatabaseManager`
+    database_manager
         A `DatabaseManager` instance.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    interval : int, default: 30
+    interval
         Time in seconds between checking and starting jobs.
-    max_simultaneous_jobs : int, default: 500
+    max_simultaneous_jobs
         Maximum number of simultaneously running jobs. By default no more than 500
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
-    max_fails_per_job : int, default: 40
+    max_fails_per_job
         Maximum number of times that a job can fail. This is here as a fail switch
         because a job might fail instantly because of a bug inside your code.
         The job manager will stop when
         ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    save_dataframe
+        Whether to periodically save the learner's data as a `pandas.DataFame`.
+    dataframe_format
+        The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    loky_start_method
+        Loky start method, by default "loky".
+    log_interval
+        Time in seconds between log entries.
+    save_interval
+        Time in seconds between saving of the learners.
+    runner_kwargs
+        Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
+        will be serialized and pasted in the ``job_script``.
+    goal
+        The goal passed to the `adaptive.Runner`. Note that this function will
+        be serialized and pasted in the ``job_script``. Can be a smart-goal
+        that accepts
+        ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
+        See `adaptive_scheduler.utils.smart_goal` for more information.
 
     Attributes
     ----------
     n_started : int
         Total number of jobs started by the `JobManager`.
+
     """
 
     def __init__(
@@ -94,18 +153,18 @@ class JobManager(BaseManager):
         job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
-        interval: int | float = 30,
+        interval: float = 30,
         *,
         max_simultaneous_jobs: int = 100,
         max_fails_per_job: int = 50,
         # Command line launcher options
         save_dataframe: bool = True,
-        dataframe_format: _DATAFRAME_FORMATS = "parquet",
+        dataframe_format: _DATAFRAME_FORMATS = "pickle",
         loky_start_method: LOKY_START_METHODS = "loky",
-        log_interval: int | float = 60,
-        save_interval: int | float = 300,
+        log_interval: float = 60,
+        save_interval: float = 300,
         runner_kwargs: dict[str, Any] | None = None,
-        goal: GoalTypes = None,
+        goal: GoalTypes | None = None,
     ) -> None:
         super().__init__()
         self.job_names = job_names
@@ -114,7 +173,6 @@ class JobManager(BaseManager):
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
-
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
@@ -153,7 +211,10 @@ class JobManager(BaseManager):
             goal=self.goal,
             loky_start_method=self.loky_start_method,
         )
-        self.scheduler.write_job_script(name_prefix, options)
+        # hack to get the options in the job_script  # noqa: FIX004
+        self.scheduler._command_line_options = options
+        if self.scheduler.single_job_script:
+            self.scheduler.write_job_script(name_prefix, options, index=None)
 
     async def _update_database_and_get_not_queued(
         self,
@@ -182,7 +243,17 @@ class JobManager(BaseManager):
         for _ in range(num_jobs_to_start):
             job_name = not_queued.pop()
             queued.add(job_name)
-            await loop.run_in_executor(ex, self.scheduler.start_job, job_name)
+
+            index, fname = self.database_manager._choose_fname()
+            log.debug(
+                f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
+            )
+            await loop.run_in_executor(
+                ex,
+                partial(self.scheduler.start_job, name=job_name, index=index),
+            )
+            self.database_manager._confirm_submitted(index, job_name)
+
             self.n_started += 1
             self._request_times[job_name] = _now()
 
@@ -206,7 +277,7 @@ class JobManager(BaseManager):
                         self.interval,
                     ):  # if true, we are done
                         return
-                except asyncio.CancelledError:
+                except asyncio.CancelledError:  # noqa: PERF203
                     log.info("task was cancelled because of a CancelledError")
                     raise
                 except MaxRestartsReachedError as e:

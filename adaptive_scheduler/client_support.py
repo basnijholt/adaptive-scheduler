@@ -1,11 +1,14 @@
 """Client support for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import datetime
+import json
 import logging
+import os
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import psutil
 import structlog
@@ -21,10 +24,17 @@ from adaptive_scheduler.utils import (
 )
 
 if TYPE_CHECKING:
+    import argparse
     import asyncio
     from pathlib import Path
 
     from adaptive import AsyncRunner, BaseLearner
+
+
+def _dumps(event_dict: dict[str, Any], **kwargs: Any) -> str:
+    """Custom json.dumps to ensure 'event' key is always first in the JSON output."""
+    event = event_dict.pop("event", None)
+    return json.dumps({"event": event, **event_dict}, **kwargs)
 
 
 ctx = zmq.Context()
@@ -36,12 +46,13 @@ log = structlog.wrap_logger(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M.%S", utc=False),
-        structlog.processors.JSONRenderer(),
+        structlog.processors.JSONRenderer(serializer=_dumps),
     ],
 )
 
 
-def _add_log_file_handler(log_fname: str | Path) -> None:  # pragma: no cover
+def add_log_file_handler(log_fname: str | Path) -> None:  # pragma: no cover
+    """Add a file handler to the logger."""
     fh = logging.FileHandler(log_fname)
     logger.addHandler(fh)
 
@@ -51,7 +62,7 @@ def get_learner(
     log_fname: str,
     job_id: str,
     job_name: str,
-) -> tuple[BaseLearner, str | list[str]]:
+) -> tuple[BaseLearner, str | list[str], Callable[[], None] | None]:
     """Get a learner from the database (running at `url`).
 
     This learner's process will be logged in `log_fname`
@@ -59,24 +70,26 @@ def get_learner(
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    log_fname : str
+    log_fname
         The filename of the log-file. Should be passed in the job-script.
-    job_id : str
+    job_id
         The job_id of the process the job. Should be passed in the job-script.
-    job_name : str
+    job_name
         The name of the job. Should be passed in the job-script.
 
     Returns
     -------
-    learner : `adaptive.BaseLearner`
+    learner
         Learner that is chosen.
-    fname : str
+    fname
         The filename of the learner that was chosen.
+    initializer
+        A function that runs before the process is forked.
+
     """
-    _add_log_file_handler(log_fname)
     log.info(
         "trying to get learner",
         job_id=job_id,
@@ -101,11 +114,11 @@ def get_learner(
             log_exception(log, "got an exception", exception=reply)
             raise reply
         fname = reply
-        learner = fname_to_learner(fname)
+        learner, initializer = fname_to_learner(fname, return_initializer=True)
         log.info("got fname and loaded learner")
 
     log.info("picked a learner")
-    return learner, fname
+    return learner, fname, initializer
 
 
 def tell_done(url: str, fname: str | list[str]) -> None:
@@ -113,11 +126,12 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager running via
         (`adaptive_scheduler.server_support.manage_database`).
-    fname : str
+    fname
         The filename of the learner that is done.
+
     """
     log.info("goal reached! 🎉🎊🥳")
     with ctx.socket(zmq.REQ) as socket:
@@ -132,7 +146,7 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
-    info: dict[str, int | float | str] = {}
+    info: dict[str, float | str] = {}
     Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()
@@ -162,22 +176,19 @@ def log_now(runner: AsyncRunner, npoints_start: int) -> None:
     log.info("current status", **info)
 
 
-def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
+def log_info(runner: AsyncRunner, interval: float = 300) -> asyncio.Task:
     """Log info in the job's logfile, similar to `runner.live_info`.
 
     Parameters
     ----------
-    runner : `adaptive.Runner` instance
+    runner
         Adaptive Runner instance.
-    interval : int | float, default: 300
+    interval
         Time in seconds between log entries.
 
-    Returns
-    -------
-    asyncio.Task
     """
 
-    async def coro(runner: AsyncRunner, interval: int | float) -> None:
+    async def coro(runner: AsyncRunner, interval: float) -> None:
         log.info(f"started logger on hostname {socket.gethostname()}")  # noqa: G004
         learner = runner.learner
         npoints_start = _get_npoints(learner)
@@ -191,3 +202,13 @@ def log_info(runner: AsyncRunner, interval: int | float = 300) -> asyncio.Task:
         log.info("current status", **_get_log_entry(runner, npoints_start))
 
     return runner.ioloop.create_task(coro(runner, interval))
+
+
+def args_to_env(args: argparse.Namespace, prefix: str = "ADAPTIVE_SCHEDULER_") -> None:
+    """Convert parsed arguments to environment variables."""
+    env_vars = {}
+    for arg, value in vars(args).items():
+        if value is not None:
+            env_vars[f"{prefix}{arg.upper()}"] = str(value)
+    os.environ.update(env_vars)
+    log.info("set environment variables", **env_vars)

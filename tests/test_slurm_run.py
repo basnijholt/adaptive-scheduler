@@ -1,4 +1,5 @@
 """Tests for the slurm_run function."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -41,8 +42,8 @@ def test_slurm_run_with_default_arguments(
     rm = slurm_run(learners, fnames)
     assert isinstance(rm, RunManager)
     assert isinstance(rm.scheduler, SLURM)
-    assert rm.save_interval == 300  # noqa: PLR2004
-    assert rm.log_interval == 300  # noqa: PLR2004
+    assert rm.save_interval == 300
+    assert rm.log_interval == 300
     assert rm.learners == learners
     assert rm.fnames == fnames
     assert rm.scheduler.exclusive is True
@@ -50,7 +51,7 @@ def test_slurm_run_with_default_arguments(
 
 def goal_example(learner: adaptive.Learner1D) -> bool:
     """Example goal function for testing."""
-    return len(learner.data) >= 10  # noqa: PLR2004
+    return len(learner.data) >= 10
 
 
 @pytest.mark.parametrize(
@@ -235,3 +236,22 @@ def test_slurm_run_with_invalid_nodes_and_executor_type(
         match="process-pool can maximally use a single node",
     ):
         slurm_run(learners, fnames, nodes=2, executor_type="process-pool")
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_slurm_run_with_multiple_partitions(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+) -> None:
+    """Test slurm_run function with multiple partitions."""
+    rm = slurm_run(learners, fnames, partition=("hb120v2-low", "hb60-high"))
+    assert isinstance(rm, RunManager)
+    s = rm.scheduler
+    assert isinstance(s, SLURM)
+    assert s.cores == (120, 60)
+    assert s.partition == ("hb120v2-low", "hb60-high")
+    assert s.nodes == (1, 1)
+    assert s.cores_per_node == (120, 60)

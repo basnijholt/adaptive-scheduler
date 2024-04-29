@@ -40,18 +40,19 @@ def parse_log_files(
 
     Parameters
     ----------
-    job_names : list
+    job_names
         List of job names.
-    database_manager : `DatabaseManager`
+    database_manager
         A `DatabaseManager` instance.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    only_last : bool, default: True
+    only_last
         Only look use the last printed status message.
 
     Returns
     -------
     `~pandas.core.frame.DataFrame`
+
     """
     _queue = scheduler.queue()
     database_manager.update(_queue)

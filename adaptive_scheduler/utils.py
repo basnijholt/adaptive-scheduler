@@ -1,4 +1,5 @@
 """Utility functions for adaptive_scheduler."""
+
 from __future__ import annotations
 
 import asyncio
@@ -14,14 +15,26 @@ import random
 import shutil
 import tempfile
 import time
+import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from inspect import signature
+from itertools import chain
 from multiprocessing import Manager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Literal,
+    Union,
+)
+from typing import (
+    get_args as get_type_args,
+)
 
 import adaptive
 import cloudpickle
@@ -30,11 +43,18 @@ import pandas as pd
 import toolz
 from adaptive.notebook_integration import in_ipynb
 from rich.console import Console
+from rich.progress import (
+    Progress,
+    TimeElapsedColumn,
+    get_console,
+)
 from tqdm import tqdm, tqdm_notebook
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from multiprocessing.managers import ListProxy
+
+    from rich.progress import TaskID
 
 console = Console()
 
@@ -50,7 +70,14 @@ LOKY_START_METHODS = Literal[
     "forkserver",
 ]
 
-EXECUTOR_TYPES = Literal["mpi4py", "ipyparallel", "dask-mpi", "process-pool", "loky"]
+EXECUTOR_TYPES = Literal[
+    "mpi4py",
+    "ipyparallel",
+    "dask-mpi",
+    "process-pool",
+    "loky",
+    "sequential",
+]
 GoalTypes = Union[
     Callable[[adaptive.BaseLearner], bool],
     int,
@@ -61,10 +88,10 @@ GoalTypes = Union[
 ]
 
 
-def shuffle_list(*lists: list, seed: int | None = 0) -> zip | zip:
+def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
     combined = list(zip(*lists))
-    random.Random(seed).shuffle(combined)
+    random.Random(seed).shuffle(combined)  # noqa: S311
     return zip(*combined)
 
 
@@ -81,14 +108,11 @@ def split(seq: Iterable, n_parts: int) -> Iterable[tuple]:
 
     Parameters
     ----------
-    seq : sequence
+    seq
         A list or other iterable that has to be split up.
-    n_parts : int
+    n_parts
         The sequence will be split up in this many parts.
 
-    Returns
-    -------
-    iterable of tuples
     """
     lst = list(seq)
     n = math.ceil(len(lst) / n_parts)
@@ -105,18 +129,19 @@ def split_in_balancing_learners(
 
     Parameters
     ----------
-    learners : list
+    learners
         List of learners.
-    fnames : list
+    fnames
         List of filenames.
-    n_parts : int
+    n_parts
         Total number of `~adaptive.BalancingLearner`\s.
-    strategy : str
+    strategy
         Learning strategy of the `~adaptive.BalancingLearner`.
 
     Returns
     -------
     new_learners, new_fnames
+
     """
     new_learners = []
     new_fnames = []
@@ -124,7 +149,7 @@ def split_in_balancing_learners(
         learners_part, fnames_part = zip(*x)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
-        new_fnames.append(fnames_part)
+        new_fnames.append(list(fnames_part))
     return new_learners, new_fnames
 
 
@@ -144,17 +169,18 @@ def split_sequence_learner(
     ----------
     big_learner
         A `~adaptive.SequenceLearner` instance
-    n_learners : int
+    n_learners
         Total number of `~adaptive.SequenceLearner`\s.
-    folder : pathlib.Path or str
+    folder
         Folder to prepend to fnames.
 
     Returns
     -------
-    new_learners : List[adaptive.SequenceLearner]
+    new_learners
         List of `~adaptive.SequenceLearner`\s.
-    new_fnames : List[Path]
+    new_fnames
         List of str based on a hash of the sequence.
+
     """
     new_learners, new_fnames = split_sequence_in_sequence_learners(
         function=big_learner._original_function,
@@ -185,21 +211,22 @@ def split_sequence_in_sequence_learners(
 
     Parameters
     ----------
-    function : callable
+    function
         Function for `adaptive.SequenceLearner`\s.
-    sequence : sequence
+    sequence
         The sequence to split into ``n_learners``.
-    n_learners : int
+    n_learners
         Total number of `~adaptive.SequenceLearner`\s.
-    folder : pathlib.Path or str
+    folder
         Folder to prepend to fnames.
 
     Returns
     -------
-    new_learners : List[adaptive.SequenceLearner]
+    new_learners
         List of `~adaptive.SequenceLearner`\s.
-    new_fnames : List[Path]
+    new_fnames
         List of str based on a hash of the sequence.
+
     """
     folder = Path(folder)
     new_learners = []
@@ -225,20 +252,20 @@ def combine_sequence_learners(
 
     Parameters
     ----------
-    learners : List[adaptive.SequenceLearner]
+    learners
         List of `~adaptive.SequenceLearner`\s.
-    big_learner : Optional[adaptive.SequenceLearner]
+    big_learner
         A learner to load, if None, a new learner will be generated.
 
     Returns
     -------
     adaptive.SequenceLearner
         Big `~adaptive.SequenceLearner` with data from ``learners``.
+
     """
     if big_learner is None:
-        big_sequence: list[Any] = sum(
-            (list(learner.sequence) for learner in learners),
-            [],
+        big_sequence: list[Any] = list(
+            chain.from_iterable(learner.sequence for learner in learners),
         )
         big_learner = adaptive.SequenceLearner(
             learners[0]._original_function,
@@ -264,10 +291,11 @@ def copy_from_sequence_learner(
 
     Parameters
     ----------
-    learner_from : adaptive.SequenceLearner
+    learner_from
         Learner to take the data from.
-    learner_to : adaptive.SequenceLearner
+    learner_to
         Learner to tell the data to.
+
     """
     mapping = {
         hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()
@@ -397,15 +425,16 @@ def _remove_or_move_files(
 
     Parameters
     ----------
-    fnames : list
+    fnames
         List of filenames.
-    with_progress_bar : bool, default: True
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    move_to : str | Path, default None
+    move_to
         Move the file to a different directory.
         If None the file is removed.
-    desc : str, default: None
+    desc
         Description of the progressbar.
+
     """
     n_failed = 0
     for fname in _progress(fnames, with_progress_bar, desc or "Removing files"):
@@ -440,15 +469,16 @@ def load_parallel(
 
     Parameters
     ----------
-    learners : sequence of `adaptive.BaseLearner`\s
+    learners
         The learners to be loaded.
-    fnames : sequence of str
+    fnames
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar
         Display a progress bar using `tqdm`.
-    max_workers : int, optional
+    max_workers
         The maximum number of parallel threads when loading the data.
         If ``None``, use the maximum number of threads that is possible.
+
     """
 
     def load(learner: adaptive.BaseLearner, fname: str) -> None:
@@ -472,12 +502,13 @@ def save_parallel(
 
     Parameters
     ----------
-    learners : sequence of `adaptive.BaseLearner`\s
+    learners
         The learners to be saved.
-    fnames : sequence of str
+    fnames
         A list of filenames corresponding to `learners`.
-    with_progress_bar : bool, default True
+    with_progress_bar
         Display a progress bar using `tqdm`.
+
     """
 
     def save(learner: adaptive.BaseLearner, fname: str) -> None:
@@ -533,21 +564,22 @@ def connect_to_ipyparallel(
 
     Parameters
     ----------
-    n : int
+    n
         Number of engines to be started.
-    profile : str
+    profile
         Profile name of IPython profile.
-    timeout : int
+    timeout
         Time for which we try to connect to get all the engines.
-    folder : str, optional
+    folder
         Folder that is added to the path of the engines, e.g. ``"~/Work/my_current_project"``.
     client_kwargs
         Keyword arguments passed to `ipyparallel.Client`.
 
     Returns
     -------
-    client : `ipyparallel.Client` object
+    client
         An IPyparallel client.
+
     """
     from ipyparallel import Client
 
@@ -604,11 +636,12 @@ class LRUCachedCallable:
 
     Parameters
     ----------
-    function : Callable[..., Any]
-    max_size : int, optional
+    function
+    max_size
         Cache size of the LRU cache, by default 128.
-    with_cloudpickle : bool
+    with_cloudpickle
         Use cloudpickle for storing the data in memory.
+
     """
 
     def __init__(
@@ -727,11 +760,16 @@ def fname_to_learner_fname(
 
 def fname_to_learner(
     fname: str | list[str] | Path | list[Path],
-) -> adaptive.BaseLearner:
+    *,
+    return_initializer: bool = False,
+) -> tuple[adaptive.BaseLearner, Callable[[], None] | None] | adaptive.BaseLearner:
     """Load a learner from a filename (based on cloudpickled learner)."""
     learner_name = fname_to_learner_fname(fname)
     with learner_name.open("rb") as f:
-        return cloudpickle.load(f)
+        learner, initializer = cloudpickle.load(f)
+    if return_initializer:
+        return learner, initializer
+    return learner
 
 
 def _ensure_folder_exists(
@@ -752,6 +790,7 @@ def cloudpickle_learners(
     learners: list[adaptive.BaseLearner],
     fnames: FnamesTypes,
     *,
+    initializers: list[Callable[[], None]] | None = None,
     with_progress_bar: bool = False,
     empty_copies: bool = True,
 ) -> tuple[int, float]:
@@ -762,8 +801,10 @@ def cloudpickle_learners(
     _ensure_folder_exists(fnames)
     total_filesize = 0
     t_start = time.time()
-    for learner, fname in _progress(
-        zip(learners, fnames),
+    if initializers is None:
+        initializers = [None] * len(learners)  # type: ignore[list-item]
+    for learner, fname, initializer in _progress(
+        zip(learners, fnames, initializers),
         with_progress_bar,
         desc="Cloudpickling learners",
     ):
@@ -772,7 +813,10 @@ def cloudpickle_learners(
             _at_least_adaptive_version("0.14.1", "empty_copies")
             learner = learner.new()  # noqa: PLW2901
         with fname_learner.open("wb") as f:
-            cloudpickle.dump(learner, f)
+            # Make sure that the learner and initializer are ALWAYS pickled together.
+            # Otherwise, the learner function and initializer might not use to the
+            # same objects even when referring to the same objects in a namespace.
+            cloudpickle.dump((learner, initializer), f)
         filesize = fname_learner.stat().st_size
         total_filesize += filesize
     total_time = time.time() - t_start
@@ -781,7 +825,7 @@ def cloudpickle_learners(
 
 def fname_to_dataframe(
     fname: str | list[str] | Path | list[Path],
-    format: str = "parquet",  # noqa: A002
+    format: str = "pickle",  # noqa: A002
 ) -> Path:
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
@@ -796,9 +840,10 @@ def fname_to_dataframe(
 def save_dataframe(
     fname: str | list[str],
     *,
-    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
+    format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
     save_kwargs: dict[str, Any] | None = None,
     expand_dicts: bool = True,
+    atomically: bool = True,
     **to_dataframe_kwargs: Any,
 ) -> Callable[[adaptive.BaseLearner], None]:
     """Save the learner's data to disk as pandas.DataFrame."""
@@ -809,28 +854,60 @@ def save_dataframe(
         if expand_dicts:
             df = expand_dict_columns(df)
         fname_df = fname_to_dataframe(fname, format=format)
-        if format == "parquet":
-            df.to_parquet(fname_df, **save_kwargs)
-        elif format == "csv":
-            df.to_csv(fname_df, **save_kwargs)
-        elif format == "hdf":
+
+        if format not in get_type_args(_DATAFRAME_FORMATS):
+            msg = f"Unknown format {format}"
+            raise ValueError(msg)
+        do_save = getattr(df, f"to_{format}")
+
+        if format == "hdf":
             assert save_kwargs is not None  # for mypy
             if "key" not in save_kwargs:
                 save_kwargs["key"] = "data"
-            df.to_hdf(fname_df, **save_kwargs)
-        elif format == "pickle":
-            df.to_pickle(fname_df, **save_kwargs)
-        elif format == "feather":
-            df.to_feather(fname_df, **save_kwargs)
-        elif format == "excel":
-            df.to_excel(fname_df, **save_kwargs)
-        elif format == "json":
-            df.to_json(fname_df, **save_kwargs)
+
+        if atomically:
+            with atomic_write(fname_df, return_path=True) as fname_temp:
+                do_save(fname_temp, **save_kwargs)
         else:
-            msg = f"Unknown format {format}."
-            raise ValueError(msg)
+            do_save(fname_df, **save_kwargs)
 
     return save
+
+
+@contextmanager
+def atomic_write(
+    dest: os.PathLike,
+    mode: str = "w",
+    *args: Any,
+    return_path: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """Write atomically to 'dest', using a temporary file in the same directory.
+
+    This function has the same signature as 'open', except that the default
+    mode is 'w', not 'r', and there is an additional keyword-only parameter,
+    'return_path'. If 'return_path=True' then a Path pointing to the (as yet
+    nonexistant) temporary file is yielded, rather than a file handle.
+    This is useful when calling libraries that expect a path, rather than an
+    open file handle.
+    """
+    temp_dest = Path(dest).with_suffix(f".temp.{os.getpid()}.{uuid.uuid4()}")
+    try:
+        # First create an empty file; this ensures we have the same semantics
+        # as 'open(..., mode="w")'.
+        temp_dest.open("w").close()
+        # Now give control back to the caller.
+        if return_path:
+            yield temp_dest
+        else:
+            with temp_dest.open(mode, *args, **kwargs) as fp:
+                yield fp
+        # Atomically change 'dest' to point to the 'temp_dest' inode.
+        os.replace(temp_dest, dest)  # noqa: PTH105
+    except Exception:
+        with suppress(FileNotFoundError):
+            os.remove(temp_dest)  # noqa: PTH107
+        raise
 
 
 _DATAFRAME_FORMATS = Literal[
@@ -860,46 +937,39 @@ def expand_dict_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataframes(  # noqa: PLR0912
+def load_dataframes(
     fnames: list[str] | list[list[str]] | list[Path] | list[list[Path]],
     *,
     concat: bool = True,
     read_kwargs: dict[str, Any] | None = None,
-    format: _DATAFRAME_FORMATS = "parquet",  # noqa: A002
+    format: _DATAFRAME_FORMATS = "pickle",  # noqa: A002
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Load a list of dataframes from disk."""
     read_kwargs = read_kwargs or {}
+    if format == "hdf" and "key" not in read_kwargs:
+        read_kwargs["key"] = "data"
+
+    if format not in get_type_args(_DATAFRAME_FORMATS):
+        msg = f"Unknown format {format}."
+        raise ValueError(msg)
+
+    do_read = getattr(pd, f"read_{format}")
+
     dfs = []
     for fn in fnames:
         fn_df = fname_to_dataframe(fn, format=format)
         if not os.path.exists(fn_df):  # noqa: PTH110
             continue
         try:
-            if format == "parquet":
-                df = pd.read_parquet(fn_df, **read_kwargs)
-            elif format == "csv":
-                df = pd.read_csv(fn_df, **read_kwargs)
-            elif format == "hdf":
-                if "key" not in read_kwargs:
-                    read_kwargs["key"] = "data"
-                df = pd.read_hdf(fn_df, **read_kwargs)
-            elif format == "pickle":
-                df = pd.read_pickle(fn_df, **read_kwargs)  # noqa: S301
-            elif format == "feather":
-                df = pd.read_feather(fn_df, **read_kwargs)
-            elif format == "excel":
-                df = pd.read_excel(fn_df, **read_kwargs)
-            elif format == "json":
-                df = pd.read_json(fn_df, **read_kwargs)
-            else:
-                msg = f"Unknown format {format}."
-                raise ValueError(msg)  # noqa: TRY301
+            df = do_read(fn_df, **read_kwargs)
         except Exception:  # noqa: BLE001
             msg = f"`{fn}`'s DataFrame ({fn_df}) could not be read."
             console.print(msg)
             continue
+
         df["fname"] = len(df) * [fn]
         dfs.append(df)
+
     if concat:
         if dfs:
             return pd.concat(dfs, axis=0)
@@ -964,6 +1034,7 @@ def smart_goal(
     Returns
     -------
     Callable[[adaptive.BaseLearner], bool]
+
     """
     if callable(goal):
         return goal
@@ -985,7 +1056,7 @@ def smart_goal(
             stacklevel=2,
         )
         return lambda _: False
-    msg = "goal must be `callable | int | float | None`"
+    msg = "goal must be `callable | float | None`"
     raise ValueError(msg)
 
 
@@ -1021,7 +1092,7 @@ class WrappedFunction:
 
     Attributes
     ----------
-    _cache_key : str
+    _cache_key
         The key used to access the deserialized function in the global cache.
 
     Examples
@@ -1032,6 +1103,7 @@ class WrappedFunction:
     >>> wrapped_function = WrappedFunction(square)
     >>> wrapped_function(4)
     16
+
     """
 
     def __init__(
@@ -1071,9 +1143,9 @@ class WrappedFunction:
 
         Parameters
         ----------
-        *args : tuple
+        *args
             Positional arguments to pass to the deserialized function.
-        **kwargs : dict
+        **kwargs
             Keyword arguments to pass to the deserialized function.
 
         Returns
@@ -1081,6 +1153,7 @@ class WrappedFunction:
         Any
             The result of calling the deserialized function with the provided
             arguments and keyword arguments.
+
         """
         global _GLOBAL_CACHE  # noqa: PLW0602
 
@@ -1124,7 +1197,7 @@ def _time_between(start: str, end: str) -> float:
 
 async def sleep_unless_task_is_done(
     task: asyncio.Task,
-    sleep_duration: int | float,
+    sleep_duration: float,
 ) -> bool:
     """Sleep for an interval, unless the task is done before then."""
     # Create the sleep task separately
@@ -1141,3 +1214,168 @@ async def sleep_unless_task_is_done(
         sleep_task.cancel()
         return True  # means that the task is done
     return False
+
+
+def _update_progress_for_paths(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+    progress: Progress,
+    total_task: TaskID | None,
+    task_ids: dict[str, TaskID],
+) -> int:
+    """Update progress bars for each set of paths."""
+    n_completed = _remove_completed_paths(paths_dict)
+    total_completed = sum(n_completed.values())
+    for key, n_done in n_completed.items():
+        progress.update(task_ids[key], advance=n_done)
+    if total_task is not None:
+        progress.update(total_task, advance=total_completed)
+    return total_completed
+
+
+def _remove_completed_paths(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+) -> dict[str, int]:
+    n_completed = {}
+
+    for key, paths in paths_dict.items():
+        completed_count = 0
+        to_discard = set()
+        to_add = set()
+
+        for path_unit in paths:
+            # Check if it's a single Path or a tuple of Paths
+            paths_to_check = [path_unit] if isinstance(path_unit, Path) else path_unit
+
+            # Check if all paths in the path_unit exist
+            if all(p.exists() for p in paths_to_check):
+                completed_count += 1
+                to_discard.add(path_unit)
+            elif isinstance(path_unit, tuple):
+                exists = {p for p in path_unit if p.exists()}
+                if any(exists):
+                    to_discard.add(path_unit)
+                    to_add.add(tuple(p for p in path_unit if p not in exists))
+
+        n_completed[key] = completed_count
+        paths_dict[key] -= to_discard
+        paths_dict[key] |= to_add
+
+    return n_completed
+
+
+async def _track_file_creation_progress(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+    progress: Progress,
+    interval: float = 1,
+) -> None:
+    """Asynchronously track and update the progress of file creation.
+
+    Parameters
+    ----------
+    paths_dict
+        A dictionary with keys representing categories and values being sets of file paths to monitor.
+    progress
+        The Progress object from the rich library for displaying progress.
+    interval
+        The time interval (in seconds) at which to update the progress. The interval is dynamically
+        adjusted to be at least 50 times the time it takes to update the progress. This ensures that
+        updating the progress does not take up a significant amount of time.
+
+    """
+    # create total_files and add_total_progress before updating paths_dict
+    total_files = sum(len(paths) for paths in paths_dict.values())
+    add_total_progress = len(paths_dict) > 1
+    n_completed = _remove_completed_paths(paths_dict)  # updates paths_dict in-place
+    total_done = sum(n_completed.values())
+    task_ids: dict[str, TaskID] = {}
+
+    # Add a total progress bar only if there are multiple entries in the dictionary
+    total_task = (
+        progress.add_task(
+            "[cyan bold underline]Total",
+            total=total_files,
+            completed=total_done,
+        )
+        if add_total_progress
+        else None
+    )
+    for key, n_done in n_completed.items():
+        n_remaining = len(paths_dict.get(key, []))
+        task_ids[key] = progress.add_task(
+            f"[green]{key}",
+            total=n_remaining + n_done,
+            completed=n_done,
+        )
+    try:
+        progress.start()  # Start the progress display
+        total_processed = 0
+        while True:
+            t_start = time.time()
+            total_processed += _update_progress_for_paths(
+                paths_dict,
+                progress,
+                total_task,
+                task_ids,
+            )
+            if total_processed >= total_files:
+                progress.refresh()  # Final refresh to ensure 100%
+                break  # Exit loop if all files are processed
+            progress.refresh()
+            # Sleep for at least 50 times the update time
+            t_update = time.time() - t_start
+            await asyncio.sleep(max(interval, 50 * t_update))
+
+    finally:
+        progress.stop()  # Stop the progress display, regardless of what happens
+
+
+def track_file_creation_progress(
+    paths_dict: dict[str, set[Path | tuple[Path, ...]]],
+    interval: int = 1,
+) -> asyncio.Task:
+    """Initialize and asynchronously track the progress of file creation.
+
+    WARNING: This function modifies the provided dictionary in-place.
+
+    This function sets up an asynchronous monitoring system that periodically
+    checks for the existence of specified files or groups of files. Each item
+    in the provided dictionary can be a single file (Path object) or a group
+    of files (tuple of Path objects). The progress is updated for each file or
+    group of files only when all files in the group exist. This allows tracking
+    of complex file creation processes where multiple files together constitute
+    a single unit of work.
+
+    The tracking occurs at regular intervals, specified by the user, and updates
+    individual and, if applicable, total progress bars to reflect the current
+    state of file creation. It is particularly useful in environments where files
+    are expected to be created over time and need to be monitored collectively.
+
+    Parameters
+    ----------
+    paths_dict : dict[str, set[Union[Path, Tuple[Path, ...]]]]
+        A dictionary with keys representing categories and values being sets of
+        file paths (Path objects) or groups of file paths (tuples of Path objects)
+        to monitor.
+    interval : int
+        The time interval (in seconds) at which the progress is updated.
+
+    Returns
+    -------
+    asyncio.Task
+        The asyncio Task object that is tracking the file creation progress.
+
+    Examples
+    --------
+    >>> paths_dict = {
+        "docs": {Path("docs/environment.yml"), (Path("doc1.md"), Path("doc2.md"))},
+        "example2": {Path("/path/to/file3"), Path("/path/to/file4")},
+    }
+    >>> task = track_file_creation_progress(paths_dict)
+
+    """
+    get_console().clear_live()  # avoid LiveError, only 1 live render allowed at a time
+    columns = (*Progress.get_default_columns(), TimeElapsedColumn())
+    progress = Progress(*columns, auto_refresh=False)
+    coro = _track_file_creation_progress(paths_dict, progress, interval)
+    ioloop = asyncio.get_event_loop()
+    return ioloop.create_task(coro)

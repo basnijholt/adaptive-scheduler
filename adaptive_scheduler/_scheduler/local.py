@@ -1,8 +1,8 @@
 """LocalMockScheduler for Adaptive Scheduler."""
+
 from __future__ import annotations
 
 import textwrap
-import warnings
 from typing import TYPE_CHECKING
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
@@ -16,10 +16,7 @@ if TYPE_CHECKING:
 
 
 class LocalMockScheduler(BaseScheduler):
-    """A scheduler that can be used for testing and runs locally.
-
-    CANCELLING DOESN'T WORK ATM, ALSO LEAVES ZOMBIE PROCESSES!
-    """
+    """A scheduler that can be used for testing and runs locally."""
 
     # Attributes that all schedulers need to have
     _ext = ".batch"
@@ -34,7 +31,7 @@ class LocalMockScheduler(BaseScheduler):
         mpiexec_executable: str | None = None,
         executor_type: EXECUTOR_TYPES = "process-pool",
         num_threads: int = 1,
-        extra_scheduler: list[str] | None = None,
+        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
         extra_env_vars: list[str] | None = None,
         extra_script: str | None = None,
         batch_folder: str | Path = "",
@@ -44,7 +41,6 @@ class LocalMockScheduler(BaseScheduler):
         """Initialize the LocalMockScheduler."""
         import adaptive_scheduler._mock_scheduler
 
-        warnings.warn("The LocalMockScheduler currently doesn't work!", stacklevel=2)
         super().__init__(
             cores,
             python_executable=python_executable,
@@ -77,19 +73,23 @@ class LocalMockScheduler(BaseScheduler):
             mock_scheduler_kwargs=self.mock_scheduler_kwargs,
         )
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Get a jobscript in string form.
 
         Returns
         -------
-        job_script : str
+        job_script
             A job script that can be submitted to PBS.
+        index
+            The index of the job that is being run. This is used when
+            specifying different resources for different jobs.
 
         Notes
         -----
         Currently, there is a problem that this will not properly cleanup.
         for example `ipengine ... &` will be detached and go on,
         normally a scheduler will take care of this.
+
         """
         job_script = textwrap.dedent(
             """\
@@ -103,26 +103,27 @@ class LocalMockScheduler(BaseScheduler):
             """,
         )
 
-        job_script = job_script.format(
-            extra_env_vars=self.extra_env_vars,
-            executor_specific=self._executor_specific("${NAME}", options),
-            extra_script=self.extra_script,
+        return job_script.format(
+            extra_env_vars=self.extra_env_vars(index=index),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
+            extra_script=self.extra_script(index=index),
             job_id_variable=self._JOB_ID_VARIABLE,
         )
-
-        return job_script
 
     def queue(self, *, me_only: bool = True) -> dict[str, dict]:  # noqa: ARG002
         """Get the queue of the scheduler."""
         return self.mock_scheduler.queue()
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:
         """Start a job."""
-        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name)}"
+        if index is not None:
+            msg = "LocalMockScheduler does not support `index`."
+            raise NotImplementedError(msg)
+        name_prefix = name.rsplit("-", 1)[0]
+        submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
-    @property
-    def extra_scheduler(self) -> str:
+    def extra_scheduler(self, *, index: int | None = None) -> str:  # noqa: ARG002
         """Get the extra scheduler options."""
         msg = "extra_scheduler is not implemented."
         raise NotImplementedError(msg)

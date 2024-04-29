@@ -1,4 +1,5 @@
 """Test log generation functions."""
+
 from __future__ import annotations
 
 import asyncio
@@ -79,7 +80,7 @@ async def test_log_info(
         if log_task.done():
             assert log_task.exception() is None
         await asyncio.sleep(0.1)
-        if len(caplog.records) > 10:  # noqa: PLR2004
+        if len(caplog.records) > 10:
             break
 
     # Filter the captured log records based on level and logger name
@@ -102,6 +103,6 @@ async def test_log_info(
             assert all(key in log_entry for key in expected_keys)
 
     # Check if there were any "current status" log entries
-    assert current_status_entries > 0
+    assert current_status_entries > 0, filtered_records
 
     runner.cancel()

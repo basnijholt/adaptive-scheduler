@@ -1,4 +1,5 @@
 """The DatabaseManager."""
+
 from __future__ import annotations
 
 import json
@@ -62,6 +63,7 @@ def _ensure_str(
 class _DBEntry:
     fname: str | list[str]
     job_id: str | None = None
+    is_pending: bool = False
     is_done: bool = False
     log_fname: str | None = None
     job_name: str | None = None
@@ -83,7 +85,7 @@ class SimpleDatabase:
                     raw_data = json.load(f)
                     self._data = [_DBEntry(**entry) for entry in raw_data["data"]]
 
-    def all(self) -> list[_DBEntry]:  # noqa: A003
+    def all(self) -> list[_DBEntry]:
         return self._data
 
     def insert_multiple(self, entries: list[_DBEntry]) -> None:
@@ -121,7 +123,7 @@ class SimpleDatabase:
 
     def _save(self) -> None:
         with self.db_fname.open("w") as f:
-            json.dump({"data": self.as_dicts(), "meta": self._meta}, f)
+            json.dump({"data": self.as_dicts(), "meta": self._meta}, f, indent=4)
 
 
 class DatabaseManager(BaseManager):
@@ -129,28 +131,32 @@ class DatabaseManager(BaseManager):
 
     Parameters
     ----------
-    url : str
+    url
         The url of the database manager, with the format
         ``tcp://ip_of_this_machine:allowed_port.``. Use `get_allowed_url`
         to get a `url` that will work.
-    scheduler : `~adaptive_scheduler.scheduler.BaseScheduler`
+    scheduler
         A scheduler instance from `adaptive_scheduler.scheduler`.
-    db_fname : str
+    db_fname
         Filename of the database, e.g. 'running.json'.
-    learners : list of `adaptive.BaseLearner` isinstances
+    learners
         List of `learners` corresponding to `fnames`.
-    fnames : list
+    fnames
         List of `fnames` corresponding to `learners`.
-    overwrite_db : bool, default: True
+    overwrite_db
         Overwrite the existing database upon starting.
+    initializers
+        List of functions that are called before the job starts, can populate
+        a cache.
 
     Attributes
     ----------
     failed : list
         A list of entries that have failed and have been removed from the database.
+
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         url: str,
         scheduler: BaseScheduler,
@@ -159,6 +165,7 @@ class DatabaseManager(BaseManager):
         fnames: FnamesTypes,
         *,
         overwrite_db: bool = True,
+        initializers: list[Callable[[], None]] | None = None,
     ) -> None:
         super().__init__()
         self.url = url
@@ -167,6 +174,7 @@ class DatabaseManager(BaseManager):
         self.learners = learners
         self.fnames = fnames
         self.overwrite_db = overwrite_db
+        self.initializers = initializers
 
         self._last_reply: str | list[str] | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
@@ -182,20 +190,26 @@ class DatabaseManager(BaseManager):
         self._total_learner_size, self._pickling_time = cloudpickle_learners(
             self.learners,
             self.fnames,
+            initializers=self.initializers,
             with_progress_bar=True,
         )
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
         """If the ``job_id`` isn't running anymore, replace it with None."""
-        assert self._db is not None
+        if self._db is None:
+            return
         if queue is None:
             queue = self.scheduler.queue(me_only=True)
+        job_names_in_queue = [x["job_name"] for x in queue.values()]
         failed = self._db.get_all(
-            lambda e: (e.job_id is not None) and (e.job_id not in queue),  # type: ignore[operator]
+            lambda e: e.job_name is not None and e.job_name not in job_names_in_queue,  # type: ignore[operator]
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
-        self._db.update({"job_id": None, "job_name": None}, indices)
+        self._db.update(
+            {"job_id": None, "job_name": None, "is_pending": False},
+            indices,
+        )
 
     def n_done(self) -> int:
         """Return the number of jobs that are done."""
@@ -222,7 +236,8 @@ class DatabaseManager(BaseManager):
 
     def as_dicts(self) -> list[dict[str, str]]:
         """Return the database as a list of dictionaries."""
-        assert self._db is not None
+        if self._db is None:
+            return []
         return self._db.as_dicts()
 
     def as_df(self) -> pd.DataFrame:
@@ -236,6 +251,28 @@ class DatabaseManager(BaseManager):
             f.with_name(f.name.replace(self.scheduler._JOB_ID_VARIABLE, job_id))
             for f in output_fnames
         ]
+
+    def _choose_fname(self) -> tuple[int, str | list[str] | None]:
+        assert self._db is not None
+        entry = self._db.get(
+            lambda e: e.job_id is None and not e.is_done and not e.is_pending,
+        )
+        if entry is None:
+            msg = "Requested a new job but no more learners to run in the database."
+            raise RuntimeError(msg)
+        log.debug("choose fname", entry=entry)
+        index = self._db.all().index(entry)
+        return index, _ensure_str(entry.fname)  # type: ignore[return-value]
+
+    def _confirm_submitted(self, index: int, job_name: str) -> None:
+        assert self._db is not None
+        self._db.update(
+            {
+                "job_name": job_name,
+                "is_pending": True,
+            },
+            indices=[index],
+        )
 
     def _start_request(
         self,
@@ -255,9 +292,7 @@ class DatabaseManager(BaseManager):
                 "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation.",
             )
             raise JobIDExistsInDbError(msg)
-        entry = self._db.get(
-            lambda e: e.job_id is None and not e.is_done,
-        )
+        entry = self._db.get(lambda e: e.job_name == job_name and e.is_pending)
         log.debug("choose fname", entry=entry)
         if entry is None:
             return None
@@ -266,9 +301,9 @@ class DatabaseManager(BaseManager):
             {
                 "job_id": job_id,
                 "log_fname": log_fname,
-                "job_name": job_name,
                 "output_logs": _ensure_str(self._output_logs(job_id, job_name)),
                 "start_time": _now(),
+                "is_pending": False,
             },
             indices=[index],
         )
@@ -276,7 +311,7 @@ class DatabaseManager(BaseManager):
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
         fname_str = _ensure_str(fname)
-        reset = {"job_id": None, "is_done": True, "job_name": None}
+        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
         assert self._db is not None
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
@@ -287,7 +322,7 @@ class DatabaseManager(BaseManager):
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         assert self._db is not None
         fnames_str = {str(fname) for fname in _ensure_str(fnames)}
-        reset = {"job_id": None, "is_done": True, "job_name": None}
+        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: str(e.fname) in fnames_str)
         ]
@@ -334,6 +369,7 @@ class DatabaseManager(BaseManager):
         Returns
         -------
         coroutine
+
         """
         log.debug("started database")
         socket = ctx.socket(zmq.REP)

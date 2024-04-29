@@ -5,6 +5,7 @@ import asyncio
 import datetime
 import logging
 import os
+import signal
 import subprocess
 from typing import TYPE_CHECKING, List, Tuple, Union
 
@@ -42,16 +43,17 @@ class MockScheduler:
 
     Parameters
     ----------
-    startup_delay : int
+    startup_delay
         The waiting before starting the process.
-    max_running_jobs : int
+    max_running_jobs
         Maximum number of simultaneously running jobs.
-    refresh_interval : int
+    refresh_interval
         Refresh interval of checking whether proccesses are still running.
-    bash : str, default: "bash"
+    bash
         ``bash`` executable.
-    url : str, optional
+    url
         The URL of the socket. Defaults to {DEFAULT_URL}.
+
     """
 
     def __init__(
@@ -97,20 +99,22 @@ class MockScheduler:
         self._job_id += 1
         return str(job_id)
 
-    async def _submit_coro(self, job_id: str, fname: str) -> None:
+    async def _submit_coro(self, job_name: str, job_id: str, fname: str) -> None:
         await asyncio.sleep(self.startup_delay)
         while self._queue_is_full():
             await asyncio.sleep(self.refresh_interval)
-        self._submit(job_id, fname)
+        self._submit(job_name, job_id, fname)
 
-    def _submit(self, job_id: str, fname: str) -> None:
+    def _submit(self, job_name: str, job_id: str, fname: str) -> None:
         if job_id in self._current_queue:
             # job_id could be cancelled before it started
             cmd = f"{self.bash} {fname}"
             proc = subprocess.Popen(
                 cmd.split(),
                 stdout=subprocess.PIPE,
-                env=dict(os.environ, JOB_ID=job_id),
+                env=dict(os.environ, JOB_ID=job_id, NAME=job_name),
+                # Set a new process group for the process
+                preexec_fn=os.setpgrp,  # noqa: PLW1509
             )
             info = self._current_queue[job_id]
             info["proc"] = proc
@@ -124,25 +128,28 @@ class MockScheduler:
             "state": "P",
             "timestamp": str(datetime.datetime.now()),  # noqa: DTZ005
         }
-        self.ioloop.create_task(self._submit_coro(job_id, fname))
+        self.ioloop.create_task(self._submit_coro(job_name, job_id, fname))
         return job_id
 
     def cancel(self, job_id: str) -> None:
         job_id = str(job_id)
         info = self._current_queue.pop(job_id)
         if info["proc"] is not None:
-            info["proc"].kill()
+            os.killpg(
+                os.getpgid(info["proc"].pid),
+                signal.SIGTERM,
+            )  # Kill the process group
 
     async def _refresh_coro(self) -> Coroutine[None, None, None]:
         while True:
             try:
                 await asyncio.sleep(self.refresh_interval)
                 self._refresh()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001, PERF203
                 print(e)
 
     def _refresh(self) -> None:
-        for _job_id, info in self._current_queue.items():
+        for info in self._current_queue.values():
             if info["state"] == "R" and info["proc"].poll() is not None:
                 info["state"] = "F"
 
@@ -168,12 +175,11 @@ class MockScheduler:
             if request_type == "submit":
                 job_name, fname = request_arg
                 log.debug("submitting a task", fname=fname, job_name=job_name)
-                job_id = self.submit(job_name, fname)  # type: ignore[arg-type]
-                return job_id
+                return self.submit(job_name, fname)  # type: ignore[arg-type]
             if request_type == "cancel":
                 job_id = request_arg[0]  # type: ignore[assignment]
                 log.debug("got a cancel request", job_id=job_id)
-                self.cancel(job_id)
+                self.cancel(job_id)  # type: ignore[arg-type]
                 return None
             if request_type == "queue":
                 log.debug("got a queue request")

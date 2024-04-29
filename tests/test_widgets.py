@@ -1,4 +1,5 @@
 """Test the widgets module."""
+
 from __future__ import annotations
 
 import asyncio
@@ -43,10 +44,14 @@ def create_temp_files(num_files: int) -> list[str]:
     return temp_files
 
 
+def _sum_size(files: list[str]) -> int:
+    return sum(os.path.getsize(f) for f in files)  # noqa: PTH202
+
+
 def test_total_size_single_list() -> None:
     """Test the _total_size function with a single list."""
     temp_files = create_temp_files(5)
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(temp_files) == total_size
 
 
@@ -54,7 +59,7 @@ def test_total_size_nested_list() -> None:
     """Test the _total_size function with nested lists."""
     temp_files = create_temp_files(5)
     nested_files = [temp_files[:2], [temp_files[2]], temp_files[3:]]
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(nested_files) == total_size
 
 
@@ -63,7 +68,7 @@ def test_total_size_mixed_types() -> None:
     temp_files = create_temp_files(5)
     temp_paths = [Path(f) for f in temp_files[1:4]]
     mixed_files = [temp_files[0], temp_paths, temp_files[4]]
-    total_size = sum(os.path.getsize(f) for f in temp_files)
+    total_size = _sum_size(temp_files)
     assert _total_size(mixed_files) == total_size  # type: ignore[arg-type]
 
 
@@ -181,10 +186,10 @@ def test_get_fnames(tmp_path: Path) -> None:
     run_manager = MockRunManager(tmp_path)
 
     fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
-    assert len(fnames) == 2  # noqa: PLR2004
+    assert len(fnames) == 2
 
     fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
-    assert len(fnames) == 6  # noqa: PLR2004
+    assert len(fnames) == 6
 
 
 def test_failed_job_logs(tmp_path: Path) -> None:
@@ -268,7 +273,7 @@ def test_get_fnames_only_running(tmp_path: Path) -> None:
     """Test the _get_fnames function with only_running=True."""
     run_manager = MockRunManager(tmp_path)
     fnames = _get_fnames(run_manager, only_running=True)  # type: ignore[arg-type]
-    assert len(fnames) == 6  # noqa: PLR2004
+    assert len(fnames) == 6
 
 
 def test_get_fnames_only_running_false(tmp_path: Path) -> None:
@@ -278,7 +283,7 @@ def test_get_fnames_only_running_false(tmp_path: Path) -> None:
     with open(log_fname, "w") as f:  # noqa: PTH123
         f.write("This is a test log file.")
     fnames = _get_fnames(run_manager, only_running=False)  # type: ignore[arg-type]
-    assert len(fnames) == 3  # noqa: PLR2004
+    assert len(fnames) == 3
     # TODO: it is picking up the database file and scheduler file
     # we should probably filter those out?
 

@@ -1,4 +1,5 @@
 """Tests for the `client_support` module."""
+
 from __future__ import annotations
 
 import tempfile
@@ -39,16 +40,15 @@ async def test_get_learner(zmq_url: str) -> None:
         with mock.patch(
             "adaptive_scheduler.client_support.fname_to_learner",
         ) as mock_fname_to_learner:
-            mock_fname_to_learner.return_value = adaptive.Learner1D(
-                lambda x: x,
-                (0, 1),
-            )
+            learner = adaptive.Learner1D(lambda x: x, (0, 1))
+            initializer = None
+            mock_fname_to_learner.return_value = (learner, initializer)
             # Patch `socket.recv_serialized` to return the desired reply
             with mock.patch(
                 "zmq.sugar.socket.Socket.recv_serialized",
                 return_value="Simple reply",
             ):
-                learner, fname = client_support.get_learner(
+                learner, fname, initializer = client_support.get_learner(
                     zmq_url,
                     log_fname,
                     job_id,
@@ -56,6 +56,7 @@ async def test_get_learner(zmq_url: str) -> None:
                 )
                 assert isinstance(learner, adaptive.Learner1D)
                 assert isinstance(fname, str)
+                assert initializer is None
 
             # Test no more learners available
             with mock.patch(

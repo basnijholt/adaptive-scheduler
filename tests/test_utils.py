@@ -1,9 +1,11 @@
 """Tests for `adaptive_scheduler.utils`."""
+
 from __future__ import annotations
 
 import platform
 import sys
 import time
+import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -59,7 +61,7 @@ def test_split_in_balancing_learners(
     )
     assert len(new_learners) == n_parts
     assert all(isinstance(lrn, adaptive.BalancingLearner) for lrn in new_learners)
-    assert new_fnames == [(fnames[0],), (fnames[1],)]
+    assert new_fnames == [[fnames[0]], [fnames[1]]]
 
 
 def test_split_sequence_learner() -> None:
@@ -92,7 +94,7 @@ def test_split_sequence_in_sequence_learners() -> None:
 def test_combine_sequence_learners() -> None:
     """Test `utils.combine_sequence_learners`."""
     learners = [
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
         adaptive.SequenceLearner(lambda x: x, sequence=list(range(5, 10))),
     ]
     big_learner = utils.combine_sequence_learners(learners)
@@ -102,8 +104,8 @@ def test_combine_sequence_learners() -> None:
 
 def test_copy_from_sequence_learner() -> None:
     """Test `utils.copy_from_sequence_learner`."""
-    learner1 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5)))
-    learner2 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5)))
+    learner1 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(5)))
+    learner2 = adaptive.SequenceLearner(lambda x: x, sequence=list(range(5)))
     for i, x in enumerate(learner1.sequence):
         learner1.tell((i, x), x * 2)
     utils.copy_from_sequence_learner(learner1, learner2)
@@ -152,15 +154,15 @@ def test_add_constant_to_fname() -> None:
 
 def test_maybe_round() -> None:
     """Test `utils.maybe_round`."""
-    assert utils.maybe_round(3.14159265, 3) == 3.14  # noqa: PLR2004
+    assert utils.maybe_round(3.14159265, 3) == 3.14
     assert utils.maybe_round(1 + 2j, 3) == 1 + 2j
     assert utils.maybe_round("test", 3) == "test"
 
 
 def test_round_sigfigs() -> None:
     """Test `utils.round_sigfigs`."""
-    assert utils.round_sigfigs(3.14159265, 3) == 3.14  # noqa: PLR2004
-    assert utils.round_sigfigs(123456789, 3) == 123000000  # noqa: PLR2004
+    assert utils.round_sigfigs(3.14159265, 3) == 3.14
+    assert utils.round_sigfigs(123456789, 3) == 123000000
 
 
 def test_remove_or_move_files(tmp_path: Path) -> None:
@@ -179,7 +181,7 @@ def test_load_parallel(tmp_path: Path) -> None:
     """Test `utils.load_parallel`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
@@ -197,7 +199,7 @@ def test_save_parallel(tmp_path: Path) -> None:
     """Test `utils.save_parallel`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
@@ -224,14 +226,14 @@ def test_lru_cached_callable() -> None:
         return x**2
 
     assert cached_function.cache_dict == {}
-    assert cached_function(2) == 4  # noqa: PLR2004
+    assert cached_function(2) == 4
     assert (
         cached_function.cache_dict == {"{'x': 2}": 4}
         if sys.version_info >= (3, 9)
         else {"OrderedDict([('x', 2)])": 4}
     )
 
-    assert cached_function(3) == 9  # noqa: PLR2004
+    assert cached_function(3) == 9
     assert (
         cached_function.cache_dict == {"{'x': 2}": 4, "{'x': 3}": 9}
         if sys.version_info >= (3, 9)
@@ -244,7 +246,7 @@ def test_smart_goal() -> None:
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
 
     goal_callable = utils.smart_goal(
-        lambda lrn: lrn.npoints >= 10,  # noqa: PLR2004
+        lambda lrn: lrn.npoints >= 10,
         [learner],
     )
     assert not goal_callable(learner)
@@ -324,7 +326,7 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
     """Test `utils.cloudpickle_learners`."""
     learners = [
         adaptive.Learner1D(lambda x: x, bounds=(-10, 10)),
-        adaptive.SequenceLearner(lambda x: x, sequence=list(range(0, 5))),
+        adaptive.SequenceLearner(lambda x: x, sequence=list(range(5))),
     ]
     fnames = [tmp_path / "learner1.pickle", tmp_path / "learner2.pickle"]
 
@@ -335,25 +337,36 @@ def test_cloudpickle_learners(tmp_path: Path) -> None:
         assert fname_learner.exists()
 
 
-def test_save_dataframe(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+@pytest.mark.parametrize("fmt", ["pickle", "csv", "json"])
+def test_save_dataframe(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+    fmt: str,
+) -> None:
     """Test `utils.save_dataframe`."""
+    fmt = typing.cast(utils._DATAFRAME_FORMATS, fmt)
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
-    fname = str(tmp_path / ("test.pickle"))
-    save_df = utils.save_dataframe(fname)
+    fname = str(tmp_path / f"test.{fmt}")
+    save_df = utils.save_dataframe(fname, atomically=atomically, format=fmt)
 
     learner.ask(10)
     learner.tell(10, 42)
 
     save_df(learner)
 
-    assert utils.fname_to_dataframe(fname).exists()
+    assert utils.fname_to_dataframe(fname, format=fmt).exists()
 
 
-def test_load_dataframes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes`."""
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(tmp_path / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)
@@ -429,17 +442,101 @@ def test_add_constant_to_fname_with_folder() -> None:
 def test_fname_to_dataframe_with_folder() -> None:
     """Test `utils.fname_to_dataframe` with `folder`."""
     fname = "test_folder/test.pickle"
-    df_fname = utils.fname_to_dataframe(fname)
+    df_fname = utils.fname_to_dataframe(fname, "parquet")
     assert df_fname == Path("test_folder/dataframe.test.parquet")
 
 
-def test_load_dataframes_with_folder(tmp_path: Path) -> None:
+def test_atomic_write(tmp_path: Path) -> None:
+    """Ensure atomic_write works when operated in a basic manner."""
+    path = tmp_path / "testfile"
+    content = "this is some content"
+
+    # Works correctly in basic mode, with no file existing
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with path.open() as fp:
+        assert content == fp.read()
+
+    # Works correctly in basic mode, with the file existing
+    assert path.exists()
+    assert path.is_file()
+    content = "this is some additional content"
+    with utils.atomic_write(path) as fp:
+        fp.write(content)
+    with path.open() as fp:
+        assert content == fp.read()
+
+    # Works correctly when 'return_path' is used.
+    content = "even more content"
+    with utils.atomic_write(path, return_path=True) as tmp_path, tmp_path.open(
+        "w",
+    ) as fp:
+        fp.write(content)
+    with path.open() as fp:
+        assert content == fp.read()
+
+
+def test_atomic_write_no_write(tmp_path: Path) -> None:
+    """Ensure atomic_write creates an empty file, if we do nothing.
+
+    This gives 'atomic_write' the same semantics as 'open', when
+    the file does not exist.
+    """
+    path = tmp_path / "testfile"
+
+    assert not path.exists()  # Sanity check
+
+    with utils.atomic_write(path) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    with utils.atomic_write(path, return_path=True) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    #
+    with utils.atomic_write(path) as fp:
+        fp.write("content")
+    assert path.stat().st_size > 0
+
+    with utils.atomic_write(path) as _:
+        pass
+    assert path.stat().st_size == 0
+
+    with utils.atomic_write(path) as fp:
+        fp.write("content")
+    assert path.stat().st_size > 0
+
+    with utils.atomic_write(path, return_path=True) as _:
+        pass
+    assert path.stat().st_size == 0
+
+
+def test_atomic_write_nested(tmp_path: Path) -> None:
+    """Ensure nested calls to atomic_write on the same file work as expected."""
+    path = tmp_path / "testfile"
+    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(
+        path,
+        mode="w",
+    ) as fp2:
+        fp.write("one")
+        fp2.write("two")
+    # Outer call wins
+    with path.open() as fp:
+        assert fp.read() == "one"
+
+
+@pytest.mark.parametrize("atomically", [False, True])
+def test_load_dataframes_with_folder(
+    tmp_path: Path,
+    atomically: bool,  # noqa: FBT001
+) -> None:
     """Test `utils.load_dataframes` with `folder`."""
     folder = tmp_path / "test_folder"
     folder.mkdir()
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(folder / "test.pickle")
-    save_df = utils.save_dataframe(fname)
+    save_df = utils.save_dataframe(fname, atomically=atomically)
 
     learner.ask(10)
     learner.tell(10, 42)
@@ -510,7 +607,7 @@ def test_executor_with_wrapped_function_that_is_loaded_with_cloudpickle(
     fut = ex.submit(wrapped_function, 4)
     result = fut.result()
 
-    assert result == 16, f"Expected 16, but got {result}"  # noqa: PLR2004
+    assert result == 16, f"Expected 16, but got {result}"
 
     # Check if the global cache contains the key in the executor
     fut_is_key = ex.submit(_is_key_in_global_cache, wrapped_function._cache_key)

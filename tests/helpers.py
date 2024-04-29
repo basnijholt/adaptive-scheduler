@@ -1,4 +1,5 @@
 """Tests for conftest module."""
+
 from __future__ import annotations
 
 import os
@@ -54,7 +55,7 @@ class MockScheduler(BaseScheduler):
         print("Mock queue:", self._queue_info)
         return self._queue_info
 
-    def job_script(self, options: dict[str, Any]) -> str:
+    def job_script(self, options: dict[str, Any], *, index: int | None = None) -> str:
         """Return a job script for the mock scheduler."""
         job_script = textwrap.dedent(
             f"""\
@@ -69,15 +70,14 @@ class MockScheduler(BaseScheduler):
             {{executor_specific}}
             """,
         )
-        job_script = job_script.format(
-            extra_scheduler=self.extra_scheduler,
-            extra_env_vars=self.extra_env_vars,
-            extra_script=self.extra_script,
-            executor_specific=self._executor_specific("${NAME}", options),
+        return job_script.format(
+            extra_scheduler=self.extra_scheduler(index=index),
+            extra_env_vars=self.extra_env_vars(index=index),
+            extra_script=self.extra_script(index=index),
+            executor_specific=self._executor_specific("${NAME}", options, index=index),
         )
-        return job_script
 
-    def start_job(self, name: str) -> None:
+    def start_job(self, name: str, *, index: int | None = None) -> None:  # noqa: ARG002
         """Start a mock job."""
         print("Starting a mock job:", name)
         self._started_jobs.append(name)

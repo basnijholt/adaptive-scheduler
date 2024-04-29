@@ -1,4 +1,5 @@
 """Test for the log parsing functions."""
+
 from __future__ import annotations
 
 import json
@@ -70,6 +71,8 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
         job_name = "test_job"
         db_manager.start()
         # Add an entry in the database manager
+        index, _ = db_manager._choose_fname()
+        db_manager._confirm_submitted(index, job_name)
         db_manager._start_request("0", f.name, job_name)
         db_manager.scheduler.start_job(job_name)
 
@@ -86,6 +89,7 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
             "job_id",
             "log_fname",
             "fname",
+            "is_pending",
             "is_done",
             "output_logs",
             "start_time",
