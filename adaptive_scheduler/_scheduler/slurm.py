@@ -433,7 +433,7 @@ class SLURM(BaseScheduler):
         return slurm_partitions()  # type: ignore[return-value]
 
     @staticmethod
-    def cancel_jobs(name: str) -> None:
+    def cancel_jobs(name: str, *, dry: bool = False) -> None:
         """Cancel the jobs with names matching the pattern '{name}-{i}' where i is an integer."""
         running_jobs = SLURM.queue()
         job_ids_to_cancel = []
@@ -448,11 +448,14 @@ class SLURM(BaseScheduler):
         if job_ids_to_cancel:
             job_ids_str = ",".join(job_ids_to_cancel)
             cmd = f"{SLURM._cancel_cmd} {job_ids_str}"
-            try:
-                subprocess.run(cmd.split(), check=True)
-            except subprocess.CalledProcessError as e:
-                msg = f"Failed to cancel jobs with name {name}. Error: {e}"
-                raise RuntimeError(msg) from e
+            if dry:
+                print(f"Dry run: would cancel jobs with IDs: {job_ids_str}")
+            else:
+                try:
+                    subprocess.run(cmd.split(), check=True)
+                except subprocess.CalledProcessError as e:
+                    msg = f"Failed to cancel jobs with name {name}. Error: {e}"
+                    raise RuntimeError(msg) from e
         else:
             print(f"No running jobs found with name pattern '{name}-<integer>'")
 
