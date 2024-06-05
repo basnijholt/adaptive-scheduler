@@ -147,6 +147,10 @@ class DatabaseManager(BaseManager):
         List of `learners` corresponding to `fnames`.
     fnames
         List of `fnames` corresponding to `learners`.
+    dependencies
+        Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
+        depends on the ``learners[0]``. This means that the ``learners[1]`` will only
+        start when the ``learners[0]`` is done.
     overwrite_db
         Overwrite the existing database upon starting.
     initializers
