@@ -241,10 +241,12 @@ class JobManager(BaseManager):
             self.max_simultaneous_jobs - len(queued),
         )
         for _ in range(num_jobs_to_start):
+            index, fname = self.database_manager._choose_fname()
+            if index == -1:
+                log.debug("No jobs can be scheduled currently because of dependencies.")
+                return
             job_name = not_queued.pop()
             queued.add(job_name)
-
-            index, fname = self.database_manager._choose_fname()
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )

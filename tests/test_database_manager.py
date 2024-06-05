@@ -156,6 +156,7 @@ def test_database_manager_as_dicts(
             "log_fname": None,
             "output_logs": [],
             "start_time": None,
+            "depends_on": [],
         },
         {
             "fname": _ensure_str(fnames[1]),
@@ -166,6 +167,7 @@ def test_database_manager_as_dicts(
             "log_fname": None,
             "output_logs": [],
             "start_time": None,
+            "depends_on": [],
         },
     ]
 
