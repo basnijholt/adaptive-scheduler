@@ -66,6 +66,10 @@ class RunManager(BaseManager):
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
+    dependencies
+        Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
+        depends on the ``learners[0]``. This means that the ``learners[1]`` will only
+        start when the ``learners[0]`` is done.
     initializers
         List of functions that are called before the job starts, can populate
         a cache.
@@ -159,13 +163,14 @@ class RunManager(BaseManager):
 
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         scheduler: BaseScheduler,
         learners: list[adaptive.BaseLearner],
         fnames: list[str] | list[Path],
         *,
         goal: GoalTypes | None = None,
+        dependencies: dict[int, list[int]] | None = None,
         check_goal_on_start: bool = True,
         runner_kwargs: dict | None = None,
         url: str | None = None,
@@ -194,6 +199,7 @@ class RunManager(BaseManager):
         # Set from arguments
         self.scheduler = scheduler
         self.goal = smart_goal(goal, learners)
+        self.dependencies = dependencies
         self.check_goal_on_start = check_goal_on_start
         self.runner_kwargs = runner_kwargs
         self.save_interval = save_interval
@@ -262,6 +268,7 @@ class RunManager(BaseManager):
             db_fname=self.db_fname,
             learners=self.learners,
             fnames=self.fnames,
+            dependencies=self.dependencies,
             overwrite_db=self.overwrite_db,
             initializers=self.initializers,
         )

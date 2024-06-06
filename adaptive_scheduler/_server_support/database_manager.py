@@ -69,6 +69,7 @@ class _DBEntry:
     job_name: str | None = None
     output_logs: list[str] = field(default_factory=list)
     start_time: float | None = None
+    depends_on: list[int] = field(default_factory=list)
 
 
 class SimpleDatabase:
@@ -125,6 +126,9 @@ class SimpleDatabase:
         with self.db_fname.open("w") as f:
             json.dump({"data": self.as_dicts(), "meta": self._meta}, f, indent=4)
 
+    def dependencies_satisfied(self, entry: _DBEntry) -> bool:
+        return all(self._data[i].is_done for i in entry.depends_on)
+
 
 class DatabaseManager(BaseManager):
     """Database manager.
@@ -143,6 +147,10 @@ class DatabaseManager(BaseManager):
         List of `learners` corresponding to `fnames`.
     fnames
         List of `fnames` corresponding to `learners`.
+    dependencies
+        Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
+        depends on the ``learners[0]``. This means that the ``learners[1]`` will only
+        start when the ``learners[0]`` is done.
     overwrite_db
         Overwrite the existing database upon starting.
     initializers
@@ -164,6 +172,7 @@ class DatabaseManager(BaseManager):
         learners: list[adaptive.BaseLearner],
         fnames: FnamesTypes,
         *,
+        dependencies: dict[int, list[int]] | None = None,
         overwrite_db: bool = True,
         initializers: list[Callable[[], None]] | None = None,
     ) -> None:
@@ -173,6 +182,7 @@ class DatabaseManager(BaseManager):
         self.db_fname = Path(db_fname)
         self.learners = learners
         self.fnames = fnames
+        self.dependencies = dependencies or {}
         self.overwrite_db = overwrite_db
         self.initializers = initializers
 
@@ -226,8 +236,10 @@ class DatabaseManager(BaseManager):
 
         It keeps track of ``fname -> (job_id, is_done, log_fname, job_name)``.
         """
+        deps = self.dependencies
         entries: list[_DBEntry] = [
-            _DBEntry(fname=fname) for fname in _ensure_str(self.fnames)
+            _DBEntry(fname=fname, depends_on=deps.get(i, []))  # type: ignore[arg-type]
+            for i, fname in enumerate(_ensure_str(self.fnames))
         ]
         if self.db_fname.exists():
             self.db_fname.unlink()
@@ -255,11 +267,18 @@ class DatabaseManager(BaseManager):
     def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
         entry = self._db.get(
-            lambda e: e.job_id is None and not e.is_done and not e.is_pending,
+            lambda e: e.job_id is None
+            and not e.is_done
+            and not e.is_pending
+            and self._db.dependencies_satisfied(e),  # type: ignore[union-attr]
         )
-        if entry is None:
+        if all(e.is_done for e in self._db.all()):
             msg = "Requested a new job but no more learners to run in the database."
             raise RuntimeError(msg)
+        if entry is None:
+            # Currently, we cannot schedule any more jobs, because we're waiting
+            # for dependencies to be satisfied.
+            return -1, None
         log.debug("choose fname", entry=entry)
         index = self._db.all().index(entry)
         return index, _ensure_str(entry.fname)  # type: ignore[return-value]

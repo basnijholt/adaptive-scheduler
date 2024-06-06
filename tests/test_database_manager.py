@@ -156,6 +156,7 @@ def test_database_manager_as_dicts(
             "log_fname": None,
             "output_logs": [],
             "start_time": None,
+            "depends_on": [],
         },
         {
             "fname": _ensure_str(fnames[1]),
@@ -166,6 +167,7 @@ def test_database_manager_as_dicts(
             "log_fname": None,
             "output_logs": [],
             "start_time": None,
+            "depends_on": [],
         },
     ]
 
@@ -336,8 +338,10 @@ async def test_database_manager_stop_request_and_requests(
     # Start a job for learner1
     job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
     start_message1 = ("start", job_id1, log_fname1, job_name1)
+
     _index1, _fname1 = db_manager._choose_fname()
     db_manager._confirm_submitted(_index1, job_name1)
+
     fname1 = await send_message(socket, start_message1)
     assert fname1 == _fname1
     assert fname1 == _ensure_str(fnames[0]), fname1
@@ -525,3 +529,71 @@ def test_ensure_str_invalid_input(invalid_input: list[str]) -> None:
     """Test the _ensure_str function with an invalid input."""
     with pytest.raises(ValueError, match="Invalid input:"):
         _ensure_str(invalid_input)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio()
+async def test_dependencies(
+    db_manager: DatabaseManager,
+    fnames: list[str] | list[Path],
+    socket: zmq.asyncio.Socket,
+) -> None:
+    """Test the dependencies between learners."""
+    db_manager.dependencies = {1: [0]}
+    db_manager.create_empty_db()
+    db_manager.start()
+    await asyncio.sleep(0.1)  # Give it some time to start
+    assert db_manager.task is not None
+    assert db_manager._db is not None
+
+    # Start a job for learner1
+    job_id1, log_fname1, job_name1 = "1000", "log1.log", "job_name1"
+    start_message1 = ("start", job_id1, log_fname1, job_name1)
+    _index1, _fname1 = db_manager._choose_fname()
+    db_manager._confirm_submitted(_index1, job_name1)
+    fname1 = await send_message(socket, start_message1)
+    assert fname1 == _fname1
+    assert fname1 == _ensure_str(fnames[0]), fname1
+    e = db_manager._db.get(lambda entry: entry.fname == fname1)
+    assert isinstance(e, _DBEntry)
+    assert e.job_id == job_id1
+
+    # Try getting a new job
+    for _ in range(2):  # try twice
+        index, _ = db_manager._choose_fname()
+        assert index == -1  # means we are waiting for the dependency to finish
+
+    # Mark the job for learner1 as done
+    db_manager._stop_request(fname1)
+    entry = db_manager._db.get(lambda entry: entry.fname == fname1)
+    assert entry is not None
+    assert entry.job_id is None
+    assert entry.is_done is True
+    assert entry.job_name is None
+
+    # Try getting a new job
+    _index2, _fname2 = db_manager._choose_fname()
+
+    # Start a job for learner2
+    job_id2, log_fname2, job_name2 = "1001", "log2.log", "job_name2"
+    start_message2 = ("start", job_id2, log_fname2, job_name2)
+    db_manager._confirm_submitted(_index2, job_name2)
+    fname2 = await send_message(socket, start_message2)
+    assert fname2 == _fname2
+    assert fname2 == _ensure_str(fnames[1])
+    e = db_manager._db.get(lambda entry: entry.fname == fname2)
+    assert isinstance(e, _DBEntry)
+    assert e.job_id == job_id2
+
+    # Stop the job for learner2 using _stop_requests
+    db_manager._stop_requests([fname2])
+
+    entry = db_manager._db.get(lambda entry: entry.fname == fname2)
+    assert entry is not None
+    assert entry.job_id is None, (fname1, fname2)
+    assert entry.is_done is True
+    assert entry.job_name is None
+    with pytest.raises(
+        RuntimeError,
+        match="Requested a new job but no more learners to run in the database.",
+    ):
+        db_manager._choose_fname()

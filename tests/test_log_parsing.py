@@ -95,6 +95,7 @@ def test_parse_log_files(db_manager: DatabaseManager) -> None:
             "start_time",
             "state",
             "job_name",
+            "depends_on",
         ]
         assert sorted(df_result.columns) == sorted(expected_columns)
 

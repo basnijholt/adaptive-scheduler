@@ -25,6 +25,7 @@ def slurm_run(
     goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
+    dependencies: dict[int, list[int]] | None = None,
     num_threads: int | tuple[int, ...] = 1,
     save_interval: float = 300,
     log_interval: float = 300,
@@ -73,6 +74,10 @@ def slurm_run(
         and ``.sbatch`` files in.
     name
         The name of the job.
+    dependencies
+        Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
+        depends on the ``learners[0]``. This means that the ``learners[1]`` will only
+        start when the ``learners[0]`` is done.
     num_threads
         The number of threads to use.
     save_interval
@@ -175,6 +180,7 @@ def slurm_run(
         move_old_logs_to=folder / "old_logs",
         db_fname=folder / f"{name}.db.json",
         job_name=name,
+        dependencies=dependencies,
         cleanup_first=cleanup_first,
         save_dataframe=save_dataframe,
         dataframe_format=dataframe_format,
