@@ -70,6 +70,8 @@ def parse_log_files(
             )
             info_dict["elapsed_time"] = pd.to_timedelta(info_dict["elapsed_time"])
             info_dict.update(entry)
+            if "npoints" in info_dict:  # ensure it is an int, xref: #223
+                info_dict["npoints"] = int(info_dict["npoints"])
             infos.append(info_dict)
 
     for info_dict in infos:
