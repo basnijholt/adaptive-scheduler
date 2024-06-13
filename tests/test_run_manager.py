@@ -72,6 +72,26 @@ def test_run_manager_cleanup(
         assert not rm.move_old_logs_to.exists()
 
 
+@pytest.mark.asyncio()
+async def test_run_manager_save_load(
+    mock_scheduler: MockScheduler,
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+    tmp_path: Path,
+) -> None:
+    """Test the cleanup method of RunManager."""
+    with temporary_working_directory(tmp_path):
+        rm = RunManager(mock_scheduler, learners, fnames)
+        rm.start()
+        await asyncio.sleep(0.1)
+        fn = "run_manager.cloudpickle"
+        rm.save(fn)
+        rm2 = RunManager.load(fn)
+        assert rm2.fnames == rm.fnames
+
+
 def test_run_manager_parse_log_files(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
