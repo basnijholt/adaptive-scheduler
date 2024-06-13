@@ -208,7 +208,7 @@ def args_to_env(args: argparse.Namespace, prefix: str = "ADAPTIVE_SCHEDULER_") -
     """Convert parsed arguments to environment variables."""
     env_vars = {}
     for arg, value in vars(args).items():
-        if value is not None:
+        if value is not None and not arg.lower().startswith("serialized"):
             env_vars[f"{prefix}{arg.upper()}"] = str(value)
     os.environ.update(env_vars)
     log.info("set environment variables", **env_vars)
