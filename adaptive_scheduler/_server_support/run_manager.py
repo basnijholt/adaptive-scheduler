@@ -355,10 +355,7 @@ class RunManager(BaseManager):
 
     def job_starting_times(self) -> list[float]:
         """Return the starting times of the jobs."""
-        return [
-            _time_between(end, start)
-            for (_, start), end in self._job_start_time_dict.items()
-        ]
+        return [_time_between(end, start) for (_, start), end in self._job_start_time_dict.items()]
 
     def cancel(self) -> None:
         """Cancel the manager tasks and the jobs in the queue."""

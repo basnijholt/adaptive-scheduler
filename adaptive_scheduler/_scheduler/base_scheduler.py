@@ -177,11 +177,7 @@ class BaseScheduler(abc.ABC):
         """Get the job_ids from the job_names in the queue."""
         queue = self.queue()
         job_name_to_id = {info["job_name"]: job_id for job_id, info in queue.items()}
-        return [
-            job_name_to_id[job_name]
-            for job_name in job_names
-            if job_name in job_name_to_id
-        ]
+        return [job_name_to_id[job_name] for job_name in job_names if job_name in job_name_to_id]
 
     def cancel(
         self,
@@ -337,7 +333,9 @@ class BaseScheduler(abc.ABC):
         elif executor_type == "sequential":
             opts = self._sequential_executor()
         else:
-            msg = "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
+            msg = (
+                "Use 'ipyparallel', 'dask-mpi', 'mpi4py', 'loky', 'sequential', or 'process-pool'."
+            )
             raise NotImplementedError(msg)
         return start + self._expand_options(opts, name, options)
 

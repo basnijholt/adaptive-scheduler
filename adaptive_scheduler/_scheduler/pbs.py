@@ -220,9 +220,7 @@ class PBS(BaseScheduler):
             job_id = header.split("Job Id: ")[1]
             info = dict([line.split(" = ") for line in self._fix_line_cuts(raw_info)])
             if info["job_state"] in ["R", "Q"]:
-                info["job_name"] = info[
-                    "Job_Name"
-                ]  # used in `server_support.manage_jobs`
+                info["job_name"] = info["Job_Name"]  # used in `server_support.manage_jobs`
                 info["state"] = info["job_state"]  # used in `RunManager.live`
                 running[job_id] = info
 
@@ -231,9 +229,7 @@ class PBS(BaseScheduler):
             # work with "-f" on some clusters.
             username = getpass.getuser()
             running = {
-                job_id: info
-                for job_id, info in running.items()
-                if username in info["Job_Owner"]
+                job_id: info for job_id, info in running.items() if username in info["Job_Owner"]
             }
 
         return running

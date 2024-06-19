@@ -334,9 +334,7 @@ class DatabaseManager(BaseManager):
         fname_str = _ensure_str(fname)
         reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
         assert self._db is not None
-        entry_indices = [
-            index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)
-        ]
+        entry_indices = [index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)]
         self._db.update(reset, entry_indices)
 
     def _stop_requests(self, fnames: FnamesTypes) -> None:
