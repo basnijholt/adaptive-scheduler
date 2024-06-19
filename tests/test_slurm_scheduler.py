@@ -84,9 +84,12 @@ def test_job_script() -> None:
 def test_start_job(tmp_path: Path) -> None:
     """Test the SLURM.start_job method."""
     s = SLURM(cores=4, partition="nc24-low")
-    with temporary_working_directory(tmp_path), patch(
-        "adaptive_scheduler._scheduler.slurm.run_submit",
-    ) as mock_submit:
+    with (
+        temporary_working_directory(tmp_path),
+        patch(
+            "adaptive_scheduler._scheduler.slurm.run_submit",
+        ) as mock_submit,
+    ):
         s.write_job_script("testjob", {})
         s.start_job("testjob")
         mock_submit.assert_called_once_with(

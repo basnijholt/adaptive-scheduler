@@ -7,7 +7,7 @@ import logging
 import os
 import signal
 import subprocess
-from typing import TYPE_CHECKING, List, Tuple, Union
+from typing import TYPE_CHECKING
 
 import structlog
 import zmq
@@ -26,9 +26,9 @@ log = structlog.wrap_logger(logger)
 
 DEFAULT_URL = "tcp://127.0.0.1:60547"
 
-_RequestSubmitType = Tuple[str, str, Union[str, List[str]]]
-_RequestCancelType = Tuple[str, str]
-_RequestQueueType = Tuple[str]
+_RequestSubmitType = tuple[str, str, str | list[str]]
+_RequestCancelType = tuple[str, str]
+_RequestQueueType = tuple[str]
 
 
 class MockScheduler:

@@ -92,7 +92,7 @@ def fnames(
 ) -> list[Path] | list[str] | list[list[Path]] | list[list[str]]:
     """Fixture for creating a list of filenames for learners."""
     type_ = request.param
-    if isinstance(learners[0], (adaptive.Learner1D, adaptive.SequenceLearner)):
+    if isinstance(learners[0], adaptive.Learner1D | adaptive.SequenceLearner):
         return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
     if isinstance(learners[0], adaptive.BalancingLearner):
         return [
@@ -135,11 +135,14 @@ def _mock_slurm_partitions_output() -> Generator[None, None, None]:
 @pytest.fixture()
 def _mock_slurm_partitions() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
-    with patch(
-        "adaptive_scheduler._scheduler.slurm.slurm_partitions",
-    ) as slurm_partitions, patch(
-        "adaptive_scheduler._server_support.slurm_run.slurm_partitions",
-    ) as slurm_partitions_imported:
+    with (
+        patch(
+            "adaptive_scheduler._scheduler.slurm.slurm_partitions",
+        ) as slurm_partitions,
+        patch(
+            "adaptive_scheduler._server_support.slurm_run.slurm_partitions",
+        ) as slurm_partitions_imported,
+    ):
         slurm_partitions.return_value = PARTITIONS
         slurm_partitions_imported.return_value = PARTITIONS
         yield

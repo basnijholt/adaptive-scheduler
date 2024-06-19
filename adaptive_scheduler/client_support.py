@@ -8,7 +8,7 @@ import logging
 import os
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import structlog
@@ -26,6 +26,7 @@ from adaptive_scheduler.utils import (
 if TYPE_CHECKING:
     import argparse
     import asyncio
+    from collections.abc import Callable
     from pathlib import Path
 
     from adaptive import AsyncRunner, BaseLearner
