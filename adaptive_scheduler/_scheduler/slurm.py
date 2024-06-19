@@ -7,11 +7,12 @@ import getpass
 import re
 import subprocess
 import textwrap
+from collections.abc import Callable
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, TypeVar
 
-from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
+from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler, _maybe_call
 from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:
@@ -116,19 +117,24 @@ class SLURM(BaseScheduler):
     def __init__(  # noqa: PLR0912, PLR0915, C901
         self,
         *,
-        cores: int | tuple[int, ...] | None = None,
-        nodes: int | tuple[int, ...] | None = None,
-        cores_per_node: int | tuple[int, ...] | None = None,
-        partition: str | tuple[str, ...] | None = None,
-        exclusive: bool | tuple[bool, ...] = True,
+        cores: int | tuple[int | Callable[[], int], ...] | None = None,
+        nodes: int | tuple[int | Callable[[], int], ...] | None = None,
+        cores_per_node: int | tuple[int | Callable[[], int], ...] | None = None,
+        partition: str | tuple[str | Callable[[], str], ...] | None = None,
+        exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-        num_threads: int | tuple[int, ...] = 1,
-        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
-        extra_script: str | tuple[str, ...] | None = None,
+        executor_type: EXECUTOR_TYPES
+        | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
+        num_threads: int | tuple[int | Callable[[], int], ...] = 1,
+        extra_scheduler: list[str]
+        | tuple[list[str] | Callable[[], list[str]], ...]
+        | None = None,
+        extra_env_vars: list[str]
+        | tuple[list[str] | Callable[[], list[str]], ...]
+        | None = None,
+        extra_script: str | tuple[str | Callable[[], str], ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
@@ -279,8 +285,8 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.partition, list)
                 assert isinstance(self.nodes, list)
                 assert index is not None
-                partition = self.partition[index]
-                nodes = self.nodes[index]
+                partition = _maybe_call(self.partition[index])
+                nodes = _maybe_call(self.nodes[index])
             assert isinstance(partition, str)
             assert isinstance(nodes, int)
             # Limit the number of cores to the maximum number of cores per node
@@ -294,7 +300,7 @@ class SLURM(BaseScheduler):
             else:
                 assert isinstance(self.cores, tuple)
                 assert index is not None
-                cores = self.cores[index] - 1
+                cores = _maybe_call(self.cores[index]) - 1
 
         start = textwrap.dedent(
             f"""\

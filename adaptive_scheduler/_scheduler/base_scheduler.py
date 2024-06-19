@@ -157,7 +157,7 @@ class BaseScheduler(abc.ABC):
             assert isinstance(self.executor_type, str)
             return self.executor_type
         assert index is not None
-        return self.executor_type[index]
+        return _maybe_call(self.executor_type[index])
 
     def batch_fname(self, name: str) -> Path:
         """The filename of the job script."""
@@ -254,7 +254,7 @@ class BaseScheduler(abc.ABC):
         else:
             assert index is not None
             assert isinstance(self.cores, tuple)
-            cores = self.cores[index]
+            cores = _maybe_call(self.cores[index])
         assert isinstance(cores, int)
         return cores
 
@@ -369,7 +369,7 @@ class BaseScheduler(abc.ABC):
             extra_scheduler = self._extra_scheduler
         else:
             assert index is not None
-            extra_scheduler = self._extra_scheduler[index]  # type: ignore[assignment]
+            extra_scheduler = _maybe_call(self._extra_scheduler[index])  # type: ignore[assignment]
         assert isinstance(extra_scheduler, list)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
@@ -378,7 +378,7 @@ class BaseScheduler(abc.ABC):
             assert isinstance(self.num_threads, int)
             return self.num_threads
         assert index is not None
-        return self.num_threads[index]  # type: ignore[index]
+        return _maybe_call(self.num_threads[index])  # type: ignore[index]
 
     def extra_env_vars(self, *, index: int | None = None) -> str:
         """Environment variables that need to exist in the job script."""
@@ -390,7 +390,7 @@ class BaseScheduler(abc.ABC):
             extra_env_vars = self._extra_env_vars.copy()
         else:
             assert index is not None
-            extra_env_vars = self._extra_env_vars[index].copy()  # type: ignore[union-attr]
+            extra_env_vars = _maybe_call(self._extra_env_vars[index]).copy()  # type: ignore[union-attr]
         num_threads = self._get_num_threads(index=index)
         extra_env_vars.extend(
             [
@@ -411,7 +411,7 @@ class BaseScheduler(abc.ABC):
             return self._extra_script
         assert index is not None
         assert isinstance(self._extra_script, tuple), self._extra_script
-        return self._extra_script[index]
+        return _maybe_call(self._extra_script[index])
 
     def write_job_script(
         self,
@@ -462,3 +462,9 @@ class BaseScheduler(abc.ABC):
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Set the state of the scheduler."""
         self.__init__(**state)  # type: ignore[misc]
+
+
+def _maybe_call(obj: Any) -> Any:
+    if callable(obj):
+        return obj()
+    return obj
