@@ -128,12 +128,8 @@ class SLURM(BaseScheduler):
         executor_type: EXECUTOR_TYPES
         | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
         num_threads: int | tuple[int | Callable[[], int], ...] = 1,
-        extra_scheduler: list[str]
-        | tuple[list[str] | Callable[[], list[str]], ...]
-        | None = None,
-        extra_env_vars: list[str]
-        | tuple[list[str] | Callable[[], list[str]], ...]
-        | None = None,
+        extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+        extra_env_vars: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
         extra_script: str | tuple[str | Callable[[], str], ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
