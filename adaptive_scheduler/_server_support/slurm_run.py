@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.scheduler import SLURM, slurm_partitions
 from adaptive_scheduler.utils import _get_default_args
@@ -10,6 +10,8 @@ from .common import console
 from .run_manager import RunManager
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import adaptive
 
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from adaptive_scheduler.utils import _now, _serialize_to_b64, sleep_unless_task_is_done
@@ -233,8 +231,6 @@ class JobManager(BaseManager):
         self,
         not_queued: set[str],
         queued: set[str],
-        ex: ThreadPoolExecutor,
-        loop: asyncio.AbstractEventLoop,
     ) -> None:
         num_jobs_to_start = min(
             len(not_queued),
@@ -250,51 +246,44 @@ class JobManager(BaseManager):
             log.debug(
                 f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
             )
-            await loop.run_in_executor(
-                ex,
-                partial(self.scheduler.start_job, name=job_name, index=index),
-            )
+            await asyncio.to_thread(self.scheduler.start_job, job_name, index=index)
             self.database_manager._confirm_submitted(index, job_name)
 
             self.n_started += 1
             self._request_times[job_name] = _now()
 
     async def _manage(self) -> None:
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as ex:  # TODO: use asyncio.to_thread when Python≥3.9
-            while True:
-                try:
-                    update = await self._update_database_and_get_not_queued()
-                    if update is None:  # we are finished!
-                        return
-                    queued, not_queued = update
-                    await self._start_new_jobs(not_queued, queued, ex, loop)
-                    if self.n_started > self.max_job_starts:
-                        msg = (
-                            "Too many jobs failed, your Python code probably has a bug."
-                        )
-                        raise MaxRestartsReachedError(msg)  # noqa: TRY301
-                    if await sleep_unless_task_is_done(
-                        self.database_manager.task,  # type: ignore[arg-type]
-                        self.interval,
-                    ):  # if true, we are done
-                        return
-                except asyncio.CancelledError:  # noqa: PERF203
-                    log.info("task was cancelled because of a CancelledError")
-                    raise
-                except MaxRestartsReachedError as e:
-                    log.exception(
-                        "too many jobs have failed, cancelling the job manager",
-                        n_started=self.n_started,
-                        max_fails_per_job=self.max_fails_per_job,
-                        max_job_starts=self.max_job_starts,
-                        exception=str(e),
-                    )
-                    raise
-                except Exception as e:  # noqa: BLE001
-                    log.exception("got exception when starting a job", exception=str(e))
-                    if await sleep_unless_task_is_done(
-                        self.database_manager.task,  # type: ignore[arg-type]
-                        5,
-                    ):  # if true, we are done
-                        return
+        while True:
+            try:
+                update = await self._update_database_and_get_not_queued()
+                if update is None:  # we are finished!
+                    return
+                queued, not_queued = update
+                await self._start_new_jobs(not_queued, queued)
+                if self.n_started > self.max_job_starts:
+                    msg = "Too many jobs failed, your Python code probably has a bug."
+                    raise MaxRestartsReachedError(msg)  # noqa: TRY301
+                if await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
+                    self.interval,
+                ):  # if true, we are done
+                    return
+            except asyncio.CancelledError:  # noqa: PERF203
+                log.info("task was cancelled because of a CancelledError")
+                raise
+            except MaxRestartsReachedError as e:
+                log.exception(
+                    "too many jobs have failed, cancelling the job manager",
+                    n_started=self.n_started,
+                    max_fails_per_job=self.max_fails_per_job,
+                    max_job_starts=self.max_job_starts,
+                    exception=str(e),
+                )
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.exception("got exception when starting a job", exception=str(e))
+                if await sleep_unless_task_is_done(
+                    self.database_manager.task,  # type: ignore[arg-type]
+                    5,
+                ):  # if true, we are done
+                    return

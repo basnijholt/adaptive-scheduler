@@ -17,6 +17,7 @@ import tempfile
 import time
 import uuid
 import warnings
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta, timezone
@@ -27,10 +28,7 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    List,
     Literal,
-    Union,
 )
 from typing import (
     get_args as get_type_args,
@@ -60,7 +58,7 @@ console = Console()
 
 MAX_LINE_LENGTH = 100
 _NONE_RETURN_STR = "__ReturnsNone__"
-FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
+FnamesTypes = list[str] | list[Path] | list[list[str]] | list[list[Path]]
 
 LOKY_START_METHODS = Literal[
     "loky",
@@ -78,21 +76,16 @@ EXECUTOR_TYPES = Literal[
     "loky",
     "sequential",
 ]
-GoalTypes = Union[
-    Callable[[adaptive.BaseLearner], bool],
-    int,
-    float,
-    datetime,
-    timedelta,
-    None,
-]
+GoalTypes = (
+    Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None
+)
 
 
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
-    combined = list(zip(*lists))
+    combined = list(zip(*lists, strict=True))
     random.Random(seed).shuffle(combined)  # noqa: S311
-    return zip(*combined)
+    return zip(*combined, strict=True)
 
 
 def hash_anything(x: Any) -> str:
@@ -145,8 +138,8 @@ def split_in_balancing_learners(
     """
     new_learners = []
     new_fnames = []
-    for x in split(zip(learners, fnames), n_parts):
-        learners_part, fnames_part = zip(*x)
+    for x in split(zip(learners, fnames, strict=True), n_parts):
+        learners_part, fnames_part = zip(*x, strict=True)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
         new_fnames.append(list(fnames_part))
@@ -190,7 +183,7 @@ def split_sequence_learner(
     )
     # Load the new learners with data
     index_parts = split(range(len(big_learner.sequence)), n_learners)
-    for small_learner, part in zip(new_learners, index_parts):
+    for small_learner, part in zip(new_learners, index_parts, strict=True):
         for i_small, i_big in enumerate(part):
             y = big_learner.data.get(i_big)
             if y is None:
@@ -485,7 +478,7 @@ def load_parallel(
         learner.load(fname)
 
     with ThreadPoolExecutor(max_workers) as ex:
-        iterator = zip(learners, fnames)
+        iterator = zip(learners, fnames, strict=True)
         pbar = _progress(iterator, with_progress_bar, "Submitting loading tasks")
         futs = [ex.submit(load, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing loading"):
@@ -515,7 +508,7 @@ def save_parallel(
         learner.save(fname)
 
     with ThreadPoolExecutor() as ex:
-        iterator = zip(learners, fnames)
+        iterator = zip(learners, fnames, strict=True)
         pbar = _progress(iterator, with_progress_bar, "Submitting saving tasks")
         futs = [ex.submit(save, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing saving"):
@@ -738,9 +731,9 @@ def shared_memory_cache(cache_size: int = 128) -> Callable:
 def _prefix(
     fname: str | list[str] | Path | list[Path],
 ) -> str:
-    if isinstance(fname, (tuple, list)):
+    if isinstance(fname, tuple | list):
         return f".{len(fname):08}_learners."
-    if isinstance(fname, (str, Path)):
+    if isinstance(fname, str | Path):
         return ".learner."
     msg = "Incorrect type for fname."
     raise TypeError(msg)
@@ -751,7 +744,7 @@ def fname_to_learner_fname(
 ) -> Path:
     """Convert a learner filename (data) to a filename used to cloudpickle the learner."""
     prefix = _prefix(fname)
-    if isinstance(fname, (tuple, list)):
+    if isinstance(fname, tuple | list):
         fname = fname[0]
     p = Path(fname)
     new_name = f"{prefix}{p.stem}{p.suffix}"
@@ -775,12 +768,12 @@ def fname_to_learner(
 def _ensure_folder_exists(
     fnames: FnamesTypes,
 ) -> None:
-    if isinstance(fnames[0], (tuple, list)):
+    if isinstance(fnames[0], tuple | list):
         for _fnames in fnames:
-            assert isinstance(_fnames, (tuple, list))
+            assert isinstance(_fnames, tuple | list)
             _ensure_folder_exists(_fnames)
     else:
-        assert isinstance(fnames[0], (str, Path))
+        assert isinstance(fnames[0], str | Path)
         folders = {Path(fname).parent for fname in fnames}  # type: ignore[arg-type]
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
@@ -804,7 +797,7 @@ def cloudpickle_learners(
     if initializers is None:
         initializers = [None] * len(learners)  # type: ignore[list-item]
     for learner, fname, initializer in _progress(
-        zip(learners, fnames, initializers),
+        zip(learners, fnames, initializers, strict=True),
         with_progress_bar,
         desc="Cloudpickling learners",
     ):
@@ -830,7 +823,7 @@ def fname_to_dataframe(
     """Convert a learner filename (data) to a filename is used to save the dataframe."""
     if format == "excel":
         format = "xlsx"  # noqa: A001
-    if isinstance(fname, (tuple, list)):
+    if isinstance(fname, tuple | list):
         fname = fname[0]
     p = Path(fname)
     new_name = f"dataframe.{p.stem}.{format}"
@@ -1042,7 +1035,7 @@ def smart_goal(
         return lambda learner: learner.npoints >= goal
     if isinstance(goal, float):
         return lambda learner: learner.loss() <= goal
-    if isinstance(goal, (timedelta, datetime)):
+    if isinstance(goal, timedelta | datetime):
         return _TimeGoal(goal)
     if goal is None:
         learner_types = {type(learner) for learner in learners}

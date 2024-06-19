@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from adaptive_scheduler.utils import (
     _remove_or_move_files,
@@ -13,6 +13,8 @@ from .base_manager import BaseManager
 from .common import _maybe_path, log
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from adaptive_scheduler.scheduler import BaseScheduler
 
     from .database_manager import DatabaseManager

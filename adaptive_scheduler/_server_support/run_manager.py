@@ -7,7 +7,7 @@ import warnings
 import weakref
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -39,6 +39,8 @@ from .kill_manager import KillManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
@@ -249,11 +251,11 @@ class RunManager(BaseManager):
         self.learners = learners
         self.fnames = fnames
 
-        if isinstance(self.fnames[0], (list, tuple)):
+        if isinstance(self.fnames[0], list | tuple):
             # For a BalancingLearner
-            assert isinstance(self.fnames[0][0], (str, Path))
+            assert isinstance(self.fnames[0][0], str | Path)
         else:
-            assert isinstance(self.fnames[0], (str, Path))
+            assert isinstance(self.fnames[0], str | Path)
 
         self.job_names = [f"{self.job_name}-{i}" for i in range(len(self.learners))]
 
@@ -309,7 +311,7 @@ class RunManager(BaseManager):
             # Only works after the `database_manager` has started.
             done_fnames = [
                 fname
-                for fname, learner in zip(self.fnames, self.learners)
+                for fname, learner in zip(self.fnames, self.learners, strict=True)
                 if self.goal(learner)
             ]
             self.database_manager._stop_requests(done_fnames)  # type: ignore[arg-type]

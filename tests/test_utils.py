@@ -185,13 +185,13 @@ def test_load_parallel(tmp_path: Path) -> None:
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
-    for learner, fname in zip(learners, fnames):
+    for learner, fname in zip(learners, fnames, strict=True):
         learner.save(fname)
 
     loaded_learners = [lrn.new() for lrn in learners]
     utils.load_parallel(loaded_learners, fnames, with_progress_bar=False)
 
-    for learner, loaded_learner in zip(learners, loaded_learners):
+    for learner, loaded_learner in zip(learners, loaded_learners, strict=True):
         assert learner.data == loaded_learner.data
 
 
@@ -468,9 +468,10 @@ def test_atomic_write(tmp_path: Path) -> None:
 
     # Works correctly when 'return_path' is used.
     content = "even more content"
-    with utils.atomic_write(path, return_path=True) as tmp_path, tmp_path.open(
-        "w",
-    ) as fp:
+    with (
+        utils.atomic_write(path, return_path=True) as tmp_path,
+        tmp_path.open("w") as fp,
+    ):
         fp.write(content)
     with path.open() as fp:
         assert content == fp.read()
@@ -515,10 +516,10 @@ def test_atomic_write_no_write(tmp_path: Path) -> None:
 def test_atomic_write_nested(tmp_path: Path) -> None:
     """Ensure nested calls to atomic_write on the same file work as expected."""
     path = tmp_path / "testfile"
-    with utils.atomic_write(path, mode="w") as fp, utils.atomic_write(
-        path,
-        mode="w",
-    ) as fp2:
+    with (
+        utils.atomic_write(path, mode="w") as fp,
+        utils.atomic_write(path, mode="w") as fp2,
+    ):
         fp.write("one")
         fp2.write("two")
     # Outer call wins

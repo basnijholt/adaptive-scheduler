@@ -95,7 +95,7 @@ def test_run_manager_load_learners(
 ) -> None:
     """Test loading learners in RunManager."""
     rm = RunManager(mock_scheduler, learners, fnames)
-    for lrn, fn in zip(learners, fnames):
+    for lrn, fn in zip(learners, fnames, strict=True):
         adaptive.runner.simple(lrn, npoints_goal=10)
         lrn.save(fn)
     rm.load_learners()
@@ -256,7 +256,7 @@ async def test_run_manager_auto_restart(
     # Send a start message to the DatabaseManager
     # This is coming from the client
     with get_socket(rm.database_manager) as socket:
-        for i, (entry, log_fname) in enumerate(zip(db, log_fnames)):
+        for i, (entry, log_fname) in enumerate(zip(db, log_fnames, strict=True)):
             job_id = str(i)
             job_name = entry["job_name"]
             start_message = ("start", job_id, log_fname, job_name)

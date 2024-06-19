@@ -6,7 +6,7 @@ import json
 import pickle
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Union
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import zmq
@@ -24,14 +24,16 @@ from .base_manager import BaseManager
 from .common import log
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import adaptive
 
     from adaptive_scheduler.scheduler import BaseScheduler
 
 
 ctx = zmq.asyncio.Context()
-FnameType = Union[str, Path, List[str], List[Path]]
-FnamesTypes = Union[List[str], List[Path], List[List[str]], List[List[Path]]]
+FnameType = str | Path | list[str] | list[Path]
+FnamesTypes = list[str] | list[Path] | list[list[str]] | list[list[Path]]
 
 
 class JobIDExistsInDbError(Exception):
@@ -42,13 +44,13 @@ def _ensure_str(
     fnames: str | Path | FnamesTypes,
 ) -> str | list[str] | list[list[str]]:
     """Make sure that `pathlib.Path`s are converted to strings."""
-    if isinstance(fnames, (str, Path)):
+    if isinstance(fnames, str | Path):
         return str(fnames)
 
-    if isinstance(fnames, (list, tuple)):
+    if isinstance(fnames, list | tuple):
         if len(fnames) == 0:
             return []  # type: ignore[return-value]
-        if isinstance(fnames[0], (str, Path)):
+        if isinstance(fnames[0], str | Path):
             return [str(f) for f in fnames]
         if isinstance(fnames[0], list):
             return [[str(f) for f in sublist] for sublist in fnames]  # type: ignore[union-attr]

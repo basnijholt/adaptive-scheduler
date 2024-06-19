@@ -32,7 +32,7 @@ def _maybe_as_tuple(
 ) -> tuple[T, ...] | T | None:
     if x is None:
         return x
-    if check_type is not None and not isinstance(x, (check_type, tuple)):
+    if check_type is not None and not isinstance(x, check_type | tuple):
         msg = f"Expected `{check_type}` or `tuple[{check_type}, ...]`, got `{type(x)}`"
         raise TypeError(msg)
     if n is None:
@@ -194,10 +194,12 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(nodes, tuple)
                 assert isinstance(extra_scheduler, tuple)
-                for lst, cpn in zip(extra_scheduler, self.cores_per_node):
+                for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=True):
                     assert isinstance(lst, list)
                     lst.append(f"--ntasks-per-node={cpn}")
-                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes))
+                cores = tuple(
+                    cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True)
+                )
 
         if partition is not None:
             if single_job_script:
@@ -212,7 +214,7 @@ class SLURM(BaseScheduler):
                     msg = f"Invalid partition: {partition}, only {self.partitions} are available."
                     raise ValueError(msg)
                 assert isinstance(extra_scheduler, tuple)
-                for lst, p in zip(extra_scheduler, partition):
+                for lst, p in zip(extra_scheduler, partition, strict=True):
                     assert isinstance(lst, list)
                     lst.append(f"--partition={p}")
 
@@ -224,7 +226,7 @@ class SLURM(BaseScheduler):
         else:
             assert isinstance(extra_scheduler, tuple)
             assert isinstance(self.exclusive, tuple)
-            for _ex, lst in zip(self.exclusive, extra_scheduler):
+            for _ex, lst in zip(self.exclusive, extra_scheduler, strict=True):
                 assert isinstance(lst, list)
                 if _ex:
                     lst.append("--exclusive")

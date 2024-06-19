@@ -9,7 +9,7 @@ from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,8 @@ import pandas as pd
 from adaptive_scheduler.utils import load_dataframes
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable, Generator
+    from typing import Any
 
     import ipywidgets as ipyw
 
@@ -140,7 +141,7 @@ def _sort_fnames(
         assert df_key is not None  # for mypy
         stems = [fname.stem for fname in log_fnames]
         vals = [extract(df, fname, df_key) for fname in log_fnames]
-        val_stem = sorted(zip(vals, stems), key=_sort_key, reverse=True)
+        val_stem = sorted(zip(vals, stems, strict=True), key=_sort_key, reverse=True)
 
         result: list[tuple[str, Path]] = []
         for val, stem in val_stem:
@@ -387,7 +388,7 @@ def _timedelta_to_human_readable(
     """Convert a timedelta object or an int (in seconds) into a human-readable format."""
     if isinstance(time_input, timedelta):
         total_seconds = int(time_input.total_seconds())
-    elif isinstance(time_input, (int, float)):
+    elif isinstance(time_input, int | float):
         total_seconds = int(time_input)
     else:
         msg = "Input must be a datetime.timedelta object or an int (in seconds)"
@@ -423,7 +424,7 @@ def _total_size(fnames: FnamesTypes) -> int:
     ) -> Generator[str | Path, None, None]:
         """Flatten nested lists."""
         for item in items:
-            if isinstance(item, (list, tuple)):
+            if isinstance(item, list | tuple):
                 yield from flatten(item)
             else:
                 yield item

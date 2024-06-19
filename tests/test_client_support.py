@@ -59,10 +59,13 @@ async def test_get_learner(zmq_url: str) -> None:
                 assert initializer is None
 
             # Test no more learners available
-            with mock.patch(
-                "zmq.sugar.socket.Socket.recv_serialized",
-                return_value=None,
-            ), pytest.raises(RuntimeError, match="No learners to be run"):
+            with (
+                mock.patch(
+                    "zmq.sugar.socket.Socket.recv_serialized",
+                    return_value=None,
+                ),
+                pytest.raises(RuntimeError, match="No learners to be run"),
+            ):
                 client_support.get_learner(
                     zmq_url,
                     log_fname,
@@ -71,11 +74,12 @@ async def test_get_learner(zmq_url: str) -> None:
                 )
 
             # Test return exception
-            with mock.patch(
-                "adaptive_scheduler.client_support.log",
-            ) as mock_log, mock.patch(
-                "zmq.sugar.socket.Socket.recv_serialized",
-                return_value=ValueError("Yo"),
+            with (
+                mock.patch("adaptive_scheduler.client_support.log") as mock_log,
+                mock.patch(
+                    "zmq.sugar.socket.Socket.recv_serialized",
+                    return_value=ValueError("Yo"),
+                ),
             ):
                 with pytest.raises(
                     ValueError,
@@ -94,9 +98,9 @@ async def test_get_learner(zmq_url: str) -> None:
 async def test_tell_done(zmq_url: str) -> None:
     """Test `tell_done` function."""
     fname = "test_learner_file.pkl"
-    with mock.patch("adaptive_scheduler.client_support.log") as mock_log, mock.patch(
-        "zmq.sugar.socket.Socket.recv_serialized",
-        return_value=None,
+    with (
+        mock.patch("adaptive_scheduler.client_support.log") as mock_log,
+        mock.patch("zmq.sugar.socket.Socket.recv_serialized", return_value=None),
     ):
         client_support.tell_done(zmq_url, fname)
         mock_log.info.assert_called_with(
