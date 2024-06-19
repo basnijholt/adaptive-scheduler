@@ -72,7 +72,7 @@ class BaseScheduler(abc.ABC):
 
     def __init__(
         self,
-        cores: int | tuple[int, ...],
+        cores: int | tuple[int | Callable[[], int], ...],
         *,
         python_executable: str | None = None,
         log_folder: str | Path = "",
