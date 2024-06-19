@@ -54,11 +54,7 @@ def func(x: float) -> float:
 )
 def learners(
     request: pytest.FixtureRequest,
-) -> (
-    list[adaptive.Learner1D]
-    | list[adaptive.BalancingLearner]
-    | list[adaptive.SequenceLearner]
-):
+) -> list[adaptive.Learner1D] | list[adaptive.BalancingLearner] | list[adaptive.SequenceLearner]:
     """Fixture for creating a list of adaptive.Learner1D instances."""
     learner_class = request.param
     if learner_class is adaptive.Learner1D:
@@ -96,10 +92,7 @@ def fnames(
         return [type_(tmp_path / f"learner{i}.pkl") for i, _ in enumerate(learners)]
     if isinstance(learners[0], adaptive.BalancingLearner):
         return [
-            [
-                type_(tmp_path / f"bal_learner{j}_{i}.json")
-                for j, _ in enumerate(learner.learners)
-            ]
+            [type_(tmp_path / f"bal_learner{j}_{i}.json") for j, _ in enumerate(learner.learners)]
             for i, learner in enumerate(learners)
         ]
     msg = f"Learner type '{type(learners[0])}' not implemented"

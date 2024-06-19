@@ -197,9 +197,7 @@ class SLURM(BaseScheduler):
                 for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=True):
                     assert isinstance(lst, list)
                     lst.append(f"--ntasks-per-node={cpn}")
-                cores = tuple(
-                    cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True)
-                )
+                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True))
 
         if partition is not None:
             if single_job_script:
@@ -369,9 +367,7 @@ class SLURM(BaseScheduler):
         output_str = str(output_fname).replace(self._JOB_ID_VARIABLE, "%A")
         output_opt = f"--output {output_str}"
         name_opt = f"--job-name {name}"
-        submit_cmd = (
-            f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"
-        )
+        submit_cmd = f"{self.submit_cmd} {name_opt} {output_opt} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
     @staticmethod
@@ -405,11 +401,7 @@ class SLURM(BaseScheduler):
         proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
         output = proc.stdout
 
-        if (
-            "squeue: error" in output
-            or "slurm_load_jobs error" in output
-            or proc.returncode != 0
-        ):
+        if "squeue: error" in output or "slurm_load_jobs error" in output or proc.returncode != 0:
             msg = "SLURM is not responding."
             raise RuntimeError(msg)
 

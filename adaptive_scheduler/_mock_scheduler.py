@@ -86,9 +86,7 @@ class MockScheduler:
         # because it is in the other schedulers.
 
         # remove the "proc" entries because they aren't pickable
-        return {
-            job_id: dissoc(info, "proc") for job_id, info in self._current_queue.items()
-        }
+        return {job_id: dissoc(info, "proc") for job_id, info in self._current_queue.items()}
 
     def _queue_is_full(self) -> bool:
         n_running = sum(info["state"] == "R" for info in self._current_queue.values())

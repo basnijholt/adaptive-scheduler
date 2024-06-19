@@ -213,8 +213,7 @@ def test_timedelta_to_human_readable_int() -> None:
     seconds = 3666
     assert _timedelta_to_human_readable(seconds) == "1 h, 1 m, 6 s"
     assert (
-        _timedelta_to_human_readable(seconds, short_format=False)
-        == "1 hour, 1 minute, 6 seconds"
+        _timedelta_to_human_readable(seconds, short_format=False) == "1 hour, 1 minute, 6 seconds"
     )
 
 
@@ -249,10 +248,7 @@ def test_info(capfd: pytest.CaptureFixture, tmp_path: Path) -> None:
 def test_timedelta_to_human_readable_short_format() -> None:
     """Test the _timedelta_to_human_readable function with short_format."""
     time_input = timedelta(days=2, hours=3, minutes=4, seconds=5)
-    assert (
-        _timedelta_to_human_readable(time_input, short_format=True)
-        == "2 d, 3 h, 4 m, 5 s"
-    )
+    assert _timedelta_to_human_readable(time_input, short_format=True) == "2 d, 3 h, 4 m, 5 s"
 
 
 def test_files_that_contain(tmp_path: Path) -> None:

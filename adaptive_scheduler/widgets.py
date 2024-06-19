@@ -54,9 +54,7 @@ def _failed_job_logs(
         for e in run_manager.database_manager.as_dicts()
         if e["log_fname"] is not None
     }
-    fnames_set = {
-        fname.stem for fname in fnames if fname.suffix != run_manager.scheduler.ext
-    }
+    fnames_set = {fname.stem for fname in fnames if fname.suffix != run_manager.scheduler.ext}
     failed_set = fnames_set - running
     failed = [Path(f) for stem in failed_set for f in glob(f"{stem}*")]  # noqa: PTH207
 
@@ -491,9 +489,7 @@ def _info_html(run_manager: RunManager) -> str:
         style = "text-align: right; padding: 0.5em 0.5em; line-height: 1.0;"
         if i % 2 == 1:
             style += " background: var(--md-grey-100);"
-        return (
-            f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
-        )
+        return f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
 
     data_size = _total_size(dbm.fnames)
     info = [

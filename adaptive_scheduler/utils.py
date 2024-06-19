@@ -76,9 +76,7 @@ EXECUTOR_TYPES = Literal[
     "loky",
     "sequential",
 ]
-GoalTypes = (
-    Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None
-)
+GoalTypes = Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None
 
 
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
@@ -290,9 +288,7 @@ def copy_from_sequence_learner(
         Learner to tell the data to.
 
     """
-    mapping = {
-        hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()
-    }
+    mapping = {hash_anything(learner_from.sequence[i]): v for i, v in learner_from.data.items()}
     for i, key in enumerate(learner_to.sequence):
         hsh = hash_anything(key)
         if hsh in mapping:
