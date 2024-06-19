@@ -185,13 +185,13 @@ def test_load_parallel(tmp_path: Path) -> None:
     ]
     fnames = [str(tmp_path / "learner1.pickle"), str(tmp_path / "learner2.pickle")]
 
-    for learner, fname in zip(learners, fnames, strict=False):
+    for learner, fname in zip(learners, fnames, strict=True):
         learner.save(fname)
 
     loaded_learners = [lrn.new() for lrn in learners]
     utils.load_parallel(loaded_learners, fnames, with_progress_bar=False)
 
-    for learner, loaded_learner in zip(learners, loaded_learners, strict=False):
+    for learner, loaded_learner in zip(learners, loaded_learners, strict=True):
         assert learner.data == loaded_learner.data
 
 

@@ -83,9 +83,9 @@ GoalTypes = (
 
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
-    combined = list(zip(*lists, strict=False))
+    combined = list(zip(*lists, strict=True))
     random.Random(seed).shuffle(combined)  # noqa: S311
-    return zip(*combined, strict=False)
+    return zip(*combined, strict=True)
 
 
 def hash_anything(x: Any) -> str:
@@ -138,8 +138,8 @@ def split_in_balancing_learners(
     """
     new_learners = []
     new_fnames = []
-    for x in split(zip(learners, fnames, strict=False), n_parts):
-        learners_part, fnames_part = zip(*x, strict=False)
+    for x in split(zip(learners, fnames, strict=True), n_parts):
+        learners_part, fnames_part = zip(*x, strict=True)
         learner = adaptive.BalancingLearner(learners_part, strategy=strategy)
         new_learners.append(learner)
         new_fnames.append(list(fnames_part))
@@ -183,7 +183,7 @@ def split_sequence_learner(
     )
     # Load the new learners with data
     index_parts = split(range(len(big_learner.sequence)), n_learners)
-    for small_learner, part in zip(new_learners, index_parts, strict=False):
+    for small_learner, part in zip(new_learners, index_parts, strict=True):
         for i_small, i_big in enumerate(part):
             y = big_learner.data.get(i_big)
             if y is None:
@@ -478,7 +478,7 @@ def load_parallel(
         learner.load(fname)
 
     with ThreadPoolExecutor(max_workers) as ex:
-        iterator = zip(learners, fnames, strict=False)
+        iterator = zip(learners, fnames, strict=True)
         pbar = _progress(iterator, with_progress_bar, "Submitting loading tasks")
         futs = [ex.submit(load, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing loading"):
@@ -508,7 +508,7 @@ def save_parallel(
         learner.save(fname)
 
     with ThreadPoolExecutor() as ex:
-        iterator = zip(learners, fnames, strict=False)
+        iterator = zip(learners, fnames, strict=True)
         pbar = _progress(iterator, with_progress_bar, "Submitting saving tasks")
         futs = [ex.submit(save, *args) for args in pbar]
         for fut in _progress(futs, with_progress_bar, "Finishing saving"):
@@ -797,7 +797,7 @@ def cloudpickle_learners(
     if initializers is None:
         initializers = [None] * len(learners)  # type: ignore[list-item]
     for learner, fname, initializer in _progress(
-        zip(learners, fnames, initializers, strict=False),
+        zip(learners, fnames, initializers, strict=True),
         with_progress_bar,
         desc="Cloudpickling learners",
     ):

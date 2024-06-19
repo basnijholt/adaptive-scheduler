@@ -194,11 +194,11 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(nodes, tuple)
                 assert isinstance(extra_scheduler, tuple)
-                for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=False):
+                for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=True):
                     assert isinstance(lst, list)
                     lst.append(f"--ntasks-per-node={cpn}")
                 cores = tuple(
-                    cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=False)
+                    cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True)
                 )
 
         if partition is not None:
@@ -214,7 +214,7 @@ class SLURM(BaseScheduler):
                     msg = f"Invalid partition: {partition}, only {self.partitions} are available."
                     raise ValueError(msg)
                 assert isinstance(extra_scheduler, tuple)
-                for lst, p in zip(extra_scheduler, partition, strict=False):
+                for lst, p in zip(extra_scheduler, partition, strict=True):
                     assert isinstance(lst, list)
                     lst.append(f"--partition={p}")
 
@@ -226,7 +226,7 @@ class SLURM(BaseScheduler):
         else:
             assert isinstance(extra_scheduler, tuple)
             assert isinstance(self.exclusive, tuple)
-            for _ex, lst in zip(self.exclusive, extra_scheduler, strict=False):
+            for _ex, lst in zip(self.exclusive, extra_scheduler, strict=True):
                 assert isinstance(lst, list)
                 if _ex:
                     lst.append("--exclusive")

@@ -311,7 +311,7 @@ class RunManager(BaseManager):
             # Only works after the `database_manager` has started.
             done_fnames = [
                 fname
-                for fname, learner in zip(self.fnames, self.learners, strict=False)
+                for fname, learner in zip(self.fnames, self.learners, strict=True)
                 if self.goal(learner)
             ]
             self.database_manager._stop_requests(done_fnames)  # type: ignore[arg-type]

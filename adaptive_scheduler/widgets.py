@@ -141,7 +141,7 @@ def _sort_fnames(
         assert df_key is not None  # for mypy
         stems = [fname.stem for fname in log_fnames]
         vals = [extract(df, fname, df_key) for fname in log_fnames]
-        val_stem = sorted(zip(vals, stems, strict=False), key=_sort_key, reverse=True)
+        val_stem = sorted(zip(vals, stems, strict=True), key=_sort_key, reverse=True)
 
         result: list[tuple[str, Path]] = []
         for val, stem in val_stem:
