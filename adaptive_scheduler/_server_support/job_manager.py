@@ -190,11 +190,7 @@ class JobManager(BaseManager):
         return self.max_fails_per_job * len(self.job_names)
 
     def _queued(self, queue: dict[str, dict[str, Any]]) -> set[str]:
-        return {
-            job["job_name"]
-            for job in queue.values()
-            if job["job_name"] in self.job_names
-        }
+        return {job["job_name"] for job in queue.values() if job["job_name"] in self.job_names}
 
     def _setup(self) -> None:
         name_prefix = self.job_names[0].rsplit("-", 1)[0]
