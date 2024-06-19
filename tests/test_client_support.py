@@ -75,9 +75,7 @@ async def test_get_learner(zmq_url: str) -> None:
 
             # Test return exception
             with (
-                mock.patch(
-                    "adaptive_scheduler.client_support.log",
-                ) as mock_log,
+                mock.patch("adaptive_scheduler.client_support.log") as mock_log,
                 mock.patch(
                     "zmq.sugar.socket.Socket.recv_serialized",
                     return_value=ValueError("Yo"),
@@ -102,10 +100,7 @@ async def test_tell_done(zmq_url: str) -> None:
     fname = "test_learner_file.pkl"
     with (
         mock.patch("adaptive_scheduler.client_support.log") as mock_log,
-        mock.patch(
-            "zmq.sugar.socket.Socket.recv_serialized",
-            return_value=None,
-        ),
+        mock.patch("zmq.sugar.socket.Socket.recv_serialized", return_value=None),
     ):
         client_support.tell_done(zmq_url, fname)
         mock_log.info.assert_called_with(

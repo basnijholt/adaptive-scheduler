@@ -470,9 +470,7 @@ def test_atomic_write(tmp_path: Path) -> None:
     content = "even more content"
     with (
         utils.atomic_write(path, return_path=True) as tmp_path,
-        tmp_path.open(
-            "w",
-        ) as fp,
+        tmp_path.open("w") as fp,
     ):
         fp.write(content)
     with path.open() as fp:
@@ -520,10 +518,7 @@ def test_atomic_write_nested(tmp_path: Path) -> None:
     path = tmp_path / "testfile"
     with (
         utils.atomic_write(path, mode="w") as fp,
-        utils.atomic_write(
-            path,
-            mode="w",
-        ) as fp2,
+        utils.atomic_write(path, mode="w") as fp2,
     ):
         fp.write("one")
         fp2.write("two")
