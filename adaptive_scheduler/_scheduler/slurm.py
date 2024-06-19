@@ -7,7 +7,6 @@ import getpass
 import re
 import subprocess
 import textwrap
-from collections.abc import Callable
 from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, TypeVar
@@ -16,6 +15,7 @@ from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler, _maybe_c
 from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
     from typing import Any
 
@@ -26,11 +26,11 @@ T = TypeVar("T")
 
 
 def _maybe_as_tuple(
-    x: T | tuple[T, ...] | None,
+    x: T | tuple[T | Callable[[], T], ...] | None,
     n: int | None,
     *,
     check_type: type | None = None,
-) -> tuple[T, ...] | T | None:
+) -> tuple[T | Callable[[], T], ...] | T | None:
     if x is None:
         return x
     if check_type is not None and not isinstance(x, check_type | tuple):

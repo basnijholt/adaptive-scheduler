@@ -17,6 +17,7 @@ from adaptive_scheduler._scheduler.common import run_submit
 from adaptive_scheduler.utils import EXECUTOR_TYPES, _progress
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Any, ClassVar
 
 
@@ -76,11 +77,12 @@ class BaseScheduler(abc.ABC):
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-        num_threads: int | tuple[int, ...] = 1,
-        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
-        extra_script: str | tuple[str, ...] | None = None,
+        executor_type: EXECUTOR_TYPES
+        | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
+        num_threads: int | tuple[int | Callable[[], int], ...] = 1,
+        extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+        extra_env_vars: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+        extra_script: str | tuple[str | Callable[[], str], ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
