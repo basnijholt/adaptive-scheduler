@@ -436,3 +436,15 @@ def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions
     assert s.cores[1]() == 2
     assert not callable(s.cores[2])
     assert s.cores[2] == 9
+
+    js0 = s.job_script(options={}, index=0)
+    js1 = s.job_script(options={}, index=1)
+    js2 = s.job_script(options={}, index=2)
+    assert js0 != js1
+    assert js0 != js2
+    assert "--partition=nc24-low" in js0
+    assert "--partition=hb120v2-low" in js1
+    assert "--partition=hb60-high" in js2
+    assert "--ntasks 8" in js0
+    assert "--ntasks 2" in js1
+    assert "--ntasks 9" in js2
