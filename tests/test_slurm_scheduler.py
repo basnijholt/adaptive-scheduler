@@ -188,9 +188,9 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         #!/bin/bash
         #SBATCH --ntasks 4
         #SBATCH --no-requeue
+        #SBATCH --exclusive
         #SBATCH --exclusive=user
         #SBATCH --time=1
-        #SBATCH --exclusive
 
         export TMPDIR='/scratch'
         export PYTHONPATH='my_dir:$PYTHONPATH'
