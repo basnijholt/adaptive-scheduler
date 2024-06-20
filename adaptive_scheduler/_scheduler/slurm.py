@@ -507,12 +507,15 @@ def slurm_partitions(
     with_ncores: bool = True,
 ) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
-    output = subprocess.run(
-        ["sinfo", "-ahO", "partition"],
-        capture_output=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        output = subprocess.run(
+            ["sinfo", "-ahO", "partition"],
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError:
+        return {} if with_ncores else []
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))
     # Sort partitions alphabetically, but put the default partition first

@@ -422,7 +422,7 @@ def test_callable_scheduler_arguments() -> None:
     assert executor_type1 == "mpi4py"
 
 
-def test_callable_scheduler_arguments_with_cores_per_node() -> None:
+def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions) -> None:  # noqa: PT019, ANN001
     """Test that the scheduler arguments can be callables."""
     s = SLURM(
         cores_per_node=(4, lambda: 2, 3),
