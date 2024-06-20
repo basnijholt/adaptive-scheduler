@@ -146,6 +146,8 @@ class SLURM(BaseScheduler):
         self.__extra_env_vars = extra_env_vars
         self.__extra_script = extra_script
 
+        _validate_partition(partition, self.partitions)
+
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
             if nodes is None or cores_per_node is None:
@@ -531,3 +533,22 @@ def _cores(
     if callable(cores_per_node) or callable(nodes):
         return lambda: _maybe_call(cores_per_node) * _maybe_call(nodes)
     return cores_per_node * nodes
+
+
+def _at_least_tuple(x: Any) -> tuple[Any, ...]:
+    """Convert x to a tuple if it is not already a tuple."""
+    return x if isinstance(x, tuple) else (x,)
+
+
+def _validate_partition(
+    partition: str | tuple[str | Callable[[], str], ...] | None,
+    partitions: dict[str, int],
+) -> None:
+    if partition is None:
+        return
+    for p in _at_least_tuple(partition):
+        if callable(p):
+            continue
+        if p not in partitions:
+            msg = f"Invalid partition: {p}, only {partitions} are available."
+            raise ValueError(msg)
