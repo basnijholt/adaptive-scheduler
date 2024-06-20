@@ -428,6 +428,7 @@ def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions
         cores_per_node=(4, lambda: 2, 3),
         nodes=(lambda: 2, lambda: 1, 3),
         partition=(lambda: "nc24-low", lambda: "hb120v2-low", "hb60-high"),
+        executor_type=(lambda: "ipyparallel", "mpi4py", "mpi4py"),
     )
     assert isinstance(s.cores, tuple)
     assert callable(s.cores[0])
@@ -448,3 +449,12 @@ def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions
     assert "--ntasks 8" in js0
     assert "--ntasks 2" in js1
     assert "--ntasks 9" in js2
+
+    ex0, start0 = s._ipyparallel(index=0)
+    ex1, start1 = s._ipyparallel(index=1)
+    ex2, start2 = s._ipyparallel(index=2)
+    assert ex0 != ex1
+    assert ex0 != ex2
+    assert start0 == start1
+    assert start0 == start2
+    assert start0 == ("    --profile ${profile}",)

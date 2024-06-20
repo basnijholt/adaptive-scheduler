@@ -287,8 +287,8 @@ class SLURM(BaseScheduler):
                 partition = self.partition
                 nodes = self.nodes
             else:
-                assert isinstance(self.partition, list)
-                assert isinstance(self.nodes, list)
+                assert isinstance(self.partition, tuple)
+                assert isinstance(self.nodes, tuple)
                 assert index is not None
                 partition = _maybe_call(self.partition[index])
                 nodes = _maybe_call(self.nodes[index])
