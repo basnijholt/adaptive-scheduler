@@ -188,9 +188,9 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         #!/bin/bash
         #SBATCH --ntasks 4
         #SBATCH --no-requeue
+        #SBATCH --exclusive
         #SBATCH --exclusive=user
         #SBATCH --time=1
-        #SBATCH --exclusive
 
         export TMPDIR='/scratch'
         export PYTHONPATH='my_dir:$PYTHONPATH'
@@ -380,3 +380,82 @@ def test_not_changing_attributes() -> None:
     assert s._extra_env_vars == ([], [])
     assert js0.count("MKL_NUM_THREADS") == 1
     assert js1.count("MKL_NUM_THREADS") == 1
+
+
+def test_callable_scheduler_arguments() -> None:
+    """Test that the scheduler arguments can be callables."""
+    s = SLURM(
+        cores=(4, lambda: 2),
+        executor_type=(lambda: "ipyparallel", "mpi4py"),
+        num_threads=(lambda: 2, 1),
+        extra_scheduler=(
+            ["--exclusive=user", "--time=1"],
+            lambda: ["--exclusive=user", "--time=2"],
+        ),
+        extra_env_vars=(lambda: ["from=func"], ["from=static"]),
+        extra_script=(lambda: "echo 'func'", "echo 'static'"),
+        exclusive=(lambda: True, lambda: False),
+    )
+
+    js0 = s.job_script(options={}, index=0)
+    js1 = s.job_script(options={}, index=1)
+    assert js0 != js1
+    extra_scheduler0 = s.extra_scheduler(index=0)
+    extra_scheduler1 = s.extra_scheduler(index=1)
+    assert extra_scheduler0 == "#SBATCH --exclusive\n#SBATCH --exclusive=user\n#SBATCH --time=1"
+    assert extra_scheduler1 == "#SBATCH --exclusive=user\n#SBATCH --time=2"
+    extra_env_vars0 = s.extra_env_vars(index=0)
+    extra_env_vars1 = s.extra_env_vars(index=1)
+    assert extra_env_vars0.startswith("export from=func\n")
+    assert extra_env_vars1.startswith("export from=static\n")
+    extra_script0 = s.extra_script(index=0)
+    extra_script1 = s.extra_script(index=1)
+    assert extra_script0 == "echo 'func'"
+    assert extra_script1 == "echo 'static'"
+    cores0 = s._get_cores(index=0)
+    cores1 = s._get_cores(index=1)
+    assert cores0 == 4
+    assert cores1 == 2
+    executor_type0 = s._get_executor_type(index=0)
+    executor_type1 = s._get_executor_type(index=1)
+    assert executor_type0 == "ipyparallel"
+    assert executor_type1 == "mpi4py"
+
+
+def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions) -> None:  # noqa: PT019, ANN001
+    """Test that the scheduler arguments can be callables."""
+    s = SLURM(
+        cores_per_node=(4, lambda: 2, 3),
+        nodes=(lambda: 2, lambda: 1, 3),
+        partition=(lambda: "nc24-low", lambda: "hb120v2-low", "hb60-high"),
+        executor_type=(lambda: "ipyparallel", "mpi4py", "mpi4py"),
+        exclusive=True,
+    )
+    assert isinstance(s.cores, tuple)
+    assert callable(s.cores[0])
+    assert s.cores[0]() == 8
+    assert callable(s.cores[1])
+    assert s.cores[1]() == 2
+    assert not callable(s.cores[2])
+    assert s.cores[2] == 9
+
+    js0 = s.job_script(options={}, index=0)
+    js1 = s.job_script(options={}, index=1)
+    js2 = s.job_script(options={}, index=2)
+    assert js0 != js1
+    assert js0 != js2
+    assert "--partition=nc24-low" in js0
+    assert "--partition=hb120v2-low" in js1
+    assert "--partition=hb60-high" in js2
+    assert "--ntasks 8" in js0
+    assert "--ntasks 2" in js1
+    assert "--ntasks 9" in js2
+
+    ex0, start0 = s._ipyparallel(index=0)
+    ex1, start1 = s._ipyparallel(index=1)
+    ex2, start2 = s._ipyparallel(index=2)
+    assert ex0 != ex1
+    assert ex0 != ex2
+    assert start0 == start1
+    assert start0 == start2
+    assert start0 == ("    --profile ${profile}",)

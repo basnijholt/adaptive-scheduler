@@ -11,10 +11,11 @@ from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, TypeVar
 
-from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
+from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler, _maybe_call
 from adaptive_scheduler._scheduler.common import run_submit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
     from typing import Any
 
@@ -25,11 +26,11 @@ T = TypeVar("T")
 
 
 def _maybe_as_tuple(
-    x: T | tuple[T, ...] | None,
+    x: T | tuple[T | Callable[[], T], ...] | None,
     n: int | None,
     *,
     check_type: type | None = None,
-) -> tuple[T, ...] | T | None:
+) -> tuple[T | Callable[[], T], ...] | T | None:
     if x is None:
         return x
     if check_type is not None and not isinstance(x, check_type | tuple):
@@ -113,22 +114,23 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(  # noqa: PLR0912, PLR0915, C901
+    def __init__(
         self,
         *,
-        cores: int | tuple[int, ...] | None = None,
-        nodes: int | tuple[int, ...] | None = None,
-        cores_per_node: int | tuple[int, ...] | None = None,
-        partition: str | tuple[str, ...] | None = None,
-        exclusive: bool | tuple[bool, ...] = True,
+        cores: int | tuple[int | Callable[[], int], ...] | None = None,
+        nodes: int | tuple[int | Callable[[], int], ...] | None = None,
+        cores_per_node: int | tuple[int | Callable[[], int], ...] | None = None,
+        partition: str | tuple[str | Callable[[], str], ...] | None = None,
+        exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,
-        executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-        num_threads: int | tuple[int, ...] = 1,
-        extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
-        extra_env_vars: list[str] | tuple[list[str], ...] | None = None,
-        extra_script: str | tuple[str, ...] | None = None,
+        executor_type: EXECUTOR_TYPES
+        | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
+        num_threads: int | tuple[int | Callable[[], int], ...] = 1,
+        extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+        extra_env_vars: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+        extra_script: str | tuple[str | Callable[[], str], ...] | None = None,
         batch_folder: str | Path = "",
     ) -> None:
         """Initialize the scheduler."""
@@ -173,9 +175,9 @@ class SLURM(BaseScheduler):
         )
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n, check_type=int)
-        self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
+        self.nodes = _maybe_as_tuple(nodes, n, check_type=int)
         self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
-        self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        self.partition = _maybe_as_tuple(partition, n, check_type=str)
         executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
@@ -183,52 +185,18 @@ class SLURM(BaseScheduler):
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
 
-        if self.cores_per_node is not None:
+        _validate_partition(self.partition, self.partitions)
+        if cores is None:
             if single_job_script:
                 assert isinstance(self.cores_per_node, int)
-                assert isinstance(nodes, int)
-                assert isinstance(extra_scheduler, list)
-                extra_scheduler.append(f"--ntasks-per-node={self.cores_per_node}")
-                cores = self.cores_per_node * nodes
+                assert isinstance(self.nodes, int)
+                cores = self.cores_per_node * self.nodes
             else:
                 assert isinstance(self.cores_per_node, tuple)
-                assert isinstance(nodes, tuple)
-                assert isinstance(extra_scheduler, tuple)
-                for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=True):
-                    assert isinstance(lst, list)
-                    lst.append(f"--ntasks-per-node={cpn}")
-                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True))
-
-        if partition is not None:
-            if single_job_script:
-                assert isinstance(partition, str)
-                assert isinstance(extra_scheduler, list)
-                if partition not in self.partitions:
-                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                    raise ValueError(msg)
-                extra_scheduler.append(f"--partition={partition}")
-            else:
-                if any(p not in self.partitions for p in partition):
-                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                    raise ValueError(msg)
-                assert isinstance(extra_scheduler, tuple)
-                for lst, p in zip(extra_scheduler, partition, strict=True):
-                    assert isinstance(lst, list)
-                    lst.append(f"--partition={p}")
-
-        if single_job_script:
-            assert isinstance(extra_scheduler, list)
-            assert isinstance(exclusive, bool)
-            if self.exclusive:
-                extra_scheduler.append("--exclusive")
-        else:
-            assert isinstance(extra_scheduler, tuple)
-            assert isinstance(self.exclusive, tuple)
-            for _ex, lst in zip(self.exclusive, extra_scheduler, strict=True):
-                assert isinstance(lst, list)
-                if _ex:
-                    lst.append("--exclusive")
-
+                assert isinstance(self.nodes, tuple)
+                cores = tuple(
+                    _cores(cpn, n) for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
+                )
         assert cores is not None
         super().__init__(
             cores,
@@ -244,6 +212,51 @@ class SLURM(BaseScheduler):
         )
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
+
+    def _extra_scheduler_list(self, *, index: int | None = None) -> list[str]:
+        extra_scheduler = []
+        if self.cores_per_node is not None:
+            if self.single_job_script:
+                assert isinstance(self.cores_per_node, int)
+                assert isinstance(self.nodes, int)
+                cores_per_node = self.cores_per_node
+            else:
+                assert isinstance(self.cores_per_node, tuple)
+                assert isinstance(self.nodes, tuple)
+                assert index is not None
+                cores_per_node = _maybe_call(self.cores_per_node[index])
+            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+
+        if self.partition is not None:
+            if self.single_job_script:
+                assert isinstance(self.partition, str)
+                partition = self.partition
+            else:
+                assert isinstance(self.partition, tuple)
+                assert index is not None
+                partition = _maybe_call(self.partition[index])
+                if callable(self.partition[index]):  # others already validated
+                    _validate_partition(partition, self.partitions)
+            extra_scheduler.append(f"--partition={partition}")
+
+        if self.single_job_script:
+            assert isinstance(self.exclusive, bool)
+            exclusive = self.exclusive
+        else:
+            assert isinstance(self.exclusive, tuple)
+            assert index is not None
+            exclusive = _maybe_call(self.exclusive[index])
+        if exclusive:
+            extra_scheduler.append("--exclusive")
+
+        if self.single_job_script:
+            assert isinstance(self._extra_scheduler, list)
+            extra_scheduler.extend(self._extra_scheduler)
+        else:
+            assert index is not None
+            assert isinstance(self._extra_scheduler, tuple)
+            extra_scheduler.extend(_maybe_call(self._extra_scheduler[index]))
+        return extra_scheduler
 
     def __getstate__(self) -> dict[str, Any]:
         """Get the state of the SLURM scheduler."""
@@ -274,11 +287,11 @@ class SLURM(BaseScheduler):
                 partition = self.partition
                 nodes = self.nodes
             else:
-                assert isinstance(self.partition, list)
-                assert isinstance(self.nodes, list)
+                assert isinstance(self.partition, tuple)
+                assert isinstance(self.nodes, tuple)
                 assert index is not None
-                partition = self.partition[index]
-                nodes = self.nodes[index]
+                partition = _maybe_call(self.partition[index])
+                nodes = _maybe_call(self.nodes[index])
             assert isinstance(partition, str)
             assert isinstance(nodes, int)
             # Limit the number of cores to the maximum number of cores per node
@@ -292,7 +305,7 @@ class SLURM(BaseScheduler):
             else:
                 assert isinstance(self.cores, tuple)
                 assert index is not None
-                cores = self.cores[index] - 1
+                cores = _maybe_call(self.cores[index]) - 1
 
         start = textwrap.dedent(
             f"""\
@@ -494,12 +507,15 @@ def slurm_partitions(
     with_ncores: bool = True,
 ) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
-    output = subprocess.run(
-        ["sinfo", "-ahO", "partition"],
-        capture_output=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        output = subprocess.run(
+            ["sinfo", "-ahO", "partition"],
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError:
+        return {} if with_ncores else []
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))
     # Sort partitions alphabetically, but put the default partition first
@@ -510,3 +526,31 @@ def slurm_partitions(
         return partitions
 
     return {partition: _get_ncores(partition) for partition in partitions}
+
+
+def _cores(
+    cores_per_node: int | Callable[[], int],
+    nodes: int | Callable[[], int],
+) -> int | Callable[[], int]:
+    if callable(cores_per_node) or callable(nodes):
+        return lambda: _maybe_call(cores_per_node) * _maybe_call(nodes)
+    return cores_per_node * nodes
+
+
+def _at_least_tuple(x: Any) -> tuple[Any, ...]:
+    """Convert x to a tuple if it is not already a tuple."""
+    return x if isinstance(x, tuple) else (x,)
+
+
+def _validate_partition(
+    partition: str | tuple[str | Callable[[], str], ...] | None,
+    partitions: dict[str, int],
+) -> None:
+    if partition is None:
+        return
+    for p in _at_least_tuple(partition):
+        if callable(p):
+            continue
+        if p not in partitions:
+            msg = f"Invalid partition: {p}, only {partitions} are available."
+            raise ValueError(msg)

@@ -156,3 +156,42 @@ def test_base_scheduler_ipyparallel() -> None:
             """,
         ).strip()
     )
+
+
+def test_callable_scheduler_arguments() -> None:
+    """Test that the scheduler arguments can be callables."""
+    s = MockScheduler(
+        cores=(4, lambda: 2),
+        executor_type=(lambda: "ipyparallel", "mpi4py"),
+        num_threads=(lambda: 2, 1),
+        extra_scheduler=(
+            ["--exclusive=user", "--time=1"],
+            lambda: ["--exclusive=user", "--time=2"],
+        ),
+        extra_env_vars=(lambda: ["from=func"], ["from=static"]),
+        extra_script=(lambda: "echo 'func'", "echo 'static'"),
+    )
+
+    js0 = s.job_script(options={}, index=0)
+    js1 = s.job_script(options={}, index=1)
+    assert js0 != js1
+    extra_scheduler0 = s.extra_scheduler(index=0)
+    extra_scheduler1 = s.extra_scheduler(index=1)
+    assert extra_scheduler0 == "##MOCK --exclusive=user\n##MOCK --time=1"
+    assert extra_scheduler1 == "##MOCK --exclusive=user\n##MOCK --time=2"
+    extra_env_vars0 = s.extra_env_vars(index=0)
+    extra_env_vars1 = s.extra_env_vars(index=1)
+    assert extra_env_vars0.startswith("export from=func\n")
+    assert extra_env_vars1.startswith("export from=static\n")
+    extra_script0 = s.extra_script(index=0)
+    extra_script1 = s.extra_script(index=1)
+    assert extra_script0 == "echo 'func'"
+    assert extra_script1 == "echo 'static'"
+    cores0 = s._get_cores(index=0)
+    cores1 = s._get_cores(index=1)
+    assert cores0 == 4
+    assert cores1 == 2
+    executor_type0 = s._get_executor_type(index=0)
+    executor_type1 = s._get_executor_type(index=1)
+    assert executor_type0 == "ipyparallel"
+    assert executor_type1 == "mpi4py"
