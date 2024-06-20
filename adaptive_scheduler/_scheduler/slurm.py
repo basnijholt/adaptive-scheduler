@@ -235,9 +235,7 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.partition, tuple)
                 assert index is not None
                 partition = _maybe_call(self.partition[index])
-            if partition not in self.partitions:
-                msg = f"Invalid partition: {self.partition}, only {self.partitions} are available."
-                raise ValueError(msg)
+                _validate_partition(partition, self.partitions)  # single job is already validated
             extra_scheduler.append(f"--partition={partition}")
 
         if self.single_job_script:
