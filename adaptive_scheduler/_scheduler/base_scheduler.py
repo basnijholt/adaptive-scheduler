@@ -361,16 +361,17 @@ class BaseScheduler(abc.ABC):
 
         return Path(_server_support.__file__).parent / "launcher.py"
 
+    def _extra_scheduler_list(self, *, index: int | None = None) -> list[str]:
+        if self._extra_scheduler is None:
+            return []
+        if self.single_job_script:
+            return self._extra_scheduler
+        assert index is not None
+        return _maybe_call(self._extra_scheduler[index])
+
     def extra_scheduler(self, *, index: int | None = None) -> str:
         """Scheduler options that go in the job script."""
-        if self._extra_scheduler is None:
-            return ""
-        if self.single_job_script:
-            extra_scheduler = self._extra_scheduler
-        else:
-            assert index is not None
-            extra_scheduler = _maybe_call(self._extra_scheduler[index])  # type: ignore[assignment]
-        assert isinstance(extra_scheduler, list)
+        extra_scheduler: list[str] = self._extra_scheduler_list(index=index)
         return "\n".join(f"#{self._options_flag} {arg}" for arg in extra_scheduler)
 
     def _get_num_threads(self, *, index: int | None = None) -> int:

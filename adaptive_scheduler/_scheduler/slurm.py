@@ -114,7 +114,7 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(  # noqa: PLR0912, PLR0915, C901
+    def __init__(
         self,
         *,
         cores: int | tuple[int | Callable[[], int], ...] | None = None,
@@ -185,52 +185,6 @@ class SLURM(BaseScheduler):
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
 
-        if self.cores_per_node is not None:
-            if single_job_script:
-                assert isinstance(self.cores_per_node, int)
-                assert isinstance(nodes, int)
-                assert isinstance(extra_scheduler, list)
-                extra_scheduler.append(f"--ntasks-per-node={self.cores_per_node}")
-                cores = self.cores_per_node * nodes
-            else:
-                assert isinstance(self.cores_per_node, tuple)
-                assert isinstance(nodes, tuple)
-                assert isinstance(extra_scheduler, tuple)
-                for lst, cpn in zip(extra_scheduler, self.cores_per_node, strict=True):
-                    assert isinstance(lst, list)
-                    lst.append(f"--ntasks-per-node={cpn}")
-                cores = tuple(cpn * n for cpn, n in zip(self.cores_per_node, nodes, strict=True))
-
-        if partition is not None:
-            if single_job_script:
-                assert isinstance(partition, str)
-                assert isinstance(extra_scheduler, list)
-                if partition not in self.partitions:
-                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                    raise ValueError(msg)
-                extra_scheduler.append(f"--partition={partition}")
-            else:
-                if any(p not in self.partitions for p in partition):
-                    msg = f"Invalid partition: {partition}, only {self.partitions} are available."
-                    raise ValueError(msg)
-                assert isinstance(extra_scheduler, tuple)
-                for lst, p in zip(extra_scheduler, partition, strict=True):
-                    assert isinstance(lst, list)
-                    lst.append(f"--partition={p}")
-
-        if single_job_script:
-            assert isinstance(extra_scheduler, list)
-            assert isinstance(exclusive, bool)
-            if self.exclusive:
-                extra_scheduler.append("--exclusive")
-        else:
-            assert isinstance(extra_scheduler, tuple)
-            assert isinstance(self.exclusive, tuple)
-            for _ex, lst in zip(self.exclusive, extra_scheduler, strict=True):
-                assert isinstance(lst, list)
-                if _ex:
-                    lst.append("--exclusive")
-
         assert cores is not None
         super().__init__(
             cores,
@@ -246,6 +200,54 @@ class SLURM(BaseScheduler):
         )
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
+
+    def _extra_scheduler_list(self, *, index: int | None = None) -> list[str]:
+        extra_scheduler = []
+        if self.cores_per_node is not None:
+            if self.single_job_script:
+                assert isinstance(self.cores_per_node, int)
+                assert isinstance(self.nodes, int)
+                cores_per_node = self.cores_per_node
+                nodes = self.nodes
+            else:
+                assert isinstance(self.cores_per_node, tuple)
+                assert isinstance(self.nodes, tuple)
+                assert index is not None
+                cores_per_node = _maybe_call(self.cores_per_node[index])
+                nodes = _maybe_call(self.nodes[index])
+            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            cores = cores_per_node * nodes
+
+        if self.partition is not None:
+            if self.single_job_script:
+                assert isinstance(self.partition, str)
+                partition = self.partition
+            else:
+                assert isinstance(self.partition, tuple)
+                assert index is not None
+                partition = _maybe_call(self.partition[index])
+            if partition not in self.partitions:
+                msg = f"Invalid partition: {self.partition}, only {self.partitions} are available."
+                raise ValueError(msg)
+            extra_scheduler.append(f"--partition={partition}")
+
+        if self.single_job_script:
+            assert isinstance(self.exclusive, bool)
+            exclusive = self.exclusive
+        else:
+            assert isinstance(self.exclusive, tuple)
+            assert index is not None
+            exclusive = _maybe_call(self.exclusive[index])
+        if exclusive:
+            extra_scheduler.append("--exclusive")
+
+        if self.single_job_script:
+            extra_scheduler.extend(self._extra_scheduler)
+        else:
+            assert index is not None
+            assert isinstance(self._extra_scheduler, tuple)
+            extra_scheduler.extend(_maybe_call(self._extra_scheduler[index]))
+        return extra_scheduler
 
     def __getstate__(self) -> dict[str, Any]:
         """Get the state of the SLURM scheduler."""
