@@ -188,8 +188,9 @@ class SLURM(BaseScheduler):
             if single_job_script:
                 cores = self.cores_per_node * self.nodes
             else:
-                raise NotImplementedError("TODO")
-
+                cores = tuple(
+                    _cores(cpn, n) for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
+                )
         assert cores is not None
         super().__init__(
             cores,
@@ -521,3 +522,12 @@ def slurm_partitions(
         return partitions
 
     return {partition: _get_ncores(partition) for partition in partitions}
+
+
+def _cores(
+    cores_per_node: int | Callable[[], int],
+    nodes: int | Callable[[], int],
+) -> tuple[int | Callable[[], int], ...]:
+    if callable(cores_per_node) or callable(nodes):
+        return lambda: _maybe_call(cores_per_node) * _maybe_call(nodes)
+    return cores_per_node * nodes
