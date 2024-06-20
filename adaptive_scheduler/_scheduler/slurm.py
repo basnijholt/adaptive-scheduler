@@ -146,8 +146,6 @@ class SLURM(BaseScheduler):
         self.__extra_env_vars = extra_env_vars
         self.__extra_script = extra_script
 
-        _validate_partition(partition, self.partitions)
-
         msg = "Specify either `nodes` and `cores_per_node`, or only `cores`, not both."
         if cores is None:
             if nodes is None or cores_per_node is None:
@@ -186,6 +184,8 @@ class SLURM(BaseScheduler):
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
+
+        _validate_partition(self.partition, self.partitions)
         if cores is None:
             if single_job_script:
                 assert isinstance(self.cores_per_node, int)
@@ -235,7 +235,8 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.partition, tuple)
                 assert index is not None
                 partition = _maybe_call(self.partition[index])
-                _validate_partition(partition, self.partitions)  # single job is already validated
+                if callable(self.partition[index]):  # others already validated
+                    _validate_partition(partition, self.partitions)
             extra_scheduler.append(f"--partition={partition}")
 
         if self.single_job_script:
