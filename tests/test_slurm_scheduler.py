@@ -429,6 +429,7 @@ def test_callable_scheduler_arguments_with_cores_per_node(_mock_slurm_partitions
         nodes=(lambda: 2, lambda: 1, 3),
         partition=(lambda: "nc24-low", lambda: "hb120v2-low", "hb60-high"),
         executor_type=(lambda: "ipyparallel", "mpi4py", "mpi4py"),
+        exclusive=True,
     )
     assert isinstance(s.cores, tuple)
     assert callable(s.cores[0])
