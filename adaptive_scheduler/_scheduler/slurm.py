@@ -175,15 +175,20 @@ class SLURM(BaseScheduler):
         )
         single_job_script = n is None
         cores = _maybe_as_tuple(cores, n, check_type=int)
-        self.nodes = nodes = _maybe_as_tuple(nodes, n, check_type=int)
+        self.nodes = _maybe_as_tuple(nodes, n, check_type=int)
         self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
-        self.partition = partition = _maybe_as_tuple(partition, n, check_type=str)
+        self.partition = _maybe_as_tuple(partition, n, check_type=str)
         executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
         extra_scheduler = _maybe_as_tuple(extra_scheduler, n, check_type=list)
         extra_env_vars = _maybe_as_tuple(extra_env_vars, n, check_type=list)
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
+        if cores is None:
+            if single_job_script:
+                cores = self.cores_per_node * self.nodes
+            else:
+                raise NotImplementedError("TODO")
 
         assert cores is not None
         super().__init__(
@@ -216,6 +221,8 @@ class SLURM(BaseScheduler):
                 cores_per_node = _maybe_call(self.cores_per_node[index])
                 nodes = _maybe_call(self.nodes[index])
             extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            # TODO: this previously created 'cores'. Need to make sure it is set correctly now.
+            # Perhaps by making cores a property in SLURM?
             cores = cores_per_node * nodes
 
         if self.partition is not None:

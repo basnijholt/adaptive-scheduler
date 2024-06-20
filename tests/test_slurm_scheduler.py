@@ -394,6 +394,7 @@ def test_callable_scheduler_arguments() -> None:
         ),
         extra_env_vars=(lambda: ["from=func"], ["from=static"]),
         extra_script=(lambda: "echo 'func'", "echo 'static'"),
+        exclusive=(lambda: True, lambda: False),
     )
 
     js0 = s.job_script(options={}, index=0)
@@ -402,7 +403,7 @@ def test_callable_scheduler_arguments() -> None:
     extra_scheduler0 = s.extra_scheduler(index=0)
     extra_scheduler1 = s.extra_scheduler(index=1)
     assert extra_scheduler0 == "#SBATCH --exclusive\n#SBATCH --exclusive=user\n#SBATCH --time=1"
-    assert extra_scheduler1 == "#SBATCH --exclusive\n#SBATCH --exclusive=user\n#SBATCH --time=2"
+    assert extra_scheduler1 == "#SBATCH --exclusive=user\n#SBATCH --time=2"
     extra_env_vars0 = s.extra_env_vars(index=0)
     extra_env_vars1 = s.extra_env_vars(index=1)
     assert extra_env_vars0.startswith("export from=func\n")
@@ -419,3 +420,11 @@ def test_callable_scheduler_arguments() -> None:
     executor_type1 = s._get_executor_type(index=1)
     assert executor_type0 == "ipyparallel"
     assert executor_type1 == "mpi4py"
+
+
+def test_callable_scheduler_arguments_with_cores_per_node():
+    s = SLURM(
+        cores_per_node=(4, lambda: 2),
+        nodes=(lambda: 2, lambda: 1),
+        partition=(lambda: "nc24-low", lambda: "hb120v2-low"),
+    )
