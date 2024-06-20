@@ -186,8 +186,12 @@ class SLURM(BaseScheduler):
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
         if cores is None:
             if single_job_script:
+                assert isinstance(self.cores_per_node, int)
+                assert isinstance(self.nodes, int)
                 cores = self.cores_per_node * self.nodes
             else:
+                assert isinstance(self.cores_per_node, tuple)
+                assert isinstance(self.nodes, tuple)
                 cores = tuple(
                     _cores(cpn, n) for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
                 )
@@ -214,17 +218,12 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.cores_per_node, int)
                 assert isinstance(self.nodes, int)
                 cores_per_node = self.cores_per_node
-                nodes = self.nodes
             else:
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(self.nodes, tuple)
                 assert index is not None
                 cores_per_node = _maybe_call(self.cores_per_node[index])
-                nodes = _maybe_call(self.nodes[index])
             extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
-            # TODO: this previously created 'cores'. Need to make sure it is set correctly now.
-            # Perhaps by making cores a property in SLURM?
-            cores = cores_per_node * nodes
 
         if self.partition is not None:
             if self.single_job_script:
@@ -250,6 +249,7 @@ class SLURM(BaseScheduler):
             extra_scheduler.append("--exclusive")
 
         if self.single_job_script:
+            assert isinstance(self._extra_scheduler, list)
             extra_scheduler.extend(self._extra_scheduler)
         else:
             assert index is not None
@@ -527,7 +527,7 @@ def slurm_partitions(
 def _cores(
     cores_per_node: int | Callable[[], int],
     nodes: int | Callable[[], int],
-) -> tuple[int | Callable[[], int], ...]:
+) -> int | Callable[[], int]:
     if callable(cores_per_node) or callable(nodes):
         return lambda: _maybe_call(cores_per_node) * _maybe_call(nodes)
     return cores_per_node * nodes

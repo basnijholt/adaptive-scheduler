@@ -365,6 +365,7 @@ class BaseScheduler(abc.ABC):
         if self._extra_scheduler is None:
             return []
         if self.single_job_script:
+            assert isinstance(self._extra_scheduler, list)
             return self._extra_scheduler
         assert index is not None
         return _maybe_call(self._extra_scheduler[index])
