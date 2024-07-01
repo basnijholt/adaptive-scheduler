@@ -495,7 +495,6 @@ def test_atomic_write_no_write(tmp_path: Path) -> None:
         pass
     assert path.stat().st_size == 0
 
-    #
     with utils.atomic_write(path) as fp:
         fp.write("content")
     assert path.stat().st_size > 0
