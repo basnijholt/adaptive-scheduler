@@ -32,7 +32,7 @@ def _maybe_as_tuple(
     check_type: type | None = None,
 ) -> tuple[T | Callable[[], T], ...] | T | None:
     if x is None:
-        return x
+        return None
     if check_type is not None and not isinstance(x, check_type | tuple):
         msg = f"Expected `{check_type}` or `tuple[{check_type}, ...]`, got `{type(x)}`"
         raise TypeError(msg)
@@ -114,7 +114,7 @@ class SLURM(BaseScheduler):
     _options_flag = "SBATCH"
     _cancel_cmd = "scancel"
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         *,
         cores: int | tuple[int | Callable[[], int | None], ...] | None = None,
@@ -186,16 +186,27 @@ class SLURM(BaseScheduler):
         extra_script = _maybe_as_tuple(extra_script, n, check_type=str)
 
         _validate_partition(self.partition, self.partitions)
-        if cores is None:
-            if single_job_script:
-                assert isinstance(self.cores_per_node, int)
-                assert isinstance(self.nodes, int)
-                cores = self.cores_per_node * self.nodes
-            else:
+        if cores is None and single_job_script:
+            assert isinstance(self.cores_per_node, int)
+            assert isinstance(self.nodes, int)
+            cores = self.cores_per_node * self.nodes
+        elif not single_job_script:
+            # When cores is a tuple with callables, they might return None, in which
+            # case we calculate the cores from the nodes and cores_per_node.
+            if cores is None:
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(self.nodes, tuple)
                 cores = tuple(
-                    _cores(cpn, n) for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
+                    _cores(None, cpn, n)
+                    for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
+                )
+            elif self.cores_per_node is not None:
+                assert isinstance(cores, tuple)
+                assert isinstance(self.cores_per_node, tuple)
+                assert isinstance(self.nodes, tuple)
+                cores = tuple(
+                    _cores(c, cpn, n)
+                    for c, cpn, n in zip(cores, self.cores_per_node, self.nodes, strict=True)
                 )
         assert cores is not None
         super().__init__(
@@ -531,12 +542,15 @@ def slurm_partitions(
 
 
 def _cores(
-    cores_per_node: int | Callable[[], int],
-    nodes: int | Callable[[], int],
+    cores: int | None | Callable[[], int | None],
+    cores_per_node: int | None | Callable[[], int | None],
+    nodes: int | None | Callable[[], int | None],
 ) -> int | Callable[[], int]:
-    if callable(cores_per_node) or callable(nodes):
-        return lambda: _maybe_call(cores_per_node) * _maybe_call(nodes)
-    return cores_per_node * nodes
+    if isinstance(cores, int):
+        return cores
+    if callable(cores) or callable(cores_per_node) or callable(nodes):
+        return lambda: _maybe_call(cores) or _maybe_call(cores_per_node) * _maybe_call(nodes)
+    return cores or cores_per_node * nodes  # type: ignore[operator]
 
 
 def _at_least_tuple(x: Any) -> tuple[Any, ...]:
