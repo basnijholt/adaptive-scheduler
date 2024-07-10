@@ -139,7 +139,7 @@ def slurm_run(
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:
-        if any(callable(p) for p in partition):
+        if isinstance(partition, tuple) and any(callable(p) for p in partition):
             msg = "cores_per_node must be given if partition is a callable."
             raise ValueError(msg)
         partitions = slurm_partitions()

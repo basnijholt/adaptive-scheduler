@@ -117,10 +117,10 @@ class SLURM(BaseScheduler):
     def __init__(
         self,
         *,
-        cores: int | tuple[int | Callable[[], int], ...] | None = None,
-        nodes: int | tuple[int | Callable[[], int], ...] | None = None,
-        cores_per_node: int | tuple[int | Callable[[], int], ...] | None = None,
-        partition: str | tuple[str | Callable[[], str], ...] | None = None,
+        cores: int | tuple[int | Callable[[], int | None], ...] | None = None,
+        nodes: int | tuple[int | Callable[[], int | None], ...] | None = None,
+        cores_per_node: int | tuple[int | Callable[[], int | None], ...] | None = None,
+        partition: str | tuple[str | Callable[[], str | None], ...] | None = None,
         exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -174,10 +174,10 @@ class SLURM(BaseScheduler):
             extra_script,
         )
         single_job_script = n is None
-        cores = _maybe_as_tuple(cores, n, check_type=int)
-        self.nodes = _maybe_as_tuple(nodes, n, check_type=int)
-        self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)
-        self.partition = _maybe_as_tuple(partition, n, check_type=str)
+        cores = _maybe_as_tuple(cores, n, check_type=int)  # type: ignore[arg-type]
+        self.nodes = _maybe_as_tuple(nodes, n, check_type=int)  # type: ignore[arg-type]
+        self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)  # type: ignore[arg-type]
+        self.partition = _maybe_as_tuple(partition, n, check_type=str)  # type: ignore[arg-type]
         executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
@@ -213,8 +213,8 @@ class SLURM(BaseScheduler):
         # SLURM specific
         self.mpiexec_executable = mpiexec_executable or "srun --mpi=pmi2"
 
-    def _extra_scheduler_list(self, *, index: int | None = None) -> list[str]:
-        extra_scheduler = []
+    def _extra_scheduler_list(self, *, index: int | None = None) -> list[str]:  # noqa: PLR0912
+        slurm_args = []
         if self.cores_per_node is not None:
             if self.single_job_script:
                 assert isinstance(self.cores_per_node, int)
@@ -225,7 +225,8 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.nodes, tuple)
                 assert index is not None
                 cores_per_node = _maybe_call(self.cores_per_node[index])
-            extra_scheduler.append(f"--ntasks-per-node={cores_per_node}")
+            if cores_per_node is not None:
+                slurm_args.append(f"--ntasks-per-node={cores_per_node}")
 
         if self.partition is not None:
             if self.single_job_script:
@@ -237,7 +238,8 @@ class SLURM(BaseScheduler):
                 partition = _maybe_call(self.partition[index])
                 if callable(self.partition[index]):  # others already validated
                     _validate_partition(partition, self.partitions)
-            extra_scheduler.append(f"--partition={partition}")
+            if partition is not None:
+                slurm_args.append(f"--partition={partition}")
 
         if self.single_job_script:
             assert isinstance(self.exclusive, bool)
@@ -247,16 +249,16 @@ class SLURM(BaseScheduler):
             assert index is not None
             exclusive = _maybe_call(self.exclusive[index])
         if exclusive:
-            extra_scheduler.append("--exclusive")
+            slurm_args.append("--exclusive")
 
         if self.single_job_script:
             assert isinstance(self._extra_scheduler, list)
-            extra_scheduler.extend(self._extra_scheduler)
+            slurm_args.extend(self._extra_scheduler)
         else:
             assert index is not None
             assert isinstance(self._extra_scheduler, tuple)
-            extra_scheduler.extend(_maybe_call(self._extra_scheduler[index]))
-        return extra_scheduler
+            slurm_args.extend(_maybe_call(self._extra_scheduler[index]))
+        return slurm_args
 
     def __getstate__(self) -> dict[str, Any]:
         """Get the state of the SLURM scheduler."""
