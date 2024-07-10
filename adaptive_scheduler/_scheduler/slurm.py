@@ -247,8 +247,7 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.partition, tuple)
                 assert index is not None
                 partition = _maybe_call(self.partition[index])
-                if callable(self.partition[index]):  # others already validated
-                    _validate_partition(partition, self.partitions)
+                _validate_partition(partition, self.partitions)
             if partition is not None:
                 slurm_args.append(f"--partition={partition}")
 
