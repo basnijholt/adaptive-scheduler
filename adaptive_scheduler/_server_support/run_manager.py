@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import adaptive
+    from adaptive.learner.base_learner import LearnerType
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
@@ -118,8 +119,15 @@ class RunManager(BaseManager):
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner name and learner as arguments.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
+    max_fails_per_job
+        The maximum number of times a job can fail before it is not restarted.
+    max_simultaneous_jobs
+        The maximum number of jobs that can run simultaneously.
 
     Attributes
     ----------
@@ -191,6 +199,7 @@ class RunManager(BaseManager):
         cleanup_first: bool = False,
         save_dataframe: bool = False,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
+        periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
@@ -218,6 +227,7 @@ class RunManager(BaseManager):
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
+        self.periodic_callable = periodic_callable
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
@@ -284,6 +294,7 @@ class RunManager(BaseManager):
             # Launcher command line options
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
+            periodic_callable=self.periodic_callable,
             loky_start_method=self.loky_start_method,
             log_interval=self.log_interval,
             save_interval=self.save_interval,
@@ -320,7 +331,8 @@ class RunManager(BaseManager):
             self.kill_manager.start()
         self.start_time = time.time()
 
-    def start(self, wait_for: RunManager | None = None) -> RunManager:  # type: ignore[override]
+    # type: ignore[override]
+    def start(self, wait_for: RunManager | None = None) -> RunManager:
         """Start the RunManager and optionally wait for another RunManager to finish."""
         _track_and_maybe_cancel_existing(self)
         if wait_for is not None:
@@ -484,12 +496,13 @@ class RunManager(BaseManager):
     def info(self) -> None:
         return info(self)
 
-    def load_dataframes(self) -> pd.DataFrame:
+    def load_dataframes(self) -> pd.DataFrame | list[pd.DataFrame]:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
         if not self.save_dataframe:
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
-        return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
+        # type: ignore[return-value]
+        return load_dataframes(self.fnames, format=self.dataframe_format)
 
     def remove_existing_data(
         self,

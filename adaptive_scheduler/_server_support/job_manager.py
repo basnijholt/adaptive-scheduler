@@ -9,6 +9,10 @@ from .base_manager import BaseManager
 from .common import MaxRestartsReachedError, log
 
 if TYPE_CHECKING:
+    from typing import Callable
+
+    from adaptive.learner.base_learner import LearnerType
+
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import (
         _DATAFRAME_FORMATS,
@@ -29,6 +33,7 @@ def command_line_options(
     save_interval: float = 300,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
+    periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
     loky_start_method: LOKY_START_METHODS = "loky",
 ) -> dict[str, Any]:
     """Return the command line options for the job_script.
@@ -56,6 +61,9 @@ def command_line_options(
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner name and learner as arguments.
     loky_start_method
         Loky start method, by default "loky".
 
@@ -69,12 +77,14 @@ def command_line_options(
         runner_kwargs = {}
     runner_kwargs["goal"] = goal
     base64_runner_kwargs = _serialize_to_b64(runner_kwargs)
+    base64_periodic_callable = _serialize_to_b64(periodic_callable)
 
     opts = {
         "--url": database_manager.url,
         "--log-interval": log_interval,
         "--save-interval": save_interval,
         "--serialized-runner-kwargs": base64_runner_kwargs,
+        "--serialized-periodic-callable": base64_periodic_callable,
     }
     if scheduler.single_job_script:
         # if `cores` or `executor_type` is a tuple then we set it
@@ -123,6 +133,9 @@ class JobManager(BaseManager):
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
+    periodic_callable
+        A tuple of a callable and an interval in seconds. The callable will be called
+        every `interval` seconds and takes the learner name and learner as arguments.
     loky_start_method
         Loky start method, by default "loky".
     log_interval
@@ -158,6 +171,7 @@ class JobManager(BaseManager):
         # Command line launcher options
         save_dataframe: bool = True,
         dataframe_format: _DATAFRAME_FORMATS = "pickle",
+        periodic_callable: tuple[Callable[[str, LearnerType], None], int] | None = None,
         loky_start_method: LOKY_START_METHODS = "loky",
         log_interval: float = 60,
         save_interval: float = 300,
@@ -183,6 +197,7 @@ class JobManager(BaseManager):
         self.save_interval = save_interval
         self.runner_kwargs = runner_kwargs
         self.goal = goal
+        self.periodic_callable = periodic_callable
 
     @property
     def max_job_starts(self) -> int:
@@ -202,6 +217,7 @@ class JobManager(BaseManager):
             save_interval=self.save_interval,
             save_dataframe=self.save_dataframe,
             dataframe_format=self.dataframe_format,
+            periodic_callable=self.periodic_callable,
             goal=self.goal,
             loky_start_method=self.loky_start_method,
         )
@@ -240,7 +256,8 @@ class JobManager(BaseManager):
             job_name = not_queued.pop()
             queued.add(job_name)
             log.debug(
-                f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
+                f"Starting `job_name={job_name}` with "
+                f"`index={index}` and `fname={fname}`",
             )
             await asyncio.to_thread(self.scheduler.start_job, job_name, index=index)
             self.database_manager._confirm_submitted(index, job_name)
