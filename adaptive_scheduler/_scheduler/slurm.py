@@ -558,13 +558,13 @@ def _at_least_tuple(x: Any) -> tuple[Any, ...]:
 
 
 def _validate_partition(
-    partition: str | tuple[str | Callable[[], str], ...] | None,
+    partition: str | tuple[str | None | Callable[[], str | None], ...] | None,
     partitions: dict[str, int],
 ) -> None:
     if partition is None:
         return
     for p in _at_least_tuple(partition):
-        if callable(p):
+        if callable(p) or p is None:
             continue
         if p not in partitions:
             msg = f"Invalid partition: {p}, only {partitions} are available."

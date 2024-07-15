@@ -22,8 +22,8 @@ def slurm_run(
     fnames: list[str] | list[Path],
     *,
     partition: str | tuple[str | Callable[[], str], ...] | None = None,
-    nodes: int | tuple[int | Callable[[], int], ...] = 1,
-    cores_per_node: int | tuple[int | Callable[[], int], ...] | None = None,
+    nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1,
+    cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
     goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
@@ -131,8 +131,12 @@ def slurm_run(
             " Use `adaptive_scheduler.scheduler.slurm_partitions`"
             " to see the available partitions.",
         )
-    if executor_type == "process-pool" and (
-        nodes > 1 if isinstance(nodes, int) else any(n > 1 for n in nodes if not callable(n))
+    if (
+        executor_type == "process-pool"
+        and nodes is not None
+        and (
+            nodes > 1 if isinstance(nodes, int) else any(n > 1 for n in nodes if isinstance(n, int))
+        )
     ):
         msg = "process-pool can maximally use a single node, use e.g., ipyparallel for multi node."
         raise ValueError(msg)
