@@ -197,7 +197,7 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(self.nodes, tuple)
                 cores = tuple(
-                    _cores(None, cpn, n)
+                    _cores(cores=None, cores_per_node=cpn, nodes=n)
                     for cpn, n in zip(self.cores_per_node, self.nodes, strict=True)
                 )
             elif self.cores_per_node is not None:
@@ -205,7 +205,7 @@ class SLURM(BaseScheduler):
                 assert isinstance(self.cores_per_node, tuple)
                 assert isinstance(self.nodes, tuple)
                 cores = tuple(
-                    _cores(c, cpn, n)
+                    _cores(cores=c, cores_per_node=cpn, nodes=n)
                     for c, cpn, n in zip(cores, self.cores_per_node, self.nodes, strict=True)
                 )
         assert cores is not None
