@@ -58,3 +58,4 @@ def test_get_executor() -> None:
     executor = launcher._get_executor("sequential", None, 4, None)
     assert executor is not None
     assert isinstance(executor, launcher.SequentialExecutor)
+    assert executor._max_workers == 1  # type: ignore[attr-defined]
