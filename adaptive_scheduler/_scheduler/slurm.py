@@ -548,8 +548,8 @@ def _cores(
     if isinstance(cores, int):
         return cores
     if callable(cores) or callable(cores_per_node) or callable(nodes):
-        return lambda: _maybe_call(cores) or _maybe_call(cores_per_node) * _maybe_call(nodes)
-    return cores or cores_per_node * nodes  # type: ignore[operator]
+        return lambda: _maybe_call(cores) or _maybe_call(cores_per_node) * (_maybe_call(nodes) or 1)
+    return cores or cores_per_node * (nodes or 1)  # type: ignore[operator]
 
 
 def _at_least_tuple(x: Any) -> tuple[Any, ...]:

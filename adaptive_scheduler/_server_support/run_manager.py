@@ -507,7 +507,7 @@ class RunManager(BaseManager):
             Remove the files even if the `RunManager` is already started.
 
         """
-        if self.status() != "running" and not force:
+        if self.status() == "running" and not force:
             msg = (
                 "Data files can only be removed if the `RunManager` is not running."
                 " Use `force=True` to remove them anyway."
