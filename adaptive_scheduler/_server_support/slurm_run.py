@@ -21,14 +21,14 @@ def slurm_run(
     learners: list[adaptive.BaseLearner],
     fnames: list[str] | list[Path],
     *,
-    partition: str | tuple[str, ...] | None = None,
-    nodes: int | tuple[int, ...] = 1,
-    cores_per_node: int | tuple[int, ...] | None = None,
+    partition: str | tuple[str | Callable[[], str], ...] | None = None,
+    nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1,
+    cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
     goal: GoalTypes | None = None,
     folder: str | Path = "",
     name: str = "adaptive",
     dependencies: dict[int, list[int]] | None = None,
-    num_threads: int | tuple[int, ...] = 1,
+    num_threads: int | tuple[int | Callable[[], int], ...] = 1,
     save_interval: float = 300,
     log_interval: float = 300,
     cleanup_first: bool = True,
@@ -36,21 +36,25 @@ def slurm_run(
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
-    exclusive: bool | tuple[bool, ...] = True,
-    executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES, ...] = "process-pool",
-    extra_scheduler: list[str] | tuple[list[str], ...] | None = None,
+    exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
+    executor_type: EXECUTOR_TYPES
+    | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
+    extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
     initializers: list[Callable[[], None]] | None = None,
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
-    ``executor_type``, ``extra_script``, ``exclusive``, ``extra_env_vars``,
+    ``cores_per_node``, ``nodes``, ``extra_scheduler``,
+    ``executor_type``, ``exclusive``,
     ``num_threads`` and ``partition`` can be either a single value or a tuple of
     values. If a tuple is given, then the length of the tuple should be the same
     as the number of learners (jobs) that are run. This allows for different
-    resources for different jobs.
+    resources for different jobs. The tuple elements are also allowed to be
+    callables without arguments, which will be called when the job is submitted.
+    These callables should return the value that is needed. See the type hints
+    for the allowed types.
 
     Parameters
     ----------
@@ -130,21 +134,25 @@ def slurm_run(
             " Use `adaptive_scheduler.scheduler.slurm_partitions`"
             " to see the available partitions.",
         )
-    if executor_type == "process-pool" and (
-        nodes > 1 if isinstance(nodes, int) else any(n > 1 for n in nodes)
-    ):
-        msg = (
-            "process-pool can maximally use a single node,"
-            " use e.g., ipyparallel for multi node.",
+    if (
+        executor_type == "process-pool"
+        and nodes is not None
+        and (
+            nodes > 1 if isinstance(nodes, int) else any(n > 1 for n in nodes if isinstance(n, int))
         )
+    ):
+        msg = "process-pool can maximally use a single node, use e.g., ipyparallel for multi node."
         raise ValueError(msg)
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     if cores_per_node is None:
+        if isinstance(partition, tuple) and any(callable(p) for p in partition):
+            msg = "cores_per_node must be given if partition is a callable."
+            raise ValueError(msg)
         partitions = slurm_partitions()
         assert isinstance(partitions, dict)
         cores_per_node = (
-            tuple(partitions[p] for p in partition)  # type: ignore[misc]
+            tuple(partitions[p] for p in partition)  # type: ignore[misc,index]
             if isinstance(partition, tuple)
             else partitions[partition]
         )
