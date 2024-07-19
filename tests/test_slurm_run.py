@@ -46,7 +46,7 @@ def test_slurm_run_with_default_arguments(
     assert rm.log_interval == 300
     assert rm.learners == learners
     assert rm.fnames == fnames
-    assert rm.scheduler.exclusive is True
+    assert rm.scheduler.exclusive is False
 
 
 def goal_example(learner: adaptive.Learner1D) -> bool:
