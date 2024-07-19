@@ -469,8 +469,8 @@ def test_atomic_write(tmp_path: Path) -> None:
     # Works correctly when 'return_path' is used.
     content = "even more content"
     with (
-        utils.atomic_write(path, return_path=True) as tmp_path,
-        tmp_path.open("w") as fp,
+        utils.atomic_write(path, return_path=True) as tmp_path2,
+        tmp_path2.open("w") as fp,
     ):
         fp.write(content)
     with path.open() as fp:
@@ -495,7 +495,6 @@ def test_atomic_write_no_write(tmp_path: Path) -> None:
         pass
     assert path.stat().st_size == 0
 
-    #
     with utils.atomic_write(path) as fp:
         fp.write("content")
     assert path.stat().st_size > 0
