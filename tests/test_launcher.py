@@ -55,7 +55,7 @@ def test_get_executor() -> None:
     with pytest.raises(ValueError, match="Unknown executor_type"):
         launcher._get_executor("unknown", None, 4, "loky")  # type: ignore[arg-type]
 
-    with patch("adaptive.runner.SequentialExecutor") as mock_executor:
-        executor = launcher._get_executor("sequential", None, 4, None)
-        assert executor is not None
-        mock_executor.assert_called_once()
+    executor = launcher._get_executor("sequential", None, 4, None)
+    assert executor is not None
+    assert isinstance(executor, launcher.SequentialExecutor)
+    assert executor._max_workers == 1  # type: ignore[attr-defined]

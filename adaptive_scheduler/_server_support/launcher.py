@@ -9,6 +9,7 @@ if os.environ.get("EXECUTOR_TYPE") == "dask-mpi":
 
 import argparse
 import os
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, get_args
 
@@ -31,6 +32,13 @@ if os.environ.get("EXECUTOR_TYPE") == "mpi4py":
     from mpi4py import MPI
 
     MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+
+
+class SequentialExecutor(ProcessPoolExecutor):
+    """A asynchronous executor that runs tasks sequentially."""
+
+    def __init__(self) -> None:
+        super().__init__(max_workers=1)
 
 
 def _get_executor(
@@ -63,8 +71,6 @@ def _get_executor(
 
         return ProcessPoolExecutor(max_workers=n)
     if executor_type == "sequential":
-        from adaptive.runner import SequentialExecutor
-
         return SequentialExecutor()
     msg = f"Unknown executor_type: {executor_type}"
     raise ValueError(msg)
