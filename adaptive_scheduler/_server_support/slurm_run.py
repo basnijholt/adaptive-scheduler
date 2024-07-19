@@ -31,12 +31,13 @@ def slurm_run(
     num_threads: int | tuple[int | Callable[[], int], ...] = 1,
     save_interval: float = 300,
     log_interval: float = 300,
+    job_manager_interval: float = 60,
     cleanup_first: bool = True,
     save_dataframe: bool = True,
     dataframe_format: _DATAFRAME_FORMATS = "pickle",
     max_fails_per_job: int = 50,
     max_simultaneous_jobs: int = 100,
-    exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
+    exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
     executor_type: EXECUTOR_TYPES
     | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
     extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
@@ -90,6 +91,9 @@ def slurm_run(
         The interval at which to save the learners.
     log_interval
         The interval at which to log the status of the run.
+    job_manager_interval
+        The interval at which the job manager checks the status of the jobs and
+        submits new jobs.
     cleanup_first
         Whether to clean up the folder before starting the run.
     save_dataframe
@@ -197,6 +201,7 @@ def slurm_run(
         max_fails_per_job=max_fails_per_job,
         max_simultaneous_jobs=max_simultaneous_jobs,
         initializers=initializers,
+        job_manager_interval=job_manager_interval,
     )
     if extra_run_manager_kwargs is None:
         extra_run_manager_kwargs = {}
