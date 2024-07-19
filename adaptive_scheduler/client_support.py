@@ -148,13 +148,13 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
     info: dict[str, float | str] = {}
-    Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806
+    Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806, PLC2401
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)
     if npoints is not None:
         info["npoints"] = npoints
-        Δnpoints = npoints - npoints_start  # noqa: N806
+        Δnpoints = npoints - npoints_start  # noqa: N806, PLC2401
         with suppress(ZeroDivisionError):
             # Δt.seconds could be zero if the job is done when starting
             info["npoints/s"] = Δnpoints / Δt.seconds
