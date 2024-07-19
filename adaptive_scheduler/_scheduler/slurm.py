@@ -124,7 +124,7 @@ class SLURM(BaseScheduler):
         nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
         cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
         partition: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
-        exclusive: bool | tuple[bool | Callable[[], bool], ...] = True,
+        exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
         python_executable: str | None = None,
         log_folder: str | Path = "",
         mpiexec_executable: str | None = None,

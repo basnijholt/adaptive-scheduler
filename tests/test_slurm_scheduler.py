@@ -72,7 +72,6 @@ def test_job_script() -> None:
     s = SLURM(cores=4)
     job_script = s.job_script(options={})
     assert "#SBATCH --ntasks 4" in job_script
-    assert "#SBATCH --exclusive" in job_script
     assert "#SBATCH --no-requeue" in job_script
     assert "MKL_NUM_THREADS=1" in job_script
     assert "OPENBLAS_NUM_THREADS=1" in job_script
@@ -112,7 +111,6 @@ def test_slurm_job_script_default() -> None:
 
     assert "#SBATCH --ntasks 4" in job_script
     assert "#SBATCH --no-requeue" in job_script
-    assert "#SBATCH --exclusive" in job_script
     assert "export MKL_NUM_THREADS=1" in job_script
     assert "export OPENBLAS_NUM_THREADS=1" in job_script
     assert "export OMP_NUM_THREADS=1" in job_script
@@ -188,7 +186,6 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         #!/bin/bash
         #SBATCH --ntasks 4
         #SBATCH --no-requeue
-        #SBATCH --exclusive
         #SBATCH --exclusive=user
         #SBATCH --time=1
 
