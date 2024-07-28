@@ -9,6 +9,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import cloudpickle
 import pandas as pd
 
 from adaptive_scheduler.utils import (
@@ -17,6 +18,7 @@ from adaptive_scheduler.utils import (
     _at_least_adaptive_version,
     _remove_or_move_files,
     _time_between,
+    fname_to_learner,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -194,6 +196,7 @@ class RunManager(BaseManager):
         max_log_lines: int = 500,
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
+        store_fname: str | Path | None = None,
         initializers: list[Callable[[], None]] | None = None,
     ) -> None:
         super().__init__()
@@ -221,6 +224,7 @@ class RunManager(BaseManager):
         self.max_log_lines = max_log_lines
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
+        self.store_fname = store_fname
         self.initializers = initializers
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
@@ -240,11 +244,7 @@ class RunManager(BaseManager):
         self.start_time: float | None = None
         self.end_time: float | None = None
         self._start_one_by_one_task: (
-            tuple[
-                asyncio.Future,
-                list[asyncio.Task],
-            ]
-            | None
+            tuple[asyncio.Future, list[asyncio.Task]] | None
         ) = None
 
         # Set on init
@@ -327,6 +327,8 @@ class RunManager(BaseManager):
             self._start_one_by_one_task = start_one_by_one(wait_for, self)
         else:
             super().start()
+        if self.store_fname is not None:
+            self.save()
         return self
 
     async def _manage(self) -> None:
@@ -490,6 +492,61 @@ class RunManager(BaseManager):
             msg = "The `save_dataframe` option was not set to True."
             raise ValueError(msg)
         return load_dataframes(self.fnames, format=self.dataframe_format)  # type: ignore[return-value]
+
+    def save(
+        self,
+        store_fname: str | Path | None = None,
+        *,
+        overwrite: bool = True,
+    ) -> None:
+        """Store the `RunManager` to a file.
+
+        Parameters
+        ----------
+        store_fname : str or Path or None
+            The filename to store the `RunManager` to, if None, use the
+            `store_fname` attribute.
+        overwrite : bool, default: False
+            If True, overwrite the file if it already exists.
+
+        """
+        if store_fname is None:
+            store_fname = self.store_fname
+        if store_fname is None:
+            msg = "No `store_fname` given and no `store_fname` attribute is set."
+            raise ValueError(msg)
+        store_fname = Path(store_fname)
+        keys = self.__dict__.keys() - {
+            "ioloop",  # set in super().start()
+            "task",  # set in super().start()
+            "learners",  # we can load them from the filenames
+            # below are created in __init__
+            "job_names",
+            "database_manager",
+            "job_manager",
+            "kill_manager",
+        }
+        to_save = {k: self.__dict__[k] for k in keys if not k.startswith("_")}
+        if store_fname.exists() and not overwrite:
+            msg = f"{store_fname} already exists."
+            raise FileExistsError(msg)
+        with store_fname.open("wb") as f:
+            cloudpickle.dump(to_save, f)
+
+    @classmethod
+    def load(cls: type[RunManager], store_fname: str | Path) -> RunManager:
+        """Load a `RunManager` from a file."""
+        store_fname = Path(store_fname)
+        with store_fname.open("rb") as f:
+            to_load = cloudpickle.load(f)
+        to_load["learners"] = [fname_to_learner(fn) for fn in to_load["fnames"]]
+        to_load["overwrite_db"] = False
+        start_time = to_load.pop("start_time")
+        end_time = to_load.pop("end_time")
+        rm = cls(**to_load)
+        rm.start_time = start_time
+        rm.end_time = end_time
+        return rm
 
     def remove_existing_data(
         self,
