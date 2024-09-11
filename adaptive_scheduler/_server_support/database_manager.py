@@ -276,11 +276,10 @@ class DatabaseManager(BaseManager):
             for f in output_fnames
         ]
 
-    def _done_but_still_running(self) -> list[_DBEntry]:
+    def _done_but_still_running(self, running: dict[str, Any]) -> list[tuple[int, _DBEntry]]:
         if self._db is None:
             return []
-        entries = self._db.get_all(lambda e: e.is_done and e.job_id is not None)
-        return [entry for _, entry in entries]
+        return self._db.get_all(lambda e: e.is_done and e.job_id in running)
 
     def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
@@ -352,7 +351,6 @@ class DatabaseManager(BaseManager):
         assert self._db is not None
         entry_indices = [index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)]
         self._db.update(reset, entry_indices)
-        print(f"Done with {fname_str}")
 
     def _stop_requests(self, fnames: FnamesTypes) -> None:
         # Same as `_stop_request` but optimized for processing many `fnames` at once

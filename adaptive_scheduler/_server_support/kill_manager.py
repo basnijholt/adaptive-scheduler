@@ -62,7 +62,11 @@ def logs_with_string_or_condition(
     have_error = []
     for entry in database_manager.as_dicts():
         fnames = entry["output_logs"]
-        if entry["job_id"] is not None and any(file_has_error(Path(f)) for f in fnames):
+        if (
+            not entry["is_done"]
+            and entry["job_id"] is not None
+            and any(file_has_error(Path(f)) for f in fnames)
+        ):
             all_fnames = [*fnames, entry["log_fname"]]
             have_error.append((entry["job_name"], all_fnames))
     return have_error
