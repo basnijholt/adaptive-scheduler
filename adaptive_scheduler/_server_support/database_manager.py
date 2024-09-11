@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import pickle
 from dataclasses import asdict, dataclass, field
@@ -194,6 +195,7 @@ class DatabaseManager(BaseManager):
         self._pickling_time: float | None = None
         self._total_learner_size: int | None = None
         self._db: SimpleDatabase | None = None
+        self._trigger_event = asyncio.Event()
 
     def _setup(self) -> None:
         if self.db_fname.exists() and not self.overwrite_db:
@@ -214,7 +216,9 @@ class DatabaseManager(BaseManager):
             queue = self.scheduler.queue(me_only=True)
         job_names_in_queue = [x["job_name"] for x in queue.values()]
         failed = self._db.get_all(
-            lambda e: e.job_name is not None and e.job_name not in job_names_in_queue,  # type: ignore[operator]
+            lambda e: not e.is_done
+            and e.job_name is not None
+            and e.job_name not in job_names_in_queue,  # type: ignore[operator]
         )
         self.failed.extend([asdict(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
@@ -271,6 +275,11 @@ class DatabaseManager(BaseManager):
             f.with_name(f.name.replace(self.scheduler._JOB_ID_VARIABLE, job_id))
             for f in output_fnames
         ]
+
+    def _done_but_still_running(self, running: dict[str, Any]) -> list[tuple[int, _DBEntry]]:
+        if self._db is None:
+            return []
+        return self._db.get_all(lambda e: e.is_done and e.job_id in running)
 
     def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
@@ -338,7 +347,7 @@ class DatabaseManager(BaseManager):
 
     def _stop_request(self, fname: str | list[str] | Path | list[Path]) -> None:
         fname_str = _ensure_str(fname)
-        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
+        reset = {"is_done": True, "is_pending": False}
         assert self._db is not None
         entry_indices = [index for index, _ in self._db.get_all(lambda e: e.fname == fname_str)]
         self._db.update(reset, entry_indices)
@@ -347,7 +356,7 @@ class DatabaseManager(BaseManager):
         # Same as `_stop_request` but optimized for processing many `fnames` at once
         assert self._db is not None
         fnames_str = {str(fname) for fname in _ensure_str(fnames)}
-        reset = {"job_id": None, "is_done": True, "job_name": None, "is_pending": False}
+        reset = {"is_done": True, "is_pending": False}
         entry_indices = [
             index for index, _ in self._db.get_all(lambda e: str(e.fname) in fnames_str)
         ]
@@ -381,7 +390,8 @@ class DatabaseManager(BaseManager):
             if request_type == "stop":
                 fname = request_arg[0]  # workers send us the fname they were given
                 log.debug("got a stop request", fname=fname)
-                self._stop_request(fname)  # reset the job_id to None
+                self._stop_request(fname)  # set is_done
+                self.trigger_scheduling_event()
                 return None
         except Exception as e:  # noqa: BLE001
             return e
@@ -426,3 +436,7 @@ class DatabaseManager(BaseManager):
                     break
         finally:
             socket.close()
+
+    def trigger_scheduling_event(self) -> None:
+        """External method to trigger the _manage loop to continue."""
+        self._trigger_event.set()

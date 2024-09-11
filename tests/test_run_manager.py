@@ -313,8 +313,8 @@ async def test_run_manager_auto_restart(
     db = rm.database_manager.as_dicts()
     assert len(db) == 2
     for entry in db:
-        assert entry["job_id"] is None
-        assert entry["job_name"] is None
+        assert entry["job_id"] in ("0", "1", "2")
+        assert entry["job_name"] in job_names
         assert entry["is_done"]
         assert entry["log_fname"].endswith(".log")
 

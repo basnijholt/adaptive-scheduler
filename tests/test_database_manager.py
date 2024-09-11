@@ -201,7 +201,7 @@ async def test_database_manager_dispatch_start_stop(
     assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == fname)
     assert entry is not None
-    assert entry.job_id is None
+    assert entry.job_id == "1000"
     assert entry.is_done is True
 
 
@@ -305,18 +305,26 @@ async def test_database_manager_start_stop(
     assert db_manager._db is not None
     entry = db_manager._db.get(lambda entry: entry.fname == _ensure_str(fnames[0]))
     assert entry is not None
-    assert entry.job_id is None
+    assert entry.job_id == job_id
 
     # Start and stop the learner2
     index2, _ = db_manager._choose_fname()
-    db_manager._confirm_submitted(index2, job_name)
-    fname = await send_message(socket, start_message)
+    job_id2, job_name2 = "1001", "job_name2"
+    start_message2 = ("start", job_id2, "log2.log", job_name2)
+    db_manager._confirm_submitted(index2, job_name2)
+    fname = await send_message(socket, start_message2)
     assert fname == _ensure_str(fnames[1])
 
     # Send a stop message to the DatabaseManager
     stop_message = ("stop", fname)
     reply = await send_message(socket, stop_message)
     assert reply is None
+
+    # Check that the database is updated correctly
+    entry = db_manager._db.get(lambda entry: entry.fname == _ensure_str(fnames[1]))
+    assert entry is not None
+    assert entry.job_id == job_id2
+    assert entry.job_name == job_name2
 
     with pytest.raises(zmq.error.Again, match="Resource temporarily unavailable"):
         await send_message(socket, start_message)
@@ -365,18 +373,18 @@ async def test_database_manager_stop_request_and_requests(
     db_manager._stop_request(fname1)
     entry = db_manager._db.get(lambda entry: entry.fname == fname1)
     assert entry is not None
-    assert entry.job_id is None, (fname1, fname2)
+    assert entry.job_id == job_id1, (fname1, fname2)
     assert entry.is_done is True
-    assert entry.job_name is None
+    assert entry.job_name == job_name1
 
     # Stop the job for learner2 using _stop_requests
     db_manager._stop_requests([fname2])
 
     entry = db_manager._db.get(lambda entry: entry.fname == fname2)
     assert entry is not None
-    assert entry.job_id is None, (fname1, fname2)
+    assert entry.job_id == job_id2, (fname1, fname2)
     assert entry.is_done is True
-    assert entry.job_name is None
+    assert entry.job_name == job_name2
 
 
 def test_job_failure_after_start_request(db_manager: DatabaseManager) -> None:
@@ -566,9 +574,9 @@ async def test_dependencies(
     db_manager._stop_request(fname1)
     entry = db_manager._db.get(lambda entry: entry.fname == fname1)
     assert entry is not None
-    assert entry.job_id is None
+    assert entry.job_id == job_id1
     assert entry.is_done is True
-    assert entry.job_name is None
+    assert entry.job_name == job_name1
 
     # Try getting a new job
     _index2, _fname2 = db_manager._choose_fname()
@@ -589,9 +597,9 @@ async def test_dependencies(
 
     entry = db_manager._db.get(lambda entry: entry.fname == fname2)
     assert entry is not None
-    assert entry.job_id is None, (fname1, fname2)
+    assert entry.job_id == job_id2, (fname1, fname2)
     assert entry.is_done is True
-    assert entry.job_name is None
+    assert entry.job_name == job_name2
     with pytest.raises(
         RuntimeError,
         match="Requested a new job but no more learners to run in the database.",

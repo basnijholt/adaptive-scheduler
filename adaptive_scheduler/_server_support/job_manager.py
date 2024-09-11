@@ -174,7 +174,6 @@ class JobManager(BaseManager):
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
-        self._trigger_event = asyncio.Event()
 
         # Command line launcher options
         self.save_dataframe = save_dataframe
@@ -217,12 +216,14 @@ class JobManager(BaseManager):
         running = self.scheduler.queue(me_only=True)
         self.database_manager.update(running)  # in case some jobs died
         queued = self._queued(running)  # running `job_name`s
-        not_queued = set(self.job_names) - queued
+        available_job_names = set(self.job_names) - queued
         n_done = self.database_manager.n_done()
         if n_done == len(self.job_names):
             return None  # we are finished!
-        n_to_schedule = max(0, len(not_queued) - n_done)
-        return queued, set(list(not_queued)[:n_to_schedule])
+        n_done_but_running = len(self.database_manager._done_but_still_running(running))
+        n_done_completely = n_done - n_done_but_running
+        n_to_schedule = max(0, len(available_job_names) - n_done_completely)
+        return queued, set(list(available_job_names)[:n_to_schedule])
 
     async def _start_new_jobs(
         self,
@@ -263,7 +264,7 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     self.interval,
-                    self._trigger_event,
+                    self.database_manager._trigger_event,
                 ):  # if true, we are done
                     return
             except asyncio.CancelledError:  # noqa: PERF203
@@ -283,10 +284,10 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     5,
-                    self._trigger_event,
+                    self.database_manager._trigger_event,
                 ):  # if true, we are done
                     return
 
     def trigger(self) -> None:
         """External method to trigger the _manage loop to continue."""
-        self._trigger_event.set()
+        self.database_manager.trigger_scheduling_event()
