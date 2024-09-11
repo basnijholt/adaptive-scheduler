@@ -475,6 +475,7 @@ def _info_html(run_manager: RunManager) -> str:
     n_failed = len(dbm.failed)
     n_failed_color = "red" if n_failed > 0 else "black"
     n_unscheduled = len(dbm.learners) - n_running - n_pending - n_done
+    n_unscheduled_color = "orange" if n_unscheduled > 0 else "black"
 
     status = run_manager.status()
     color = {
@@ -499,7 +500,7 @@ def _info_html(run_manager: RunManager) -> str:
         ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
         ("# finished jobs", f'<font color="green">{n_done}</font>'),
         ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
-        ("# unscheduled jobs", f'<font color="orange">{n_unscheduled}</font>'),
+        ("# unscheduled jobs", f'<font color="{n_unscheduled_color}">{n_unscheduled}</font>'),
         ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
         ("total data size", _bytes_to_human_readable(data_size)),
     ]
