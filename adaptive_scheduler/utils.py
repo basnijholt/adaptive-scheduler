@@ -1187,22 +1187,33 @@ def _time_between(start: str, end: str) -> float:
 async def sleep_unless_task_is_done(
     task: asyncio.Task,
     sleep_duration: float,
+    trigger_event: asyncio.Event | None = None,
 ) -> bool:
-    """Sleep for an interval, unless the task is done before then."""
+    """Sleep for an interval, unless the task or a trigger event is done earlier."""
     # Create the sleep task separately
     sleep_task = asyncio.create_task(asyncio.sleep(sleep_duration))
+    tasks_to_wait = [sleep_task, task]
 
-    # Await both the sleep_task and the passed task
+    # Add the trigger_event to the wait list if provided
+    if trigger_event:
+        # Create a task for the event wait
+        event_task = asyncio.create_task(trigger_event.wait())
+        tasks_to_wait.append(event_task)
+
+    # Await all tasks until any one is done
     done, pending = await asyncio.wait(
-        [sleep_task, task],
+        tasks_to_wait,
         return_when=asyncio.FIRST_COMPLETED,
     )
 
-    # Cancel only the sleep_task if it's pending
+    # Cancel only the sleep task if it's pending
     if sleep_task in pending:
         sleep_task.cancel()
-        return True  # means that the task is done
-    return False
+
+    if trigger_event is not None and event_task.done():
+        trigger_event.clear()
+
+    return task.done()
 
 
 def _update_progress_for_paths(

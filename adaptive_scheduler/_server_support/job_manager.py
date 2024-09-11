@@ -174,6 +174,7 @@ class JobManager(BaseManager):
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
+        self._trigger_event = asyncio.Event()
 
         # Command line launcher options
         self.save_dataframe = save_dataframe
@@ -262,6 +263,7 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     self.interval,
+                    self._trigger_event,
                 ):  # if true, we are done
                     return
             except asyncio.CancelledError:  # noqa: PERF203
@@ -281,5 +283,10 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     5,
+                    self._trigger_event,
                 ):  # if true, we are done
                     return
+
+    def trigger(self) -> None:
+        """External method to trigger the _manage loop to continue."""
+        self._trigger_event.set()
