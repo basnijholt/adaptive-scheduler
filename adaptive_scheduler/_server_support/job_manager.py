@@ -174,7 +174,6 @@ class JobManager(BaseManager):
         # Other attributes
         self.n_started = 0
         self._request_times: dict[str, str] = {}
-        self._trigger_event = asyncio.Event()
 
         # Command line launcher options
         self.save_dataframe = save_dataframe
@@ -221,7 +220,8 @@ class JobManager(BaseManager):
         n_done = self.database_manager.n_done()
         if n_done == len(self.job_names):
             return None  # we are finished!
-        n_to_schedule = max(0, len(not_queued) - n_done)
+        n_done_but_running = len(self.database_manager._done_but_still_running())
+        n_to_schedule = max(0, n_done_but_running + len(not_queued) - n_done)
         return queued, set(list(not_queued)[:n_to_schedule])
 
     async def _start_new_jobs(
@@ -233,6 +233,7 @@ class JobManager(BaseManager):
             len(not_queued),
             self.max_simultaneous_jobs - len(queued),
         )
+        print(f"num_jobs_to_start={num_jobs_to_start}")
         for _ in range(num_jobs_to_start):
             index, fname = self.database_manager._choose_fname()
             if index == -1:
@@ -263,7 +264,7 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     self.interval,
-                    self._trigger_event,
+                    self.database_manager._trigger_event,
                 ):  # if true, we are done
                     return
             except asyncio.CancelledError:  # noqa: PERF203
@@ -283,10 +284,10 @@ class JobManager(BaseManager):
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
                     5,
-                    self._trigger_event,
+                    self.database_manager._trigger_event,
                 ):  # if true, we are done
                     return
 
     def trigger(self) -> None:
         """External method to trigger the _manage loop to continue."""
-        self._trigger_event.set()
+        self.database_manager.trigger_scheduling_event()
