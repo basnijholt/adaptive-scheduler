@@ -252,6 +252,7 @@ class JobManager(BaseManager):
     async def _manage(self) -> None:
         while True:
             try:
+                print("JobManager._manage")
                 update = await self._update_database_and_get_not_queued()
                 if update is None:  # we are finished!
                     return

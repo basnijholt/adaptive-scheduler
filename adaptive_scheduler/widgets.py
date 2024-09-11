@@ -474,7 +474,7 @@ def _info_html(run_manager: RunManager) -> str:
     n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
     n_failed = len(dbm.failed)
     n_failed_color = "red" if n_failed > 0 else "black"
-    n_unscheduled = len(dbm.learners) - n_running - n_pending - n_done
+    n_unscheduled = len(dbm.fnames) - n_running - n_pending - n_done
     n_unscheduled_color = "orange" if n_unscheduled > 0 else "black"
 
     status = run_manager.status()
