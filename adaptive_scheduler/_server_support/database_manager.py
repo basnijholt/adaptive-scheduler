@@ -229,6 +229,12 @@ class DatabaseManager(BaseManager):
             return 0
         return self._db.count(lambda e: e.is_done)
 
+    def n_unscheduled(self) -> int:
+        """Return the number of jobs that are not scheduled."""
+        if self._db is None:
+            return 0
+        return self._db.count(lambda e: not e.is_done and not e.is_pending)
+
     def is_done(self) -> bool:
         """Return True if all jobs are done."""
         return self.n_done() == len(self.fnames)
