@@ -67,6 +67,7 @@ def test_logs_with_string_or_condition_string_error(tmp_path: Path) -> None:
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
+            "is_done": False,
         },
     ]
 
@@ -89,6 +90,7 @@ def test_logs_with_string_or_condition_callable_error(tmp_path: Path) -> None:
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
+            "is_done": False,
         },
     ]
 
@@ -113,6 +115,7 @@ def test_logs_with_string_or_condition_no_error(tmp_path: Path) -> None:
             "job_name": "test_job",
             "output_logs": [str(logs_file)],
             "log_fname": "log_file.log",
+            "is_done": False,
         },
     ]
 
@@ -131,6 +134,7 @@ def test_logs_with_string_or_condition_missing_file() -> None:
             "job_name": "test_job",
             "output_logs": ["non_existent_file.txt"],
             "log_fname": "log_file.log",
+            "is_done": False,
         },
     ]
 
