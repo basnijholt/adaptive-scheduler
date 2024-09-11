@@ -1211,7 +1211,7 @@ async def sleep_unless_task_is_done(
         sleep_task.cancel()
 
     # Determine if the triggering task or event completed
-    return task in done or (trigger_event and trigger_event.is_set())  # type: ignore[return-value]
+    return task.done() or (trigger_event and trigger_event.is_set())  # type: ignore[return-value]
 
 
 def _update_progress_for_paths(
