@@ -134,7 +134,7 @@ def main() -> None:
     if initializer is not None:
         initializer()
 
-    if args.executor_type == "process-pool":
+    if args.executor_type in ("process-pool", "sequential"):
         learner.function = WrappedFunction(learner.function)
 
     with suppress(Exception):
