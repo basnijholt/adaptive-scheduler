@@ -29,10 +29,10 @@ jobs:
           cat environment.yml
 
       - name: Install Conda environment with micromamba
-        uses: mamba-org/provision-with-micromamba@main
+        uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
-          cache-env: true
+          cache-environment: true
 
       - name: Install adaptive-scheduler
         shell: bash -l {0}
