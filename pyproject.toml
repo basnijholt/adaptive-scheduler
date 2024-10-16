@@ -34,7 +34,6 @@ dependencies = [
     "numpy",
     "pandas",
     "psutil",
-    "pyarrow",
     "pyzmq",
     "rich",
     "structlog",
