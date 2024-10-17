@@ -106,11 +106,18 @@ class SimpleDatabase:
     def count(self, condition: Callable[[_DBEntry], bool]) -> int:
         return sum(1 for entry in self._data if condition(entry))
 
-    def get(self, condition: Callable[[_DBEntry], bool]) -> _DBEntry | None:
-        for entry in self._data:
+    def get_with_index(self, condition: Callable[[_DBEntry], bool]) -> tuple[int, _DBEntry] | None:
+        for index, entry in enumerate(self._data):
             if condition(entry):
-                return entry
+                return index, entry
         return None
+
+    def get(self, condition: Callable[[_DBEntry], bool]) -> _DBEntry | None:
+        index_entry = self.get_with_index(condition)
+        if index_entry is None:
+            return None
+        _, entry = index_entry
+        return entry
 
     def get_all(
         self,
@@ -426,3 +433,44 @@ class DatabaseManager(BaseManager):
                     break
         finally:
             socket.close()
+
+    def replace_learner(self, index: int, new_learner: adaptive.BaseLearner) -> None:
+        """Replace a learner and update the corresponding database entry and cloudpickled file.
+
+        Parameters
+        ----------
+        index
+            The index of the learner to replace.
+        new_learner
+            The new learner to replace the old one.
+
+        """
+        if index < 0 or index >= len(self.learners):
+            msg = "Index out of range"
+            raise IndexError(msg)
+
+        fname = self.fnames[index]
+
+        # Update the database entry
+        assert self._db is not None
+        index_entry = self._db.get_with_index(lambda e: e.fname == _ensure_str(fname))
+        assert index_entry is not None
+        index, entry = index_entry
+        if entry.is_done:
+            msg = f"Learner at index {index} is already done and cannot be replaced."
+            raise ValueError(msg)
+        assert not entry.is_pending
+        assert entry.job_id is None
+
+        # Replace the learner in the list
+        self.learners[index] = new_learner
+
+        # Cloudpickle the new learner
+        cloudpickle_learners(
+            [new_learner],
+            [fname],  # type: ignore[arg-type]
+        )
+        # Note that self._total_learner_size and self._pickling_time are
+        # not updated now! But we don't care about that.
+
+        log.debug(f"Replaced learner at index {index} with a new learner")
