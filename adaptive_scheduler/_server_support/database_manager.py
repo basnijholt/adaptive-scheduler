@@ -449,7 +449,6 @@ class DatabaseManager(BaseManager):
             msg = "Index out of range"
             raise IndexError(msg)
 
-        # Update the cloudpickled file
         fname = self.fnames[index]
 
         # Update the database entry
