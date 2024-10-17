@@ -454,7 +454,7 @@ class DatabaseManager(BaseManager):
 
         # Update the database entry
         assert self._db is not None
-        index_entry = self._db.get_with_index(lambda e: e.fname == str(fname))
+        index_entry = self._db.get_with_index(lambda e: e.fname == _ensure_str(fname))
         assert index_entry is not None
         index, entry = index_entry
         if entry.is_done:

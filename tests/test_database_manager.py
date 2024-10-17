@@ -15,7 +15,7 @@ from adaptive_scheduler._server_support.database_manager import (
     _DBEntry,
     _ensure_str,
 )
-from adaptive_scheduler.utils import smart_goal
+from adaptive_scheduler.utils import fname_to_learner_fname, smart_goal
 
 from .helpers import send_message
 
@@ -597,3 +597,49 @@ async def test_dependencies(
         match="Requested a new job but no more learners to run in the database.",
     ):
         db_manager._choose_fname()
+
+
+@pytest.mark.asyncio()
+async def test_replace_learner(db_manager: DatabaseManager) -> None:
+    """Test replacing a learner in the DatabaseManager."""
+    db_manager.create_empty_db()
+
+    # Create a new learner to replace the existing one
+    new_learner = adaptive.Learner1D(lambda x: x**2, bounds=(-1, 1))
+
+    # Get the original learner and its fname
+    original_learner = db_manager.learners[0]
+    original_fname = db_manager.fnames[0]
+
+    # Replace the learner
+    db_manager.replace_learner(0, new_learner)
+
+    # Check if the learner was replaced in the list
+    assert db_manager.learners[0] is new_learner
+    assert db_manager.learners[0] is not original_learner
+
+    # Check if the database entry was updated
+    assert db_manager._db is not None
+    entry = db_manager._db.get(lambda e: e.fname == _ensure_str(original_fname))
+    assert entry is not None
+    assert not entry.is_done
+    assert not entry.is_pending
+    assert entry.job_id is None
+
+    # Check if the cloudpickled file was updated
+    cloudpickle_fname = fname_to_learner_fname(original_fname)
+    assert cloudpickle_fname.exists()
+
+    # Try to replace a non-existent learner (should raise an IndexError)
+    with pytest.raises(IndexError, match="Index out of range"):
+        db_manager.replace_learner(len(db_manager.learners), new_learner)
+
+    # Mark the first learner as done
+    db_manager._db.update({"is_done": True}, indices=[0])
+
+    # Try to replace a completed learner (should raise a ValueError)
+    with pytest.raises(
+        ValueError,
+        match="Learner at index 0 is already done and cannot be replaced.",
+    ):
+        db_manager.replace_learner(0, new_learner)
