@@ -1,0 +1,96 @@
+{
+    "name": "micromamba",
+    "runArgs": [
+        "--hostname",
+        "devcontainer",
+        "--name",
+        "${localEnv:USER}_devcontainer_micromamba",
+        "--privileged"  // Add this to allow SLURM to manage processes
+    ],
+    "containerEnv": {
+        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+        "CONTAINER_WORKSPACE_FOLDER": "${containerWorkspaceFolder}"
+    },
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "CONTAINER_WORKSPACE_FOLDER": "${containerWorkspaceFolder}",
+            "BASE_IMAGE": "git-515d637-jammy",
+            "ENVIRONMENT_YAML": "environment.yml"
+        }
+    },
+    "overrideCommand": true, // allow the entrypoint to run
+    "mounts": [
+        "source=pre-commit-cache-${localEnv:USER},target=/home/mambauser/.cache/pre-commit,type=volume",
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
+        "source=${localWorkspaceFolder}/.devcontainer/slurm.conf,target=/etc/slurm-llnl/slurm.conf,type=bind"
+    ],
+    "remoteUser": "mambauser",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.mypy-type-checker",
+                "charliermarsh.ruff",
+                "ms-toolsai.jupyter",
+                "ms-azuretools.vscode-docker",
+                "donjayamanne.githistory",
+                "eamodio.gitlens",
+                "mutantdino.resourcemonitor",
+                "github.copilot",
+                "davidanson.vscode-markdownlint"
+            ],
+            "settings": {
+                // Files to completely exclude from view
+                // (see also search.exclude and files.watcherExclude)
+                "files.exclude": {
+                    // Ignore cached files
+                    "**/__pycache__": true,
+                    // Ignore files created for development installs
+                    "**/*.egg-info": true,
+                    // Ignore Jupyter checkpoint files
+                    "**/.ipynb_checkpoints": true,
+                    // Ignore cache directory, except for files which start with . (e.g. .gitignore)
+                    ".devcontainer/cache/*/[!\\.]*": true
+                },
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff"
+                },
+                "ruff.path": [
+                    "/opt/conda/bin/ruff"
+                ],
+                "ruff.interpreter": [
+                    "/opt/conda/bin/python"
+                ],
+                // Ruler for "black"-formatted line widths
+                "editor.rulers": [
+                    88
+                ],
+                // Disable barely usable scrollbar
+                "workbench.editor.wrapTabs": true,
+                // Turn on autosave
+                "files.autoSave": "afterDelay",
+                // Show whitespace as tiny grey dots
+                "editor.renderWhitespace": "boundary",
+                // Use Pylance
+                "python.languageServer": "Pylance",
+                "python.analysis.typeCheckingMode": "basic",
+                // Interpret lines beginning with "# !%" as ipython magic commands
+                "jupyter.interactiveWindow.textEditor.magicCommandsAsComments": true,
+                // Path of the default Python environment
+                "python.defaultInterpreterPath": "/opt/conda/bin/python",
+                // Disable the "conda activate base" command when opening a new terminal
+                "python.terminal.activateEnvironment": false,
+                // Automatically keep Git up-to-date with remotes
+                "git.autofetch": "all",
+                // Make sure that key combos like Ctrl+K are not intercepted by VS Code
+                // when using the terminal
+                "terminal.integrated.allowChords": false,
+                "extensions.verifySignature": false
+            }
+        }
+    },
+    "postCreateCommand": "sudo /usr/local/bin/startup.sh && sudo scontrol show config && sudo scontrol show nodes && sudo scontrol show partitions",
+    "postStartCommand": "pip install -e ."
+}
