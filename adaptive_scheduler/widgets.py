@@ -805,17 +805,22 @@ def _create_confirm_deny(
     )
 
 
-def info(run_manager: RunManager, *, show_info: bool = True) -> ipyw.VBox:
+def info(
+    run_manager: RunManager,
+    *,
+    display_widget: bool = True,
+    disable_widgets_output_scrollbar: bool = True,
+) -> ipyw.VBox:
     """Display information about the `RunManager`.
 
     Returns an interactive ipywidget that can be
     visualized in a Jupyter notebook.
     """
-    print(f"called info with {show_info=}")
     import ipywidgets as ipyw
     from IPython.display import display
 
-    _disable_widgets_output_scrollbar()
+    if disable_widgets_output_scrollbar:
+        _disable_widgets_output_scrollbar()
 
     status = ipyw.HTML(value=_info_html(run_manager))
 
@@ -952,7 +957,7 @@ def info(run_manager: RunManager, *, show_info: bool = True) -> ipyw.VBox:
     buttons_box.layout.margin = "0 0 0 100px"
     top_box = ipyw.HBox((status, buttons_box))
     box = ipyw.VBox((top_box, *(v["output"] for v in toggle_dict.values())))
-    if show_info:
+    if display_widget:
         display(box)
     return box
 

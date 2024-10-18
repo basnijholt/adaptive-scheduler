@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import ipywidgets as ipw
 
-from adaptive_scheduler.widgets import info
+from adaptive_scheduler.widgets import _disable_widgets_output_scrollbar, info
 
 if TYPE_CHECKING:
     from adaptive_scheduler._server_support.run_manager import RunManager
@@ -28,6 +28,7 @@ class MultiRunManager:
     def __init__(self, run_managers: list[RunManager] | None = None) -> None:
         self.run_managers: dict[str, RunManager] = {}
         self._widget: ipw.Tab | None = None
+        self._info_widgets: dict[str, ipw.Widget] = {}
         if run_managers:
             for rm in run_managers:
                 self.add_run_manager(rm)
@@ -64,6 +65,11 @@ class MultiRunManager:
             raise ValueError(msg)
 
         self.run_managers[run_manager.job_name] = run_manager
+        self._info_widgets[run_manager.job_name] = info(
+            run_manager,
+            display_widget=False,
+            disable_widgets_output_scrollbar=False,
+        )
 
         if start:
             if wait_for:
@@ -97,6 +103,7 @@ class MultiRunManager:
         if name in self.run_managers:
             rm = self.run_managers.pop(name)
             rm.cancel()
+            self._info_widgets.pop(name)
             if self._widget is not None:
                 self._update_widget()
         else:
@@ -116,22 +123,23 @@ class MultiRunManager:
     def _create_widget(self) -> ipw.Tab:
         """Create the tab widget for displaying RunManager info."""
         tab = ipw.Tab()
-        children = [info(rm, show_info=False) for rm in self.run_managers.values()]
+        children = list(self._info_widgets.values())
         tab.children = children
-        for i, (name, _) in enumerate(self.run_managers.items()):
+        for i, name in enumerate(self.run_managers.keys()):
             tab.set_title(i, f"RunManager: {name}")
         return tab
 
     def _update_widget(self) -> None:
         """Update the widget when RunManagers are added or removed."""
         if self._widget is not None:
-            self._widget.children = [info(rm, show_info=False) for rm in self.run_managers.values()]
-            for i, (name, _) in enumerate(self.run_managers.items()):
+            self._widget.children = list(self._info_widgets.values())
+            for i, name in enumerate(self.run_managers.keys()):
                 self._widget.set_title(i, f"RunManager: {name}")
 
     def info(self) -> ipw.Tab:
         """Display info about all RunManagers in a tab widget."""
         if self._widget is None:
+            _disable_widgets_output_scrollbar()
             self._widget = self._create_widget()
         return self._widget
 

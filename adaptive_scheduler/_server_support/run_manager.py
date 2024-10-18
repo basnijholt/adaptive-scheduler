@@ -483,10 +483,10 @@ class RunManager(BaseManager):
         return status
 
     def _repr_html_(self) -> None:
-        return info(self)
+        return self.info()
 
     def info(self) -> None:
-        return info(self)
+        return info(self, display_widget=True)
 
     def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
