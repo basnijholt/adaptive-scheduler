@@ -277,6 +277,7 @@ class RunManager(BaseManager):
             dependencies=self.dependencies,
             overwrite_db=self.overwrite_db,
             initializers=self.initializers,
+            with_progress_bar=not self.quiet,
         )
         self.job_manager = JobManager(
             self.job_names,

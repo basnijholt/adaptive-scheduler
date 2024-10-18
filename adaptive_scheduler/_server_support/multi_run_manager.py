@@ -132,7 +132,21 @@ class MultiRunManager:
     def _update_widget(self) -> None:
         """Update the widget when RunManagers are added or removed."""
         if self._widget is not None:
-            self._widget.children = list(self._info_widgets.values())
+            current_children = list(self._widget.children)
+            new_children = list(self._info_widgets.values())
+
+            # Create a new tuple of children
+            updated_children = tuple(child for child in current_children if child in new_children)
+
+            # Add new children
+            for widget in new_children:
+                if widget not in updated_children:
+                    updated_children += (widget,)
+
+            # Update the widget's children
+            self._widget.children = updated_children
+
+            # Update titles
             for i, name in enumerate(self.run_managers.keys()):
                 self._widget.set_title(i, f"RunManager: {name}")
 
