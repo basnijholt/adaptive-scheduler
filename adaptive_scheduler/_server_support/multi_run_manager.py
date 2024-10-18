@@ -137,4 +137,4 @@ class MultiRunManager:
 
     def _repr_html_(self) -> str:
         """HTML representation for Jupyter notebooks."""
-        return self.info()._repr_html_()
+        return self.info()
