@@ -27,10 +27,10 @@ class MultiRunManager:
 
     def __init__(self, run_managers: list[RunManager] | None = None) -> None:
         self.run_managers: dict[str, RunManager] = {}
+        self._widget: ipw.Tab | None = None
         if run_managers:
             for rm in run_managers:
                 self.add_run_manager(rm)
-        self._widget: ipw.Tab | None = None
 
     def add_run_manager(
         self,
@@ -116,7 +116,7 @@ class MultiRunManager:
     def _create_widget(self) -> ipw.Tab:
         """Create the tab widget for displaying RunManager info."""
         tab = ipw.Tab()
-        children = [info(rm) for rm in self.run_managers.values()]
+        children = [info(rm, show_info=False) for rm in self.run_managers.values()]
         tab.children = children
         for i, (name, _) in enumerate(self.run_managers.items()):
             tab.set_title(i, f"RunManager: {name}")

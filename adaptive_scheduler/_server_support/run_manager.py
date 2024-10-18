@@ -120,6 +120,8 @@ class RunManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
+    quiet
+        Whether to show a progress bar when creating learner files.
 
     Attributes
     ----------
@@ -195,6 +197,7 @@ class RunManager(BaseManager):
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
         initializers: list[Callable[[], None]] | None = None,
+        quiet: bool = False,
     ) -> None:
         super().__init__()
 
@@ -222,6 +225,7 @@ class RunManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.initializers = initializers
+        self.quiet = quiet
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
@@ -383,7 +387,7 @@ class RunManager(BaseManager):
         cleanup_scheduler_files(
             job_names=self.job_names,
             scheduler=self.scheduler,
-            with_progress_bar=True,
+            with_progress_bar=not self.quiet,
             move_to=self.move_old_logs_to,
         )
         if remove_old_logs_folder and self.move_old_logs_to is not None:

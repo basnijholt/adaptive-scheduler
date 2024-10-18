@@ -811,6 +811,7 @@ def info(run_manager: RunManager, *, show_info: bool = True) -> ipyw.VBox:
     Returns an interactive ipywidget that can be
     visualized in a Jupyter notebook.
     """
+    print(f"called info with {show_info=}")
     import ipywidgets as ipyw
     from IPython.display import display
 

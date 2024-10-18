@@ -44,6 +44,7 @@ def slurm_run(
     extra_run_manager_kwargs: dict[str, Any] | None = None,
     extra_scheduler_kwargs: dict[str, Any] | None = None,
     initializers: list[Callable[[], None]] | None = None,
+    quiet: bool = False,
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
@@ -122,6 +123,8 @@ def slurm_run(
     initializers
         List of functions that are called before the job starts, can populate
         a cache.
+    quiet
+        Whether show a progress bar when creating learner files.
 
     Returns
     -------
@@ -132,12 +135,13 @@ def slurm_run(
         partitions = slurm_partitions()
         assert isinstance(partitions, dict)
         partition, ncores = next(iter(partitions.items()))
-        console.log(
-            f"Using default partition {partition} (The one marked"
-            f" with a '*' in `sinfo`) with {ncores} cores."
-            " Use `adaptive_scheduler.scheduler.slurm_partitions`"
-            " to see the available partitions.",
-        )
+        if not quiet:
+            console.log(
+                f"Using default partition {partition} (The one marked"
+                f" with a '*' in `sinfo`) with {ncores} cores."
+                " Use `adaptive_scheduler.scheduler.slurm_partitions`"
+                " to see the available partitions.",
+            )
     if (
         executor_type == "process-pool"
         and nodes is not None
@@ -202,6 +206,7 @@ def slurm_run(
         max_simultaneous_jobs=max_simultaneous_jobs,
         initializers=initializers,
         job_manager_interval=job_manager_interval,
+        quiet=quiet,
     )
     if extra_run_manager_kwargs is None:
         extra_run_manager_kwargs = {}

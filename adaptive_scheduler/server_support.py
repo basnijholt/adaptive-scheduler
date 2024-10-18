@@ -15,6 +15,7 @@ from ._server_support.common import (
 from ._server_support.database_manager import DatabaseManager
 from ._server_support.job_manager import JobManager, MaxRestartsReachedError
 from ._server_support.kill_manager import KillManager, logs_with_string_or_condition
+from ._server_support.multi_run_manager import MultiRunManager
 from ._server_support.parse_logs import _get_infos, parse_log_files
 from ._server_support.run_manager import (
     RunManager,
@@ -33,6 +34,7 @@ __all__ = [
     "start_one_by_one",
     "logs_with_string_or_condition",
     "RunManager",
+    "MultiRunManager",
     "slurm_run",
     "_get_infos",
     "parse_log_files",
