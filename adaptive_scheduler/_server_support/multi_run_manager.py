@@ -27,8 +27,10 @@ class MultiRunManager:
 
     def __init__(self, run_managers: list[RunManager] | None = None) -> None:
         self.run_managers: dict[str, RunManager] = {}
-        self._widget: ipw.Tab | None = None
+        self._widget: ipw.VBox | None = None
+        self._tab_widget: ipw.Tab | None = None
         self._info_widgets: dict[str, ipw.Widget] = {}
+        self._update_all_button: ipw.Button | None = None
         if run_managers:
             for rm in run_managers:
                 self.add_run_manager(rm)
@@ -120,19 +122,27 @@ class MultiRunManager:
         for run_manager in self.run_managers.values():
             run_manager.cancel()
 
-    def _create_widget(self) -> ipw.Tab:
-        """Create the tab widget for displaying RunManager info."""
-        tab = ipw.Tab()
+    def _create_widget(self) -> ipw.VBox:
+        """Create the widget for displaying RunManager info and update button."""
+        self._tab_widget = ipw.Tab()
         children = list(self._info_widgets.values())
-        tab.children = children
+        self._tab_widget.children = children
         for i, name in enumerate(self.run_managers.keys()):
-            tab.set_title(i, f"RunManager: {name}")
-        return tab
+            self._tab_widget.set_title(i, f"RunManager: {name}")
+
+        self._update_all_button = ipw.Button(
+            description="Update All",
+            button_style="info",
+            tooltip="Update all RunManagers",
+        )
+        self._update_all_button.on_click(self._update_all_callback)
+
+        return ipw.VBox([self._update_all_button, self._tab_widget])
 
     def _update_widget(self) -> None:
         """Update the widget when RunManagers are added or removed."""
-        if self._widget is not None:
-            current_children = list(self._widget.children)
+        if self._tab_widget is not None:
+            current_children = list(self._tab_widget.children)
             new_children = list(self._info_widgets.values())
 
             # Create a new tuple of children
@@ -144,14 +154,22 @@ class MultiRunManager:
                     updated_children += (widget,)
 
             # Update the widget's children
-            self._widget.children = updated_children
+            self._tab_widget.children = updated_children
 
             # Update titles
             for i, name in enumerate(self.run_managers.keys()):
-                self._widget.set_title(i, f"RunManager: {name}")
+                self._tab_widget.set_title(i, f"RunManager: {name}")
 
-    def info(self) -> ipw.Tab:
-        """Display info about all RunManagers in a tab widget."""
+    def _update_all_callback(self, _: ipw.Button) -> None:
+        """Callback function for the Update All button."""
+        assert self._tab_widget is not None
+        for widget in self._tab_widget.children:
+            update_button = widget.children[0].children[1].children[0]
+            assert update_button.description == "update info"
+            update_button.click()
+
+    def info(self) -> ipw.VBox:
+        """Display info about all RunManagers in a widget with an Update All button."""
         if self._widget is None:
             _disable_widgets_output_scrollbar()
             self._widget = self._create_widget()
