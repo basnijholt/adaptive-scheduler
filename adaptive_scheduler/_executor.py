@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import time
 import uuid
 from concurrent.futures import Executor, Future
 from dataclasses import dataclass, field
@@ -71,17 +72,21 @@ class SLURMTask(Future):
         self.executor = executor
         self.id_ = id_
         self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
+        self._last_get_time: float = 0
 
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished."""
+        current_time = time.time()
+        if self._state == "PENDING" and current_time - self._last_get_time < 1:
+            return None
+
+        self._last_get_time = current_time
         index = self.id_[1]
         learner = self._learner()
         if index in learner.data:
             self._state = "FINISHED"
-        else:
-            self._state = "PENDING"
-            return None
-        return learner.data[index]
+            return learner.data[index]
+        return None
 
     def __repr__(self) -> str:
         if self._state == "PENDING":
@@ -114,7 +119,7 @@ class SLURMTask(Future):
         def wakeup() -> None:
             if not self.done():
                 self._get()
-                loop.call_soon(wakeup)
+                loop.call_later(1, wakeup)  # Schedule next check after 1 second
             else:
                 fut.set_result(None)
 
