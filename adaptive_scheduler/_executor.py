@@ -1,21 +1,27 @@
+from __future__ import annotations
+
 import abc
-from collections.abc import Callable, Iterable
-from concurrent.futures import Executor
+import uuid
+from concurrent.futures import Executor, Future
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from adaptive import SequenceLearner
 
 import adaptive_scheduler
-from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+
+    from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes
 
 
 class AdaptiveSchedulerExecutorBase(Executor):
     _run_manager: adaptive_scheduler.RunManager | None
 
     @abc.abstractmethod
-    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Future:
         pass
 
     @abc.abstractmethod
@@ -29,7 +35,7 @@ class AdaptiveSchedulerExecutorBase(Executor):
         *iterables: Iterable[Any],
         timeout: float | None = None,
         chunksize: int = 1,
-    ) -> list[Any]:
+    ) -> list[Future]:
         tasks = []
         if timeout is not None:
             msg = "Timeout not implemented"
@@ -58,15 +64,61 @@ class AdaptiveSchedulerExecutorBase(Executor):
             self._run_manager.cancel()
 
 
+class SLURMTask(Future):
+    def __init__(self, executor: SLURMExecutor, id_: tuple[int, int]) -> None:
+        super().__init__()
+        self.executor = executor
+        self.id_ = id_
+        self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
+
+    def _get(self) -> Any | None:
+        """Updates the state of the task and returns the result if the task is finished."""
+        index = self.id_[1]
+        learner = self._learner()
+        if index in learner.data:
+            self._state = "FINISHED"
+        else:
+            self._state = "PENDING"
+            return None
+        return learner.data[index]
+
+    def __repr__(self) -> str:
+        if self._state == "PENDING":
+            self._get()
+        return f"SLURMTask(id_={self.id_}, state={self._state})"
+
+    def _learner(self, *, load: bool = True) -> SequenceLearner:
+        i_learner, _ = self.id_
+        assert self.executor._run_manager is not None
+        learner = self.executor._run_manager.learners[i_learner]
+        if load and not learner.done():
+            fname = self.executor._run_manager.fnames[i_learner]
+            learner.load(fname)
+        return learner
+
+    def result(self, timeout: float | None = None) -> Any:
+        if timeout is not None:
+            msg = "Timeout not implemented for SLURMTask"
+            raise NotImplementedError(msg)
+        if self.executor._run_manager is None:
+            msg = "RunManager not initialized. Call finalize() first."
+            raise RuntimeError(msg)
+        result = self._get()
+        if self._state == "FINISHED":
+            return result
+        msg = "Task not finished"
+        raise RuntimeError(msg)
+
+
 @dataclass
 class SLURMExecutor(AdaptiveSchedulerExecutorBase):
     partition: str | None = None
     nodes: int | None = 1
     cores_per_node: int | None = 1
     goal: GoalTypes | None = None
-    folder: str | Path = ""
+    folder: Path | None = None
     name: str = "adaptive"
-    num_threads: int | None = 1
+    num_threads: int = 1
     save_interval: float = 300
     log_interval: float = 300
     job_manager_interval: float = 60
@@ -80,30 +132,42 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
     extra_scheduler: list[str] | None = None
     extra_run_manager_kwargs: dict[str, Any] | None = None
     extra_scheduler_kwargs: dict[str, Any] | None = None
-    _tasks: list[tuple[Callable[..., Any], tuple, dict]] = field(default_factory=list)
+    _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
+    _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
     _quiet: bool = True
     _run_manager: adaptive_scheduler.RunManager | None = None
 
     def __post_init__(self) -> None:
-        self.folder = Path(self.folder)
+        if self.folder is None:
+            self.folder = Path.cwd() / ".adaptive_scheduler" / uuid.uuid4().hex  # type: ignore[operator]
+        else:
+            self.folder = Path(self.folder)
 
-    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> None:
-        self._tasks.append((fn, args, kwargs))
+    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> SLURMTask:
+        if kwargs:
+            msg = "Keyword arguments are not supported"
+            raise ValueError(msg)
+        if fn not in self._sequence_mapping:
+            self._sequence_mapping[fn] = len(self._sequence_mapping)
+        sequence = self._sequences.setdefault(fn, [])
+        i = len(sequence)
+        sequence.append(args)
+        id_ = (self._sequence_mapping[fn], i)
+        return SLURMTask(self, id_)
 
     def _to_learners(self) -> tuple[list[SequenceLearner], list[Path]]:
-        sequences = {}
-        for func, args, kwargs in self._tasks:
-            sequences.setdefault(func, []).append((args, kwargs))
         learners = []
         fnames = []
-        for func, args_kwargs_list in sequences.items():
+        for func, args_kwargs_list in self._sequences.items():
             learner = SequenceLearner(func, args_kwargs_list)
             learners.append(learner)
+            assert self.folder is not None
             fnames.append(self.folder / f"{func.__name__}.pickle")
         return learners, fnames
 
     def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
         learners, fnames = self._to_learners()
+        assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
             learners=learners,
             fnames=fnames,
