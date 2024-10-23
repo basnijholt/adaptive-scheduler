@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
-import time
+import os
 import uuid
 from concurrent.futures import Executor, Future
 from dataclasses import dataclass, field
@@ -72,17 +72,24 @@ class SLURMTask(Future):
         self.executor = executor
         self.id_ = id_
         self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
-        self._last_get_time: float = 0
+        self._last_mtime: float = 0
 
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished."""
-        current_time = time.time()
-        if self._state == "PENDING" and current_time - self._last_get_time < 1:
+        index = self.id_[1]
+        learner, fname = self._learner_and_fname(load=False)
+
+        try:
+            mtime = os.path.getmtime(fname)  # noqa: PTH204
+        except FileNotFoundError:
             return None
 
-        self._last_get_time = current_time
-        index = self.id_[1]
-        learner = self._learner()
+        if self._last_mtime == mtime:
+            return None
+
+        self._last_mtime = mtime
+        learner.load(fname)
+
         if index in learner.data:
             self._state = "FINISHED"
             return learner.data[index]
@@ -93,14 +100,15 @@ class SLURMTask(Future):
             self._get()
         return f"SLURMTask(id_={self.id_}, state={self._state})"
 
-    def _learner(self, *, load: bool = True) -> SequenceLearner:
+    def _learner_and_fname(self, *, load: bool = True) -> tuple[SequenceLearner, Path]:
         i_learner, _ = self.id_
-        assert self.executor._run_manager is not None
-        learner = self.executor._run_manager.learners[i_learner]
+        run_manager = self.executor._run_manager
+        assert run_manager is not None
+        learner = run_manager.learners[i_learner]
+        fname = run_manager.fnames[i_learner]
         if load and not learner.done():
-            fname = self.executor._run_manager.fnames[i_learner]
             learner.load(fname)
-        return learner
+        return learner, fname
 
     def result(self, timeout: float | None = None) -> Any:
         if timeout is not None:
