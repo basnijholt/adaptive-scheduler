@@ -79,6 +79,9 @@ class SLURMTask(Future):
         index = self.id_[1]
         learner, fname = self._learner_and_fname(load=False)
 
+        if self._state == "FINISHED":
+            return learner.data[index]
+
         try:
             mtime = os.path.getmtime(fname)  # noqa: PTH204
         except FileNotFoundError:
@@ -91,8 +94,9 @@ class SLURMTask(Future):
         learner.load(fname)
 
         if index in learner.data:
-            self._state = "FINISHED"
-            return learner.data[index]
+            result = learner.data[index]
+            self.set_result(result)
+            return result
         return None
 
     def __repr__(self) -> str:
@@ -100,7 +104,7 @@ class SLURMTask(Future):
             self._get()
         return f"SLURMTask(id_={self.id_}, state={self._state})"
 
-    def _learner_and_fname(self, *, load: bool = True) -> tuple[SequenceLearner, Path]:
+    def _learner_and_fname(self, *, load: bool = True) -> tuple[SequenceLearner, str | Path]:
         i_learner, _ = self.id_
         run_manager = self.executor._run_manager
         assert run_manager is not None
@@ -129,7 +133,7 @@ class SLURMTask(Future):
                 self._get()
                 loop.call_later(1, wakeup)  # Schedule next check after 1 second
             else:
-                fut.set_result(None)
+                fut.set_result(self.result())
 
         loop = asyncio.get_event_loop()
         fut = loop.create_future()
