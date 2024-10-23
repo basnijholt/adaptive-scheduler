@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import uuid
 from concurrent.futures import Executor, Future
 from dataclasses import dataclass, field
@@ -108,6 +109,24 @@ class SLURMTask(Future):
             return result
         msg = "Task not finished"
         raise RuntimeError(msg)
+
+    def __await__(self) -> Any:
+        def wakeup() -> None:
+            if not self.done():
+                self._get()
+                loop.call_soon(wakeup)
+            else:
+                fut.set_result(None)
+
+        loop = asyncio.get_event_loop()
+        fut = loop.create_future()
+        loop.call_soon(wakeup)
+        yield from fut
+        return self.result()
+
+    async def __aiter__(self) -> Any:
+        await self
+        return self.result()
 
 
 @dataclass
