@@ -94,15 +94,15 @@ class SLURMTask(Future):
         """Updates the state of the task and returns the result if the task is finished."""
         i_learner, index = self.id_
         learner, fname = self._learner_and_fname(load=False)
+        if self._state == "FINISHED":
+            return learner.data[index]
+
         assert self.executor._run_manager is not None
         last_load_time = self.executor._run_manager._last_load_time.get(i_learner, 0)
         now = time.monotonic()
         time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
             return None
-        if self._state == "FINISHED":
-            return learner.data[index]
-
         try:
             mtime = os.path.getmtime(fname)  # noqa: PTH204
         except FileNotFoundError:
@@ -130,7 +130,7 @@ class SLURMTask(Future):
         i_learner, _ = self.id_
         run_manager = self.executor._run_manager
         assert run_manager is not None
-        learner = run_manager.learners[i_learner]
+        learner: SequenceLearner = run_manager.learners[i_learner]  # type: ignore[index]
         fname = run_manager.fnames[i_learner]
         if load and not learner.done():
             learner.load(fname)
