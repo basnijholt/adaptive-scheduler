@@ -6,7 +6,7 @@ import os
 import time
 import uuid
 from concurrent.futures import Executor, Future
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
@@ -405,3 +405,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     def cleanup(self) -> None:
         assert self._run_manager is not None
         self._run_manager.cleanup(remove_old_logs_folder=True)
+
+    def new(self) -> SlurmExecutor:
+        """Create a new SlurmExecutor with the same parameters."""
+        data = asdict(self)
+        data["_run_manager"] = None
+        data["_sequences"] = {}
+        data["_sequence_mapping"] = {}
+        return SlurmExecutor(**data)
