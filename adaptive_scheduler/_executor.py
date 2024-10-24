@@ -249,3 +249,5 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
         if start:
             self._run_manager.start()
         return self._run_manager
+
+    def cleanup(self) -> None: ...

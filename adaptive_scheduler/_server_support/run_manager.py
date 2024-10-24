@@ -68,6 +68,8 @@ class RunManager(BaseManager):
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
+    check_goal_on_start
+        Checks whether a learner is already done. Only works if the learner is loaded.
     dependencies
         Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
         depends on the ``learners[0]``. This means that the ``learners[1]`` will only
@@ -75,8 +77,6 @@ class RunManager(BaseManager):
     initializers
         List of functions that are called before the job starts, can populate
         a cache.
-    check_goal_on_start
-        Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
@@ -120,6 +120,16 @@ class RunManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
+    max_fails_per_job
+        Maximum number of times that a job can fail. This is here as a fail switch
+        because a job might fail instantly because of a bug inside your code.
+        The job manager will stop when
+        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    max_simultaneous_jobs
+        Maximum number of simultaneously running jobs. By default no more than 500
+        jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
+        jobs will run forever, resulting in the jobs that were not initially started
+        (because of this `max_simultaneous_jobs` condition) to not ever start.
     quiet
         Whether to show a progress bar when creating learner files.
 
@@ -174,8 +184,8 @@ class RunManager(BaseManager):
         fnames: list[str] | list[Path],
         *,
         goal: GoalTypes | None = None,
-        dependencies: dict[int, list[int]] | None = None,
         check_goal_on_start: bool = True,
+        dependencies: dict[int, list[int]] | None = None,
         runner_kwargs: dict | None = None,
         url: str | None = None,
         save_interval: float = 300,
