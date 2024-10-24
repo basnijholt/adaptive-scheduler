@@ -77,14 +77,14 @@ class TaskID(NamedTuple):
     sequence_index: int
 
 
-class SLURMTask(Future):
+class SlurmTask(Future):
     """A `Future` that loads the result from a `SequenceLearner`."""
 
     __slots__ = ("executor", "task_id", "_state", "_last_mtime", "min_load_interval")
 
     def __init__(
         self,
-        executor: SLURMExecutor,
+        executor: SlurmExecutor,
         task_id: TaskID,
         min_load_interval: float = 1.0,
     ) -> None:
@@ -178,7 +178,7 @@ class SLURMTask(Future):
 
 
 @dataclass
-class SLURMExecutor(AdaptiveSchedulerExecutorBase):
+class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     """An executor that runs jobs on SLURM.
 
     Similar to `concurrent.futures.Executor`, but for SLURM.
@@ -327,17 +327,20 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
         else:
             self.folder = Path(self.folder)
 
-    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> SLURMTask:
+    def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> SlurmTask:
         if kwargs:
             msg = "Keyword arguments are not supported"
             raise ValueError(msg)
         if fn not in self._sequence_mapping:
             self._sequence_mapping[fn] = len(self._sequence_mapping)
+        if len(args) != 1:
+            msg = "Exactly one argument is required"
+            raise ValueError(msg)
         sequence = self._sequences.setdefault(fn, [])
         i = len(sequence)
-        sequence.append(args)
+        sequence.append(args[0])
         task_id = TaskID(self._sequence_mapping[fn], i)
-        return SLURMTask(self, task_id)
+        return SlurmTask(self, task_id)
 
     def _to_learners(self) -> tuple[list[SequenceLearner], list[Path]]:
         learners = []
@@ -346,10 +349,14 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
             learner = SequenceLearner(func, args_kwargs_list)
             learners.append(learner)
             assert isinstance(self.folder, Path)
-            fnames.append(self.folder / f"{func.__name__}.pickle")
+            name = func.__name__ if hasattr(func, "__name__") else ""
+            fnames.append(self.folder / f"{name}-{uuid.uuid4().hex}.pickle")
         return learners, fnames
 
     def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
+        if self._run_manager is not None:
+            msg = "RunManager already initialized. Create a new SlurmExecutor instance."
+            raise RuntimeError(msg)
         learners, fnames = self._to_learners()
         assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
