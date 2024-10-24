@@ -68,15 +68,12 @@ class RunManager(BaseManager):
         that accepts
         ``Callable[[adaptive.BaseLearner], bool] | float | datetime | timedelta | None``.
         See `adaptive_scheduler.utils.smart_goal` for more information.
+    check_goal_on_start
+        Checks whether a learner is already done. Only works if the learner is loaded.
     dependencies
         Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
         depends on the ``learners[0]``. This means that the ``learners[1]`` will only
         start when the ``learners[0]`` is done.
-    initializers
-        List of functions that are called before the job starts, can populate
-        a cache.
-    check_goal_on_start
-        Checks whether a learner is already done. Only works if the learner is loaded.
     runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
@@ -120,6 +117,21 @@ class RunManager(BaseManager):
         The format in which to save the `pandas.DataFame`. See the type hint for the options.
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
+    max_fails_per_job
+        Maximum number of times that a job can fail. This is here as a fail switch
+        because a job might fail instantly because of a bug inside your code.
+        The job manager will stop when
+        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+    max_simultaneous_jobs
+        Maximum number of simultaneously running jobs. By default no more than 500
+        jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
+        jobs will run forever, resulting in the jobs that were not initially started
+        (because of this `max_simultaneous_jobs` condition) to not ever start.
+    initializers
+        List of functions that are called before the job starts, can populate
+        a cache.
+    quiet
+        Whether to show a progress bar when creating learner files.
 
     Attributes
     ----------
@@ -172,8 +184,8 @@ class RunManager(BaseManager):
         fnames: list[str] | list[Path],
         *,
         goal: GoalTypes | None = None,
-        dependencies: dict[int, list[int]] | None = None,
         check_goal_on_start: bool = True,
+        dependencies: dict[int, list[int]] | None = None,
         runner_kwargs: dict | None = None,
         url: str | None = None,
         save_interval: float = 300,
@@ -195,6 +207,7 @@ class RunManager(BaseManager):
         max_fails_per_job: int = 50,
         max_simultaneous_jobs: int = 100,
         initializers: list[Callable[[], None]] | None = None,
+        quiet: bool = False,
     ) -> None:
         super().__init__()
 
@@ -222,6 +235,7 @@ class RunManager(BaseManager):
         self.max_fails_per_job = max_fails_per_job
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.initializers = initializers
+        self.quiet = quiet
         # Track job start times, (job_name, start_time) -> request_time
         self._job_start_time_dict: dict[tuple[str, str], str] = {}
 
@@ -239,17 +253,13 @@ class RunManager(BaseManager):
         # Set in methods
         self.start_time: float | None = None
         self.end_time: float | None = None
-        self._start_one_by_one_task: (
-            tuple[
-                asyncio.Future,
-                list[asyncio.Task],
-            ]
-            | None
-        ) = None
+        self._start_one_by_one_task: tuple[asyncio.Future, list[asyncio.Task]] | None = None
 
         # Set on init
         self.learners = learners
         self.fnames = fnames
+
+        self._last_load_time: dict[int, float] = {}
 
         if isinstance(self.fnames[0], list | tuple):
             # For a BalancingLearner
@@ -273,6 +283,7 @@ class RunManager(BaseManager):
             dependencies=self.dependencies,
             overwrite_db=self.overwrite_db,
             initializers=self.initializers,
+            with_progress_bar=not self.quiet,
         )
         self.job_manager = JobManager(
             self.job_names,
@@ -383,7 +394,7 @@ class RunManager(BaseManager):
         cleanup_scheduler_files(
             job_names=self.job_names,
             scheduler=self.scheduler,
-            with_progress_bar=True,
+            with_progress_bar=not self.quiet,
             move_to=self.move_old_logs_to,
         )
         if remove_old_logs_folder and self.move_old_logs_to is not None:
@@ -426,6 +437,9 @@ class RunManager(BaseManager):
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
+        t = time.monotonic()
+        for i in range(len(self.learners)):
+            self._last_load_time[i] = t
         load_parallel(self.learners, self.fnames)
 
     def elapsed_time(self) -> float:
@@ -479,10 +493,10 @@ class RunManager(BaseManager):
         return status
 
     def _repr_html_(self) -> None:
-        return info(self)
+        return self.info()
 
     def info(self) -> None:
-        return info(self)
+        return info(self, display_widget=True)
 
     def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""

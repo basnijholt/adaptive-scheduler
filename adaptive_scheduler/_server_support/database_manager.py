@@ -184,6 +184,7 @@ class DatabaseManager(BaseManager):
         dependencies: dict[int, list[int]] | None = None,
         overwrite_db: bool = True,
         initializers: list[Callable[[], None]] | None = None,
+        with_progress_bar: bool = True,
     ) -> None:
         super().__init__()
         self.url = url
@@ -194,7 +195,7 @@ class DatabaseManager(BaseManager):
         self.dependencies = dependencies or {}
         self.overwrite_db = overwrite_db
         self.initializers = initializers
-
+        self.with_progress_bar = with_progress_bar
         self._last_reply: str | list[str] | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
         self.failed: list[dict[str, Any]] = []
@@ -210,7 +211,7 @@ class DatabaseManager(BaseManager):
             self.learners,
             self.fnames,
             initializers=self.initializers,
-            with_progress_bar=True,
+            with_progress_bar=self.with_progress_bar,
         )
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
