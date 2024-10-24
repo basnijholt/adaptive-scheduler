@@ -83,6 +83,11 @@ def slurm_run(
         A list of learners.
     fnames
         A list of filenames to save the learners.
+    name
+        The name of the job.
+    folder
+        The folder to save the adaptive_scheduler files such as logs, database,
+        and ``.sbatch`` files in.
     partition
         The partition to use. If None, then the default partition will be used.
         (The one marked with a * in `sinfo`). Use
@@ -117,9 +122,6 @@ def slurm_run(
         Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
         depends on the ``learners[0]``. This means that the ``learners[1]`` will only
         start when the ``learners[0]`` is done.
-    initializers
-        List of functions that are called before the job starts, can populate
-        a cache.
     runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
@@ -166,13 +168,11 @@ def slurm_run(
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
+    initializers
+        List of functions that are called before the job starts, can populate
+        a cache.
     quiet
         Whether to show a progress bar when creating learner files.
-    folder
-        The folder to save the adaptive_scheduler files such as logs, database,
-        and ``.sbatch`` files in.
-    name
-        The name of the job.
     extra_run_manager_kwargs
         Extra keyword arguments to pass to the `RunManager`.
     extra_scheduler_kwargs

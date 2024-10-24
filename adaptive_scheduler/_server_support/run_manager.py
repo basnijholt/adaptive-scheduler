@@ -74,9 +74,6 @@ class RunManager(BaseManager):
         Dictionary of dependencies, e.g., ``{1: [0]}`` means that the ``learners[1]``
         depends on the ``learners[0]``. This means that the ``learners[1]`` will only
         start when the ``learners[0]`` is done.
-    initializers
-        List of functions that are called before the job starts, can populate
-        a cache.
     runner_kwargs
         Extra keyword argument to pass to the `adaptive.Runner`. Note that this dict
         will be serialized and pasted in the ``job_script``.
@@ -130,6 +127,9 @@ class RunManager(BaseManager):
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
+    initializers
+        List of functions that are called before the job starts, can populate
+        a cache.
     quiet
         Whether to show a progress bar when creating learner files.
 
