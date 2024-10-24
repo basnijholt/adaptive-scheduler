@@ -249,6 +249,8 @@ class RunManager(BaseManager):
         self.learners = learners
         self.fnames = fnames
 
+        self._last_load_time: dict[int, float] = {}
+
         if isinstance(self.fnames[0], list | tuple):
             # For a BalancingLearner
             assert isinstance(self.fnames[0][0], str | Path)
@@ -425,6 +427,9 @@ class RunManager(BaseManager):
 
     def load_learners(self) -> None:
         """Load the learners in parallel using `adaptive_scheduler.utils.load_parallel`."""
+        t = time.monotonic()
+        for i in range(len(self.learners)):
+            self._last_load_time[i] = t
         load_parallel(self.learners, self.fnames)
 
     def elapsed_time(self) -> float:

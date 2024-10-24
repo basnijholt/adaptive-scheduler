@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import os
+import time
 import uuid
 from concurrent.futures import Executor, Future
 from dataclasses import dataclass, field
@@ -67,18 +68,28 @@ class AdaptiveSchedulerExecutorBase(Executor):
 
 
 class SLURMTask(Future):
-    def __init__(self, executor: SLURMExecutor, id_: tuple[int, int]) -> None:
+    def __init__(
+        self,
+        executor: SLURMExecutor,
+        id_: tuple[int, int],
+        min_load_interval: float = 1.0,
+    ) -> None:
         super().__init__()
         self.executor = executor
         self.id_ = id_
         self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
         self._last_mtime: float = 0
+        self.min_load_interval: float = min_load_interval
 
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished."""
-        index = self.id_[1]
+        i_learner, index = self.id_
         learner, fname = self._learner_and_fname(load=False)
-
+        assert self.executor._run_manager is not None
+        last_load_time = self.executor._run_manager._last_load_time[i_learner]
+        time_since_last_load = time.monotonic() - last_load_time
+        if time_since_last_load < self.min_load_interval:
+            return None
         if self._state == "FINISHED":
             return learner.data[index]
 
