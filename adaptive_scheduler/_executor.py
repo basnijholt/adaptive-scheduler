@@ -103,6 +103,7 @@ class SLURMTask(Future):
         time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
             return None
+
         try:
             mtime = os.path.getmtime(fname)  # noqa: PTH204
         except FileNotFoundError:
@@ -110,8 +111,8 @@ class SLURMTask(Future):
 
         if self._last_mtime == mtime:
             return None
-
         self._last_mtime = mtime
+
         learner.load(fname)
         self.executor._run_manager._last_load_time[i_learner] = now
 
@@ -125,6 +126,9 @@ class SLURMTask(Future):
         if self._state == "PENDING":
             self._get()
         return f"SLURMTask(id_={self.id_}, state={self._state})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     def _learner_and_fname(self, *, load: bool = True) -> tuple[SequenceLearner, str | Path]:
         i_learner, _ = self.id_
