@@ -395,4 +395,6 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
             self._run_manager.start()
         return self._run_manager
 
-    def cleanup(self) -> None: ...
+    def cleanup(self) -> None:
+        assert self._run_manager is not None
+        self._run_manager.cleanup(remove_old_logs_folder=True)
