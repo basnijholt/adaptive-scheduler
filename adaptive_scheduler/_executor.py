@@ -182,7 +182,8 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
         The name of the job.
     folder
         The folder to save the adaptive_scheduler files such as logs, database,
-        and ``.sbatch`` files in.
+        ``.sbatch``, pickled tasks, and results files in. If the folder exists and has
+        results, the results will be loaded!
     partition
         The partition to use. If None, then the default partition will be used.
         (The one marked with a * in `sinfo`). Use
@@ -271,9 +272,9 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
     # Same as slurm_run, except it has no learners, fnames, dependencies and initializers.
     # Additionally, the type hints for scheduler arguments are singular instead of tuples.
 
-    # Specific to slurm_run
+    # slurm_run: Specific to slurm_run
     name: str = "adaptive-scheduler"
-    folder: str | Path = ""
+    folder: str | Path | None = None  # slurm_run has no None default
     # slurm_run: SLURM scheduler arguments
     partition: str | None = None
     nodes: int | None = 1
