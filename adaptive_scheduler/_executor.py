@@ -17,7 +17,12 @@ import adaptive_scheduler
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-    from adaptive_scheduler.utils import _DATAFRAME_FORMATS, EXECUTOR_TYPES, GoalTypes
+    from adaptive_scheduler.utils import (
+        _DATAFRAME_FORMATS,
+        EXECUTOR_TYPES,
+        LOKY_START_METHODS,
+        GoalTypes,
+    )
 
 
 class AdaptiveSchedulerExecutorBase(Executor):
@@ -165,29 +170,47 @@ class SLURMTask(Future):
 
 @dataclass
 class SLURMExecutor(AdaptiveSchedulerExecutorBase):
+    # Same as slurm_run, except it has no dependencies and initializers.
+    # Additionally, the type hints for scheduler arguments are singular instead of tuples.
+
+    # Specific to slurm_run
+    name: str = "adaptive-scheduler"
+    folder: str | Path = ""
+    # SLURM scheduler arguments
     partition: str | None = None
     nodes: int | None = 1
-    cores_per_node: int | None = 1
-    goal: GoalTypes | None = None
-    folder: Path | None = None
-    name: str = "adaptive"
+    cores_per_node: int | None = None
     num_threads: int = 1
-    save_interval: float = 300
-    log_interval: float = 300
-    job_manager_interval: float = 60
-    cleanup_first: bool = True
-    save_dataframe: bool = True
-    dataframe_format: _DATAFRAME_FORMATS = "pickle"
-    max_fails_per_job: int = 50
-    max_simultaneous_jobs: int = 100
     exclusive: bool = False
     executor_type: EXECUTOR_TYPES = "process-pool"
     extra_scheduler: list[str] | None = None
+    # Same as RunManager below (except dependencies and initializers)
+    goal: GoalTypes | None = None
+    check_goal_on_start: bool = True
+    runner_kwargs: dict | None = None
+    url: str | None = None
+    save_interval: float = 300
+    log_interval: float = 300
+    job_manager_interval: float = 60
+    kill_interval: float = 60
+    kill_on_error: str | Callable[[list[str]], bool] | None = "srun: error:"
+    overwrite_db: bool = True
+    job_manager_kwargs: dict[str, Any] | None = None
+    kill_manager_kwargs: dict[str, Any] | None = None
+    loky_start_method: LOKY_START_METHODS = "loky"
+    cleanup_first: bool = True
+    save_dataframe: bool = True
+    dataframe_format: _DATAFRAME_FORMATS = "pickle"
+    max_log_lines: int = 500
+    max_fails_per_job: int = 50
+    max_simultaneous_jobs: int = 100
+    quiet: bool = True  # `slurm_run` defaults to `False`
+    # RunManager arguments
     extra_run_manager_kwargs: dict[str, Any] | None = None
     extra_scheduler_kwargs: dict[str, Any] | None = None
+    # Internal
     _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
     _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
-    _quiet: bool = True
     _run_manager: adaptive_scheduler.RunManager | None = None
 
     def __post_init__(self) -> None:
@@ -214,7 +237,7 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
         for func, args_kwargs_list in self._sequences.items():
             learner = SequenceLearner(func, args_kwargs_list)
             learners.append(learner)
-            assert self.folder is not None
+            assert isinstance(self.folder, Path)
             fnames.append(self.folder / f"{func.__name__}.pickle")
         return learners, fnames
 
@@ -224,27 +247,41 @@ class SLURMExecutor(AdaptiveSchedulerExecutorBase):
         self._run_manager = adaptive_scheduler.slurm_run(
             learners=learners,
             fnames=fnames,
+            # Specific to slurm_run
+            name=self.name,
+            folder=self.folder,
+            # SLURM scheduler arguments
             partition=self.partition,
             nodes=self.nodes,
             cores_per_node=self.cores_per_node,
-            goal=self.goal,
-            folder=self.folder,
-            name=self.name,
             num_threads=self.num_threads,
-            save_interval=self.save_interval,
-            log_interval=self.log_interval,
-            job_manager_interval=self.job_manager_interval,
-            cleanup_first=self.cleanup_first,
-            save_dataframe=self.save_dataframe,
-            dataframe_format=self.dataframe_format,
-            max_fails_per_job=self.max_fails_per_job,
-            max_simultaneous_jobs=self.max_simultaneous_jobs,
             exclusive=self.exclusive,
             executor_type=self.executor_type,
             extra_scheduler=self.extra_scheduler,
+            # Same as RunManager below (except job_name, move_old_logs_to, and db_fname)
+            goal=self.goal,
+            check_goal_on_start=self.check_goal_on_start,
+            runner_kwargs=self.runner_kwargs,
+            url=self.url,
+            save_interval=self.save_interval,
+            log_interval=self.log_interval,
+            job_manager_interval=self.job_manager_interval,
+            kill_interval=self.kill_interval,
+            kill_on_error=self.kill_on_error,
+            overwrite_db=self.overwrite_db,
+            job_manager_kwargs=self.job_manager_kwargs,
+            kill_manager_kwargs=self.kill_manager_kwargs,
+            loky_start_method=self.loky_start_method,
+            cleanup_first=self.cleanup_first,
+            save_dataframe=self.save_dataframe,
+            dataframe_format=self.dataframe_format,
+            max_log_lines=self.max_log_lines,
+            max_fails_per_job=self.max_fails_per_job,
+            max_simultaneous_jobs=self.max_simultaneous_jobs,
+            quiet=self.quiet,
+            # RunManager arguments
             extra_run_manager_kwargs=self.extra_run_manager_kwargs,
             extra_scheduler_kwargs=self.extra_scheduler_kwargs,
-            quiet=self._quiet,
         )
         if start:
             self._run_manager.start()

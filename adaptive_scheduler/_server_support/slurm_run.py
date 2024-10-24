@@ -27,7 +27,7 @@ def slurm_run(
     fnames: list[str] | list[Path],
     *,
     # Specific to slurm_run
-    name: str = "adaptive",
+    name: str = "adaptive-scheduler",
     folder: str | Path = "",
     # SLURM scheduler arguments
     partition: str | tuple[str | Callable[[], str], ...] | None = None,
