@@ -86,8 +86,9 @@ class SLURMTask(Future):
         i_learner, index = self.id_
         learner, fname = self._learner_and_fname(load=False)
         assert self.executor._run_manager is not None
-        last_load_time = self.executor._run_manager._last_load_time[i_learner]
-        time_since_last_load = time.monotonic() - last_load_time
+        last_load_time = self.executor._run_manager._last_load_time.get(i_learner, 0)
+        now = time.monotonic()
+        time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
             return None
         if self._state == "FINISHED":
@@ -103,6 +104,7 @@ class SLURMTask(Future):
 
         self._last_mtime = mtime
         learner.load(fname)
+        self.executor._run_manager._last_load_time[i_learner] = now
 
         if index in learner.data:
             result = learner.data[index]
