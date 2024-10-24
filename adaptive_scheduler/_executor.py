@@ -68,6 +68,10 @@ class AdaptiveSchedulerExecutorBase(Executor):
 
 
 class SLURMTask(Future):
+    """A `Future` that loads the result from a `SequenceLearner`."""
+
+    __slots__ = ("executor", "id_", "_state", "_last_mtime", "min_load_interval")
+
     def __init__(
         self,
         executor: SLURMExecutor,
