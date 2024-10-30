@@ -192,7 +192,7 @@ def _uuid_with_datetime() -> str:
     return f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex}"  # noqa: DTZ005
 
 
-class _ArgsSplatter:
+class _SerializableFunctionSplatter:
     def __init__(self, func: Callable[..., Any]) -> None:
         self.func = func
 
@@ -372,7 +372,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         learners = []
         fnames = []
         for func, args_kwargs_list in self._sequences.items():
-            learner = SequenceLearner(_ArgsSplatter(func), args_kwargs_list)
+            learner = SequenceLearner(_SerializableFunctionSplatter(func), args_kwargs_list)
             learners.append(learner)
             assert isinstance(self.folder, Path)
             name = func.__name__ if hasattr(func, "__name__") else ""
