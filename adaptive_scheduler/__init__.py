@@ -5,6 +5,7 @@ from adaptive_scheduler._executor import SlurmExecutor, SlurmTask
 from adaptive_scheduler._version import __version__
 from adaptive_scheduler.scheduler import PBS, SLURM
 from adaptive_scheduler.server_support import (
+    MultiRunManager,
     RunManager,
     slurm_run,
     start_one_by_one,
@@ -23,4 +24,5 @@ __all__ = [
     "utils",
     "SlurmExecutor",
     "SlurmTask",
+    "MultiRunManager",
 ]
