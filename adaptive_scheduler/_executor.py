@@ -127,7 +127,7 @@ class SlurmTask(Future):
 
         learner.load(fname)
         self._load_time = time.monotonic() - now
-        self.min_load_interval = max(1.0, 20 * self._load_time)
+        self.min_load_interval = max(1.0, 20.0 * self._load_time)
         self.executor._run_manager._last_load_time[idx_learner] = now
 
         if idx_data in learner.data:
