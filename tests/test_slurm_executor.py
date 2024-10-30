@@ -38,11 +38,11 @@ def executor(tmp_path: Path) -> SlurmExecutor:
 @pytest.mark.usefixtures("_mock_slurm_queue")
 def test_submit_single_task(executor: SlurmExecutor) -> None:
     """Test submitting a single task."""
-    task = executor.submit(example_func, 1.0)
+    task = executor.submit(example_func, 1.0, 2.0)
     assert task.task_id.learner_index == 0
     assert task.task_id.sequence_index == 0
     assert executor._sequence_mapping[example_func] == 0
-    assert executor._sequences[example_func] == [1.0]
+    assert executor._sequences[example_func] == [(1.0, 2.0)]
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
@@ -53,7 +53,7 @@ def test_submit_multiple_tasks_same_function(executor: SlurmExecutor) -> None:
     assert all(task.task_id.learner_index == 0 for task in tasks)
     assert [task.task_id.sequence_index for task in tasks] == [0, 1, 2]
     assert executor._sequence_mapping[example_func] == 0
-    assert executor._sequences[example_func] == [1.0, 2.0, 3.0]
+    assert executor._sequences[example_func] == [(1.0,), (2.0,), (3.0,)]
 
 
 def another_func(x: float) -> float:
@@ -80,14 +80,6 @@ def test_submit_with_kwargs_raises(executor: SlurmExecutor) -> None:
     """Test that submitting with kwargs raises ValueError."""
     with pytest.raises(ValueError, match="Keyword arguments are not supported"):
         executor.submit(example_func, x=1.0)
-
-
-@pytest.mark.usefixtures("_mock_slurm_partitions")
-@pytest.mark.usefixtures("_mock_slurm_queue")
-def test_submit_multiple_args_raises(executor: SlurmExecutor) -> None:
-    """Test that submitting with multiple args raises ValueError."""
-    with pytest.raises(ValueError, match="Exactly one argument is required"):
-        executor.submit(example_func, 1.0, 2.0)
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
