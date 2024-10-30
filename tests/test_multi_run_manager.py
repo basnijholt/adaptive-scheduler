@@ -134,10 +134,12 @@ def test_multi_run_manager_create_widget(mock_run_manager: RunManager) -> None:
     """Test creating the widget for MultiRunManager."""
     mrm = MultiRunManager()
     mrm.add_run_manager(mock_run_manager)
-    widget = mrm._create_widget()
-    assert isinstance(widget, ipw.Tab)
-    assert len(widget.children) == 1
-    assert widget.get_title(0) == "RunManager: test-rm"
+    vbox = mrm._create_widget()
+    assert isinstance(vbox, ipw.VBox)
+    tab = vbox.children[1]
+    assert isinstance(tab, ipw.Tab)
+    assert len(tab.children) == 1
+    assert tab.get_title(0) == "RunManager: test-rm"
 
 
 def test_multi_run_manager_update_widget(mock_run_manager: RunManager) -> None:
@@ -153,16 +155,18 @@ def test_multi_run_manager_update_widget(mock_run_manager: RunManager) -> None:
     )
     mrm.add_run_manager(new_rm)
     assert len(mrm._widget.children) == 2
-    assert mrm._widget.get_title(1) == "RunManager: new-rm"
+    assert mrm._widget.children[1].get_title(1) == "RunManager: new-rm"
 
 
 def test_multi_run_manager_info(mock_run_manager: RunManager) -> None:
     """Test the info method of MultiRunManager."""
     mrm = MultiRunManager()
     mrm.add_run_manager(mock_run_manager)
-    info_widget = mrm.info()
-    assert isinstance(info_widget, ipw.Tab)
-    assert len(info_widget.children) == 1
+    vbox = mrm.info()
+    assert isinstance(vbox, ipw.VBox)
+    tab = vbox.children[1]
+    assert isinstance(tab, ipw.Tab)
+    assert len(tab.children) == 1
 
 
 def test_multi_run_manager_repr_html(mock_run_manager: RunManager) -> None:
