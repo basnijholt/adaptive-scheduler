@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import functools
 import os
 import time
 import uuid
@@ -73,7 +74,7 @@ class AdaptiveSchedulerExecutorBase(Executor):
 
 
 class TaskID(NamedTuple):
-    learner_inded: int
+    learner_index: int
     sequence_index: int
 
 
@@ -97,13 +98,13 @@ class SlurmTask(Future):
 
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished."""
-        i_learner, index = self.task_id
-        learner, fname = self._learner_and_fname(load=False)
+        idx_learner, idx_data = self.task_id
+        learner, fname = self._learner_and_fname
         if self._state == "FINISHED":
-            return learner.data[index]
+            return learner.data[idx_data]
 
         assert self.executor._run_manager is not None
-        last_load_time = self.executor._run_manager._last_load_time.get(i_learner, 0)
+        last_load_time = self.executor._run_manager._last_load_time.get(idx_learner, 0)
         now = time.monotonic()
         time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
@@ -119,10 +120,10 @@ class SlurmTask(Future):
         self._last_size = size
 
         learner.load(fname)
-        self.executor._run_manager._last_load_time[i_learner] = now
+        self.executor._run_manager._last_load_time[idx_learner] = now
 
-        if index in learner.data:
-            result = learner.data[index]
+        if idx_data in learner.data:
+            result = learner.data[idx_data]
             self.set_result(result)
             return result
         return None
@@ -135,14 +136,13 @@ class SlurmTask(Future):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def _learner_and_fname(self, *, load: bool = True) -> tuple[SequenceLearner, str | Path]:
-        i_learner, _ = self.task_id
+    @functools.cached_property
+    def _learner_and_fname(self) -> tuple[SequenceLearner, str | Path]:
+        idx_learner, _ = self.task_id
         run_manager = self.executor._run_manager
         assert run_manager is not None
-        learner: SequenceLearner = run_manager.learners[i_learner]  # type: ignore[index]
-        fname = run_manager.fnames[i_learner]
-        if load and not learner.done():
-            learner.load(fname)
+        learner: SequenceLearner = run_manager.learners[idx_learner]  # type: ignore[index]
+        fname = run_manager.fnames[idx_learner]
         return learner, fname
 
     def result(self, timeout: float | None = None) -> Any:
