@@ -432,11 +432,12 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         assert self._run_manager is not None
         self._run_manager.cleanup(remove_old_logs_folder=True)
 
-    def new(self, update: dict[str, Any]) -> SlurmExecutor:
+    def new(self, update: dict[str, Any] | None = None) -> SlurmExecutor:
         """Create a new SlurmExecutor with the same parameters."""
         data = asdict(self)
         data["_run_manager"] = None
         data["_sequences"] = {}
         data["_sequence_mapping"] = {}
-        data.update(update)
+        if update is not None:
+            data.update(update)
         return SlurmExecutor(**data)
