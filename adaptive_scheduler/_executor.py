@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import datetime
 import functools
 import os
 import time
@@ -96,12 +97,17 @@ class SlurmTask(Future):
         self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
         self._last_size: float = 0
 
-    def _get(self) -> Any | None:
+    def _get(self) -> Any | None:  # noqa: PLR0911
         """Updates the state of the task and returns the result if the task is finished."""
         idx_learner, idx_data = self.task_id
         learner, fname = self._learner_and_fname
         if self._state == "FINISHED":
             return learner.data[idx_data]
+
+        if learner.done():
+            result = learner.data[idx_data]
+            self.set_result(result)
+            return result
 
         assert self.executor._run_manager is not None
         last_load_time = self.executor._run_manager._last_load_time.get(idx_learner, 0)
@@ -175,6 +181,12 @@ class SlurmTask(Future):
     async def __aiter__(self) -> Any:
         await self
         return self.result()
+
+
+def _uuid_with_datetime() -> str:
+    """Return a UUID with the current datetime."""
+    # YYYYMMDD-HHMMSS-UUID
+    return f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex}"  # noqa: DTZ005
 
 
 @dataclass
@@ -323,7 +335,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     def __post_init__(self) -> None:
         if self.folder is None:
-            self.folder = Path.cwd() / ".adaptive_scheduler" / uuid.uuid4().hex  # type: ignore[operator]
+            self.folder = Path.cwd() / ".adaptive_scheduler" / _uuid_with_datetime()  # type: ignore[operator]
         else:
             self.folder = Path(self.folder)
 
