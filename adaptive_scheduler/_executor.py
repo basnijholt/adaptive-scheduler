@@ -80,7 +80,7 @@ class TaskID(NamedTuple):
 class SlurmTask(Future):
     """A `Future` that loads the result from a `SequenceLearner`."""
 
-    __slots__ = ("executor", "task_id", "_state", "_last_mtime", "min_load_interval")
+    __slots__ = ("executor", "task_id", "_state", "_last_size", "min_load_interval")
 
     def __init__(
         self,
@@ -93,7 +93,7 @@ class SlurmTask(Future):
         self.task_id = task_id
         self.min_load_interval: float = min_load_interval
         self._state: Literal["PENDING", "RUNNING", "FINISHED", "CANCELLED"] = "PENDING"
-        self._last_mtime: float = 0
+        self._last_size: float = 0
 
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished."""
@@ -110,13 +110,13 @@ class SlurmTask(Future):
             return None
 
         try:
-            mtime = os.path.getmtime(fname)  # noqa: PTH204
+            size = os.path.getsize(fname)  # noqa: PTH202
         except FileNotFoundError:
             return None
 
-        if self._last_mtime == mtime:
+        if self._last_size == size:
             return None
-        self._last_mtime = mtime
+        self._last_size = size
 
         learner.load(fname)
         self.executor._run_manager._last_load_time[i_learner] = now
