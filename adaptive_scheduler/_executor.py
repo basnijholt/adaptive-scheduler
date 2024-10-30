@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+import cloudpickle
 from adaptive import SequenceLearner
 
 import adaptive_scheduler
@@ -191,6 +192,20 @@ def _uuid_with_datetime() -> str:
     return f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex}"  # noqa: DTZ005
 
 
+class _ArgsSplatter:
+    def __init__(self, func: Callable[..., Any]) -> None:
+        self.func = func
+
+    def __call__(self, args: Any) -> Any:
+        return self.func(*args)
+
+    def __getstate__(self) -> dict[str, Any]:
+        return cloudpickle.dumps(self.func)
+
+    def __setstate__(self, state: bytes) -> None:
+        self.func = cloudpickle.loads(state)
+
+
 @dataclass
 class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     """An executor that runs jobs on SLURM.
@@ -347,12 +362,9 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             raise ValueError(msg)
         if fn not in self._sequence_mapping:
             self._sequence_mapping[fn] = len(self._sequence_mapping)
-        if len(args) != 1:
-            msg = "Exactly one argument is required"
-            raise ValueError(msg)
         sequence = self._sequences.setdefault(fn, [])
         i = len(sequence)
-        sequence.append(args[0])
+        sequence.append(args)
         task_id = TaskID(self._sequence_mapping[fn], i)
         return SlurmTask(self, task_id)
 
@@ -360,7 +372,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         learners = []
         fnames = []
         for func, args_kwargs_list in self._sequences.items():
-            learner = SequenceLearner(func, args_kwargs_list)
+            learner = SequenceLearner(_ArgsSplatter(func), args_kwargs_list)
             learners.append(learner)
             assert isinstance(self.folder, Path)
             name = func.__name__ if hasattr(func, "__name__") else ""
@@ -420,10 +432,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         assert self._run_manager is not None
         self._run_manager.cleanup(remove_old_logs_folder=True)
 
-    def new(self) -> SlurmExecutor:
+    def new(self, update: dict[str, Any]) -> SlurmExecutor:
         """Create a new SlurmExecutor with the same parameters."""
         data = asdict(self)
         data["_run_manager"] = None
         data["_sequences"] = {}
         data["_sequence_mapping"] = {}
+        data.update(update)
         return SlurmExecutor(**data)
