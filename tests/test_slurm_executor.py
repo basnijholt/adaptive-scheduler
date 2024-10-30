@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+import time
+from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
+import adaptive
 import pytest
 
 from adaptive_scheduler import SlurmExecutor
@@ -19,11 +23,11 @@ def example_func(x: float) -> float:
 
 
 @pytest.fixture()
-def executor() -> SlurmExecutor:
+def executor(tmp_path: Path) -> SlurmExecutor:
     """Create a SlurmExecutor instance."""
     return SlurmExecutor(
         name="test",
-        folder=None,  # Will create a temporary folder
+        folder=tmp_path,
         save_interval=1,
         log_interval=1,
         job_manager_interval=1,
@@ -173,3 +177,106 @@ def test_cleanup(executor: SlurmExecutor) -> None:
     executor.finalize(start=False)
 
     executor.cleanup()
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_get_before_finalize(executor: SlurmExecutor) -> None:
+    """Test that _get before finalize returns None."""
+    task = executor.submit(example_func, 1.0)
+    with pytest.raises(AssertionError, match="RunManager not initialized"):
+        task._get()
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_get_with_missing_file(executor: SlurmExecutor) -> None:
+    """Test that _get with missing file returns None."""
+    task = executor.submit(example_func, 1.0)
+    executor.finalize(start=False)
+    assert task._get() is None  # File doesn't exist yet
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_get(executor: SlurmExecutor) -> None:
+    """Test that _get gets the data."""
+    task = executor.submit(example_func, 1.0)
+    executor.finalize(start=False)
+
+    # First _get should try to load
+    assert task._get() is None
+
+    # Create a dummy file
+    learner, fname = task._learner_and_fname
+    adaptive.runner.simple(learner)
+    learner.save(fname)
+
+    # Does not respect min_load_interval because data is already in memory
+    assert task._get() == 1.0
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_get_adapts_load_interval(executor: SlurmExecutor) -> None:
+    """Test that _get adapts min_load_interval based on load time."""
+    task = executor.submit(example_func, 1.0)
+    executor.finalize(start=False)
+
+    # Mock a slow load operation
+    def slow_load(*args: Any) -> None:  # noqa: ARG001
+        time.sleep(0.1)  # Simulate slow load
+
+    learner, fname = task._learner_and_fname
+    with patch.object(learner, "load", side_effect=slow_load):
+        # Create a dummy file
+        with open(fname, "wb") as f:  # noqa: PTH123
+            f.write(b"dummy")
+
+        task._get()
+        assert task.min_load_interval >= 2.0  # Should be at least 20x the load time
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_result_timeout_not_implemented(executor: SlurmExecutor) -> None:
+    """Test that result() with timeout raises NotImplementedError."""
+    task = executor.submit(example_func, 1.0)
+    with pytest.raises(NotImplementedError, match="Timeout not implemented"):
+        task.result(timeout=1.0)
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_repr_triggers_get(executor: SlurmExecutor) -> None:
+    """Test that repr triggers _get."""
+    task = executor.submit(example_func, 1.0)
+    executor.finalize(start=False)
+
+    assert "PENDING" in repr(task)
+
+    # Mock learner.done() to return True
+    learner, _ = task._learner_and_fname
+    with patch.object(learner, "done", return_value=True), patch.dict(learner.data, {0: 42}):
+        assert "FINISHED" in repr(task)
+
+
+@pytest.mark.asyncio()
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+async def test_task_await(executor: SlurmExecutor) -> None:
+    """Test awaiting a task."""
+    task = executor.submit(example_func, 1.0)
+    executor.finalize(start=False)
+
+    # Create a background task to simulate result appearing
+    async def simulate_result() -> None:
+        await asyncio.sleep(0.1)
+        learner, fname = task._learner_and_fname
+        learner.data[0] = 42
+        with patch.object(learner, "done", return_value=True):
+            task._get()
+
+    asyncio.create_task(simulate_result())  # noqa: RUF006
+    result = await task
+    assert result == 42
