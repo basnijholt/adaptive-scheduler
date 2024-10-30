@@ -32,7 +32,7 @@ class AdaptiveSchedulerExecutorBase(Executor):
 
     @abc.abstractmethod
     def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Future:
-        pass
+        """Submit a task to the executor."""
 
     @abc.abstractmethod
     def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
