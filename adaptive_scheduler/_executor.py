@@ -102,7 +102,8 @@ class SlurmTask(Future):
     async def _background_check(self) -> None:
         """Periodically check if the task is done."""
         while not self.done():
-            self._get()
+            if self.executor._run_manager is not None:
+                self._get()
             await asyncio.sleep(1)
 
     def _get(self) -> Any | None:  # noqa: PLR0911
@@ -211,7 +212,7 @@ class _SerializableFunctionSplatter:
     def __call__(self, args: Any) -> Any:
         return self.func(*args)
 
-    def __getstate__(self) -> dict[str, Any]:
+    def __getstate__(self) -> bytes:
         return cloudpickle.dumps(self.func)
 
     def __setstate__(self, state: bytes) -> None:
@@ -348,7 +349,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     kill_manager_kwargs: dict[str, Any] | None = None
     loky_start_method: LOKY_START_METHODS = "loky"
     cleanup_first: bool = True
-    save_dataframe: bool = True
+    save_dataframe: bool = False  # `slurm_run` defaults to `True`
     dataframe_format: _DATAFRAME_FORMATS = "pickle"
     max_log_lines: int = 500
     max_fails_per_job: int = 50
