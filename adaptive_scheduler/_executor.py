@@ -83,8 +83,6 @@ class TaskID(NamedTuple):
 class SlurmTask(Future):
     """A `Future` that loads the result from a `SequenceLearner`."""
 
-    __slots__ = ("executor", "task_id", "_state", "_last_size", "min_load_interval", "_load_time")
-
     def __init__(
         self,
         executor: SlurmExecutor,
@@ -98,12 +96,22 @@ class SlurmTask(Future):
         self._last_size: float = 0
         self._load_time: float = 0
 
+        loop = asyncio.get_event_loop()
+        self._background_task = loop.create_task(self._background_check())
+
+    async def _background_check(self) -> None:
+        """Periodically check if the task is done."""
+        while not self.done():
+            self._get()
+            await asyncio.sleep(1)
+
     def _get(self) -> Any | None:  # noqa: PLR0911
         """Updates the state of the task and returns the result if the task is finished."""
+        if self.done():
+            return super().result(timeout=0)
+
         idx_learner, idx_data = self.task_id
         learner, fname = self._learner_and_fname
-        if self._state == "FINISHED":
-            return learner.data[idx_data]
 
         if learner.done():
             result = learner.data[idx_data]
@@ -137,14 +145,6 @@ class SlurmTask(Future):
             return result
         return None
 
-    def __repr__(self) -> str:
-        if self._state == "PENDING":
-            self._get()
-        return f"SLURMTask(task_id={self.task_id}, state={self._state})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
     @functools.cached_property
     def _learner_and_fname(self) -> tuple[SequenceLearner, str | Path]:
         idx_learner, _ = self.task_id
@@ -155,35 +155,47 @@ class SlurmTask(Future):
         return learner, fname
 
     def result(self, timeout: float | None = None) -> Any:
+        """Return the result of the future if available.
+
+        Since this is an async task, this method will only return if the result
+        is immediately available. Use `await task` to wait for the result.
+        """
         if timeout is not None:
             msg = "Timeout not implemented for SLURMTask"
             raise NotImplementedError(msg)
+
         if self.executor._run_manager is None:
             msg = "RunManager not initialized. Call finalize() first."
             raise RuntimeError(msg)
-        result = self._get()
-        if self._state == "FINISHED":
-            return result
-        msg = "Task not finished"
-        raise RuntimeError(msg)
+
+        # Do one check
+        self._get()
+
+        if not self.done():
+            msg = (
+                "Result not immediately available. "
+                "Use 'await task' to wait for the result asynchronously."
+            )
+            raise RuntimeError(msg)
+
+        return super().result(timeout=0)  # timeout=0 makes it non-blocking
+
+    def cancel(self) -> bool:
+        """Cancel the future and its background task."""
+        self._background_task.cancel()
+        return super().cancel()
+
+    def __repr__(self) -> str:
+        if not self.done():
+            self._get()
+        return f"SLURMTask(task_id={self.task_id}, state={self._state})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     def __await__(self) -> Any:
-        def wakeup() -> None:
-            if not self.done():
-                self._get()
-                loop.call_later(1, wakeup)  # Schedule next check after 1 second
-            else:
-                fut.set_result(self.result())
-
-        loop = asyncio.get_event_loop()
-        fut = loop.create_future()
-        loop.call_soon(wakeup)
-        yield from fut
-        return self.result()
-
-    async def __aiter__(self) -> Any:
-        await self
-        return self.result()
+        """Allow using 'await task' to wait for the result."""
+        return asyncio.wrap_future(self).__await__()
 
 
 def _uuid_with_datetime() -> str:
@@ -312,11 +324,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     # slurm_run: Specific to slurm_run
     name: str = "adaptive-scheduler"
-    folder: str | Path | None = None  # slurm_run has no None default
+    folder: str | Path | None = None  # `slurm_run` defaults to None
     # slurm_run: SLURM scheduler arguments
     partition: str | None = None
     nodes: int | None = 1
-    cores_per_node: int | None = None
+    cores_per_node: int | None = 1  # `slurm_run` defaults to `None`
     num_threads: int = 1
     exclusive: bool = False
     executor_type: EXECUTOR_TYPES = "process-pool"
