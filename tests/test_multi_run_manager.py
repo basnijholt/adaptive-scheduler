@@ -139,7 +139,7 @@ def test_multi_run_manager_create_widget(mock_run_manager: RunManager) -> None:
     tab = vbox.children[1]
     assert isinstance(tab, ipw.Tab)
     assert len(tab.children) == 1
-    assert tab.get_title(0) == "RunManager: test-rm"
+    assert tab.get_title(0) == "test-rm"
 
 
 def test_multi_run_manager_update_widget(mock_run_manager: RunManager) -> None:
