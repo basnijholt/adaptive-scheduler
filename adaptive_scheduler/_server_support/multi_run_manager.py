@@ -128,7 +128,7 @@ class MultiRunManager:
         children = list(self._info_widgets.values())
         self._tab_widget.children = children
         for i, name in enumerate(self.run_managers.keys()):
-            self._tab_widget.set_title(i, f"RunManager: {name}")
+            self._tab_widget.set_title(i, name)
 
         self._update_all_button = ipw.Button(
             description="Update All",
