@@ -321,19 +321,22 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     """
 
     # Same as slurm_run, except it has no learners, fnames, dependencies and initializers.
-    # Additionally, the type hints for scheduler arguments are singular instead of tuples.
 
     # slurm_run: Specific to slurm_run
     name: str = "adaptive-scheduler"
     folder: str | Path | None = None  # `slurm_run` defaults to None
     # slurm_run: SLURM scheduler arguments
-    partition: str | None = None
-    nodes: int | None = 1
-    cores_per_node: int | None = 1  # `slurm_run` defaults to `None`
-    num_threads: int = 1
-    exclusive: bool = False
-    executor_type: EXECUTOR_TYPES = "process-pool"
-    extra_scheduler: list[str] | None = None
+    partition: str | tuple[str | Callable[[], str], ...] | None = None
+    nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1
+    cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = (
+        1  # `slurm_run` defaults to `None`
+    )
+    num_threads: int | tuple[int | Callable[[], int], ...] = 1
+    exclusive: bool | tuple[bool | Callable[[], bool], ...] = False
+    executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = (
+        "process-pool"
+    )
+    extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None
     # slurm_run: Same as RunManager below (except dependencies and initializers)
     goal: GoalTypes | None = None
     check_goal_on_start: bool = True
