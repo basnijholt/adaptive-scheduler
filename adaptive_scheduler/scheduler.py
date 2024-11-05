@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 import os.path
+import shutil
 import warnings
-from distutils.spawn import find_executable
 
 from adaptive_scheduler._scheduler.base_scheduler import BaseScheduler
 from adaptive_scheduler._scheduler.local import LocalMockScheduler
@@ -38,8 +38,8 @@ def _get_default_scheduler() -> type[BaseScheduler]:
 
     By default it is "SLURM".
     """
-    has_pbs = bool(find_executable("qsub")) and bool(find_executable("qstat"))
-    has_slurm = bool(find_executable("sbatch")) and bool(find_executable("squeue"))
+    has_pbs = bool(shutil.which("qsub")) and bool(shutil.which("qstat"))
+    has_slurm = bool(shutil.which("sbatch")) and bool(shutil.which("squeue"))
 
     default = SLURM
     default_msg = f"We set DefaultScheduler to '{default}'."

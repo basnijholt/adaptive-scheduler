@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 import getpass
 import re
+import shutil
 import subprocess
 import textwrap
-from distutils.spawn import find_executable
 from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, TypeVar
 
@@ -415,7 +415,7 @@ class SLURM(BaseScheduler):
         }  # (key -> length) mapping
 
         slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
-        squeue_executable = find_executable("squeue")
+        squeue_executable = shutil.which("squeue")
         assert isinstance(squeue_executable, str)
         cmd = [
             squeue_executable,
