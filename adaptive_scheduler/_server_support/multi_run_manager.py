@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import ipywidgets as ipw
+from IPython.display import display
 
 from adaptive_scheduler.widgets import _disable_widgets_output_scrollbar, info
 
@@ -178,3 +179,7 @@ class MultiRunManager:
     def _repr_html_(self) -> str:
         """HTML representation for Jupyter notebooks."""
         return self.info()
+
+    def display(self) -> None:
+        """Display the widget."""
+        display(self.info())
