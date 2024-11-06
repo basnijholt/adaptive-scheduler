@@ -158,7 +158,7 @@ class MultiRunManager:
 
             # Update titles
             for i, name in enumerate(self.run_managers.keys()):
-                self._tab_widget.set_title(i, f"RunManager: {name}")
+                self._tab_widget.set_title(i, name)
 
     def _update_all_callback(self, _: ipw.Button) -> None:
         """Callback function for the Update All button."""
