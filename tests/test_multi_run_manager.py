@@ -155,7 +155,7 @@ def test_multi_run_manager_update_widget(mock_run_manager: RunManager) -> None:
     )
     mrm.add_run_manager(new_rm)
     assert len(mrm._widget.children) == 2
-    assert mrm._widget.children[1].get_title(1) == "RunManager: new-rm"
+    assert mrm._widget.children[1].get_title(1) == "new-rm"
 
 
 def test_multi_run_manager_info(mock_run_manager: RunManager) -> None:
