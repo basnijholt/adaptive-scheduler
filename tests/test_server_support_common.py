@@ -18,7 +18,7 @@ from adaptive_scheduler._server_support.common import (
 from .helpers import MockScheduler, temporary_working_directory
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_periodically_clean_ipython_profiles(
     mock_scheduler: MockScheduler,
 ) -> None:
