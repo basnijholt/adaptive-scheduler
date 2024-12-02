@@ -102,7 +102,7 @@ def test_simple_database_get_all(tmp_path: Path) -> None:
     assert done_entries[1][1].fname == "file3.txt"
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_database_manager_start_and_cancel(db_manager: DatabaseManager) -> None:
     """Test starting and canceling the DatabaseManager."""
     db_manager.start()
@@ -172,7 +172,7 @@ def test_database_manager_as_dicts(
     ]
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_database_manager_dispatch_start_stop(
     db_manager: DatabaseManager,
     learners: list[adaptive.Learner1D]
@@ -205,7 +205,7 @@ async def test_database_manager_dispatch_start_stop(
     assert entry.is_done is True
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_database_manager_start_and_update(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
@@ -259,7 +259,7 @@ async def test_database_manager_start_and_update(
     assert entry.job_id is None
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_database_manager_start_stop(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
@@ -322,7 +322,7 @@ async def test_database_manager_start_stop(
         await send_message(socket, start_message)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_database_manager_stop_request_and_requests(
     socket: zmq.asyncio.Socket,
     db_manager: DatabaseManager,
@@ -531,7 +531,7 @@ def test_ensure_str_invalid_input(invalid_input: list[str]) -> None:
         _ensure_str(invalid_input)  # type: ignore[arg-type]
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_dependencies(
     db_manager: DatabaseManager,
     fnames: list[str] | list[Path],
@@ -599,7 +599,7 @@ async def test_dependencies(
         db_manager._choose_fname()
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_replace_learner(db_manager: DatabaseManager) -> None:
     """Test replacing a learner in the DatabaseManager."""
     db_manager.create_empty_db()

@@ -33,7 +33,7 @@ def expected_log_keys(learner: adaptive.BaseLearner) -> list[str]:
     return expected_keys
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_get_log_entry(
     learners: list[adaptive.Learner1D]
     | list[adaptive.BalancingLearner]
@@ -58,7 +58,7 @@ async def test_get_log_entry(
     assert all(key in result for key in expected_keys)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_log_info(
     learners: list[adaptive.Learner1D]
     | list[adaptive.BalancingLearner]
