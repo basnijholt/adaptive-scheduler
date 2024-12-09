@@ -18,13 +18,13 @@ if TYPE_CHECKING:
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
 
 
-@pytest.fixture()
+@pytest.fixture
 def extra_run_manager_kwargs() -> dict[str, Any]:
     """Fixture for creating extra run manager keyword arguments."""
     return {"kill_on_error": "GPU on fire", "loky_start_method": "fork"}
 
 
-@pytest.fixture()
+@pytest.fixture
 def extra_scheduler_kwargs() -> dict[str, Any]:
     """Fixture for creating extra scheduler keyword arguments."""
     return {"mpiexec_executable": "mpiexec"}
