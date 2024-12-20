@@ -106,7 +106,7 @@ def _sort_fnames(
 
     def _vec_timedelta(ts: pd.Timestamp) -> str:
         now = np.datetime64(datetime.now())  # noqa: DTZ005
-        dt = np.timedelta64(now - ts, "s")  # type: ignore[operator]
+        dt = np.timedelta64(now - ts, "s")  # type: ignore[operator, call-overload]
         return f"{dt} ago"
 
     mapping = {
