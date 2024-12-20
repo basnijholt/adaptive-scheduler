@@ -365,6 +365,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
     _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
     _run_manager: adaptive_scheduler.RunManager | None = None
+    size_per_learner: int | None = None
 
     def __post_init__(self) -> None:
         if self.folder is None:
@@ -388,11 +389,21 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         learners = []
         fnames = []
         for func, args_kwargs_list in self._sequences.items():
-            learner = SequenceLearner(_SerializableFunctionSplatter(func), args_kwargs_list)
-            learners.append(learner)
-            assert isinstance(self.folder, Path)
-            name = func.__name__ if hasattr(func, "__name__") else ""
-            fnames.append(self.folder / f"{name}-{uuid.uuid4().hex}.pickle")
+            # Chunk the sequence if size_per_learner is specified
+            if self.size_per_learner is not None:
+                chunked_args_kwargs_list = [
+                    args_kwargs_list[i : i + self.size_per_learner]
+                    for i in range(0, len(args_kwargs_list), self.size_per_learner)
+                ]
+            else:
+                chunked_args_kwargs_list = [args_kwargs_list]
+
+            for chunk in chunked_args_kwargs_list:
+                learner = SequenceLearner(_SerializableFunctionSplatter(func), chunk)
+                learners.append(learner)
+                assert isinstance(self.folder, Path)
+                name = func.__name__ if hasattr(func, "__name__") else ""
+                fnames.append(self.folder / f"{name}-{uuid.uuid4().hex}.pickle")
         return learners, fnames
 
     def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
