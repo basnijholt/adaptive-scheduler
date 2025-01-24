@@ -36,8 +36,11 @@ class AdaptiveSchedulerExecutorBase(Executor):
         """Submit a task to the executor."""
 
     @abc.abstractmethod
-    def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
-        """Finalize the executor and return the RunManager."""
+    def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager | None:
+        """Finalize the executor and return the RunManager.
+
+        Returns None if no learners were submitted.
+        """
 
     def map(  # type: ignore[override]
         self,
@@ -408,11 +411,13 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
                 fnames.append(self.folder / f"{name}-{i}-{uuid.uuid4().hex}.pickle")
         return learners, fnames
 
-    def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager:
+    def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager | None:
         if self._run_manager is not None:
             msg = "RunManager already initialized. Create a new SlurmExecutor instance."
             raise RuntimeError(msg)
         learners, fnames = self._to_learners()
+        if not learners:
+            return None
         assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
             learners=learners,
