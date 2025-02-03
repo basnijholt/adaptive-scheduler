@@ -17,3 +17,8 @@ Scheduler specific
 
 .. toctree::
     adaptive_scheduler.scheduler
+
+.. automodule:: adaptive_scheduler
+    :members:
+    :undoc-members:
+    :show-inheritance:
