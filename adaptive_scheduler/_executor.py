@@ -114,16 +114,25 @@ class SlurmTask(Future):
         if self.done():
             return super().result(timeout=0)
 
-        idx_learner, idx_data = self.task_id
-        learner, fname = self._learner_and_fname
+        func_id, global_index = self.task_id
+        try:
+            learner_idx, local_index = self.executor._task_mapping[(func_id, global_index)]
+        except KeyError as e:
+            msg = "Task mapping not found; finalize() must be called first."
+            raise RuntimeError(msg) from e
+        # Now retrieve the correct learner and filename:
+        run_manager = self.executor._run_manager
+        assert run_manager is not None, "RunManager not initialized"
+        learner = run_manager.learners[learner_idx]
+        fname = run_manager.fnames[learner_idx]
 
         if learner.done():
-            result = learner.data[idx_data]
+            result = learner.data[local_index]
             self.set_result(result)
             return result
 
         assert self.executor._run_manager is not None
-        last_load_time = self.executor._run_manager._last_load_time.get(idx_learner, 0)
+        last_load_time = self.executor._run_manager._last_load_time.get(learner_idx, 0)
         now = time.monotonic()
         time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
@@ -141,10 +150,10 @@ class SlurmTask(Future):
         learner.load(fname)
         self._load_time = time.monotonic() - now
         self.min_load_interval = max(1.0, 20.0 * self._load_time)
-        self.executor._run_manager._last_load_time[idx_learner] = now
+        self.executor._run_manager._last_load_time[learner_idx] = now
 
-        if idx_data in learner.data:
-            result = learner.data[idx_data]
+        if local_index in learner.data:
+            result = learner.data[local_index]
             self.set_result(result)
             return result
         return None
@@ -371,6 +380,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
     _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
     _run_manager: adaptive_scheduler.RunManager | None = None
+    _task_mapping: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.folder is None:
@@ -390,32 +400,48 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         task_id = TaskID(self._sequence_mapping[fn], i)
         return SlurmTask(self, task_id)
 
-    def _to_learners(self) -> tuple[list[SequenceLearner], list[Path]]:
+    def _to_learners(
+        self,
+    ) -> tuple[
+        list[SequenceLearner],
+        list[Path],
+        dict[tuple[int, int], tuple[int, int]],
+    ]:
         learners = []
         fnames = []
-        for func, args_kwargs_list in self._sequences.items():
-            # Chunk the sequence if size_per_learner is specified
+        task_mapping = {}
+        learner_idx = 0
+        for func, args_list in self._sequences.items():
+            func_id = self._sequence_mapping[func]
+            # Chunk the sequence if size_per_learner is set; otherwise one chunk.
             if self.size_per_learner is not None:
-                chunked_args_kwargs_list = [
-                    args_kwargs_list[i : i + self.size_per_learner]
-                    for i in range(0, len(args_kwargs_list), self.size_per_learner)
+                chunked_args = [
+                    args_list[i : i + self.size_per_learner]
+                    for i in range(0, len(args_list), self.size_per_learner)
                 ]
             else:
-                chunked_args_kwargs_list = [args_kwargs_list]
+                chunked_args = [args_list]
 
-            for i, chunk in enumerate(chunked_args_kwargs_list):
+            global_index = 0  # global index for tasks of this function
+            for chunk in chunked_args:
+                # Map each task in the chunk: global index -> (current learner, local index)
+                for local_index in range(len(chunk)):
+                    task_mapping[(func_id, global_index)] = (learner_idx, local_index)
+                    global_index += 1
+
                 learner = SequenceLearner(_SerializableFunctionSplatter(func), chunk)
                 learners.append(learner)
+                name = func.__name__ if hasattr(func, "__name__") else "func"
                 assert isinstance(self.folder, Path)
-                name = func.__name__ if hasattr(func, "__name__") else ""
-                fnames.append(self.folder / f"{name}-{i}-{uuid.uuid4().hex}.pickle")
-        return learners, fnames
+                fnames.append(self.folder / f"{name}-{learner_idx}-{uuid.uuid4().hex}.pickle")
+                learner_idx += 1
+        return learners, fnames, task_mapping
 
     def finalize(self, *, start: bool = True) -> adaptive_scheduler.RunManager | None:
         if self._run_manager is not None:
             msg = "RunManager already initialized. Create a new SlurmExecutor instance."
             raise RuntimeError(msg)
-        learners, fnames = self._to_learners()
+        learners, fnames, self._task_mapping = self._to_learners()
         if not learners:
             return None
         assert self.folder is not None

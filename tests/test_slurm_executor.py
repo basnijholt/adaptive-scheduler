@@ -176,7 +176,7 @@ def test_cleanup(executor: SlurmExecutor) -> None:
 def test_task_get_before_finalize(executor: SlurmExecutor) -> None:
     """Test that _get before finalize returns None."""
     task = executor.submit(example_func, 1.0)
-    with pytest.raises(AssertionError, match="RunManager not initialized"):
+    with pytest.raises(RuntimeError, match="Task mapping not found; finalize()"):
         task._get()
 
 
@@ -272,3 +272,108 @@ async def test_task_await(executor: SlurmExecutor) -> None:
     asyncio.create_task(simulate_result())  # noqa: RUF006
     result = await task
     assert result == 42
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_to_learners_mapping_single_function(tmp_path: Path) -> None:
+    """Test that _to_learners creates the correct mapping for a single function."""
+    executor = SlurmExecutor(folder=tmp_path, size_per_learner=2)
+    # Submit 5 tasks to example_func so that they are split into chunks of 2.
+    for i in range(5):
+        executor.submit(example_func, i)
+    learners, fnames, mapping = executor._to_learners()
+
+    # We expect ceil(5/2) = 3 learners.
+    assert len(learners) == 3
+
+    func_id = executor._sequence_mapping[example_func]
+    expected_mapping = {
+        (func_id, 0): (0, 0),  # first learner, first task
+        (func_id, 1): (0, 1),  # first learner, second task
+        (func_id, 2): (1, 0),  # second learner, first task
+        (func_id, 3): (1, 1),  # second learner, second task
+        (func_id, 4): (2, 0),  # third learner, first task (only one task in this chunk)
+    }
+    assert mapping == expected_mapping
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_finalize_mapping_and_learners(tmp_path: Path) -> None:
+    """Test that finalize() sets the task mapping correctly and creates the right number of learners."""
+    executor = SlurmExecutor(folder=tmp_path, size_per_learner=2)
+    # Submit 3 tasks to example_func.
+    for i in range(3):
+        executor.submit(example_func, i)
+
+    rm = executor.finalize(start=False)
+    # For 3 tasks with chunk size 2:
+    #   - The first chunk (learner 0) has tasks 0 and 1.
+    #   - The second chunk (learner 1) has task 2.
+    func_id = executor._sequence_mapping[example_func]
+    expected_mapping = {
+        (func_id, 0): (0, 0),
+        (func_id, 1): (0, 1),
+        (func_id, 2): (1, 0),
+    }
+    assert executor._task_mapping == expected_mapping
+    # Also, the run manager should have 2 learners.
+    assert isinstance(rm, RunManager)
+    assert len(rm.learners) == 2
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_task_get_with_chunking(tmp_path: Path) -> None:
+    """Test that tasks in different learners retrieve the correct result when using size_per_learner."""
+    executor = SlurmExecutor(folder=tmp_path, size_per_learner=2, save_interval=1)
+    # Submit three tasks; with size_per_learner=2, this will produce 2 learners.
+    task1 = executor.submit(example_func, 42)
+    task2 = executor.submit(example_func, 43)
+    task3 = executor.submit(example_func, 44)
+    rm = executor.finalize(start=False)
+
+    # For learner 0 (tasks 0 and 1)
+    assert isinstance(rm, RunManager)
+    learner0 = rm.learners[0]
+    fname0 = rm.fnames[0]
+    learner0.data[0] = 42
+    learner0.data[1] = 43
+    learner0.save(fname0)
+    # For learner 1 (task 2)
+    learner1 = rm.learners[1]
+    fname1 = rm.fnames[1]
+    learner1.data[0] = 44
+    learner1.save(fname1)
+
+    # _get() should now retrieve the correct values based on the mapping.
+    assert task1._get() == 42
+    assert task2._get() == 43
+    assert task3._get() == 44
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+def test_mapping_multiple_functions(tmp_path: Path) -> None:
+    """Test that the mapping is correct when tasks are submitted for multiple functions."""
+    executor = SlurmExecutor(folder=tmp_path, size_per_learner=2)
+    # Submit two tasks for example_func and two for another_func.
+    executor.submit(example_func, 10)
+    executor.submit(example_func, 20)
+    executor.submit(another_func, 5)
+    executor.submit(another_func, 6)
+
+    # Directly call _to_learners to examine the mapping.
+    learners, fnames, mapping = executor._to_learners()
+
+    expected_mapping = {
+        # For example_func: two tasks in one learner (since 2 tasks fit in one chunk).
+        (executor._sequence_mapping[example_func], 0): (0, 0),
+        (executor._sequence_mapping[example_func], 1): (0, 1),
+        # For another_func: two tasks in one learner.
+        (executor._sequence_mapping[another_func], 0): (1, 0),
+        (executor._sequence_mapping[another_func], 1): (1, 1),
+    }
+    assert mapping == expected_mapping
+    assert len(learners) == 2
