@@ -380,6 +380,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
     _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
     _run_manager: adaptive_scheduler.RunManager | None = None
+    _task_mapping: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.folder is None:
