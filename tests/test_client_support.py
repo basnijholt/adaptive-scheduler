@@ -27,7 +27,7 @@ def client(zmq_url: str) -> zmq.Socket:
     return client
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_get_learner(zmq_url: str) -> None:
     """Test `get_learner` function."""
     with tempfile.NamedTemporaryFile() as tmpfile:
@@ -94,7 +94,7 @@ async def test_get_learner(zmq_url: str) -> None:
                 mock_log.exception.assert_called_with("got an exception")
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_tell_done(zmq_url: str) -> None:
     """Test `tell_done` function."""
     fname = "test_learner_file.pkl"
