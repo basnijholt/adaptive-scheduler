@@ -183,6 +183,9 @@ def slurm_run(
     RunManager
 
     """
+    if " " in name:
+        msg = "The name should not contain spaces."
+        raise ValueError(msg)
     if partition is None:
         partitions = slurm_partitions()
         assert isinstance(partitions, dict)
