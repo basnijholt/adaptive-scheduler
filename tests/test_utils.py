@@ -345,7 +345,7 @@ def test_save_dataframe(
     fmt: str,
 ) -> None:
     """Test `utils.save_dataframe`."""
-    fmt = typing.cast(utils._DATAFRAME_FORMATS, fmt)
+    fmt = typing.cast("utils._DATAFRAME_FORMATS", fmt)
     learner = adaptive.Learner1D(lambda x: x, bounds=(-10, 10))
     fname = str(tmp_path / f"test.{fmt}")
     save_df = utils.save_dataframe(fname, atomically=atomically, format=fmt)
