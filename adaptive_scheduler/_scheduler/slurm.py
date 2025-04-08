@@ -437,7 +437,16 @@ class SLURM(BaseScheduler):
             chars = list(line)
             info = {}
             for k, v in python_format.items():
-                info[k] = "".join(chars[:v]).strip()
+                value = "".join(chars[:v]).strip()
+                if len(value) > v:
+                    # If this happens, we need to increase the format length for the given key.
+                    msg = (
+                        f"Extracted value for '{k}' ('{value}') is longer than"
+                        f" the allocated format length ({v})."
+                        " Please report this to the Adaptive Scheduler developers."
+                    )
+                    raise ValueError(msg)
+                info[k] = value
                 chars = chars[v:]
             return info
 
