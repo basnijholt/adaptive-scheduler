@@ -438,7 +438,7 @@ class SLURM(BaseScheduler):
             info = {}
             for k, v in python_format.items():
                 value = "".join(chars[:v]).strip()
-                if len(value) > v:
+                if len(value) == v:
                     # If this happens, we need to increase the format length for the given key.
                     msg = (
                         f"Extracted value for '{k}' ('{value}') is longer than"
