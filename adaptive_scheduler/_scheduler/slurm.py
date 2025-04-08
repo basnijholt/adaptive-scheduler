@@ -403,7 +403,7 @@ class SLURM(BaseScheduler):
         """Get the queue of jobs."""
         python_format = {
             "JobID": 100,
-            "Name": 100,
+            "Name": 1000,
             "state": 100,
             "NumNodes": 100,
             "NumTasks": 100,
