@@ -541,7 +541,7 @@ async def _wait_for_finished(
         assert manager_first.task is not None  # for mpypy
         await manager_first.task
     else:
-        while not goal(manager_first):
+        while not goal(manager_first):  # noqa: ASYNC110
             await asyncio.sleep(interval)
     manager_second.start()
 

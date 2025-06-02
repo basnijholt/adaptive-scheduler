@@ -38,7 +38,7 @@ def test_run_manager_init(
     assert isinstance(rm, RunManager)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_run_manager_start_and_cancel(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -103,7 +103,7 @@ def test_run_manager_load_learners(
         assert learner.data
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_run_manager_elapsed_time(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -122,7 +122,7 @@ async def test_run_manager_elapsed_time(
     assert rm.elapsed_time() > 0
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_run_manager_status(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -191,7 +191,7 @@ def test_run_manager_load_dataframes(
         rm.load_dataframes()
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_start_one_by_one(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -223,7 +223,7 @@ async def test_start_one_by_one(
     rm2.cancel()
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_run_manager_auto_restart(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -279,7 +279,7 @@ async def test_run_manager_auto_restart(
             "state": "RUNNING",
         },
     }
-    cast(MockScheduler, rm.scheduler)._queue_info.pop(job_id0)
+    cast("MockScheduler", rm.scheduler)._queue_info.pop(job_id0)
     await asyncio.sleep(0.15)
     # Check that the job is restarted automatically with a new job_id:
     q = rm.scheduler.queue()

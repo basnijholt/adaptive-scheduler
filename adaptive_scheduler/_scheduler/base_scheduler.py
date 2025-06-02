@@ -288,7 +288,7 @@ class BaseScheduler(abc.ABC):
 
             echo "Launching engines"
             {self.mpiexec_executable} \\
-                -n {cores-1} \\
+                -n {cores - 1} \\
                 ipengine \\
                 --profile={profile} \\
                 --mpi \\
@@ -299,7 +299,7 @@ class BaseScheduler(abc.ABC):
             {self.python_executable} {self.launcher} \\
             """,
         )
-        custom = (f"    --profile {profile}", f"--n {cores-1}")
+        custom = (f"    --profile {profile}", f"--n {cores - 1}")
         return start, custom
 
     def _process_pool(self) -> tuple[str, ...]:

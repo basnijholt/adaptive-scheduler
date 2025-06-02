@@ -69,7 +69,7 @@ def test_remove_completed_paths(tmp_path: Path) -> None:
     assert paths_dict == {"category1": {tmp_path / "file2"}, "category2": set()}
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_track_file_creation_progress(tmp_path: Path) -> None:
     """Test the track file creation progress function."""
     # Create test files
