@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .helpers import MockScheduler
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_run_manager(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -56,7 +56,7 @@ def test_multi_run_manager_add_duplicate_run_manager(mock_run_manager: RunManage
         mrm.add_run_manager(mock_run_manager)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_multi_run_manager_add_run_manager_with_start(mock_run_manager: RunManager) -> None:
     """Test adding a RunManager to MultiRunManager with start=True."""
     mrm = MultiRunManager()
@@ -107,7 +107,7 @@ def test_multi_run_manager_remove_non_existent_run_manager() -> None:
         mrm.remove_run_manager("non-existent")
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_multi_run_manager_start_all(mock_run_manager: RunManager) -> None:
     """Test starting all RunManagers in MultiRunManager."""
     mrm = MultiRunManager()
@@ -118,7 +118,7 @@ async def test_multi_run_manager_start_all(mock_run_manager: RunManager) -> None
     mock_run_manager.cancel()
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_multi_run_manager_cancel_all(mock_run_manager: RunManager) -> None:
     """Test cancelling all RunManagers in MultiRunManager."""
     mrm = MultiRunManager()

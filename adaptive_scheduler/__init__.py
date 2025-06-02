@@ -12,17 +12,17 @@ from adaptive_scheduler.server_support import (
 )
 
 __all__ = [
+    "PBS",
+    "SLURM",
+    "MultiRunManager",
+    "RunManager",
+    "SlurmExecutor",
+    "SlurmTask",
     "__version__",
     "client_support",
-    "PBS",
-    "RunManager",
     "scheduler",
     "server_support",
     "slurm_run",
-    "SLURM",
     "start_one_by_one",
     "utils",
-    "SlurmExecutor",
-    "SlurmTask",
-    "MultiRunManager",
 ]

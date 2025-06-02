@@ -22,7 +22,7 @@ def example_func(x: float) -> float:
     return x
 
 
-@pytest.fixture()
+@pytest.fixture
 def executor(tmp_path: Path) -> SlurmExecutor:
     """Create a SlurmExecutor instance."""
     return SlurmExecutor(
@@ -253,7 +253,7 @@ def test_task_repr_triggers_get(executor: SlurmExecutor) -> None:
         assert "FINISHED" in repr(task)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
 async def test_task_await(executor: SlurmExecutor) -> None:

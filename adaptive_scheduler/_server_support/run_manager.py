@@ -153,7 +153,7 @@ class RunManager(BaseManager):
     Here is an example of using the `RunManager` with a modified ``job_script_function``.
 
     >>> import adaptive_scheduler
-    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(cores=10)
+    >>> scheduler = adaptive_scheduler.scheduler.SlurmScheduler(cores=10)
     >>> run_manager = adaptive_scheduler.server_support.RunManager(
     ...     scheduler=scheduler
     ... ).start()
@@ -162,7 +162,7 @@ class RunManager(BaseManager):
 
     >>> from functools import partial
     >>> import adaptive_scheduler
-    >>> scheduler = adaptive_scheduler.scheduler.DefaultScheduler(
+    >>> scheduler = adaptive_scheduler.scheduler.SlurmScheduler(
     ...     cores=10, executor_type="ipyparallel",
     ... )
     >>> def goal(learner):
@@ -541,7 +541,7 @@ async def _wait_for_finished(
         assert manager_first.task is not None  # for mpypy
         await manager_first.task
     else:
-        while not goal(manager_first):
+        while not goal(manager_first):  # noqa: ASYNC110
             await asyncio.sleep(interval)
     manager_second.start()
 

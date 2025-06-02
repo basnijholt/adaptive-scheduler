@@ -99,7 +99,7 @@ class MockScheduler:
 
     async def _submit_coro(self, job_name: str, job_id: str, fname: str) -> None:
         await asyncio.sleep(self.startup_delay)
-        while self._queue_is_full():
+        while self._queue_is_full():  # noqa: ASYNC110
             await asyncio.sleep(self.refresh_interval)
         self._submit(job_name, job_id, fname)
 

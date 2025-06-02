@@ -123,7 +123,7 @@ class LocalMockScheduler(BaseScheduler):
         submit_cmd = f"{self.submit_cmd} {name} {self.batch_fname(name_prefix)}"
         run_submit(submit_cmd, name)
 
-    def extra_scheduler(self, *, index: int | None = None) -> str:  # noqa: ARG002
+    def extra_scheduler(self, *, index: int | None = None) -> str:
         """Get the extra scheduler options."""
         msg = "extra_scheduler is not implemented."
         raise NotImplementedError(msg)
