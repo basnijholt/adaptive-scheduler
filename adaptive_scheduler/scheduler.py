@@ -13,12 +13,12 @@ from adaptive_scheduler._scheduler.pbs import PBS
 from adaptive_scheduler._scheduler.slurm import SLURM, slurm_partitions
 
 __all__ = [
-    "LocalMockScheduler",
     "PBS",
     "SLURM",
-    "slurm_partitions",
     "BaseScheduler",
     "DefaultScheduler",
+    "LocalMockScheduler",
+    "slurm_partitions",
 ]
 
 

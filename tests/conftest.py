@@ -23,13 +23,13 @@ if TYPE_CHECKING:
     import zmq.asyncio
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_scheduler(tmp_path: Path) -> MockScheduler:
     """Fixture for creating a MockScheduler instance."""
     return MockScheduler(log_folder=str(tmp_path), cores=8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def db_manager(
     mock_scheduler: MockScheduler,
     learners: list[adaptive.Learner1D]
@@ -99,14 +99,14 @@ def fnames(
     raise NotImplementedError(msg)
 
 
-@pytest.fixture()
+@pytest.fixture
 def socket(db_manager: DatabaseManager) -> zmq.asyncio.Socket:
     """Fixture for creating a ZMQ socket."""
     with get_socket(db_manager) as socket:
         yield socket
 
 
-@pytest.fixture()
+@pytest.fixture
 def job_manager(
     db_manager: DatabaseManager,
     mock_scheduler: MockScheduler,
@@ -116,7 +116,7 @@ def job_manager(
     return JobManager(job_names, db_manager, mock_scheduler, interval=0.05)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_slurm_partitions_output() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
     mock_output = "hb120v2-low\nhb60-high\nnc24-low*\nnd40v2-mpi\n"
@@ -125,7 +125,7 @@ def _mock_slurm_partitions_output() -> Generator[None, None, None]:
         yield
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_slurm_partitions() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
     with (
@@ -141,7 +141,7 @@ def _mock_slurm_partitions() -> Generator[None, None, None]:
         yield
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_slurm_queue() -> Generator[None, None, None]:
     """Mock `SLURM.queue` function."""
     with patch(
