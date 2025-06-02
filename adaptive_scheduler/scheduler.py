@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import os.path
 import shutil
@@ -20,6 +21,9 @@ __all__ = [
     "LocalMockScheduler",
     "slurm_partitions",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_default_scheduler() -> type[BaseScheduler]:
@@ -62,7 +66,7 @@ def _get_default_scheduler() -> type[BaseScheduler]:
     if has_slurm:
         return SLURM
     msg = f"No scheduler system could be detected. {default_msg}"
-    warnings.warn(msg, stacklevel=2)
+    logger.info(msg)
     return default
 
 
