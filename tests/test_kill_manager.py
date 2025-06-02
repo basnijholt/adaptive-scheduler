@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 INTERVAL = 0.05
 
 
-@pytest.fixture()
+@pytest.fixture
 def kill_manager(db_manager: DatabaseManager) -> KillManager:
     """Fixture for creating a KillManager instance."""
     return KillManager(
@@ -35,7 +35,7 @@ def kill_manager(db_manager: DatabaseManager) -> KillManager:
     )
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_kill_manager_init(kill_manager: KillManager) -> None:
     """Test KillManager initialization."""
     assert kill_manager.scheduler is not None
@@ -139,7 +139,7 @@ def test_logs_with_string_or_condition_missing_file() -> None:
     assert len(result) == 0
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     """Test KillManager.manage method."""
     # The KillManager will read from the .out files, which are determined
@@ -161,7 +161,7 @@ async def test_kill_manager_manage(kill_manager: KillManager) -> None:
     assert str(output_file_path) in kill_manager.deleted
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_kill_manager_manage_exception(
     kill_manager: KillManager,
     caplog: pytest.LogCaptureFixture,
@@ -187,7 +187,7 @@ async def test_kill_manager_manage_exception(
     assert "TypeError" in caplog.text
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_kill_manager_manage_canceled(
     kill_manager: KillManager,
     caplog: pytest.LogCaptureFixture,
