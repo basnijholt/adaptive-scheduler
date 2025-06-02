@@ -66,7 +66,7 @@ def _get_default_scheduler() -> type[BaseScheduler]:
     if has_slurm:
         return SLURM
     msg = f"No scheduler system could be detected. {default_msg}"
-    logger.info(msg, stacklevel=2)
+    logger.info(msg)
     return default
 
 
