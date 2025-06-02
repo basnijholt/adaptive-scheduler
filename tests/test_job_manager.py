@@ -12,7 +12,7 @@ import pytest
 from adaptive_scheduler.server_support import JobManager, MaxRestartsReachedError
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_init(job_manager: JobManager) -> None:
     """Test the initialization of JobManager."""
     job_manager.database_manager.start()
@@ -20,7 +20,7 @@ async def test_job_manager_init(job_manager: JobManager) -> None:
     assert job_manager.task is not None
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_queued(job_manager: JobManager) -> None:
     """Test the _queued method of JobManager."""
     job_manager.scheduler.start_job("job1")
@@ -30,7 +30,7 @@ async def test_job_manager_queued(job_manager: JobManager) -> None:
     assert job_manager._queued(job_manager.scheduler.queue()) == {"job1", "job2"}
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) -> None:
     """Test the JobManager when the maximum restarts are reached."""
     job_manager.n_started = 105
@@ -48,7 +48,7 @@ async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) 
         job_manager.task.result()
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_start_jobs(job_manager: JobManager) -> None:
     """Test the JobManager when managing the start of jobs."""
     job_manager.database_manager.n_done = MagicMock(return_value=0)  # type: ignore[method-assign]
@@ -60,7 +60,7 @@ async def test_job_manager_manage_start_jobs(job_manager: JobManager) -> None:
     assert set(job_manager.scheduler._started_jobs) == {"job1", "job2"}  # type: ignore[attr-defined]
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_start_max_simultaneous_jobs(
     job_manager: JobManager,
 ) -> None:
@@ -76,7 +76,7 @@ async def test_job_manager_manage_start_max_simultaneous_jobs(
     assert len(job_manager.scheduler._started_jobs) == 1  # type: ignore[attr-defined]
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_cancelled_error(
     job_manager: JobManager,
     caplog: pytest.LogCaptureFixture,
@@ -100,7 +100,7 @@ async def test_job_manager_manage_cancelled_error(
     assert "task was cancelled because of a CancelledError" in caplog.text
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_n_done_equal_job_names(
     job_manager: JobManager,
 ) -> None:
@@ -116,7 +116,7 @@ async def test_job_manager_manage_n_done_equal_job_names(
     assert job_manager.task.result() is None
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_job_manager_manage_generic_exception(
     job_manager: JobManager,
     caplog: pytest.LogCaptureFixture,
