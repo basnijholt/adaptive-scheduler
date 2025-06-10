@@ -519,6 +519,7 @@ def _name(func: Callable[..., Any]) -> str:
 class _DiskFunction:
     def __init__(self, func: Callable[..., Any], fname: str | Path) -> None:
         self.fname = Path(fname)
+        self.fname.parent.mkdir(parents=True, exist_ok=True)
         with self.fname.open("wb") as f:
             cloudpickle.dump(func, f)
 
