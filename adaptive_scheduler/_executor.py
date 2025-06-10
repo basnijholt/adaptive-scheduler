@@ -379,6 +379,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     size_per_learner: int | None = None
     _sequences: dict[Callable[..., Any], list[Any]] = field(default_factory=dict)
     _sequence_mapping: dict[Callable[..., Any], int] = field(default_factory=dict)
+    _disk_func_mapping: dict[Callable[..., Any], _DiskFunction] = field(default_factory=dict)
     _run_manager: adaptive_scheduler.RunManager | None = None
     _task_mapping: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
 
@@ -394,6 +395,12 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             raise ValueError(msg)
         if fn not in self._sequence_mapping:
             self._sequence_mapping[fn] = len(self._sequence_mapping)
+            assert fn not in self._disk_func_mapping
+            assert isinstance(self.folder, Path)
+            self._disk_func_mapping[fn] = _DiskFunction(
+                fn,
+                self.folder / f"{_name(fn)}-{uuid.uuid4().hex}.pickle",
+            )
         sequence = self._sequences.setdefault(fn, [])
         i = len(sequence)
         sequence.append(args)
@@ -429,9 +436,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
                     task_mapping[(func_id, global_index)] = (learner_idx, local_index)
                     global_index += 1
 
-                learner = SequenceLearner(_SerializableFunctionSplatter(func), chunk)
+                disk_func = self._disk_func_mapping[func]
+                ser_func = _SerializableFunctionSplatter(disk_func)
+                learner = SequenceLearner(ser_func, chunk)
                 learners.append(learner)
-                name = func.__name__ if hasattr(func, "__name__") else "func"
+                name = _name(func)
                 assert isinstance(self.folder, Path)
                 fnames.append(self.folder / f"{name}-{learner_idx}-{uuid.uuid4().hex}.pickle")
                 learner_idx += 1
@@ -501,3 +510,21 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
+
+
+def _name(func: Callable[..., Any]) -> str:
+    return func.__name__ if hasattr(func, "__name__") else "func"
+
+
+class _DiskFunction:
+    def __init__(self, func: Callable[..., Any], fname: str | Path) -> None:
+        self.fname = Path(fname)
+        with self.fname.open("wb") as f:
+            cloudpickle.dump(func, f)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.func(*args, **kwargs)
+
+    @functools.cached_property
+    def func(self) -> Callable[..., Any]:
+        return cloudpickle.loads(self.fname.read_bytes())
