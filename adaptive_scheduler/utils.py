@@ -972,17 +972,19 @@ def _at_least_adaptive_version(
     *,
     raises: bool = True,
 ) -> bool:
-    import pkg_resources
+    def _split_version(v: str) -> list[int]:
+        # Only take numeric parts, ignore dev, rc, etc.
+        v_clean = ".".join(v.split(".")[:3])
+        return [int(x) for x in v_clean.split(".") if x.isdigit()]
 
-    required = pkg_resources.parse_version(version)
-    v = adaptive.__version__
-    v_clean = ".".join(v.split(".")[:3])  # remove the dev0 or other suffix
-    current = pkg_resources.parse_version(v_clean)
+    required = _split_version(version)
+    current = _split_version(adaptive.__version__)
+
     if current < required:
         if raises:
             msg = (
                 f"`{name}` requires adaptive version "
-                f"of at least '{required}', currently using '{current}'.",
+                f"of at least '{version}', currently using '{adaptive.__version__}'."
             )
             raise RuntimeError(msg)
         return False
