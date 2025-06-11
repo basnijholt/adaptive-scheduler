@@ -652,41 +652,23 @@ def _info_html(run_manager: RunManager) -> str:
 
     # Add log statistics with HTML formatting
     if data.log_stats:
-        from_logs = []
+
+        def _color_tag(key: str, min_val: int, max_val: int) -> str:
+            value = data.log_stats[key]
+            return _create_html_tag(
+                value,
+                _interp_red_green(value, min_val, max_val),
+            )
 
         # Handle the specific log stats that need HTML formatting
         from_logs = [
             # Integer count - no formatting needed
             ("# of points", data.log_stats["# of points"]),
             # Percentage values with color coding
-            (
-                "mean CPU usage",
-                _create_html_tag(
-                    data.log_stats["mean CPU %"],
-                    _interp_red_green(data.log_stats["mean CPU %"], 50, 80),
-                ),
-            ),
-            (
-                "mean memory usage",
-                _create_html_tag(
-                    data.log_stats["mean memory %"],
-                    _interp_red_green(data.log_stats["mean memory %"], 80, 50),
-                ),
-            ),
-            (
-                "max memory usage",
-                _create_html_tag(
-                    data.log_stats["max memory %"],
-                    _interp_red_green(data.log_stats["max memory %"], 80, 50),
-                ),
-            ),
-            (
-                "mean overhead",
-                _create_html_tag(
-                    data.log_stats["mean overhead %"],
-                    _interp_red_green(data.log_stats["mean overhead %"], 10, 30),
-                ),
-            ),
+            ("mean CPU usage", _color_tag("mean CPU %", 50, 80)),
+            ("mean memory usage", _color_tag("mean memory %", 80, 50)),
+            ("max memory usage", _color_tag("max memory %", 80, 50)),
+            ("mean overhead", _color_tag("mean overhead %", 10, 30)),
             # Time since last log entry
             ("last log-entry", data.log_stats["last log entry"]),
         ]
