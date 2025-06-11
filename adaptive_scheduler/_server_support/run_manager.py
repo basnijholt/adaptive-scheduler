@@ -511,7 +511,7 @@ class RunManager(BaseManager):
 
         """
         if format == "widget":
-            return info(self, display_widget=False)
+            return info(self, display_widget=True)
         run_manager_info = RunManagerInfo.from_run_manager(self)
         if format == "text":
             return repr(run_manager_info)
