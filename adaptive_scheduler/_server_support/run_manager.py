@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import adaptive
+    import ipywidgets
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
@@ -498,7 +499,7 @@ class RunManager(BaseManager):
     def info(
         self,
         format: Literal["text", "widget", "data"] = "widget",  # noqa: A002
-    ) -> None | str | RunManagerInfo:
+    ) -> ipywidgets.VBox | str | RunManagerInfo:
         """Get run manager information in different formats.
 
         Parameters
@@ -510,7 +511,7 @@ class RunManager(BaseManager):
 
         """
         if format == "widget":
-            return info(self, display_widget=True)
+            return info(self, display_widget=False)
         run_manager_info = RunManagerInfo.from_run_manager(self)
         if format == "text":
             return repr(run_manager_info)
