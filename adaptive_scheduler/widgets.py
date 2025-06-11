@@ -627,7 +627,6 @@ def _info_html(run_manager: RunManager) -> str:
             style += " background: var(--md-grey-100);"
         return f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
 
-    # Build the main info rows
     info = [
         ("status", f'<font color="{status_color}">{data.status}</font>'),
         ("# running jobs", f'<font color="blue">{data.n_running}</font>'),
