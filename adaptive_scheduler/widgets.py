@@ -6,6 +6,7 @@ import asyncio
 import os
 from collections import defaultdict
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
@@ -25,6 +26,146 @@ if TYPE_CHECKING:
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.server_support import RunManager
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS, FnamesTypes
+
+
+@dataclass
+class RunManagerInfo:
+    """Container for RunManager status information with a nice text representation."""
+
+    status: str
+    n_running: int
+    n_pending: int
+    n_done: int
+    n_failed: int
+    n_unscheduled: int
+    elapsed_time: timedelta
+    total_data_size: int
+    empty_learner_size: int | None = None
+    mean_starting_time: float | None = None
+    std_starting_time: float | None = None
+    log_stats: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_run_manager(cls, run_manager: RunManager) -> RunManagerInfo:
+        """Get RunManager status information as a structured object with nice text representation.
+
+        Parameters
+        ----------
+        run_manager : RunManager
+            The RunManager instance to get information from.
+
+        Returns
+        -------
+        RunManagerInfo
+            Object containing status information with a nice text representation.
+
+        """
+        # Get queue and job information
+        queue = run_manager.scheduler.queue(me_only=True)
+        dbm = run_manager.database_manager
+        dbm.update(queue)
+        jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
+        n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
+        n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
+        n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
+        n_failed = len(dbm.failed)
+        n_unscheduled = len(dbm.fnames) - n_running - n_pending - n_done
+
+        # Get basic status information
+        status = run_manager.status()
+        elapsed_time = timedelta(seconds=run_manager.elapsed_time())
+        total_data_size = _total_size(dbm.fnames)
+        empty_learner_size = dbm._total_learner_size
+
+        # Job starting times
+        starting_times = run_manager.job_starting_times()
+        mean_starting_time = None
+        std_starting_time = None
+        if starting_times:
+            mean_starting_time = float(np.mean(starting_times))
+            std_starting_time = float(np.std(starting_times))
+
+        # Log statistics
+        log_stats = {}
+        with suppress(Exception):
+            df = run_manager.parse_log_files()
+            t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+            log_stats.update(
+                {
+                    "# of points": int(df.npoints.sum()),
+                    "mean CPU %": float(df.cpu_usage.mean()),
+                    "mean memory %": float(df.mem_usage.mean()),
+                    "max memory %": float(df.mem_usage.max()),
+                    "mean overhead %": float(df.overhead.mean()),
+                    "last log entry": f"{t_last}s ago",
+                },
+            )
+
+            # Add optional statistics
+            for key in ["npoints/s", "latest_loss", "nlearners"]:
+                with suppress(Exception):
+                    log_stats[f"mean {key}"] = float(df[key].mean())
+
+        return cls(
+            status=status,
+            n_running=n_running,
+            n_pending=n_pending,
+            n_done=n_done,
+            n_failed=n_failed,
+            n_unscheduled=n_unscheduled,
+            elapsed_time=elapsed_time,
+            total_data_size=total_data_size,
+            empty_learner_size=empty_learner_size,
+            mean_starting_time=mean_starting_time,
+            std_starting_time=std_starting_time,
+            log_stats=log_stats,
+        )
+
+    def __repr__(self) -> str:
+        """Return a string representation of the RunManagerInfo."""
+        lines = [
+            f"RunManager Status: {self.status}",
+            "=" * 40,
+            f"Running jobs:     {self.n_running}",
+            f"Pending jobs:     {self.n_pending}",
+            f"Finished jobs:    {self.n_done}",
+            f"Failed jobs:      {self.n_failed}",
+            f"Unscheduled jobs: {self.n_unscheduled}",
+            f"Elapsed time:     {self.elapsed_time}",
+            f"Total data size:  {_bytes_to_human_readable(self.total_data_size)}",
+        ]
+
+        if self.empty_learner_size is not None:
+            lines.append(f"Empty learner size: {_bytes_to_human_readable(self.empty_learner_size)}")
+
+        if self.mean_starting_time is not None:
+            lines.extend(
+                [
+                    f"Avg job start time: {_timedelta_to_human_readable(self.mean_starting_time)}",
+                    f"Std job start time: {_timedelta_to_human_readable(self.std_starting_time or 0)}",
+                ],
+            )
+
+        if self.log_stats:
+            lines.extend(
+                [
+                    "",
+                    "Log Statistics:",
+                    "-" * 20,
+                ],
+            )
+            for key, value in self.log_stats.items():
+                if isinstance(value, float):
+                    if "%" in key:
+                        lines.append(f"{key}: {value:.1f}%")
+                    elif "loss" in key.lower():
+                        lines.append(f"{key}: {value:.2e}")
+                    else:
+                        lines.append(f"{key}: {value:.1f}")
+                else:
+                    lines.append(f"{key}: {value}")
+
+        return "\n".join(lines)
 
 
 def _get_fnames(run_manager: RunManager, *, only_running: bool) -> list[Path]:
@@ -465,26 +606,19 @@ def _create_html_tag(value: float, color: tuple[int, int, int]) -> str:
 
 
 def _info_html(run_manager: RunManager) -> str:
-    queue = run_manager.scheduler.queue(me_only=True)
-    dbm = run_manager.database_manager
-    dbm.update(queue)
-    jobs = [job for job in queue.values() if job["job_name"] in run_manager.job_names]
-    n_running = sum(job["state"] in ("RUNNING", "R") for job in jobs)
-    n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
-    n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
-    n_failed = len(dbm.failed)
-    n_failed_color = "red" if n_failed > 0 else "black"
-    n_unscheduled = len(dbm.fnames) - n_running - n_pending - n_done
-    n_unscheduled_color = "orange" if n_unscheduled > 0 else "black"
+    data = RunManagerInfo.from_run_manager(run_manager)
 
-    status = run_manager.status()
-    color = {
+    # Define color mappings for HTML formatting
+    status_color = {
         "cancelled": "orange",
         "not yet started": "orange",
         "running": "blue",
         "failed": "red",
         "finished": "green",
-    }[status]
+    }[data.status]
+
+    n_failed_color = "red" if data.n_failed > 0 else "black"
+    n_unscheduled_color = "orange" if data.n_unscheduled > 0 else "black"
 
     def _table_row(i: int, key: str, value: Any) -> str:
         """Style the rows of a table. Based on the default Jupyterlab table style."""
@@ -493,62 +627,50 @@ def _info_html(run_manager: RunManager) -> str:
             style += " background: var(--md-grey-100);"
         return f'<tr><th style="{style}">{key}</th><th style="{style}">{value}</th></tr>'
 
-    data_size = _total_size(dbm.fnames)
     info = [
-        ("status", f'<font color="{color}">{status}</font>'),
-        ("# running jobs", f'<font color="blue">{n_running}</font>'),
-        ("# pending jobs", f'<font color="orange">{n_pending}</font>'),
-        ("# finished jobs", f'<font color="green">{n_done}</font>'),
-        ("# failed jobs", f'<font color="{n_failed_color}">{n_failed}</font>'),
-        ("# unscheduled jobs", f'<font color="{n_unscheduled_color}">{n_unscheduled}</font>'),
-        ("elapsed time", timedelta(seconds=run_manager.elapsed_time())),
-        ("total data size", _bytes_to_human_readable(data_size)),
+        ("status", f'<font color="{status_color}">{data.status}</font>'),
+        ("# running jobs", f'<font color="blue">{data.n_running}</font>'),
+        ("# pending jobs", f'<font color="orange">{data.n_pending}</font>'),
+        ("# finished jobs", f'<font color="green">{data.n_done}</font>'),
+        ("# failed jobs", f'<font color="{n_failed_color}">{data.n_failed}</font>'),
+        ("# unscheduled jobs", f'<font color="{n_unscheduled_color}">{data.n_unscheduled}</font>'),
+        ("elapsed time", data.elapsed_time),
+        ("total data size", _bytes_to_human_readable(data.total_data_size)),
     ]
-    if dbm._total_learner_size is not None:
+
+    if data.empty_learner_size is not None:
         info.append(
-            ("empty learner size", _bytes_to_human_readable(dbm._total_learner_size)),
+            ("empty learner size", _bytes_to_human_readable(data.empty_learner_size)),
         )
 
-    starting_times = run_manager.job_starting_times()
-    if starting_times:
-        mean_starting_time = _timedelta_to_human_readable(np.mean(starting_times))  # type: ignore[arg-type]
-        std_starting_time = _timedelta_to_human_readable(np.std(starting_times))  # type: ignore[arg-type]
+    if data.mean_starting_time is not None:
+        mean_starting_time = _timedelta_to_human_readable(data.mean_starting_time)
+        std_starting_time = _timedelta_to_human_readable(data.std_starting_time or 0)
         info.append(("avg job start time", mean_starting_time))
         info.append(("std job start time", std_starting_time))
 
-    with suppress(Exception):
-        df = run_manager.parse_log_files()
-        t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+    if data.log_stats:
 
-        cpu = df.cpu_usage.mean()
-        cpu_html_value = _create_html_tag(cpu, _interp_red_green(cpu, 50, 80))
-
-        mem = df.mem_usage.mean()
-        mem_html_value = _create_html_tag(mem, _interp_red_green(mem, 80, 50))
-
-        max_mem = df.mem_usage.max()
-        max_mem_html_value = _create_html_tag(
-            max_mem,
-            _interp_red_green(max_mem, 80, 50),
-        )
-
-        overhead = df.overhead.mean()
-        overhead_html_value = _create_html_tag(
-            overhead,
-            _interp_red_green(overhead, 10, 30),
-        )
+        def _color_tag(key: str, min_val: int, max_val: int) -> str:
+            value = data.log_stats[key]
+            return _create_html_tag(value, _interp_red_green(value, min_val, max_val))
 
         from_logs = [
-            ("# of points", df.npoints.sum()),
-            ("mean CPU usage", cpu_html_value),
-            ("mean memory usage", mem_html_value),
-            ("max memory usage", max_mem_html_value),
-            ("mean overhead", overhead_html_value),
-            ("last log-entry", f"{t_last}s ago"),
+            ("# of points", data.log_stats["# of points"]),
+            ("mean CPU usage", _color_tag("mean CPU %", 50, 80)),
+            ("mean memory usage", _color_tag("mean memory %", 80, 50)),
+            ("max memory usage", _color_tag("max memory %", 80, 50)),
+            ("mean overhead", _color_tag("mean overhead %", 10, 30)),
+            ("last log-entry", data.log_stats["last log entry"]),
         ]
-        for key in ["npoints/s", "latest_loss", "nlearners"]:
-            with suppress(Exception):
-                from_logs.append((f"mean {key}", f"{df[key].mean():.1f}"))
+
+        if (val := data.log_stats.get("mean npoints/s")) is not None:
+            from_logs.append(("mean npoints/s", f"{val:.1f}"))
+        if (val := data.log_stats.get("mean latest_loss")) is not None:
+            from_logs.append(("mean latest_loss", f"{val:.2e}"))
+        if (val := data.log_stats.get("mean nlearners")) is not None:
+            from_logs.append(("mean nlearners", f"{val:.1f}"))
+
         msg = "this is extracted from the log files, so it might not be up-to-date"
         abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
         info.extend([(abbr.format(msg, k), v) for k, v in from_logs])
