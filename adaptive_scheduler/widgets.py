@@ -89,23 +89,22 @@ class RunManagerInfo:
         log_stats = {}
         with suppress(Exception):
             df = run_manager.parse_log_files()
-            if not df.empty:
-                t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
-                log_stats.update(
-                    {
-                        "# of points": int(df.npoints.sum()),
-                        "mean CPU %": float(df.cpu_usage.mean()),
-                        "mean memory %": float(df.mem_usage.mean()),
-                        "max memory %": float(df.mem_usage.max()),
-                        "mean overhead %": float(df.overhead.mean()),
-                        "last log entry": f"{t_last}s ago",
-                    },
-                )
+            t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+            log_stats.update(
+                {
+                    "# of points": int(df.npoints.sum()),
+                    "mean CPU %": float(df.cpu_usage.mean()),
+                    "mean memory %": float(df.mem_usage.mean()),
+                    "max memory %": float(df.mem_usage.max()),
+                    "mean overhead %": float(df.overhead.mean()),
+                    "last log entry": f"{t_last}s ago",
+                },
+            )
 
-                # Add optional statistics
-                for key in ["npoints/s", "latest_loss", "nlearners"]:
-                    with suppress(Exception):
-                        log_stats[f"mean {key}"] = float(df[key].mean())
+            # Add optional statistics
+            for key in ["npoints/s", "latest_loss", "nlearners"]:
+                with suppress(Exception):
+                    log_stats[f"mean {key}"] = float(df[key].mean())
 
         return cls(
             status=status,
@@ -606,8 +605,7 @@ def _create_html_tag(value: float, color: tuple[int, int, int]) -> str:
     return f'<font color="{hex_color}">{value:.2f}%</font>'
 
 
-def _info_html(run_manager: RunManager) -> str:  # noqa: PLR0912
-    # Collect all data using the shared helper function
+def _info_html(run_manager: RunManager) -> str:
     data = RunManagerInfo.from_run_manager(run_manager)
 
     # Define color mappings for HTML formatting
@@ -657,27 +655,49 @@ def _info_html(run_manager: RunManager) -> str:  # noqa: PLR0912
         from_logs = []
 
         # Handle the specific log stats that need HTML formatting
-        for key, value in data.log_stats.items():
-            if key == "# of points":
-                from_logs.append((key, value))
-            elif "%" in key:
-                # Apply color coding for percentage values
-                if "CPU" in key:
-                    html_value = _create_html_tag(value, _interp_red_green(value, 50, 80))
-                elif "memory" in key:
-                    html_value = _create_html_tag(value, _interp_red_green(value, 80, 50))
-                elif "overhead" in key:
-                    html_value = _create_html_tag(value, _interp_red_green(value, 10, 30))
-                else:
-                    html_value = f"{value:.1f}%"
-                from_logs.append((key, html_value))
-            elif key == "last log entry":
-                from_logs.append(("last log-entry", value))
-            # Format other numeric values
-            elif isinstance(value, float):
-                from_logs.append((key, f"{value:.1f}"))
-            else:
-                from_logs.append((key, value))
+        from_logs = [
+            # Integer count - no formatting needed
+            ("# of points", data.log_stats["# of points"]),
+            # Percentage values with color coding
+            (
+                "mean CPU usage",
+                _create_html_tag(
+                    data.log_stats["mean CPU %"],
+                    _interp_red_green(data.log_stats["mean CPU %"], 50, 80),
+                ),
+            ),
+            (
+                "mean memory usage",
+                _create_html_tag(
+                    data.log_stats["mean memory %"],
+                    _interp_red_green(data.log_stats["mean memory %"], 80, 50),
+                ),
+            ),
+            (
+                "max memory usage",
+                _create_html_tag(
+                    data.log_stats["max memory %"],
+                    _interp_red_green(data.log_stats["max memory %"], 80, 50),
+                ),
+            ),
+            (
+                "mean overhead",
+                _create_html_tag(
+                    data.log_stats["mean overhead %"],
+                    _interp_red_green(data.log_stats["mean overhead %"], 10, 30),
+                ),
+            ),
+            # Time since last log entry
+            ("last log-entry", data.log_stats["last log entry"]),
+        ]
+
+        # Add optional statistics if present
+        if (val := data.log_stats.get("mean npoints/s")) is not None:
+            from_logs.append(("mean npoints/s", f"{val:.1f}"))
+        if (val := data.log_stats.get("mean latest_loss")) is not None:
+            from_logs.append(("mean latest_loss", f"{val:.2e}"))
+        if (val := data.log_stats.get("mean nlearners")) is not None:
+            from_logs.append(("mean nlearners", f"{val:.1f}"))
 
         msg = "this is extracted from the log files, so it might not be up-to-date"
         abbr = '<abbr title="{}">{}</abbr>'  # creates a tooltip
