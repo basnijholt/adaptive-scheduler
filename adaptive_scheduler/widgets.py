@@ -46,13 +46,21 @@ class RunManagerInfo:
     log_stats: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_run_manager(cls, run_manager: RunManager) -> RunManagerInfo:
+    def from_run_manager(
+        cls,
+        run_manager: RunManager,
+        *,
+        parse_log_files: bool = True,
+    ) -> RunManagerInfo:
         """Get RunManager status information as a structured object with nice text representation.
 
         Parameters
         ----------
         run_manager : RunManager
             The RunManager instance to get information from.
+        parse_log_files : bool, optional
+            Whether to parse the log files to get additional statistics.
+            Defaults to True.
 
         Returns
         -------
@@ -87,24 +95,25 @@ class RunManagerInfo:
 
         # Log statistics
         log_stats = {}
-        with suppress(Exception):
-            df = run_manager.parse_log_files()
-            t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
-            log_stats.update(
-                {
-                    "# of points": int(df.npoints.sum()),
-                    "mean CPU %": float(df.cpu_usage.mean()),
-                    "mean memory %": float(df.mem_usage.mean()),
-                    "max memory %": float(df.mem_usage.max()),
-                    "mean overhead %": float(df.overhead.mean()),
-                    "last log entry": f"{t_last}s ago",
-                },
-            )
+        if parse_log_files:
+            with suppress(Exception):
+                df = run_manager.parse_log_files()
+                t_last = (pd.Timestamp.now() - df.timestamp.max()).seconds
+                log_stats.update(
+                    {
+                        "# of points": int(df.npoints.sum()),
+                        "mean CPU %": float(df.cpu_usage.mean()),
+                        "mean memory %": float(df.mem_usage.mean()),
+                        "max memory %": float(df.mem_usage.max()),
+                        "mean overhead %": float(df.overhead.mean()),
+                        "last log entry": f"{t_last}s ago",
+                    },
+                )
 
-            # Add optional statistics
-            for key in ["npoints/s", "latest_loss", "nlearners"]:
-                with suppress(Exception):
-                    log_stats[f"mean {key}"] = float(df[key].mean())
+                # Add optional statistics
+                for key in ["npoints/s", "latest_loss", "nlearners"]:
+                    with suppress(Exception):
+                        log_stats[f"mean {key}"] = float(df[key].mean())
 
         return cls(
             status=status,
