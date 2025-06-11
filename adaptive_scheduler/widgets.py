@@ -650,30 +650,21 @@ def _info_html(run_manager: RunManager) -> str:
         info.append(("avg job start time", mean_starting_time))
         info.append(("std job start time", std_starting_time))
 
-    # Add log statistics with HTML formatting
     if data.log_stats:
 
         def _color_tag(key: str, min_val: int, max_val: int) -> str:
             value = data.log_stats[key]
-            return _create_html_tag(
-                value,
-                _interp_red_green(value, min_val, max_val),
-            )
+            return _create_html_tag(value, _interp_red_green(value, min_val, max_val))
 
-        # Handle the specific log stats that need HTML formatting
         from_logs = [
-            # Integer count - no formatting needed
             ("# of points", data.log_stats["# of points"]),
-            # Percentage values with color coding
             ("mean CPU usage", _color_tag("mean CPU %", 50, 80)),
             ("mean memory usage", _color_tag("mean memory %", 80, 50)),
             ("max memory usage", _color_tag("max memory %", 80, 50)),
             ("mean overhead", _color_tag("mean overhead %", 10, 30)),
-            # Time since last log entry
             ("last log-entry", data.log_stats["last log entry"]),
         ]
 
-        # Add optional statistics if present
         if (val := data.log_stats.get("mean npoints/s")) is not None:
             from_logs.append(("mean npoints/s", f"{val:.1f}"))
         if (val := data.log_stats.get("mean latest_loss")) is not None:
