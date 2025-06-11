@@ -7,7 +7,7 @@ import warnings
 import weakref
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
@@ -23,7 +23,7 @@ from adaptive_scheduler.utils import (
     sleep_unless_task_is_done,
     smart_goal,
 )
-from adaptive_scheduler.widgets import info
+from adaptive_scheduler.widgets import RunManagerInfo, info
 
 from .base_manager import BaseManager
 from .common import (
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import adaptive
+    import ipywidgets
 
     from adaptive_scheduler.scheduler import BaseScheduler
     from adaptive_scheduler.utils import _DATAFRAME_FORMATS
@@ -493,10 +494,31 @@ class RunManager(BaseManager):
         return status
 
     def _repr_html_(self) -> None:
-        return self.info()
+        self.info(format="widget")
 
-    def info(self) -> None:
-        return info(self, display_widget=True)
+    def info(
+        self,
+        format: Literal["text", "widget", "data"] = "widget",  # noqa: A002
+    ) -> ipywidgets.VBox | str | RunManagerInfo:
+        """Get run manager information in different formats.
+
+        Parameters
+        ----------
+        format : {"text", "widget", "data"}, default "text"
+            - "text": Returns formatted string representation
+            - "widget": Displays and returns interactive widget
+            - "data": Returns structured RunManagerInfo object
+
+        """
+        if format == "widget":
+            return info(self, display_widget=True)
+        run_manager_info = RunManagerInfo.from_run_manager(self)
+        if format == "text":
+            return repr(run_manager_info)
+        if format == "data":
+            return run_manager_info
+        msg = f"Invalid format: {format}"
+        raise ValueError(msg)
 
     def load_dataframes(self) -> pd.DataFrame:
         """Load the `pandas.DataFrame`s with the most recently saved learners data."""
