@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import pickle
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -81,6 +82,7 @@ class SimpleDatabase:
         self._data: list[_DBEntry] = []
         self._meta: dict[str, Any] = {}
         self._save_task: asyncio.Task | None = None
+        self._last_save_time: float = 0.0
 
         if self.db_fname.exists():
             if clear_existing:
@@ -136,35 +138,39 @@ class SimpleDatabase:
     def as_dicts(self) -> list[dict[str, Any]]:
         return [asdict(entry) for entry in self._data]
 
-    def _save_debounced(self, delay: float = 2.0) -> None:
-        """Debounced save - cancels previous save and schedules a new one."""
-        # Cancel the previous save task if it exists
+    def _cancel_save_task(self) -> None:
         if self._save_task is not None:
             self._save_task.cancel()
+            self._save_task = None
+
+    def _save_debounced(self, delay: float = 2.0) -> None:
+        """Debounced save - cancels previous save and schedules a new one."""
+        if time.monotonic() - self._last_save_time > delay:
+            # If the delay has passed, save immediately and cancel any pending save task
+            self._save_now()
+            return
 
         async def delayed_save() -> None:
             await asyncio.sleep(delay)
             self._save_now()
 
+        self._cancel_save_task()
         try:
-            loop = asyncio.get_running_loop()
-            self._save_task = loop.create_task(delayed_save())
+            self._save_task = asyncio.create_task(delayed_save())
         except RuntimeError:
             # No event loop, save immediately
             self._save_now()
 
     def _save_now(self) -> None:
         """Immediately save to disk."""
+        self._cancel_save_task()
+        self._last_save_time = time.monotonic()
         with self.db_fname.open("w") as f:
             json.dump({"data": self.as_dicts(), "meta": self._meta}, f, indent=4)
-        self._save_task = None
 
     def close(self) -> None:
         """Clean up and save immediately."""
-        if self._save_task is not None:
-            self._save_task.cancel()
-            self._save_task = None
-        self._save_now()
+        self._save_now()  # Cancels any pending save task
 
     def dependencies_satisfied(self, entry: _DBEntry) -> bool:
         return all(self._data[i].is_done for i in entry.depends_on)
