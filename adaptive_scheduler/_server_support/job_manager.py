@@ -214,7 +214,7 @@ class JobManager(BaseManager):
     async def _update_database_and_get_not_queued(
         self,
     ) -> tuple[set[str], set[str]] | None:
-        running = self.scheduler.queue(me_only=True)
+        running = await asyncio.to_thread(self.scheduler.queue, me_only=True)
         self.database_manager.update(running)  # in case some jobs died
         queued = self._queued(running)  # running `job_name`s
         not_queued = set(self.job_names) - queued
