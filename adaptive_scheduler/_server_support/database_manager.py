@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import pickle
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -79,6 +81,8 @@ class SimpleDatabase:
         self.db_fname = Path(db_fname)
         self._data: list[_DBEntry] = []
         self._meta: dict[str, Any] = {}
+        self._save_task: asyncio.Task | None = None
+        self._last_save_time: float = 0.0
 
         if self.db_fname.exists():
             if clear_existing:
@@ -93,7 +97,7 @@ class SimpleDatabase:
 
     def insert_multiple(self, entries: list[_DBEntry]) -> None:
         self._data.extend(entries)
-        self._save()
+        self._save_now()
 
     def update(self, update_dict: dict, indices: list[int] | None = None) -> None:
         for index, entry in enumerate(self._data):
@@ -101,12 +105,15 @@ class SimpleDatabase:
                 for key, value in update_dict.items():
                     assert hasattr(entry, key)
                     setattr(entry, key, value)
-        self._save()
+        self._save_debounced()
 
     def count(self, condition: Callable[[_DBEntry], bool]) -> int:
         return sum(1 for entry in self._data if condition(entry))
 
-    def get_with_index(self, condition: Callable[[_DBEntry], bool]) -> tuple[int, _DBEntry] | None:
+    def get_with_index(
+        self,
+        condition: Callable[[_DBEntry], bool],
+    ) -> tuple[int, _DBEntry] | None:
         for index, entry in enumerate(self._data):
             if condition(entry):
                 return index, entry
@@ -131,9 +138,68 @@ class SimpleDatabase:
     def as_dicts(self) -> list[dict[str, Any]]:
         return [asdict(entry) for entry in self._data]
 
-    def _save(self) -> None:
+    def _cancel_save_task(self) -> None:
+        if self._save_task is not None:
+            self._save_task.cancel()
+            self._save_task = None
+
+    def _save_debounced(self, delay: float = 2.0) -> None:
+        """Debounced save to prevent excessive disk I/O during rapid updates.
+
+        This implements a throttling mechanism that ensures saves don't happen more
+        frequently than once per `delay` seconds. The logic is:
+
+        1. If enough time has passed since the last save (> delay), save immediately
+        2. If the last save was recent (< delay), schedule a delayed save that will
+           execute after the remaining time in the delay period
+        3. Each new call cancels any pending save and reschedules, ensuring that
+           rapid successive calls result in only one final save
+
+        This is particularly important for database operations during high-load
+        scenarios where many jobs might be updating the database simultaneously.
+
+        Parameters
+        ----------
+        delay : float
+            Minimum time in seconds between saves. Defaults to 2.0 seconds.
+
+        Notes
+        -----
+        Falls back to immediate save if no asyncio event loop is running,
+        making this method safe to call from both sync and async contexts.
+
+        """
+        time_since_last_save = time.monotonic() - self._last_save_time
+
+        if time_since_last_save >= delay:  # Enough time has passed, save immediately
+            self._save_now()
+            return
+
+        # Last save was recent, schedule a delayed save for the remaining time
+        remaining_delay = delay - time_since_last_save
+
+        async def delayed_save() -> None:
+            await asyncio.sleep(remaining_delay)
+            self._save_now()
+
+        self._cancel_save_task()
+        try:
+            self._save_task = asyncio.create_task(delayed_save())
+        except RuntimeError:
+            # No event loop running (e.g., in tests or sync context)
+            # Fall back to immediate save to ensure data isn't lost
+            self._save_now()
+
+    def _save_now(self) -> None:
+        """Immediately save to disk."""
+        self._cancel_save_task()
+        self._last_save_time = time.monotonic()
         with self.db_fname.open("w") as f:
             json.dump({"data": self.as_dicts(), "meta": self._meta}, f, indent=4)
+
+    def close(self) -> None:
+        """Clean up and save immediately."""
+        self._save_now()  # Cancels any pending save task
 
     def dependencies_satisfied(self, entry: _DBEntry) -> bool:
         return all(self._data[i].is_done for i in entry.depends_on)
@@ -434,6 +500,9 @@ class DatabaseManager(BaseManager):
                     break
         finally:
             socket.close()
+            # Ensure any pending database changes are saved
+            if self._db is not None:
+                self._db.close()
 
     def replace_learner(self, index: int, new_learner: adaptive.BaseLearner) -> None:
         """Replace a learner and update the corresponding database entry and cloudpickled file.
@@ -475,3 +544,10 @@ class DatabaseManager(BaseManager):
         # not updated now! But we don't care about that.
 
         log.debug(f"Replaced learner at index {index} with a new learner")
+
+    def cancel(self) -> bool | None:
+        """Cancel the database manager and clean up resources."""
+        result = super().cancel()
+        if self._db is not None:
+            self._db.close()
+        return result
