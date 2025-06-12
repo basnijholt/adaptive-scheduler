@@ -55,9 +55,12 @@ def logs_with_string_or_condition(
     def file_has_error(fname: Path) -> bool:
         if not fname.exists():
             return False
-        with fname.open(encoding="utf-8") as f:
-            lines = f.readlines()
-        return has_error(lines)
+        try:
+            with fname.open(encoding="utf-8") as f:
+                lines = f.readlines()
+            return has_error(lines)
+        except (FileNotFoundError, PermissionError, UnicodeDecodeError):
+            return False
 
     have_error = []
     for entry in database_manager.as_dicts():
@@ -66,6 +69,14 @@ def logs_with_string_or_condition(
             all_fnames = [*fnames, entry["log_fname"]]
             have_error.append((entry["job_name"], all_fnames))
     return have_error
+
+
+async def logs_with_string_or_condition_async(
+    error: str | Callable[[list[str]], bool],
+    database_manager: DatabaseManager,
+) -> list[tuple[str, list[str]]]:
+    """Async version that doesn't block the event loop."""
+    return await asyncio.to_thread(logs_with_string_or_condition, error, database_manager)
 
 
 class KillManager(BaseManager):
@@ -121,7 +132,7 @@ class KillManager(BaseManager):
         while True:
             try:
                 self.database_manager.update()
-                failed_jobs = logs_with_string_or_condition(
+                failed_jobs = await logs_with_string_or_condition_async(
                     self.error,
                     self.database_manager,
                 )
