@@ -6,7 +6,7 @@ import asyncio
 import json
 import pickle
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -76,6 +76,24 @@ class _DBEntry:
     depends_on: list[int] = field(default_factory=list)
 
 
+def _asdict_fast(entry: _DBEntry) -> dict[str, Any]:
+    """Fast version of `asdict` for `_DBEntry`.
+
+    About 10x faster than `asdict`, which surprisingly is a bottleneck.
+    """
+    return {
+        "fname": entry.fname,
+        "job_id": entry.job_id,
+        "is_pending": entry.is_pending,
+        "is_done": entry.is_done,
+        "log_fname": entry.log_fname,
+        "job_name": entry.job_name,
+        "output_logs": entry.output_logs,
+        "start_time": entry.start_time,
+        "depends_on": entry.depends_on,
+    }
+
+
 class SimpleDatabase:
     def __init__(self, db_fname: str | Path, *, clear_existing: bool = False) -> None:
         self.db_fname = Path(db_fname)
@@ -136,7 +154,7 @@ class SimpleDatabase:
         return any(condition(entry) for entry in self._data)
 
     def as_dicts(self) -> list[dict[str, Any]]:
-        return [asdict(entry) for entry in self._data]
+        return [_asdict_fast(entry) for entry in self._data]
 
     def _cancel_save_task(self) -> None:
         if self._save_task is not None:
@@ -290,7 +308,7 @@ class DatabaseManager(BaseManager):
         failed = self._db.get_all(
             lambda e: e.job_name is not None and e.job_name not in job_names_in_queue,  # type: ignore[operator]
         )
-        self.failed.extend([asdict(entry) for _, entry in failed])
+        self.failed.extend([_asdict_fast(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
         self._db.update(
             {"job_id": None, "job_name": None, "is_pending": False},
