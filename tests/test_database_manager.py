@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
 from pathlib import Path
 
 import adaptive
@@ -12,6 +13,7 @@ import zmq
 from adaptive_scheduler._server_support.database_manager import (
     DatabaseManager,
     SimpleDatabase,
+    _asdict_fast,
     _DBEntry,
     _ensure_str,
 )
@@ -643,3 +645,12 @@ async def test_replace_learner(db_manager: DatabaseManager) -> None:
         match="Learner at index 0 is already done and cannot be replaced.",
     ):
         db_manager.replace_learner(0, new_learner)
+
+
+def test_asdict_fast(db_manager: DatabaseManager) -> None:
+    """Test the _asdict_fast function."""
+    db_manager.create_empty_db()
+    assert db_manager._db is not None
+    entry = db_manager._db.get(lambda e: e.fname == _ensure_str(db_manager.fnames[0]))
+    assert entry is not None
+    assert _asdict_fast(entry) == asdict(entry)
