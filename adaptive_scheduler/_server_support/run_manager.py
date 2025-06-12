@@ -561,6 +561,7 @@ class RunManager(BaseManager):
             self.kill_manager,
             self.job_manager,
             self.database_manager._db,
+            self.scheduler,
         ]:
             add_timing_to_object(
                 obj,
