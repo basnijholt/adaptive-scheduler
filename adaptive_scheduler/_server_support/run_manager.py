@@ -570,9 +570,11 @@ class RunManager(BaseManager):
                 timing_dict=self._timing_dict,
             )
 
-    def _print_timing(self) -> None:
-        for key, times in self._timing_dict.items():
-            print(f"{key}: {sum(times) / len(times):.6f} seconds")
+    def _timing_dataframe(self) -> pd.DataFrame:
+        cols = {k: pd.Series(v).describe().to_dict() for k, v in self._timing_dict.items()}
+        df = pd.DataFrame(cols).T
+        df["sum"] = df["mean"] * df["count"]
+        return df
 
 
 async def _wait_for_finished(
