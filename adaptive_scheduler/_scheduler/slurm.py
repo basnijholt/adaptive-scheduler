@@ -459,7 +459,7 @@ class SLURM(BaseScheduler):
         return running
 
     @cached_property
-    def partitions(self) -> dict[str, int]:
+    def partitions(self) -> dict[str, int | None]:
         """Get the partitions of the SLURM scheduler."""
         return slurm_partitions()  # type: ignore[return-value]
 
