@@ -1390,6 +1390,7 @@ def add_timing_to_object(
     include_private: bool = True,
     include_magic: bool = False,
     print_times: bool = True,
+    print_cutoff: float = 0.01,
 ) -> dict[str, list[float]]:
     """Dynamically updates all methods of an object to measure execution time.
 
@@ -1399,6 +1400,7 @@ def add_timing_to_object(
         include_private: Whether to include private methods (starting with _)
         include_magic: Whether to include magic methods (starting with __)
         print_times: Whether to print execution times
+        print_cutoff: Minimum time to print in seconds
 
     Returns:
         Dictionary mapping method names to lists of execution times
@@ -1418,7 +1420,7 @@ def add_timing_to_object(
                 execution_time = end_time - start_time
 
                 # Print the execution time if enabled
-                if print_times:
+                if print_times and execution_time > print_cutoff:
                     current_time = datetime.now(tz=timezone.utc).isoformat()
                     emoji = "🐌" if execution_time > 0.5 else "🚀"  # noqa: PLR2004
                     print(

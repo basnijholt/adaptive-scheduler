@@ -553,10 +553,15 @@ class RunManager(BaseManager):
 
         _remove_or_move_files(self.fnames, move_to=move_to)
 
-    def _enable_timing(self, *, print_times: bool = True) -> None:
+    def _enable_timing(self, *, print_times: bool = True, print_cutoff: float = 0.01) -> None:
         self._timing_dict: dict[str, list[float]] = {}
         for obj in [self, self.database_manager, self.kill_manager, self.job_manager]:
-            add_timing_to_object(obj, print_times=print_times, timing_dict=self._timing_dict)
+            add_timing_to_object(
+                obj,
+                print_times=print_times,
+                print_cutoff=print_cutoff,
+                timing_dict=self._timing_dict,
+            )
 
     def _print_timing(self) -> None:
         for key, times in self._timing_dict.items():
