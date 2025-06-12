@@ -545,8 +545,9 @@ class DatabaseManager(BaseManager):
 
         log.debug(f"Replaced learner at index {index} with a new learner")
 
-    def cancel(self) -> None:
+    def cancel(self) -> bool | None:
         """Cancel the database manager and clean up resources."""
-        super().cancel()
+        result = super().cancel()
         if self._db is not None:
             self._db.close()
+        return result

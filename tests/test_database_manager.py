@@ -25,7 +25,7 @@ def test_simple_database_init_and_save(tmp_path: Path) -> None:
     db_fname = tmp_path / "test_db.json"
     db = SimpleDatabase(db_fname)
     assert db.all() == []
-    db._save()
+    db._save_now()
     assert db_fname.exists()
 
 
