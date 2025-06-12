@@ -17,7 +17,6 @@ from adaptive_scheduler.utils import (
     _at_least_adaptive_version,
     _remove_or_move_files,
     _time_between,
-    add_timing_to_object,
     fname_to_learner_fname,
     load_dataframes,
     load_parallel,
@@ -552,27 +551,6 @@ class RunManager(BaseManager):
             raise RuntimeError(msg)
 
         _remove_or_move_files(self.fnames, move_to=move_to)
-
-    def _enable_timing(self, *, print_times: bool = True, print_cutoff: float = 0.01) -> None:
-        self._timing_dict: dict[str, list[float]] = {}
-        for obj in [
-            self,
-            self.database_manager,
-            self.kill_manager,
-            self.job_manager,
-            self.database_manager._db,
-            self.scheduler,
-        ]:
-            add_timing_to_object(
-                obj,
-                print_times=print_times,
-                print_cutoff=print_cutoff,
-                timing_dict=self._timing_dict,
-            )
-
-    def _print_timing(self) -> None:
-        for key, times in self._timing_dict.items():
-            print(f"{key}: {sum(times) / len(times):.6f} seconds")
 
 
 async def _wait_for_finished(
