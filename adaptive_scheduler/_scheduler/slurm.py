@@ -311,8 +311,9 @@ class SLURM(BaseScheduler):
             assert isinstance(nodes, int)
             # Limit the number of cores to the maximum number of cores per node
             max_cores_per_node = self.partitions[partition]
-            tot_cores = nodes * max_cores_per_node
-            cores = min(cores, tot_cores - 1)
+            if max_cores_per_node is not None:
+                tot_cores = nodes * max_cores_per_node
+                cores = min(cores, tot_cores - 1)
         else:  # noqa: PLR5501
             if self.single_job_script:
                 assert isinstance(self.cores, int)
@@ -459,9 +460,11 @@ class SLURM(BaseScheduler):
         return running
 
     @cached_property
-    def partitions(self) -> dict[str, int]:
+    def partitions(self) -> dict[str, int | None]:
         """Get the partitions of the SLURM scheduler."""
-        return slurm_partitions()  # type: ignore[return-value]
+        partitions = slurm_partitions()
+        assert isinstance(partitions, dict)
+        return partitions
 
     @staticmethod
     def cancel_jobs(name: str, *, dry: bool = False) -> None:
@@ -571,7 +574,7 @@ def _at_least_tuple(x: Any) -> tuple[Any, ...]:
 
 def _validate_partition(
     partition: str | tuple[str | None | Callable[[], str | None], ...] | None,
-    partitions: dict[str, int],
+    partitions: dict[str, int | None],
 ) -> None:
     if partition is None:
         return
