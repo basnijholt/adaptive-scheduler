@@ -574,7 +574,7 @@ class RunManager(BaseManager):
         cols = {k: pd.Series(v).describe().to_dict() for k, v in self._timing_dict.items()}
         df = pd.DataFrame(cols).T
         df["sum"] = df["mean"] * df["count"]
-        return df
+        return df.sort_values("sum", ascending=False)
 
 
 async def _wait_for_finished(
