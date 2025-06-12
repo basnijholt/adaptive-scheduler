@@ -77,7 +77,7 @@ class _DBEntry:
 
 
 def _asdict_fast(entry: _DBEntry) -> dict[str, Any]:
-    """Fast version of `asdict` for `_DBEntry`.
+    """Fast version of `dataclasses.asdict` for `_DBEntry`.
 
     About 10x faster than `asdict`, which surprisingly is a bottleneck.
     """
