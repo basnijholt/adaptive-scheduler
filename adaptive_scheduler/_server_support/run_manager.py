@@ -555,7 +555,13 @@ class RunManager(BaseManager):
 
     def _enable_timing(self, *, print_times: bool = True, print_cutoff: float = 0.01) -> None:
         self._timing_dict: dict[str, list[float]] = {}
-        for obj in [self, self.database_manager, self.kill_manager, self.job_manager]:
+        for obj in [
+            self,
+            self.database_manager,
+            self.kill_manager,
+            self.job_manager,
+            self.database_manager._db,
+        ]:
             add_timing_to_object(
                 obj,
                 print_times=print_times,
