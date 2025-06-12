@@ -144,21 +144,50 @@ class SimpleDatabase:
             self._save_task = None
 
     def _save_debounced(self, delay: float = 2.0) -> None:
-        """Debounced save - cancels previous save and schedules a new one."""
-        if time.monotonic() - self._last_save_time > delay:
-            # If the delay has passed, save immediately and cancel any pending save task
+        """Debounced save to prevent excessive disk I/O during rapid updates.
+
+        This implements a throttling mechanism that ensures saves don't happen more
+        frequently than once per `delay` seconds. The logic is:
+
+        1. If enough time has passed since the last save (> delay), save immediately
+        2. If the last save was recent (< delay), schedule a delayed save that will
+           execute after the remaining time in the delay period
+        3. Each new call cancels any pending save and reschedules, ensuring that
+           rapid successive calls result in only one final save
+
+        This is particularly important for database operations during high-load
+        scenarios where many jobs might be updating the database simultaneously.
+
+        Parameters
+        ----------
+        delay : float
+            Minimum time in seconds between saves. Defaults to 2.0 seconds.
+
+        Notes
+        -----
+        Falls back to immediate save if no asyncio event loop is running,
+        making this method safe to call from both sync and async contexts.
+
+        """
+        time_since_last_save = time.monotonic() - self._last_save_time
+
+        if time_since_last_save >= delay:  # Enough time has passed, save immediately
             self._save_now()
             return
 
+        # Last save was recent, schedule a delayed save for the remaining time
+        remaining_delay = delay - time_since_last_save
+
         async def delayed_save() -> None:
-            await asyncio.sleep(delay)
+            await asyncio.sleep(remaining_delay)
             self._save_now()
 
         self._cancel_save_task()
         try:
             self._save_task = asyncio.create_task(delayed_save())
         except RuntimeError:
-            # No event loop, save immediately
+            # No event loop running (e.g., in tests or sync context)
+            # Fall back to immediate save to ensure data isn't lost
             self._save_now()
 
     def _save_now(self) -> None:
