@@ -109,6 +109,7 @@ class SlurmTask(Future):
             if run_manager is not None:
                 self._get()
                 if run_manager.task is not None and run_manager.task.done():
+                    super().cancel()
                     return
             await asyncio.sleep(1)
 
