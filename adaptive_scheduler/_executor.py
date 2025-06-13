@@ -109,20 +109,23 @@ class SlurmTask(Future):
                 self._get()
             await asyncio.sleep(1)
 
-    def _get(self) -> Any | None:  # noqa: PLR0911
-        """Updates the state of the task and returns the result if the task is finished."""
-        if self.done():
-            return super().result(timeout=0)
-
+    def _learner_index_and_local_index(self) -> tuple[int, int]:
         func_id, global_index = self.task_id
         try:
             learner_idx, local_index = self.executor._task_mapping[(func_id, global_index)]
         except KeyError as e:
             msg = "Task mapping not found; finalize() must be called first."
             raise RuntimeError(msg) from e
-        # Now retrieve the correct learner and filename:
+        return learner_idx, local_index
+
+    def _get(self) -> Any | None:  # noqa: PLR0911
+        """Updates the state of the task and returns the result if the task is finished."""
+        if self.done():
+            return super().result(timeout=0)
+
+        learner_idx, local_index = self._learner_index_and_local_index()
         run_manager = self.executor._run_manager
-        assert run_manager is not None, "RunManager not initialized"
+        assert run_manager is not None
         learner = run_manager.learners[learner_idx]
         fname = run_manager.fnames[learner_idx]
 
@@ -131,8 +134,7 @@ class SlurmTask(Future):
             self.set_result(result)
             return result
 
-        assert self.executor._run_manager is not None
-        last_load_time = self.executor._run_manager._last_load_time.get(learner_idx, 0)
+        last_load_time = run_manager._last_load_time.get(learner_idx, 0)
         now = time.monotonic()
         time_since_last_load = now - last_load_time
         if time_since_last_load < self.min_load_interval:
@@ -148,9 +150,10 @@ class SlurmTask(Future):
         self._last_size = size
 
         learner.load(fname)
-        self._load_time = time.monotonic() - now
+        now2 = time.monotonic()
+        self._load_time = now2 - now
         self.min_load_interval = max(1.0, 20.0 * self._load_time)
-        self.executor._run_manager._last_load_time[learner_idx] = now
+        run_manager._last_load_time[learner_idx] = now2
 
         if local_index in learner.data:
             result = learner.data[local_index]
