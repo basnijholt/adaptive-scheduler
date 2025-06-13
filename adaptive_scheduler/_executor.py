@@ -105,8 +105,11 @@ class SlurmTask(Future):
     async def _background_check(self) -> None:
         """Periodically check if the task is done."""
         while not self.done():
-            if self.executor._run_manager is not None:
+            run_manager = self.executor._run_manager
+            if run_manager is not None:
                 self._get()
+                if run_manager.task is not None and run_manager.task.done():
+                    return
             await asyncio.sleep(1)
 
     def _learner_index_and_local_index(self) -> tuple[int, int]:
