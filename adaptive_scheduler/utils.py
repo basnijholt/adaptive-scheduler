@@ -1419,16 +1419,18 @@ def add_timing_to_object(
                 end_time = time.perf_counter()
                 execution_time = end_time - start_time
 
+                class_name = obj.__name__ if isinstance(obj, type) else obj.__class__.__name__
+
                 # Print the execution time if enabled
                 if print_times and execution_time > print_cutoff:
                     current_time = datetime.now(tz=timezone.utc).isoformat()
                     emoji = "🐌" if execution_time > 0.5 else "🚀"  # noqa: PLR2004
                     print(
-                        f"{emoji} {current_time} {obj.__class__.__name__}.{method_name} took {execution_time:.6f} seconds",
+                        f"{emoji} {current_time} {class_name}.{method_name} took {execution_time:.6f} seconds",
                     )
 
                 # Store in the dictionary
-                key = f"{obj.__class__.__name__}.{method_name}"
+                key = f"{class_name}.{method_name}"
                 if key not in timing_dict:
                     timing_dict[key] = []
                 timing_dict[key].append(execution_time)
