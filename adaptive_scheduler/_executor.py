@@ -383,10 +383,10 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     async def _check_and_update_learner(self, learner_idx: int, learner: SequenceLearner) -> None:
         """Check a learner file and update all pending tasks for that learner."""
-        # Get pending tasks for this learner and filter out completed ones
         if learner_idx not in self._pending_tasks:
             return
 
+        # Filter out completed tasks and update with any results already in memory
         pending_tasks = _update_pending_tasks(self._pending_tasks[learner_idx], learner)
         self._pending_tasks[learner_idx] = pending_tasks
         if not pending_tasks:
