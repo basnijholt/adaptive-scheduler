@@ -154,9 +154,9 @@ class SlurmTask(Future):
 
         if self._last_size == size:
             return None
-        self._last_size = size
 
         learner.load(fname)
+        self._last_size = size
         now2 = time.monotonic()
         self._load_time = now2 - now
         self.min_load_interval = max(1.0, 20.0 * self._load_time)
