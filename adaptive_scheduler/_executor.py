@@ -388,46 +388,44 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             return
 
         pending_tasks = [task for task in self._pending_tasks[learner_idx] if not task.done()]
-        self._pending_tasks[learner_idx] = pending_tasks  # Update the list
-
         if not pending_tasks:
+            self._pending_tasks[learner_idx] = []
             return
 
-        # Check if any results are already in memory
+        # Update with any results already in memory
         pending_tasks = _update_pending_tasks(pending_tasks, learner)
-
         if not pending_tasks:
-            self._pending_tasks[learner_idx] = pending_tasks  # Update after removals
+            self._pending_tasks[learner_idx] = []
             return
 
-        # Check if we should load from disk
+        # Check if we should load: timing, file existence, and size
         assert self._run_manager is not None
         last_load_time = self._run_manager._last_load_time.get(learner_idx, 0)
         min_interval = self._learner_min_load_interval.get(learner_idx, 1.0)
 
         if time.monotonic() - last_load_time < min_interval:
+            self._pending_tasks[learner_idx] = pending_tasks
             return
 
-        # Check file size
         fname = self._run_manager.fnames[learner_idx]
         try:
             size = await asyncio.to_thread(os.path.getsize, fname)
         except FileNotFoundError:
+            self._pending_tasks[learner_idx] = pending_tasks
             return
 
         if self._learner_last_size.get(learner_idx, 0) == size:
+            self._pending_tasks[learner_idx] = pending_tasks
             return
 
-        # Load file and update tasks
+        # Load file, update state, and update tasks
         load_start = time.monotonic()
         await asyncio.to_thread(learner.load, fname)
         load_time = time.monotonic() - load_start
 
-        # Update state
         self._learner_last_size[learner_idx] = size
         self._learner_min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
-
         self._pending_tasks[learner_idx] = _update_pending_tasks(pending_tasks, learner)
 
     def _register_task(self, task: SlurmTask) -> None:
