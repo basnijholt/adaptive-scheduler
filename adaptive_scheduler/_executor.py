@@ -387,13 +387,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         if learner_idx not in self._pending_tasks:
             return
 
-        pending_tasks = [task for task in self._pending_tasks[learner_idx] if not task.done()]
-        if not pending_tasks:
-            self._pending_tasks[learner_idx] = []
-            return
-
-        # Update with any results already in memory
-        pending_tasks = _update_pending_tasks(pending_tasks, learner)
+        pending_tasks = _update_pending_tasks(self._pending_tasks[learner_idx], learner)
         self._pending_tasks[learner_idx] = pending_tasks
         if not pending_tasks:
             return
@@ -415,7 +409,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         if self._learner_last_size.get(learner_idx, 0) == size:
             return
 
-        # Load file, update state, and update tasks
+        # Load file, update state, and update pending tasks
         load_start = time.monotonic()
         await asyncio.to_thread(learner.load, fname)
         load_time = time.monotonic() - load_start
@@ -577,8 +571,11 @@ def _update_pending_tasks(
     pending_tasks: list[SlurmTask],
     learner: SequenceLearner,
 ) -> list[SlurmTask]:
+    """Update pending tasks by filtering out done tasks and setting results for completed ones."""
     new_pending_tasks = []
     for task in pending_tasks:
+        if task.done():
+            continue  # Filter out already done tasks
         _, local_idx = task._learner_index_and_local_index()
         if local_idx in learner.data:
             task.set_result(learner.data[local_idx])
