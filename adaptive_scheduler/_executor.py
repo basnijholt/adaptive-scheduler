@@ -342,12 +342,8 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     _run_manager: adaptive_scheduler.RunManager | None = None
     _task_mapping: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
     _file_monitor_task: asyncio.Task | None = field(default=None, init=False, repr=False)
-    _learner_last_size: dict[int, float] = field(default_factory=dict, init=False, repr=False)
-    _learner_min_load_interval: dict[int, float] = field(
-        default_factory=dict,
-        init=False,
-        repr=False,
-    )
+    _last_size: dict[int, float] = field(default_factory=dict, init=False, repr=False)
+    _min_load_interval: dict[int, float] = field(default_factory=dict, init=False, repr=False)
     _pending_tasks: dict[int, list[SlurmTask]] = field(default_factory=dict, init=False, repr=False)
     _all_tasks: list[SlurmTask] = field(default_factory=list, init=False, repr=False)
 
@@ -404,7 +400,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         # Check if we should load: timing, file existence, and size
         assert self._run_manager is not None
         last_load_time = self._run_manager._last_load_time.get(learner_idx, 0)
-        min_interval = self._learner_min_load_interval.get(learner_idx, 1.0)
+        min_interval = self._min_load_interval.get(learner_idx, 1.0)
 
         if time.monotonic() - last_load_time < min_interval:
             return
@@ -415,7 +411,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         except FileNotFoundError:
             return
 
-        if self._learner_last_size.get(learner_idx, 0) == size:
+        if self._last_size.get(learner_idx, 0) == size:
             return
 
         # Load file, update state, and update pending tasks
@@ -423,8 +419,8 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         await asyncio.to_thread(learner.load, fname)
         load_time = time.monotonic() - load_start
 
-        self._learner_last_size[learner_idx] = size
-        self._learner_min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
+        self._last_size[learner_idx] = size
+        self._min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
 
         self._pending_tasks[learner_idx] = _update_pending_tasks(pending_tasks, learner)

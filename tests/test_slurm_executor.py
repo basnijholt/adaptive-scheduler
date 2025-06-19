@@ -232,7 +232,7 @@ async def test_task_get_adapts_load_interval(executor: SlurmExecutor) -> None:
             f.write(b"dummy")
 
         await executor._check_and_update_learner(0, learner)
-        assert executor._learner_min_load_interval[0] >= 2.0  # Should be at least 20x the load time
+        assert executor._min_load_interval[0] >= 2.0  # Should be at least 20x the load time
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
