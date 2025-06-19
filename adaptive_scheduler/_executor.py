@@ -394,8 +394,8 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
         # Update with any results already in memory
         pending_tasks = _update_pending_tasks(pending_tasks, learner)
+        self._pending_tasks[learner_idx] = pending_tasks
         if not pending_tasks:
-            self._pending_tasks[learner_idx] = []
             return
 
         # Check if we should load: timing, file existence, and size
@@ -404,18 +404,15 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         min_interval = self._learner_min_load_interval.get(learner_idx, 1.0)
 
         if time.monotonic() - last_load_time < min_interval:
-            self._pending_tasks[learner_idx] = pending_tasks
             return
 
         fname = self._run_manager.fnames[learner_idx]
         try:
             size = await asyncio.to_thread(os.path.getsize, fname)
         except FileNotFoundError:
-            self._pending_tasks[learner_idx] = pending_tasks
             return
 
         if self._learner_last_size.get(learner_idx, 0) == size:
-            self._pending_tasks[learner_idx] = pending_tasks
             return
 
         # Load file, update state, and update tasks
@@ -426,6 +423,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         self._learner_last_size[learner_idx] = size
         self._learner_min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
+
         self._pending_tasks[learner_idx] = _update_pending_tasks(pending_tasks, learner)
 
     def _register_task(self, task: SlurmTask) -> None:
