@@ -394,11 +394,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             return
 
         # Check if any results are already in memory
-        for task in pending_tasks[:]:  # Copy list since we modify it
-            _, local_idx = task._learner_index_and_local_index()
-            if local_idx in learner.data:
-                task.set_result(learner.data[local_idx])
-                pending_tasks.remove(task)
+        pending_tasks = _update_pending_tasks(pending_tasks, learner)
 
         if not pending_tasks:
             self._pending_tasks[learner_idx] = pending_tasks  # Update after removals
@@ -432,14 +428,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         self._learner_min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
 
-        # Update all pending tasks
-        for task in pending_tasks[:]:  # Copy list since we modify it
-            _, local_idx = task._learner_index_and_local_index()
-            if local_idx in learner.data:
-                task.set_result(learner.data[local_idx])
-                pending_tasks.remove(task)
-
-        self._pending_tasks[learner_idx] = pending_tasks  # Update after removals
+        self._pending_tasks[learner_idx] = _update_pending_tasks(pending_tasks, learner)
 
     def _register_task(self, task: SlurmTask) -> None:
         """Register a task to be monitored by the file monitor."""
@@ -586,6 +575,20 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
+
+
+def _update_pending_tasks(
+    pending_tasks: list[SlurmTask],
+    learner: SequenceLearner,
+) -> list[SlurmTask]:
+    new_pending_tasks = []
+    for task in pending_tasks:
+        _, local_idx = task._learner_index_and_local_index()
+        if local_idx in learner.data:
+            task.set_result(learner.data[local_idx])
+        else:
+            new_pending_tasks.append(task)
+    return new_pending_tasks
 
 
 def _name(func: Callable[..., Any]) -> str:
