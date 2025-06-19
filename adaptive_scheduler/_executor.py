@@ -110,17 +110,16 @@ class SlurmTask(Future):
         if self.done():
             return super().result(timeout=0)
 
-        # This method should not raise an error if the mapping is not found yet,
-        # as it can be called before finalize() via __repr__.
-        with contextlib.suppress(RuntimeError):
-            learner_idx, local_index = self._learner_index_and_local_index()
-            run_manager = self.executor._run_manager
-            if run_manager is not None:
-                learner = run_manager.learners[learner_idx]
-                if local_index in learner.data:
-                    result = learner.data[local_index]
-                    self.set_result(result)
-                    return result
+        # Can't check anything if finalize() hasn't been called yet
+        if self.executor._run_manager is None:
+            return None
+
+        learner_idx, local_index = self._learner_index_and_local_index()
+        learner = self.executor._run_manager.learners[learner_idx]
+        if local_index in learner.data:
+            result = learner.data[local_index]
+            self.set_result(result)
+            return result
         return None
 
     def result(self, timeout: float | None = None) -> Any:
@@ -340,6 +339,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         init=False,
         repr=False,
     )
+    _pending_tasks: dict[int, list[SlurmTask]] = field(default_factory=dict, init=False, repr=False)
     _all_tasks: list[SlurmTask] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -374,9 +374,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             with contextlib.suppress(Exception):
                 await asyncio.sleep(1)
 
-                if self._run_manager is None or (
-                    self._run_manager.task is not None and self._run_manager.task.cancelled()
-                ):
+                if self._run_manager.task is not None and self._run_manager.task.cancelled():
                     break
 
                 # Check each learner file that has pending tasks
@@ -385,24 +383,25 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     async def _check_and_update_learner(self, learner_idx: int, learner: SequenceLearner) -> None:
         """Check a learner file and update all pending tasks for that learner."""
-        # Find all pending tasks for this learner
-        pending_tasks = [
-            task
-            for task in self._all_tasks
-            if not task.done() and self._get_learner_idx(task) == learner_idx
-        ]
+        # Get pending tasks for this learner and filter out completed ones
+        if learner_idx not in self._pending_tasks:
+            return
+
+        pending_tasks = [task for task in self._pending_tasks[learner_idx] if not task.done()]
+        self._pending_tasks[learner_idx] = pending_tasks  # Update the list
 
         if not pending_tasks:
             return
 
         # Check if any results are already in memory
         for task in pending_tasks[:]:  # Copy list since we modify it
-            local_idx = self._get_local_idx(task)
+            _, local_idx = task._learner_index_and_local_index()
             if local_idx in learner.data:
                 task.set_result(learner.data[local_idx])
                 pending_tasks.remove(task)
 
         if not pending_tasks:
+            self._pending_tasks[learner_idx] = pending_tasks  # Update after removals
             return
 
         # Check if we should load from disk
@@ -434,23 +433,20 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
 
         # Update all pending tasks
-        for task in pending_tasks:
-            local_idx = self._get_local_idx(task)
+        for task in pending_tasks[:]:  # Copy list since we modify it
+            _, local_idx = task._learner_index_and_local_index()
             if local_idx in learner.data:
                 task.set_result(learner.data[local_idx])
+                pending_tasks.remove(task)
 
-    def _get_learner_idx(self, task: SlurmTask) -> int | None:
-        """Get learner index for a task, return None if mapping not available."""
-        try:
-            learner_idx, _ = task._learner_index_and_local_index()
-            return learner_idx  # noqa: TRY300
-        except RuntimeError:
-            return None
+        self._pending_tasks[learner_idx] = pending_tasks  # Update after removals
 
-    def _get_local_idx(self, task: SlurmTask) -> int:
-        """Get local index for a task."""
-        _, local_idx = task._learner_index_and_local_index()
-        return local_idx
+    def _register_task(self, task: SlurmTask) -> None:
+        """Register a task to be monitored by the file monitor."""
+        learner_idx, _ = task._learner_index_and_local_index()
+        if learner_idx not in self._pending_tasks:
+            self._pending_tasks[learner_idx] = []
+        self._pending_tasks[learner_idx].append(task)
 
     def _to_learners(
         self,
@@ -502,6 +498,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         # Clear state for new run
         self._learner_last_size.clear()
         self._learner_min_load_interval.clear()
+        self._pending_tasks.clear()
 
         assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
@@ -544,9 +541,12 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             extra_scheduler_kwargs=self.extra_scheduler_kwargs,
         )
 
+        # Register all tasks now that task mapping is available
+        for task in self._all_tasks:
+            self._register_task(task)
+
         # Start the file monitoring task
-        loop = asyncio.get_event_loop()
-        self._file_monitor_task = loop.create_task(self._monitor_files())
+        self._file_monitor_task = asyncio.create_task(self._monitor_files())
 
         if start:
             self._run_manager.start()
@@ -577,6 +577,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         data["_all_tasks"] = []
         data["_learner_last_size"] = {}
         data["_learner_min_load_interval"] = {}
+        data["_pending_tasks"] = {}
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
