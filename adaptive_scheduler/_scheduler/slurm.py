@@ -402,20 +402,7 @@ class SLURM(BaseScheduler):
     @staticmethod
     def queue(*, me_only: bool = True) -> dict[str, dict[str, str]]:
         """Get the queue of jobs."""
-        python_format = {
-            "JobID": 100,
-            "Name": 1000,
-            "state": 100,
-            "NumNodes": 100,
-            "NumTasks": 100,
-            "ReasonList": 4000,
-            "SubmitTime": 100,
-            "StartTime": 100,
-            "UserName": 100,
-            "Partition": 100,
-        }  # (key -> length) mapping
-
-        slurm_format = ",".join(f"{k}:{v}" for k, v in python_format.items())
+        slurm_format = ",".join(f"{k}:{v}" for k, v in _QUEUE_FORMAT.items())
         squeue_executable = shutil.which("squeue")
         assert isinstance(squeue_executable, str)
         cmd = [
@@ -437,7 +424,7 @@ class SLURM(BaseScheduler):
         def line_to_dict(line: str) -> dict[str, str]:
             chars = list(line)
             info = {}
-            for k, v in python_format.items():
+            for k, v in _QUEUE_FORMAT.items():
                 value = "".join(chars[:v]).strip()
                 if len(value) == v:
                     # If this happens, we need to increase the format length for the given key.
@@ -584,3 +571,17 @@ def _validate_partition(
         if p not in partitions:
             msg = f"Invalid partition: {p}, only {partitions} are available."
             raise ValueError(msg)
+
+
+_QUEUE_FORMAT = {
+    "JobID": 100,
+    "Name": 1000,
+    "state": 100,
+    "NumNodes": 100,
+    "NumTasks": 100,
+    "ReasonList": 4000,
+    "SubmitTime": 100,
+    "StartTime": 100,
+    "UserName": 100,
+    "Partition": 100,
+}  # (key -> length) mapping
