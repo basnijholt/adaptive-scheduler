@@ -483,11 +483,6 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         if not learners:
             return None
 
-        # Clear state for new run
-        self._learner_last_size.clear()
-        self._learner_min_load_interval.clear()
-        self._pending_tasks.clear()
-
         assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
             learners=learners,
