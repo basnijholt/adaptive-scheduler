@@ -574,11 +574,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         data["_sequences"] = {}
         data["_sequence_mapping"] = {}
         data["_disk_func_mapping"] = {}
-        data["_all_tasks"] = []
-        data["_learner_last_size"] = {}
-        data["_learner_min_load_interval"] = {}
-        data["_pending_tasks"] = {}
-        for key in [
+        for key in [  # No init
             "_file_monitor_task",
             "_learner_last_size",
             "_learner_min_load_interval",
