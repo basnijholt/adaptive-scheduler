@@ -180,8 +180,7 @@ async def test_cleanup(executor: SlurmExecutor) -> None:
 def test_task_get_before_finalize(executor: SlurmExecutor) -> None:
     """Test that _get before finalize returns None."""
     task = executor.submit(example_func, 1.0)
-    with pytest.raises(RuntimeError, match="Task mapping not found; finalize()"):
-        task._get()
+    assert task._get() is None
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
@@ -232,8 +231,8 @@ async def test_task_get_adapts_load_interval(executor: SlurmExecutor) -> None:
         with open(fname, "wb") as f:  # noqa: PTH123, ASYNC230
             f.write(b"dummy")
 
-        task._get()
-        assert task.min_load_interval >= 2.0  # Should be at least 20x the load time
+        await executor._check_and_update_learner(0, learner)
+        assert executor._learner_min_load_interval[0] >= 2.0  # Should be at least 20x the load time
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")

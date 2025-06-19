@@ -101,6 +101,15 @@ class SlurmTask(Future):
             raise RuntimeError(msg) from e
         return learner_idx, local_index
 
+    @functools.cached_property
+    def _learner_and_fname(self) -> tuple[SequenceLearner, str | Path]:
+        idx_learner, _ = self.task_id
+        run_manager = self.executor._run_manager
+        assert run_manager is not None, "RunManager not initialized"
+        learner: SequenceLearner = run_manager.learners[idx_learner]  # type: ignore[index]
+        fname = run_manager.fnames[idx_learner]
+        return learner, fname
+
     def _get(self) -> Any | None:
         """Updates the state of the task and returns the result if the task is finished.
 
