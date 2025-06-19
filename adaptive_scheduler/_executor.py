@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import contextlib
 import datetime
 import functools
 import os
@@ -105,12 +106,14 @@ class SlurmTask(Future):
     async def _background_check(self) -> None:
         """Periodically check if the task is done."""
         while not self.done():
-            run_manager = self.executor._run_manager
-            if run_manager is not None:
-                self._get()
-                if run_manager.task is not None and run_manager.task.cancelled():
-                    super().cancel()
-                    return
+            # Catch all exceptions to prevent the background task from crashing.
+            with contextlib.suppress(Exception):
+                run_manager = self.executor._run_manager
+                if run_manager is not None:
+                    self._get()
+                    if run_manager.task is not None and run_manager.task.cancelled():
+                        super().cancel()
+                        return
             await asyncio.sleep(1)
 
     def _learner_index_and_local_index(self) -> tuple[int, int]:
@@ -151,9 +154,9 @@ class SlurmTask(Future):
 
         if self._last_size == size:
             return None
-        self._last_size = size
 
         learner.load(fname)
+        self._last_size = size
         now2 = time.monotonic()
         self._load_time = now2 - now
         self.min_load_interval = max(1.0, 20.0 * self._load_time)
@@ -207,7 +210,8 @@ class SlurmTask(Future):
 
     def __repr__(self) -> str:
         if not self.done():
-            self._get()
+            with contextlib.suppress(Exception):
+                self._get()
         return f"SLURMTask(task_id={self.task_id}, state={self._state})"
 
     def __str__(self) -> str:
