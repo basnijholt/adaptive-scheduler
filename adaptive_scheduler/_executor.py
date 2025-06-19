@@ -6,6 +6,7 @@ import contextlib
 import datetime
 import functools
 import os
+import threading
 import time
 import uuid
 from concurrent.futures import Executor, Future
@@ -99,6 +100,7 @@ class SlurmTask(Future):
         self.min_load_interval: float = min_load_interval
         self._last_size: float = 0
         self._load_time: float = 0
+        self._lock = threading.Lock()
 
         loop = asyncio.get_event_loop()
         self._background_task = loop.create_task(self._background_check())
@@ -110,7 +112,9 @@ class SlurmTask(Future):
             with contextlib.suppress(Exception):
                 run_manager = self.executor._run_manager
                 if run_manager is not None:
-                    self._get()
+                    # Run the blocking _get() in a thread to avoid blocking the
+                    # event loop, with a timeout.
+                    await asyncio.wait_for(asyncio.to_thread(self._get), timeout=300)
                     if run_manager.task is not None and run_manager.task.cancelled():
                         super().cancel()
                         return
@@ -127,46 +131,47 @@ class SlurmTask(Future):
 
     def _get(self) -> Any | None:  # noqa: PLR0911
         """Updates the state of the task and returns the result if the task is finished."""
-        if self.done():
-            return super().result(timeout=0)
+        with self._lock:
+            if self.done():
+                return super().result(timeout=0)
 
-        learner_idx, local_index = self._learner_index_and_local_index()
-        run_manager = self.executor._run_manager
-        assert run_manager is not None
-        learner = run_manager.learners[learner_idx]
-        fname = run_manager.fnames[learner_idx]
+            learner_idx, local_index = self._learner_index_and_local_index()
+            run_manager = self.executor._run_manager
+            assert run_manager is not None
+            learner = run_manager.learners[learner_idx]
+            fname = run_manager.fnames[learner_idx]
 
-        if learner.done():
-            result = learner.data[local_index]
-            self.set_result(result)
-            return result
+            if learner.done():
+                result = learner.data[local_index]
+                self.set_result(result)
+                return result
 
-        last_load_time = run_manager._last_load_time.get(learner_idx, 0)
-        now = time.monotonic()
-        time_since_last_load = now - last_load_time
-        if time_since_last_load < self.min_load_interval:
+            last_load_time = run_manager._last_load_time.get(learner_idx, 0)
+            now = time.monotonic()
+            time_since_last_load = now - last_load_time
+            if time_since_last_load < self.min_load_interval:
+                return None
+
+            try:
+                size = os.path.getsize(fname)  # noqa: PTH202
+            except FileNotFoundError:
+                return None
+
+            if self._last_size == size:
+                return None
+
+            learner.load(fname)
+            self._last_size = size
+            now2 = time.monotonic()
+            self._load_time = now2 - now
+            self.min_load_interval = max(1.0, 20.0 * self._load_time)
+            run_manager._last_load_time[learner_idx] = now2
+
+            if local_index in learner.data:
+                result = learner.data[local_index]
+                self.set_result(result)
+                return result
             return None
-
-        try:
-            size = os.path.getsize(fname)  # noqa: PTH202
-        except FileNotFoundError:
-            return None
-
-        if self._last_size == size:
-            return None
-
-        learner.load(fname)
-        self._last_size = size
-        now2 = time.monotonic()
-        self._load_time = now2 - now
-        self.min_load_interval = max(1.0, 20.0 * self._load_time)
-        run_manager._last_load_time[learner_idx] = now2
-
-        if local_index in learner.data:
-            result = learner.data[local_index]
-            self.set_result(result)
-            return result
-        return None
 
     @functools.cached_property
     def _learner_and_fname(self) -> tuple[SequenceLearner, str | Path]:
