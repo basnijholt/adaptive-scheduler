@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 from concurrent.futures import Executor, Future
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -557,20 +557,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     def new(self, update: dict[str, Any] | None = None) -> SlurmExecutor:
         """Create a new SlurmExecutor with the same parameters."""
-        data = asdict(self)
-        data["_run_manager"] = None
-        data["_sequences"] = {}
-        data["_sequence_mapping"] = {}
-        data["_disk_func_mapping"] = {}
-        for key in [  # No init
-            "_file_monitor_task",
-            "_learner_last_size",
-            "_learner_min_load_interval",
-            "_pending_tasks",
-            "_all_tasks",
-        ]:
-            data.pop(key, None)
-
+        data = {}
+        for key in SlurmExecutor.__dataclass_fields__:
+            if key.startswith("_"):
+                continue
+            data[key] = getattr(self, key)
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
