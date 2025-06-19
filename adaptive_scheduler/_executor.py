@@ -87,19 +87,10 @@ class TaskID(NamedTuple):
 class SlurmTask(Future):
     """A `Future` that loads the result from a `SequenceLearner`."""
 
-    def __init__(
-        self,
-        executor: SlurmExecutor,
-        task_id: TaskID,
-        min_load_interval: float = 1.0,
-    ) -> None:
+    def __init__(self, executor: SlurmExecutor, task_id: TaskID) -> None:
         super().__init__()
         self.executor = executor
         self.task_id = task_id
-        self.min_load_interval: float = min_load_interval
-        self._load_time: float = 0
-
-        # Note: Registration with the file monitor happens in finalize()
 
     def _learner_index_and_local_index(self) -> tuple[int, int]:
         func_id, global_index = self.task_id
@@ -132,15 +123,6 @@ class SlurmTask(Future):
                     return result
         return None
 
-    @functools.cached_property
-    def _learner_and_fname(self) -> tuple[SequenceLearner, str | Path]:
-        learner_idx, _ = self._learner_index_and_local_index()
-        run_manager = self.executor._run_manager
-        assert run_manager is not None, "RunManager not initialized"
-        learner: SequenceLearner = run_manager.learners[learner_idx]
-        fname = run_manager.fnames[learner_idx]
-        return learner, fname
-
     def result(self, timeout: float | None = None) -> Any:
         """Return the result of the future if available.
 
@@ -166,10 +148,6 @@ class SlurmTask(Future):
             raise RuntimeError(msg)
 
         return super().result(timeout=0)  # timeout=0 makes it non-blocking
-
-    def cancel(self) -> bool:
-        """Cancel the future."""
-        return super().cancel()
 
     def __repr__(self) -> str:
         if not self.done():
@@ -357,7 +335,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     _task_mapping: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
     _file_monitor_task: asyncio.Task | None = field(default=None, init=False, repr=False)
     _learner_last_size: dict[int, float] = field(default_factory=dict, init=False, repr=False)
-    _pending_tasks: dict[int, list[SlurmTask]] = field(default_factory=dict, init=False, repr=False)
+    _learner_min_load_interval: dict[int, float] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+    )
     _all_tasks: list[SlurmTask] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -390,82 +372,85 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         """Single background task that monitors all learner files for changes."""
         while self._run_manager is not None:
             with contextlib.suppress(Exception):
-                # Catch all exceptions to prevent the monitor from crashing
-
                 await asyncio.sleep(1)
-                if self._run_manager is None:
+
+                if self._run_manager is None or (
+                    self._run_manager.task is not None and self._run_manager.task.cancelled()
+                ):
                     break
 
-                # Check if run manager was cancelled
-                if self._run_manager.task is not None and self._run_manager.task.cancelled():
-                    # Cancel all pending tasks
-                    for tasks in self._pending_tasks.values():
-                        for task in tasks:
-                            task.cancel()
-                    break
-
-                # Process each learner file
+                # Check each learner file that has pending tasks
                 for learner_idx, learner in enumerate(self._run_manager.learners):
-                    await self._check_learner_file(learner_idx, learner)
+                    await self._check_and_update_learner(learner_idx, learner)
 
-    async def _check_learner_file(self, learner_idx: int, learner: SequenceLearner) -> None:
-        """Check a single learner file and update tasks if needed."""
-        if learner_idx not in self._pending_tasks or not self._pending_tasks[learner_idx]:
-            return  # No tasks waiting for this learner
-
-        # Get tasks waiting for this learner (filter out done tasks)
-        pending_tasks = [task for task in self._pending_tasks[learner_idx] if not task.done()]
-        self._pending_tasks[learner_idx] = pending_tasks
+    async def _check_and_update_learner(self, learner_idx: int, learner: SequenceLearner) -> None:
+        """Check a learner file and update all pending tasks for that learner."""
+        # Find all pending tasks for this learner
+        pending_tasks = [
+            task
+            for task in self._all_tasks
+            if not task.done() and self._get_learner_idx(task) == learner_idx
+        ]
 
         if not pending_tasks:
-            return  # No pending tasks for this learner
-
-        # Check if we should load the file
-        assert self._run_manager is not None
-        last_load_time = self._run_manager._last_load_time.get(learner_idx, 0)
-        now = time.monotonic()
-        min_interval = min(task.min_load_interval for task in pending_tasks)
-
-        if now - last_load_time < min_interval:
             return
 
-        fname = self._run_manager.fnames[learner_idx]
+        # Check if any results are already in memory
+        for task in pending_tasks[:]:  # Copy list since we modify it
+            local_idx = self._get_local_idx(task)
+            if local_idx in learner.data:
+                task.set_result(learner.data[local_idx])
+                pending_tasks.remove(task)
 
+        if not pending_tasks:
+            return
+
+        # Check if we should load from disk
+        assert self._run_manager is not None
+        last_load_time = self._run_manager._last_load_time.get(learner_idx, 0)
+        min_interval = self._learner_min_load_interval.get(learner_idx, 1.0)
+
+        if time.monotonic() - last_load_time < min_interval:
+            return
+
+        # Check file size
+        fname = self._run_manager.fnames[learner_idx]
         try:
             size = await asyncio.to_thread(os.path.getsize, fname)
         except FileNotFoundError:
             return
 
-        last_size = self._learner_last_size.get(learner_idx, 0)
-        if last_size == size:
+        if self._learner_last_size.get(learner_idx, 0) == size:
             return
 
-        # Load the file
+        # Load file and update tasks
         load_start = time.monotonic()
         await asyncio.to_thread(learner.load, fname)
         load_time = time.monotonic() - load_start
 
         # Update state
         self._learner_last_size[learner_idx] = size
+        self._learner_min_load_interval[learner_idx] = max(1.0, 20.0 * load_time)
         self._run_manager._last_load_time[learner_idx] = time.monotonic()
 
-        # Update min_load_interval for all tasks and check for results
+        # Update all pending tasks
         for task in pending_tasks:
-            task._load_time = load_time
-            task.min_load_interval = max(1.0, 20.0 * load_time)
+            local_idx = self._get_local_idx(task)
+            if local_idx in learner.data:
+                task.set_result(learner.data[local_idx])
 
-            # Check if this task's result is now available
-            _, local_index = task._learner_index_and_local_index()
-            if local_index in learner.data:
-                result = learner.data[local_index]
-                task.set_result(result)
+    def _get_learner_idx(self, task: SlurmTask) -> int | None:
+        """Get learner index for a task, return None if mapping not available."""
+        try:
+            learner_idx, _ = task._learner_index_and_local_index()
+            return learner_idx  # noqa: TRY300
+        except RuntimeError:
+            return None
 
-    def _register_task(self, task: SlurmTask) -> None:
-        """Register a task to be monitored by the file monitor."""
-        learner_idx, _ = task._learner_index_and_local_index()
-        if learner_idx not in self._pending_tasks:
-            self._pending_tasks[learner_idx] = []
-        self._pending_tasks[learner_idx].append(task)
+    def _get_local_idx(self, task: SlurmTask) -> int:
+        """Get local index for a task."""
+        _, local_idx = task._learner_index_and_local_index()
+        return local_idx
 
     def _to_learners(
         self,
@@ -516,7 +501,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
         # Clear state for new run
         self._learner_last_size.clear()
-        self._pending_tasks.clear()
+        self._learner_min_load_interval.clear()
 
         assert self.folder is not None
         self._run_manager = adaptive_scheduler.slurm_run(
@@ -559,14 +544,9 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             extra_scheduler_kwargs=self.extra_scheduler_kwargs,
         )
 
-        # Register all tasks now that task mapping is available
-        for task in self._all_tasks:
-            self._register_task(task)
-
         # Start the file monitoring task
-        if self._file_monitor_task is None:
-            loop = asyncio.get_event_loop()
-            self._file_monitor_task = loop.create_task(self._monitor_files())
+        loop = asyncio.get_event_loop()
+        self._file_monitor_task = loop.create_task(self._monitor_files())
 
         if start:
             self._run_manager.start()
@@ -595,6 +575,8 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         data["_sequence_mapping"] = {}
         data["_disk_func_mapping"] = {}
         data["_all_tasks"] = []
+        data["_learner_last_size"] = {}
+        data["_learner_min_load_interval"] = {}
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
