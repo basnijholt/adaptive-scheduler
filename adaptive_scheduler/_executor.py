@@ -578,6 +578,15 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         data["_learner_last_size"] = {}
         data["_learner_min_load_interval"] = {}
         data["_pending_tasks"] = {}
+        for key in [
+            "_file_monitor_task",
+            "_learner_last_size",
+            "_learner_min_load_interval",
+            "_pending_tasks",
+            "_all_tasks",
+        ]:
+            data.pop(key, None)
+
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
