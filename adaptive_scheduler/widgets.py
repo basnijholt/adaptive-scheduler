@@ -962,7 +962,23 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         chat_history.value += f"LLM: {response}\n"
 
     text_input.on_submit(on_submit)
-    vbox = ipyw.VBox([chat_history, text_input])
+
+    # Add a dropdown to select a failed job
+    failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+    failed_job_dropdown = ipyw.Dropdown(
+        options=failed_jobs,
+        description="Failed Job:",
+        disabled=not failed_jobs,
+    )
+
+    def on_failed_job_change(change: dict[str, Any]) -> None:
+        job_id = change["new"]
+        diagnosis = run_manager.llm_manager.diagnose_failed_job(job_id)
+        chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
+
+    failed_job_dropdown.observe(on_failed_job_change, names="value")
+
+    vbox = ipyw.VBox([failed_job_dropdown, chat_history, text_input])
     _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
     return vbox
 

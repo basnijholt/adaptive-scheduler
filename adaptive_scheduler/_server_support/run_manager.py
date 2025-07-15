@@ -294,6 +294,12 @@ class RunManager(BaseManager):
             initializers=self.initializers,
             with_progress_bar=not self.quiet,
         )
+        self.llm_manager: LLMManager | None
+        if self.with_llm:
+            self.llm_manager = LLMManager(**self.llm_manager_kwargs)
+        else:
+            self.llm_manager = None
+
         self.job_manager = JobManager(
             self.job_names,
             self.database_manager,
@@ -324,12 +330,6 @@ class RunManager(BaseManager):
             )
         else:
             self.kill_manager = None
-
-        self.llm_manager: LLMManager | None
-        if self.with_llm:
-            self.llm_manager = LLMManager(**self.llm_manager_kwargs)
-        else:
-            self.llm_manager = None
 
     def _setup(self) -> None:
         self.database_manager.start()
