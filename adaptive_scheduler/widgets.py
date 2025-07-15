@@ -954,14 +954,17 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         layout={"width": "auto", "height": "300px"},
     )
 
-    def on_submit(sender: ipyw.Text) -> None:
+    async def on_submit(sender: ipyw.Text) -> None:
         message = sender.value
         sender.value = ""
-        response = run_manager.llm_manager.chat(message)
+        response = await run_manager.llm_manager.chat(message)
         chat_history.value += f"You: {message}\n"
         chat_history.value += f"LLM: {response}\n"
 
-    text_input.on_submit(on_submit)
+    def on_submit_wrapper(sender: ipyw.Text) -> None:
+        asyncio.create_task(on_submit(sender))
+
+    text_input.on_submit(on_submit_wrapper)
 
     # Add a dropdown to select a failed job
     failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
@@ -971,12 +974,15 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         disabled=not failed_jobs,
     )
 
-    def on_failed_job_change(change: dict[str, Any]) -> None:
+    async def on_failed_job_change(change: dict[str, Any]) -> None:
         job_id = change["new"]
-        diagnosis = run_manager.llm_manager.diagnose_failed_job(job_id)
+        diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
         chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
 
-    failed_job_dropdown.observe(on_failed_job_change, names="value")
+    def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
+        asyncio.create_task(on_failed_job_change(change))
+
+    failed_job_dropdown.observe(on_failed_job_change_wrapper, names="value")
 
     vbox = ipyw.VBox([failed_job_dropdown, chat_history, text_input])
     _add_title("adaptive_scheduler.widgets.chat_widget", vbox)

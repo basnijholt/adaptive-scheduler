@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import random
 
+import aiofiles
+
 from .base_manager import BaseManager
 
 
@@ -23,15 +25,15 @@ class LLMManager(BaseManager):
         # In a real implementation, this would look up the log file path from the database
         return f"logs/job_{job_id}.log"
 
-    def _read_log_file(self, log_path: str) -> str:
+    async def _read_log_file(self, log_path: str) -> str:
         # In a real implementation, this would read the content of the log file
         try:
-            with open(log_path) as f:
-                return f.read()
+            async with aiofiles.open(log_path) as f:
+                return await f.read()
         except FileNotFoundError:
             return "Log file not found."
 
-    def diagnose_failed_job(self, job_id: str) -> str:
+    async def diagnose_failed_job(self, job_id: str) -> str:
         """Analyzes the log file of a failed job and returns a diagnosis."""
         if job_id in self._diagnoses_cache:
             return self._diagnoses_cache[job_id]
@@ -40,24 +42,25 @@ class LLMManager(BaseManager):
         if not log_path:
             return f"Could not find log file for job {job_id}"
 
-        log_content = self._read_log_file(log_path)
+        log_content = await self._read_log_file(log_path)
         # In a real implementation, this would be an API call to an LLM
-        diagnosis = self._simulate_llm_call(
+        diagnosis = await self._simulate_llm_call(
             f"Analyze the following log and determine the cause of failure:\n\n{log_content}",
         )
         self._diagnoses_cache[job_id] = diagnosis
         return diagnosis
 
-    def chat(self, message: str) -> str:
+    async def chat(self, message: str) -> str:
         """Handles a chat message and returns a response."""
         self._chat_history.append({"role": "user", "content": message})
         # In a real implementation, this would be an API call to an LLM
-        response = self._simulate_llm_call(str(self._chat_history))
+        response = await self._simulate_llm_call(str(self._chat_history))
         self._chat_history.append({"role": "assistant", "content": response})
         return response
 
-    def _simulate_llm_call(self, prompt: str) -> str:
+    async def _simulate_llm_call(self, prompt: str) -> str:
         """Simulates a call to a language model."""
+        await asyncio.sleep(random.uniform(0.1, 0.5))  # Simulate network latency
         responses = [
             "It seems like there was a `FileNotFoundError`. Check if the input files are correctly specified.",
             "The job failed due to a `MemoryError`. Try requesting more memory for your job.",
