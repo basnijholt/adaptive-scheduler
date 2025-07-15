@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     )
 
     from .database_manager import DatabaseManager
+    from .llm_manager import LLMManager
 
 
 def command_line_options(
@@ -151,6 +152,7 @@ class JobManager(BaseManager):
         job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
+        llm_manager: LLMManager | None = None,
         interval: float = 30,
         *,
         max_simultaneous_jobs: int = 100,
@@ -168,6 +170,7 @@ class JobManager(BaseManager):
         self.job_names = job_names
         self.database_manager = database_manager
         self.scheduler = scheduler
+        self.llm_manager = llm_manager
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
@@ -216,6 +219,14 @@ class JobManager(BaseManager):
     ) -> tuple[set[str], set[str]] | None:
         running = await asyncio.to_thread(self.scheduler.queue, me_only=True)
         self.database_manager.update(running)  # in case some jobs died
+        if self.llm_manager is not None:
+            for job in self.database_manager.failed:
+                if not job.get("diagnosed", False):
+                    job_id = job["job_id"]
+                    log.info(f"Diagnosing failed job {job_id}")
+                    self.llm_manager.diagnose_failed_job(job_id)
+                    job["diagnosed"] = True
+
         queued = self._queued(running)  # running `job_name`s
         not_queued = set(self.job_names) - queued
         n_done = self.database_manager.n_done()

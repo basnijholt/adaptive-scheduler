@@ -37,6 +37,7 @@ from .common import (
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
 from .kill_manager import KillManager
+from .llm_manager import LLMManager
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
@@ -145,6 +146,8 @@ class RunManager(BaseManager):
         The job manager.
     kill_manager : `KillManager` or None
         The kill manager.
+    llm_manager : `LLMManager` or None
+        The language model manager.
     start_time : float or None
         Time at which ``self.start()`` is called.
     end_time : float or None
@@ -201,6 +204,8 @@ class RunManager(BaseManager):
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
+        llm_manager_kwargs: dict[str, Any] | None = None,
+        with_llm: bool = False,
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
@@ -230,6 +235,8 @@ class RunManager(BaseManager):
         self.overwrite_db = overwrite_db
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
+        self.llm_manager_kwargs = llm_manager_kwargs or {}
+        self.with_llm = with_llm
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
@@ -291,6 +298,7 @@ class RunManager(BaseManager):
             self.job_names,
             self.database_manager,
             scheduler=self.scheduler,
+            llm_manager=self.llm_manager,
             interval=self.job_manager_interval,
             max_fails_per_job=self.max_fails_per_job,
             max_simultaneous_jobs=self.max_simultaneous_jobs,
@@ -317,6 +325,12 @@ class RunManager(BaseManager):
         else:
             self.kill_manager = None
 
+        self.llm_manager: LLMManager | None
+        if self.with_llm:
+            self.llm_manager = LLMManager(**self.llm_manager_kwargs)
+        else:
+            self.llm_manager = None
+
     def _setup(self) -> None:
         self.database_manager.start()
         if self.check_goal_on_start:
@@ -331,6 +345,8 @@ class RunManager(BaseManager):
         self.job_manager.start()
         if self.kill_manager:
             self.kill_manager.start()
+        if self.llm_manager:
+            self.llm_manager.start()
         self.start_time = time.time()
 
     def start(self, wait_for: RunManager | None = None) -> RunManager:  # type: ignore[override]
@@ -376,6 +392,8 @@ class RunManager(BaseManager):
         self.job_manager.cancel()
         if self.kill_manager is not None:
             self.kill_manager.cancel()
+        if self.llm_manager is not None:
+            self.llm_manager.cancel()
         self.scheduler.cancel(self.job_names)
         if self.task is not None:
             self.task.cancel()
