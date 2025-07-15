@@ -43,6 +43,8 @@ class LLMManager(BaseManager):
             return f"Could not find log file for job {job_id}"
 
         log_content = await self._read_log_file(log_path)
+        if log_content == "Log file not found.":
+            return log_content
         # In a real implementation, this would be an API call to an LLM
         diagnosis = await self._simulate_llm_call(
             f"Analyze the following log and determine the cause of failure:\n\n{log_content}",
