@@ -936,6 +936,59 @@ def _create_confirm_deny(
     )
 
 
+def chat_widget(run_manager: RunManager) -> ipyw.VBox:
+    """Chat widget for interacting with the LLM."""
+    import ipywidgets as ipyw
+
+    text_input = ipyw.Text(
+        value="",
+        placeholder="Ask a question...",
+        description="You:",
+        disabled=False,
+    )
+    chat_history = ipyw.Textarea(
+        value="",
+        placeholder="",
+        description="Chat:",
+        disabled=True,
+        layout={"width": "auto", "height": "300px"},
+    )
+
+    async def on_submit(sender: ipyw.Text) -> None:
+        message = sender.value
+        sender.value = ""
+        response = await run_manager.llm_manager.chat(message)
+        chat_history.value += f"You: {message}\n"
+        chat_history.value += f"LLM: {response}\n"
+
+    def on_submit_wrapper(sender: ipyw.Text) -> None:
+        asyncio.create_task(on_submit(sender))
+
+    text_input.on_submit(on_submit_wrapper)
+
+    # Add a dropdown to select a failed job
+    failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+    failed_job_dropdown = ipyw.Dropdown(
+        options=failed_jobs,
+        description="Failed Job:",
+        disabled=not failed_jobs,
+    )
+
+    async def on_failed_job_change(change: dict[str, Any]) -> None:
+        job_id = change["new"]
+        diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
+        chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
+
+    def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
+        asyncio.create_task(on_failed_job_change(change))
+
+    failed_job_dropdown.observe(on_failed_job_change_wrapper, names="value")
+
+    vbox = ipyw.VBox([failed_job_dropdown, chat_history, text_input])
+    _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
+    return vbox
+
+
 def info(
     run_manager: RunManager,
     *,
@@ -1005,6 +1058,12 @@ def info(
         button_style="info",
         icon="table",
     )
+    show_chat_button = ipyw.Button(
+        description="chat with LLM",
+        layout=layout,
+        button_style="info",
+        icon="comments",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": ipyw.HBox([cancel_button], layout=layout),
@@ -1014,6 +1073,7 @@ def info(
         "queue": show_queue_button,
         "database": show_db_button,
         "results": show_results_button,
+        "chat": show_chat_button,
     }
 
     def update(_: Any) -> None:
@@ -1048,6 +1108,11 @@ def info(
             ),
             "output": ipyw.Output(),
         },
+        "chat": {
+            "widget": None,
+            "init_func": lambda: chat_widget(run_manager),
+            "output": ipyw.Output(),
+        },
     }
 
     def cancel() -> None:
@@ -1066,10 +1131,12 @@ def info(
     toggle_queue = _toggle_widget("queue", widgets, toggle_dict)
     toggle_database = _toggle_widget("database", widgets, toggle_dict)
     toggle_results = _toggle_widget("results", widgets, toggle_dict)
+    toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
     widgets["logs"].on_click(toggle_logs)
     widgets["queue"].on_click(toggle_queue)
     widgets["database"].on_click(toggle_database)
     widgets["results"].on_click(toggle_results)
+    widgets["chat"].on_click(toggle_chat)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
