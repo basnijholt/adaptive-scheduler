@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     )
 
     from .database_manager import DatabaseManager
-    from .llm_manager import LLMManager
 
 
 def command_line_options(
@@ -152,7 +151,6 @@ class JobManager(BaseManager):
         job_names: list[str],
         database_manager: DatabaseManager,
         scheduler: BaseScheduler,
-        llm_manager: LLMManager | None = None,
         interval: float = 30,
         *,
         max_simultaneous_jobs: int = 100,
@@ -170,7 +168,6 @@ class JobManager(BaseManager):
         self.job_names = job_names
         self.database_manager = database_manager
         self.scheduler = scheduler
-        self.llm_manager = llm_manager
         self.interval = interval
         self.max_simultaneous_jobs = max_simultaneous_jobs
         self.max_fails_per_job = max_fails_per_job
@@ -219,84 +216,7 @@ class JobManager(BaseManager):
     ) -> tuple[set[str], set[str]] | None:
         running = await asyncio.to_thread(self.scheduler.queue, me_only=True)
         self.database_manager.update(running)  # in case some jobs died
-        if self.llm_manager is not None:
-            for job in self.database_manager.failed:
-                if not job.get("diagnosed", False):
-                    job_id = job["job_id"]
-                    log.info(f"Diagnosing failed job {job_id}")
-                    self.llm_manager.diagnose_failed_job(job_id)
-                    job["diagnosed"] = True
-
         queued = self._queued(running)  # running `job_name`s
-        not_queued = set(self.job_names) - queued
-        n_done = self.database_manager.n_done()
-        if n_done == len(self.job_names):
-            return None  # we are finished!
-        n_to_schedule = max(0, len(not_queued) - n_done)
-        return queued, set(list(not_queued)[:n_to_schedule])
-
-    async def _start_new_jobs(
-        self,
-        not_queued: set[str],
-        queued: set[str],
-    ) -> None:
-        num_jobs_to_start = min(
-            len(not_queued),
-            self.max_simultaneous_jobs - len(queued),
-        )
-        for _ in range(num_jobs_to_start):
-            index, fname = self.database_manager._choose_fname()
-            if index == -1:
-                log.debug("No jobs can be scheduled currently because of dependencies.")
-                return
-            job_name = not_queued.pop()
-            queued.add(job_name)
-            log.debug(
-                f"Starting `job_name={job_name}` with `index={index}` and `fname={fname}`",
-            )
-            await asyncio.to_thread(self.scheduler.start_job, job_name, index=index)
-            self.database_manager._confirm_submitted(index, job_name)
-
-            self.n_started += 1
-            self._request_times[job_name] = _now()
-
-    async def _manage(self) -> None:
-        while True:
-            try:
-                update = await self._update_database_and_get_not_queued()
-                if update is None:  # we are finished!
-                    return None
-                queued, not_queued = update
-                await self._start_new_jobs(not_queued, queued)
-                if self.n_started > self.max_job_starts:
-                    msg = "Too many jobs failed, your Python code probably has a bug."
-                    raise MaxRestartsReachedError(msg)  # noqa: TRY301
-                if await sleep_unless_task_is_done(
-                    self.database_manager.task,  # type: ignore[arg-type]
-                    self.interval,
-                    self._trigger_event,
-                ):  # if true, we are done
-                    return None
-            except asyncio.CancelledError:  # noqa: PERF203
-                log.info("task was cancelled because of a CancelledError")
-                raise
-            except MaxRestartsReachedError as e:
-                log.exception(
-                    "too many jobs have failed, cancelling the job manager",
-                    n_started=self.n_started,
-                    max_fails_per_job=self.max_fails_per_job,
-                    max_job_starts=self.max_job_starts,
-                    exception=str(e),
-                )
-                raise
-            except Exception as e:  # noqa: BLE001
-                log.exception("got exception when starting a job", exception=str(e))
-                if await sleep_unless_task_is_done(
-                    self.database_manager.task,  # type: ignore[arg-type]
-                    5,
-                    self._trigger_event,
-                ):  # if true, we are done
-                    return None
         not_queued = set(self.job_names) - queued
         n_done = self.database_manager.n_done()
         if n_done == len(self.job_names):
