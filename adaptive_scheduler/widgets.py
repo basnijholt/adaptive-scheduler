@@ -1017,7 +1017,8 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         sender.value = ""
         if run_manager.llm_manager is None:
             chat_history.value += _render_chat_message(
-                "llm", _render_markdown("⚠️ No LLM manager available.")
+                "llm",
+                _render_markdown("⚠️ No LLM manager available."),
             )
             return
 
@@ -1068,7 +1069,8 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         job_id = change["new"]
         if run_manager.llm_manager is None:
             chat_history.value = _render_chat_message(
-                "llm", _render_markdown("⚠️ No LLM manager available.")
+                "llm",
+                _render_markdown("⚠️ No LLM manager available."),
             )
             return
 
