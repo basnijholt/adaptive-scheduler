@@ -112,8 +112,10 @@ class LLMManager(BaseManager):
             [
                 (
                     "system",
-                    "You are a helpful assistant that has access to tools."
-                    " The working directory is the root of the `adaptive-scheduler` repo.",
+                    "You are an expert software developer assistant. Your purpose is to help"
+                    " users analyze and debug failed jobs. You have access to tools for file"
+                    " management. If the fix is clear, proactively suggest to apply a code fix, use the tools"
+                    " to modify the file.",
                 ),
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("user", "{input}"),
@@ -184,12 +186,18 @@ class LLMManager(BaseManager):
 
         messages: list[BaseMessage] = [
             SystemMessage(
-                content="You are a helpful assistant that analyzes job failure logs.",
+                content=(
+                    "You are an expert software developer assistant. Your task is to analyze"
+                    " job failure logs. If you find an error in a user's script, you"
+                    " should not only identify the cause but also suggest a concrete code"
+                    " change to fix it. You should also mention that you can apply the fix"
+                    " if the user agrees in the chat."
+                ),
             ),
             HumanMessage(
                 content=(
-                    "Analyze the following job script and log file to determine the"
-                    f" cause of failure.\n\nLog"
+                    "Analyze the following job log to determine the cause of failure. If the"
+                    " cause is a code error, provide the corrected code.\n\nLog"
                     f" file(s):\n```\n{log_content}\n```"
                 ),
             ),
