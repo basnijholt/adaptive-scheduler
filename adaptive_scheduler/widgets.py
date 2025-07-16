@@ -989,6 +989,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         job_id = change["new"]
         if run_manager.llm_manager is None:
             return
+        chat_history.value = f"Diagnosing job {job_id}..."
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
             chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
