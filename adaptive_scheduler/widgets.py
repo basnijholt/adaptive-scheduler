@@ -954,7 +954,12 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         value="",
         placeholder="",
         description="Chat:",
-        layout={"width": "auto", "height": "300px", "border": "1px solid black"},
+        layout={
+            "width": "auto",
+            "height": "300px",
+            "border": "1px solid black",
+            "word-wrap": "break-word",
+        },
     )
 
     md = markdown_it.MarkdownIt("gfm-like", {"highlight": highlight_code})
