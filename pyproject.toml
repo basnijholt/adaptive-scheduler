@@ -43,6 +43,7 @@ dependencies = [
     "versioningit",
     "langchain",
     "langchain-openai",
+    "langchain-google-genai",
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]
