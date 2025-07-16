@@ -217,3 +217,45 @@ def test_info_widget_without_llm() -> None:
     buttons = widget.children[0].children[1].children
     assert not any("chat" in b.description.lower() for b in buttons if isinstance(b, ipyw.Button))
     run_manager.cancel()
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_list_response_handling(llm_manager: LLMManager) -> None:
+    """Test that list responses are properly formatted."""
+    # Test with list response
+    list_response = [
+        "The job log indicates a NameError in my_code.py on line 4.",
+        "python\nimport numpy as np\ndef h(x, offset=0, width=0.1):\n return x + width**2",
+        "Reason for the fix: The variable was misspelled.",
+    ]
+
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={"messages": [AIMessage(content=list_response)]},
+    )
+
+    result = await llm_manager.chat("Test message")
+
+    # Should be joined with newlines
+    expected = "\n".join(list_response)
+    assert result == expected
+    assert isinstance(result, str)
+    assert "The job log indicates" in result
+    assert "python\nimport numpy" in result
+    assert "Reason for the fix" in result
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_string_response_handling(llm_manager: LLMManager) -> None:
+    """Test that string responses are unchanged."""
+    # Test with string response
+    string_response = "This is a normal string response"
+
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={"messages": [AIMessage(content=string_response)]},
+    )
+
+    result = await llm_manager.chat("Test message")
+
+    # Should be unchanged
+    assert result == string_response
+    assert isinstance(result, str)

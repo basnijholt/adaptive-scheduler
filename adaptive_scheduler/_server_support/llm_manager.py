@@ -198,7 +198,13 @@ class LLMManager(BaseManager):
                 payload,
                 config,
             )
-            return response["messages"][-1].content
+            content = response["messages"][-1].content
+
+            # Handle case where content is a list (structured output)
+            if isinstance(content, list):
+                content = "\n".join(str(item) for item in content)
+
+            return content
         except Exception as e:
             # Check if this is an interruption that we need to handle
             if "interrupt" in str(e).lower() or "Interrupted" in str(e):
