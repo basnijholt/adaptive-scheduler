@@ -206,8 +206,6 @@ class RunManager(BaseManager):
         kill_manager_kwargs: dict[str, Any] | None = None,
         llm_manager_kwargs: dict[str, Any] | None = None,
         with_llm: bool = False,
-        model_name: str = "gpt-4",
-        model_provider: str = "openai",
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
@@ -239,8 +237,6 @@ class RunManager(BaseManager):
         self.kill_manager_kwargs = kill_manager_kwargs or {}
         self.llm_manager_kwargs = llm_manager_kwargs or {}
         self.with_llm = with_llm
-        self.model_name = model_name
-        self.model_provider = model_provider
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
@@ -302,8 +298,6 @@ class RunManager(BaseManager):
         if self.with_llm:
             self.llm_manager = LLMManager(
                 db_manager=self.database_manager,
-                model_name=self.model_name,
-                model_provider=self.model_provider,
                 **self.llm_manager_kwargs,
             )
         else:

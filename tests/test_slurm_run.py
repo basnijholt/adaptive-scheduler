@@ -240,6 +240,29 @@ def test_slurm_run_with_invalid_nodes_and_executor_type(
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
+def test_slurm_run_with_llm(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+) -> None:
+    """Test slurm_run function with with_llm=True."""
+    from unittest.mock import patch
+
+    llm_manager_kwargs = {"model_name": "test-model"}
+    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
+        rm = slurm_run(
+            learners,
+            fnames,
+            with_llm=True,
+            llm_manager_kwargs=llm_manager_kwargs,
+        )
+    assert rm.with_llm is True
+    assert rm.llm_manager_kwargs == llm_manager_kwargs
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 def test_slurm_run_with_multiple_partitions(
     learners: list[adaptive.Learner1D]
     | list[adaptive.BalancingLearner]
