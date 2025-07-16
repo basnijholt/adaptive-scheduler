@@ -41,6 +41,7 @@ dependencies = [
     "toolz",
     "tqdm",
     "versioningit",
+    "langchain",
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]

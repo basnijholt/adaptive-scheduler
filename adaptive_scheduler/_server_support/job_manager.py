@@ -220,13 +220,18 @@ class JobManager(BaseManager):
         running = await asyncio.to_thread(self.scheduler.queue, me_only=True)
         self.database_manager.update(running)  # in case some jobs died
         if self.llm_manager is not None:
+            tasks = []
             for job in self.database_manager.failed:
                 if not job.get("diagnosed", False):
                     job_id = job["job_id"]
                     log.info(f"Diagnosing failed job {job_id}")
-                    # TODO: Create a task for this to avoid blocking the loop
-                    await self.llm_manager.diagnose_failed_job(job_id)
+                    task = asyncio.create_task(
+                        self.llm_manager.diagnose_failed_job(job_id),
+                    )
+                    tasks.append(task)
                     job["diagnosed"] = True
+            if tasks:
+                await asyncio.gather(*tasks)
 
         queued = self._queued(running)  # running `job_name`s
         not_queued = set(self.job_names) - queued
