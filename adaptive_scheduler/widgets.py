@@ -1042,9 +1042,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
             chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message(
                 "llm",
-                _render_markdown(
-                    f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
-                ),
+                _render_markdown(f"🤖 {e}\n\n*Reply with 'approve' or 'deny' to continue.*"),
             )
         except Exception as e:
             # Remove thinking indicator and add error
@@ -1099,9 +1097,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
             # Replace diagnosing indicator with interruption message
             chat_history.value = _render_chat_message(
                 "llm",
-                _render_markdown(
-                    f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
-                ),
+                _render_markdown(f"🤖 {e}"),
             )
         except Exception as e:  # noqa: BLE001
             # Replace diagnosing indicator with error
