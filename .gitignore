@@ -110,3 +110,5 @@ venv.bak/
 *.sbatch
 *.out
 *.batch
+
+.envrc
