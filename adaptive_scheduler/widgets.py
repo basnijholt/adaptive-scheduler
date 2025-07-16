@@ -1016,13 +1016,29 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         message = sender.value
         sender.value = ""
         if run_manager.llm_manager is None:
+            chat_history.value += _render_chat_message(
+                "llm", _render_markdown("⚠️ No LLM manager available.")
+            )
             return
+
+        # Disable input while processing
+        sender.disabled = True
+
         run_manager.llm_manager.yolo = yolo_checkbox.value
         chat_history.value += _render_chat_message("user", _render_markdown(message))
+
+        # Show thinking indicator
+        thinking_message = _render_chat_message("llm", _render_markdown("🤔 Thinking..."))
+        chat_history.value += thinking_message
+
         try:
             response = await run_manager.llm_manager.chat(message)
+            # Remove thinking indicator and add response
+            chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message("llm", _render_markdown(response))
         except InterruptedException as e:
+            # Remove thinking indicator and add interruption message
+            chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message(
                 "llm",
                 _render_markdown(
@@ -1030,7 +1046,12 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
                 ),
             )
         except Exception as e:
-            chat_history.value += f"Error: {e}\n"
+            # Remove thinking indicator and add error
+            chat_history.value = chat_history.value.replace(thinking_message, "")
+            chat_history.value += _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
+        finally:
+            # Re-enable input
+            sender.disabled = False
 
     text_input.on_submit(on_submit)
 
@@ -1046,26 +1067,42 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     async def on_failed_job_change(change: dict[str, Any]) -> None:
         job_id = change["new"]
         if run_manager.llm_manager is None:
+            chat_history.value = _render_chat_message(
+                "llm", _render_markdown("⚠️ No LLM manager available.")
+            )
             return
-        chat_history.value = _render_chat_message(
+
+        # Disable dropdown while processing
+        failed_job_dropdown.disabled = True
+
+        # Show diagnosing indicator
+        diagnosing_message = _render_chat_message(
             "llm",
-            _render_markdown(f"Diagnosing job {job_id}..."),
+            _render_markdown(f"🔍 Diagnosing job {job_id}..."),
         )
+        chat_history.value = diagnosing_message
+
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-            chat_history.value += _render_chat_message(
+            # Replace diagnosing indicator with actual diagnosis
+            chat_history.value = _render_chat_message(
                 "llm",
                 _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
             )
         except InterruptedException as e:
-            chat_history.value += _render_chat_message(
+            # Replace diagnosing indicator with interruption message
+            chat_history.value = _render_chat_message(
                 "llm",
                 _render_markdown(
                     f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
                 ),
             )
         except Exception as e:
-            chat_history.value += f"Error: {e}\n"
+            # Replace diagnosing indicator with error
+            chat_history.value = _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
+        finally:
+            # Re-enable dropdown
+            failed_job_dropdown.disabled = False
 
     failed_job_dropdown.observe(on_failed_job_change, names="value")
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")

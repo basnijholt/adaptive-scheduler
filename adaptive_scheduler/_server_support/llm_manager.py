@@ -70,7 +70,13 @@ class LLMManager(BaseManager):
 
         # Define the graph
         graph = StateGraph(MessagesState)
-        graph.add_node("agent", self.llm.bind_tools(tools))
+
+        async def call_model(state):
+            messages = state["messages"]
+            response = await self.llm.bind_tools(tools).ainvoke(messages)
+            return {"messages": [response]}
+
+        graph.add_node("agent", call_model)
         graph.add_node("tools", ToolNode(tools))
 
         def should_continue(state):
