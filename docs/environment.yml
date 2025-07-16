@@ -9,9 +9,11 @@ dependencies:
   - mpich
   # from pyproject.toml
   - adaptive >= 0.14.1
+  - aiofiles
   - cloudpickle
   - dill
   - ipyparallel
+  - ipython-autotime
   - ipywidgets
   - itables
   - loky
@@ -24,6 +26,11 @@ dependencies:
   - toolz
   - tqdm
   - versioningit
+  - langchain
+  - langchain-openai
+  - langchain-google-genai
+  - mistune
+  - pygments
   # optional-dependencies: all
   - dask-mpi
   - mpi4py
