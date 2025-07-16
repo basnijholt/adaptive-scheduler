@@ -249,13 +249,17 @@ def test_slurm_run_with_llm(
     """Test slurm_run function with with_llm=True."""
     from unittest.mock import patch
 
-    llm_manager_kwargs = {"model_name": "test-model"}
-    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
+    llm_manager_kwargs = {"model_name": "test-model", "api_key": "test-key"}
+    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat:
         rm = slurm_run(
             learners,
             fnames,
             with_llm=True,
             llm_manager_kwargs=llm_manager_kwargs,
+        )
+        mock_chat.assert_called_once_with(
+            model_name="test-model",
+            api_key="test-key",
         )
     assert rm.with_llm is True
     assert rm.llm_manager_kwargs == llm_manager_kwargs

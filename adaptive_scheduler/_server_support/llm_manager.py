@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiofiles
 from langchain.chat_models import ChatOpenAI
@@ -24,13 +24,14 @@ class LLMManager(BaseManager):
         db_manager: DatabaseManager,
         model_name: str = "gpt-4",
         model_provider: str = "openai",
+        **kwargs: Any,
     ) -> None:
         super().__init__()
         self.db_manager = db_manager
         if model_provider == "openai":
-            self.llm = ChatOpenAI(model_name=model_name)
+            self.llm = ChatOpenAI(model_name=model_name, **kwargs)
         elif model_provider == "google":
-            self.llm = ChatGoogleGenerativeAI(model=model_name)
+            self.llm = ChatGoogleGenerativeAI(model=model_name, **kwargs)
         else:
             msg = f"Unknown model provider: {model_provider}"
             raise ValueError(msg)
