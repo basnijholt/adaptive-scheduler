@@ -12,8 +12,12 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import mistune
 import numpy as np
 import pandas as pd
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import get_lexer_by_name
 
 from adaptive_scheduler.utils import load_dataframes
 
@@ -936,7 +940,143 @@ def _create_confirm_deny(
     )
 
 
-def info(
+def _create_task_wrapper(
+    widget: ipyw.Widget,
+) -> Callable[[Callable[[Any], Any]], Callable[[Any], None]]:
+    """Create a wrapper that runs an async function when a widget changes."""
+
+    def wrapper(func: Callable[[Any], Any]) -> Callable[[Any], None]:
+        def on_change(change: Any) -> None:
+            task = asyncio.create_task(func(change))
+            if not hasattr(widget, "_tasks"):
+                widget._tasks = set()
+            widget._tasks.add(task)
+            task.add_done_callback(widget._tasks.remove)
+
+        return on_change
+
+    return wrapper
+
+
+def _render_chat_message(role: str, message: str) -> str:
+    """Render a chat message with a role-specific style."""
+    style = {
+        "user": "background-color: #dcf8c6; text-align: right; margin-left: auto;",
+        "llm": "background-color: #f1f0f0; text-align: left;",
+    }[role]
+    return f'<div style="padding: 5px; border-radius: 5px; margin: 5px; max-width: 80%; {style}">{message}</div>'
+
+
+def _render_markdown(text: str) -> str:
+    """Render markdown to HTML with syntax highlighting."""
+    renderer = mistune.HTMLRenderer(escape=False)
+    markdown = mistune.Markdown(renderer=renderer)
+    return markdown(text)
+
+
+def chat_widget(run_manager: RunManager) -> ipyw.VBox:
+    """Chat widget for interacting with the LLM."""
+    import ipywidgets as ipyw
+
+    text_input = ipyw.Text(
+        value="",
+        placeholder="Ask a question...",
+        description="You:",
+        disabled=False,
+    )
+    chat_history = ipyw.HTML(
+        value="",
+        placeholder="",
+        description="Chat:",
+        layout={
+            "width": "auto",
+            "height": "300px",
+            "border": "1px solid black",
+            "word-wrap": "break-word",
+            "overflow-y": "auto",
+        },
+    )
+    yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
+
+    def ask_approval(message: str) -> None:
+        chat_history.value += _render_chat_message("llm", _render_markdown(message))
+
+    if run_manager.llm_manager is not None:
+        run_manager.llm_manager.ask_approval = ask_approval
+
+    @_create_task_wrapper(text_input)
+    async def on_submit(sender: ipyw.Text) -> None:
+        message = sender.value
+        sender.value = ""
+        if run_manager.llm_manager is None:
+            return
+        run_manager.llm_manager.yolo = yolo_checkbox.value
+        chat_history.value += _render_chat_message("user", _render_markdown(message))
+        if message.lower() == "approve":
+            run_manager.llm_manager.provide_approval(message)
+            return
+        try:
+            response = await run_manager.llm_manager.chat(message)
+            chat_history.value += _render_chat_message("llm", _render_markdown(response))
+        except Exception as e:  # noqa: BLE001
+            chat_history.value += f"Error: {e}\n"
+
+    text_input.on_submit(on_submit)
+
+    # Add a dropdown to select a failed job
+    failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+    failed_job_dropdown = ipyw.Dropdown(
+        options=failed_jobs,
+        description="Failed Job:",
+        disabled=not failed_jobs,
+    )
+
+    @_create_task_wrapper(failed_job_dropdown)
+    async def on_failed_job_change(change: dict[str, Any]) -> None:
+        job_id = change["new"]
+        if run_manager.llm_manager is None:
+            return
+        chat_history.value = _render_chat_message(
+            "llm",
+            _render_markdown(f"Diagnosing job {job_id}..."),
+        )
+        try:
+            diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
+            chat_history.value = _render_chat_message(
+                "llm",
+                _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
+            )
+        except Exception as e:  # noqa: BLE001
+            chat_history.value += f"Error: {e}\n"
+
+    failed_job_dropdown.observe(on_failed_job_change, names="value")
+    refresh_button = ipyw.Button(description="Refresh Failed Jobs")
+
+    def refresh_failed_jobs(_: Any) -> None:
+        failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+        failed_job_dropdown.options = failed_jobs
+        failed_job_dropdown.disabled = not failed_jobs
+        if failed_jobs:
+            on_failed_job_change(
+                {"new": failed_jobs[0], "type": "change", "name": "value"},
+            )
+
+    refresh_button.on_click(refresh_failed_jobs)
+
+    vbox = ipyw.VBox(
+        [
+            refresh_button,
+            failed_job_dropdown,
+            yolo_checkbox,
+            chat_history,
+            text_input,
+        ],
+    )
+    _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
+    return vbox
+
+
+def info(  # noqa: PLR0915
     run_manager: RunManager,
     *,
     display_widget: bool = True,
@@ -1005,6 +1145,12 @@ def info(
         button_style="info",
         icon="table",
     )
+    show_chat_button = ipyw.Button(
+        description="show chat",
+        layout=layout,
+        button_style="info",
+        icon="comments",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": ipyw.HBox([cancel_button], layout=layout),
@@ -1015,6 +1161,8 @@ def info(
         "database": show_db_button,
         "results": show_results_button,
     }
+    if run_manager.llm_manager:
+        widgets["chat"] = show_chat_button
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -1048,6 +1196,13 @@ def info(
             ),
             "output": ipyw.Output(),
         },
+        "chat": {
+            "widget": None,
+            "init_func": lambda: chat_widget(run_manager),
+            "show_description": "show chat",
+            "hide_description": "hide chat",
+            "output": ipyw.Output(),
+        },
     }
 
     def cancel() -> None:
@@ -1070,6 +1225,9 @@ def info(
     widgets["queue"].on_click(toggle_queue)
     widgets["database"].on_click(toggle_database)
     widgets["results"].on_click(toggle_results)
+    if run_manager.llm_manager:
+        toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
+        widgets["chat"].on_click(toggle_chat)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
@@ -1125,3 +1283,13 @@ def _disable_widgets_output_scrollbar() -> None:
         </style>
         """
     display(ipyw.HTML(style))
+
+
+def highlight_code(code: str, lang: str, _: str) -> str:
+    """Highlight code blocks with pygments."""
+    try:
+        lexer = get_lexer_by_name(lang, stripall=True)
+    except ValueError:
+        lexer = get_lexer_by_name("text", stripall=True)
+    formatter = HtmlFormatter(style="monokai", nowrap=True)
+    return highlight(code, lexer, formatter)
