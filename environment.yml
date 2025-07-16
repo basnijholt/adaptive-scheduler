@@ -27,6 +27,7 @@ dependencies:
   - versioningit
   - langchain
   - langchain-openai
+  - langchain-google-genai
   # optional-dependencies: all
   - dask-mpi
   - mpi4py
