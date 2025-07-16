@@ -82,6 +82,15 @@ class LLMManager(BaseManager):
                     'approved' if the human approved, 'denied' if denied
 
                 """
+                # Auto-approve read_file operations
+                action_lower = action_description.lower()
+                if (
+                    ("read_file" in action_lower)
+                    or ("reading" in action_lower)
+                    or ("read" in action_lower and "file" in action_lower)
+                ):
+                    return "approved"
+
                 approval_request = {
                     "action": action_description,
                     "message": f"Do you approve of this action: {action_description}",
@@ -168,7 +177,7 @@ class LLMManager(BaseManager):
         initial_message = (
             "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
             "If you can identify the problem from the log alone, provide the corrected code.\n"
-            "If you need to read or write files, ask for permission first, then use the tools.\n\n"
+            "You can freely read files without asking for permission. For write operations, ask for permission first.\n\n"
             f"Log file(s):\n```\n{log_content}\n```\n\n"
             "What caused this failure and how can it be fixed?"
         )
