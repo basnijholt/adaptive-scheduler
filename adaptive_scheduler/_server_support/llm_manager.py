@@ -18,6 +18,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from .base_manager import BaseManager
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from langchain.schema import BaseMessage
 
     from .database_manager import DatabaseManager
@@ -33,6 +35,7 @@ class LLMManager(BaseManager):
         model_provider: str = "openai",
         move_old_logs_to: Path | None = None,
         working_dir: str | Path = ".",
+        *,
         yolo: bool = False,
         ask_approval: Callable[[str], None] | None = None,
         **kwargs: Any,

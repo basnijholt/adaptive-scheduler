@@ -26,10 +26,11 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
         ),
     )
     job_id = "test_job"
-    llm_manager.db_manager.failed = [{"job_id": job_id, "job_name": "test_job_name"}]
-    llm_manager.db_manager.scheduler.job_script.return_value = "job script"
-    llm_manager.db_manager.get.return_value = MagicMock(index=0)
+    llm_manager.db_manager.failed = [
+        {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
+    ]
     with (
+        patch.object(llm_manager.db_manager, "as_dicts", return_value=[]),
         patch(
             "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
         ) as mock_open,
@@ -49,11 +50,7 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
 @pytest.mark.asyncio
 async def test_chat(llm_manager: LLMManager) -> None:
     """Test that the chat method returns a response."""
-    llm_manager.llm.agenerate = AsyncMock(
-        return_value=MagicMock(
-            generations=[[MagicMock(text="response")]],
-        ),
-    )
+    llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "response"})
     message = "Hello, world!"
     response = await llm_manager.chat(message)
     assert response == "response"
@@ -143,14 +140,15 @@ async def test_job_manager_diagnoses_failed_job_async(
 async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
     """Test that the LLMManager caches diagnoses."""
     job_id = "test_job"
-    llm_manager.db_manager.failed = [{"job_id": job_id, "job_name": "test_job_name"}]
-    llm_manager.db_manager.scheduler.job_script.return_value = "job script"
-    llm_manager.db_manager.get.return_value = MagicMock(index=0)
-    llm_manager.llm.agenerate = AsyncMock(
-        return_value=MagicMock(
-            generations=[[MagicMock(text="diagnosis")]],
-        ),
-    )
+    llm_manager.db_manager.failed = [
+        {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
+    ]
+    with patch.object(llm_manager.db_manager, "as_dicts", return_value=[]):
+        llm_manager.llm.agenerate = AsyncMock(
+            return_value=MagicMock(
+                generations=[[MagicMock(text="diagnosis")]],
+            ),
+        )
     with (
         patch.object(
             llm_manager,
@@ -184,14 +182,12 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
 @pytest.mark.asyncio
 async def test_chat_history(llm_manager: LLMManager) -> None:
     """Test that the chat history is maintained."""
-    llm_manager.llm.agenerate = AsyncMock(
-        return_value=MagicMock(
-            generations=[[MagicMock(text="response")]],
-        ),
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={"output": "response"},
     )
     await llm_manager.chat("Hello")
     await llm_manager.chat("How are you?")
-    assert len(llm_manager._chat_history) == 4
+    assert len(llm_manager.memory.chat_memory.messages) == 4
 
 
 @pytest.mark.asyncio
@@ -240,3 +236,36 @@ def test_info_widget_without_llm() -> None:
     widget = info(run_manager, display_widget=False)
     buttons = widget.children[0].children[1].children
     assert not any("chat" in b.description.lower() for b in buttons if isinstance(b, ipyw.Button))
+
+
+@pytest.mark.asyncio
+async def test_approval_mechanism(llm_manager: LLMManager) -> None:
+    """Test that the approval mechanism works."""
+    llm_manager.ask_approval = MagicMock()
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={
+            "output": "response",
+            "intermediate_steps": [(MagicMock(tool="write_file", tool_input="test"), "result")],
+        },
+    )
+
+    # Test with approval
+    llm_manager.yolo = False
+    llm_manager.approval_queue.put_nowait("approve")
+    response = await llm_manager.chat("some message")
+    assert response == "response"
+    llm_manager.ask_approval.assert_called_once()
+
+    # Test with denial
+    llm_manager.ask_approval.reset_mock()
+    llm_manager.approval_queue.put_nowait("deny")
+    response = await llm_manager.chat("some message")
+    assert response == "Action cancelled by user."
+    llm_manager.ask_approval.assert_called_once()
+
+    # Test with YOLO mode
+    llm_manager.ask_approval.reset_mock()
+    llm_manager.yolo = True
+    response = await llm_manager.chat("some message")
+    assert response == "response"
+    llm_manager.ask_approval.assert_not_called()

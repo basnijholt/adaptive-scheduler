@@ -150,6 +150,10 @@ def slurm_run(
         Keyword arguments for the `JobManager` function that aren't set in ``__init__`` here.
     kill_manager_kwargs
         Keyword arguments for the `KillManager` function that aren't set in ``__init__`` here.
+    with_llm
+        Whether to start an `LLMManager`.
+    llm_manager_kwargs
+        Keyword arguments for the `LLMManager` function that aren't set in ``__init__`` here.
     loky_start_method
         Loky start method, by default "loky".
     cleanup_first

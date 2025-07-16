@@ -940,7 +940,7 @@ def _create_confirm_deny(
     )
 
 
-def chat_widget(run_manager: RunManager) -> ipyw.VBox:
+def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
     """Chat widget for interacting with the LLM."""
     import ipywidgets as ipyw
 
