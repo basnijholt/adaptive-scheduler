@@ -13,7 +13,6 @@ dependencies:
   - cloudpickle
   - dill
   - ipyparallel
-  - ipython-autotime
   - ipywidgets
   - itables
   - loky
