@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "adaptive >= 0.14.1",
+    "aiofiles",
     "cloudpickle",
     "dill",
     "ipyparallel",
@@ -40,6 +41,8 @@ dependencies = [
     "toolz",
     "tqdm",
     "versioningit",
+    "langchain",
+    "langchain-openai",
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]
