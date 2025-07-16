@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -52,7 +53,13 @@ class LLMManager(BaseManager):
         """Get the log file path from the database."""
         for job in self.db_manager.as_dicts():
             if job["job_id"] == job_id:
-                return job["log_fname"]
+                log_fname = job["log_fname"]
+                if os.path.exists(log_fname):  # noqa: PTH110
+                    return log_fname
+                if self.move_old_logs_to:
+                    log_fname_alt = self.move_old_logs_to / Path(log_fname).name
+                    if os.path.exists(log_fname_alt):  # noqa: PTH110
+                        return str(log_fname_alt)
         return None
 
     async def _read_log_file(self, log_path: str) -> str:
@@ -61,13 +68,6 @@ class LLMManager(BaseManager):
             async with aiofiles.open(log_path) as f:
                 return await f.read()
         except FileNotFoundError:
-            if self.move_old_logs_to:
-                log_path_alt = self.move_old_logs_to / Path(log_path).name
-                try:
-                    async with aiofiles.open(log_path_alt) as f:
-                        return await f.read()
-                except FileNotFoundError:
-                    return "Log file not found."
             return "Log file not found."
 
     async def diagnose_failed_job(self, job_id: str) -> str:
