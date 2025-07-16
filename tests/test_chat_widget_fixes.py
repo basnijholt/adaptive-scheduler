@@ -9,8 +9,8 @@ from adaptive_scheduler.widgets import chat_widget
 class TestChatWidgetFixes:
     """Test specific fixes for chat widget issues."""
 
-    def test_dropdown_disabled_when_no_failed_jobs(self):
-        """Test that dropdown is disabled when there are no failed jobs."""
+    def test_dropdown_never_disabled(self):
+        """Test that dropdown is never disabled, even when there are no failed jobs."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
         run_manager.llm_manager = MagicMock(spec=LLMManager)
@@ -18,8 +18,8 @@ class TestChatWidgetFixes:
         widget = chat_widget(run_manager)
         failed_job_dropdown = widget.children[2]
 
-        # Dropdown should be disabled when no failed jobs
-        assert failed_job_dropdown.disabled
+        # Dropdown should never be disabled
+        assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
     def test_dropdown_enabled_when_failed_jobs_exist(self):
@@ -57,8 +57,8 @@ class TestChatWidgetFixes:
         run_manager.database_manager.failed = []
         refresh_button.click()
 
-        # Should now be disabled
-        assert failed_job_dropdown.disabled
+        # Should have no options but still be enabled
+        assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
         # Add job back and refresh
@@ -91,7 +91,7 @@ class TestChatWidgetFixes:
         refresh_button.click()
 
         # Verify the state is correct
-        assert failed_job_dropdown.disabled
+        assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
     def test_observer_management_during_refresh(self):
@@ -155,8 +155,8 @@ class TestChatWidgetFixes:
         refresh_button = widget.children[1]
         failed_job_dropdown = widget.children[2]
 
-        # Initially no jobs
-        assert failed_job_dropdown.disabled
+        # Initially no jobs but dropdown should be enabled
+        assert not failed_job_dropdown.disabled
 
         # Add job
         run_manager.database_manager.failed = [
@@ -186,5 +186,5 @@ class TestChatWidgetFixes:
         # Remove all jobs
         run_manager.database_manager.failed = []
         refresh_button.click()
-        assert failed_job_dropdown.disabled
+        assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()

@@ -1061,7 +1061,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     failed_job_dropdown = ipyw.Dropdown(
         options=failed_jobs,
         description="Failed Job:",
-        disabled=not failed_jobs,
+        disabled=False,
     )
 
     @_create_task_wrapper(failed_job_dropdown)
@@ -1107,9 +1107,8 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
             # Replace diagnosing indicator with error
             chat_history.value = _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
         finally:
-            # Re-enable dropdown only if there are failed jobs
-            if run_manager.database_manager.failed:
-                failed_job_dropdown.disabled = False
+            # Re-enable dropdown after processing
+            failed_job_dropdown.disabled = False
 
     failed_job_dropdown.observe(on_failed_job_change, names="value")
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
@@ -1119,7 +1118,6 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         # Temporarily remove the observer to prevent triggering during refresh
         failed_job_dropdown.unobserve(on_failed_job_change, names="value")
         failed_job_dropdown.options = failed_jobs
-        failed_job_dropdown.disabled = not failed_jobs
         if failed_jobs:
             # Set the value to trigger the observe callback automatically
             failed_job_dropdown.value = failed_jobs[0]

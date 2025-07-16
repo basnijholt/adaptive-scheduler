@@ -64,7 +64,7 @@ class TestChatWidget:
         failed_job_dropdown = widget.children[2]
 
         assert failed_job_dropdown.options == ()
-        assert failed_job_dropdown.disabled
+        assert not failed_job_dropdown.disabled
 
     def test_chat_widget_refresh_button_functionality(self):
         """Test that the refresh button works correctly."""
@@ -96,8 +96,8 @@ class TestChatWidget:
         run_manager.database_manager.failed = []
         refresh_button.click()
         assert failed_job_dropdown.options == ()
-        # The dropdown should be disabled when there are no failed jobs
-        assert failed_job_dropdown.disabled
+        # The dropdown should still be enabled when there are no failed jobs
+        assert not failed_job_dropdown.disabled
 
     def test_chat_widget_dropdown_disabled_state(self):
         """Test that the dropdown disabled state works correctly."""
@@ -119,8 +119,8 @@ class TestChatWidget:
         run_manager.database_manager.failed = []
         refresh_button.click()
 
-        # Should be disabled and have no options
-        assert failed_job_dropdown.disabled
+        # Should have no options but still be enabled
+        assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
         # Add job back
@@ -222,7 +222,7 @@ class TestChatWidgetIntegration:
         run_manager.database_manager.failed = []
         widget = chat_widget(run_manager)
         dropdown = widget.children[2]
-        assert dropdown.disabled
+        assert not dropdown.disabled
 
         # Test with one failed job
         run_manager.database_manager.failed = [
@@ -269,4 +269,4 @@ class TestChatWidgetIntegration:
 
         # Observers should still be there
         assert len(failed_job_dropdown._trait_notifiers.get("value", [])) > 0
-        assert failed_job_dropdown.disabled
+        assert not failed_job_dropdown.disabled

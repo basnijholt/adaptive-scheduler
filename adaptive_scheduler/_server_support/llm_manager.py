@@ -158,9 +158,16 @@ class LLMManager(BaseManager):
             return log_content
 
         initial_message = (
-            "Analyze the following job log to determine the cause of failure. If the"
-            " cause is a code error, provide the corrected code.\n\nLog"
-            f" file(s):\n```\n{log_content}\n```"
+            "Analyze the following job log to determine the cause of failure.\n\n"
+            "WORKFLOW:\n"
+            "1. First, analyze the log to identify the problem\n"
+            "2. If you need to read any files to understand the code structure, use human_approval tool first\n"
+            "3. If you want to write or modify files to fix the issue, use human_approval tool first\n"
+            "4. Only proceed with actions after getting approval\n\n"
+            "IMPORTANT: You have access to file management tools (read_file, write_file, etc.) "
+            "but you MUST use the human_approval tool before using any of them. "
+            "Never directly read or write files without explicit approval.\n\n"
+            f"Log file(s):\n```\n{log_content}\n```"
         )
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}
