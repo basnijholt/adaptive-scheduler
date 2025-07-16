@@ -112,3 +112,4 @@ venv.bak/
 *.batch
 
 .envrc
+.env.leave
