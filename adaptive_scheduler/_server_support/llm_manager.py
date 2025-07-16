@@ -66,6 +66,23 @@ class LLMManager(BaseManager):
             selected_tools=["read_file", "write_file", "list_directory", "move_file"],
         )
         tools = self.toolkit.get_tools()
+
+        # Add human approval tool if not in YOLO mode
+        if not yolo:
+            from langchain_core.tools import tool
+
+            @tool
+            def human_approval(action_description: str) -> str:
+                """Request human approval for an action."""
+                approval_request = {
+                    "action": action_description,
+                    "message": "Please approve or deny this action. Type 'approve' or 'deny'.",
+                }
+                result = interrupt(approval_request)
+                return result.get("approval", "denied")
+
+            tools.append(human_approval)
+
         self.memory = MemorySaver()
 
         # Define the graph
@@ -83,10 +100,6 @@ class LLMManager(BaseManager):
             last_message = state["messages"][-1]
             if not last_message.tool_calls:
                 return END
-            if yolo:
-                return "tools"
-            # Use interrupt() to pause execution for human approval
-            interrupt(last_message.tool_calls)
             return "tools"
 
         graph.add_conditional_edges("agent", should_continue)
@@ -188,18 +201,20 @@ class LLMManager(BaseManager):
             return response["messages"][-1].content
         except Exception as e:
             # Check if this is an interruption that we need to handle
-            if "interrupt" in str(e).lower():
+            if "interrupt" in str(e).lower() or "Interrupted" in str(e):
                 # Re-raise as a custom exception that the UI can handle
                 raise InterruptedException(str(e)) from e
             raise
 
     async def resume_chat(
         self,
-        user_input: str | None = None,
+        approval_data: dict,
         thread_id: str = "1",
         run_metadata: dict | None = None,
     ) -> str:
-        """Resume an interrupted chat session."""
+        """Resume an interrupted chat session with human approval."""
+        from langgraph.types import Command
+
         config = {
             "configurable": {"thread_id": thread_id},
             "run_name": "LLM Manager Resume Chat",
@@ -209,14 +224,11 @@ class LLMManager(BaseManager):
         }
         config["metadata"]["thread_id"] = thread_id
 
-        # If user provided input, add it to the messages
-        if user_input:
-            payload = {"messages": [HumanMessage(content=user_input)]}
-        else:
-            payload = None
+        # Resume with the approval data
+        command = Command(resume=approval_data)
 
         response = await self.agent_executor.ainvoke(
-            payload,
+            command,
             config,
         )
         return response["messages"][-1].content
