@@ -166,14 +166,11 @@ class LLMManager(BaseManager):
             return log_content
 
         initial_message = (
-            "You are diagnosing a failed job. Your task is to:\n"
-            "1. Analyze the log to identify the problem\n"
-            "2. If it's a code error, provide the corrected code\n"
-            "3. If you need to read/write files, use human_approval tool first\n\n"
-            "After getting approval, continue with the action you requested approval for.\n"
-            "Remember: you're helping diagnose and fix a job failure.\n\n"
+            "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
+            "If you can identify the problem from the log alone, provide the corrected code.\n"
+            "If you need to read or write files, ask for permission first, then use the tools.\n\n"
             f"Log file(s):\n```\n{log_content}\n```\n\n"
-            "Please analyze this log and provide a diagnosis with any necessary fixes."
+            "What caused this failure and how can it be fixed?"
         )
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}

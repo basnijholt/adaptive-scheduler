@@ -1011,8 +1011,12 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     def ask_approval(message: str) -> None:
         chat_history.value += _render_chat_message("llm", _render_markdown(message))
 
+    # Track the current thread context for chat messages
+    current_thread_id = "1"  # Default thread
+
     @_create_task_wrapper(text_input)
     async def on_submit(sender: ipyw.Text) -> None:
+        nonlocal current_thread_id
         message = sender.value
         sender.value = ""
         if run_manager.llm_manager is None:
@@ -1033,7 +1037,8 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         chat_history.value += thinking_message
 
         try:
-            response = await run_manager.llm_manager.chat(message)
+            # Use the current thread_id which gets set when a job is selected
+            response = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
             # Remove thinking indicator and add response
             chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message("llm", _render_markdown(response))
@@ -1064,9 +1069,11 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
 
     @_create_task_wrapper(failed_job_dropdown)
     async def on_failed_job_change(change: dict[str, Any]) -> None:
+        nonlocal current_thread_id
         job_id = change["new"]
         if job_id is None:
-            # No job selected, nothing to do
+            # No job selected, reset to default thread
+            current_thread_id = "1"
             return
 
         if run_manager.llm_manager is None:
@@ -1075,6 +1082,9 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
                 _render_markdown("⚠️ No LLM manager available."),
             )
             return
+
+        # Set the current thread context to this job's thread
+        current_thread_id = job_id
 
         # Disable dropdown while processing
         failed_job_dropdown.disabled = True
