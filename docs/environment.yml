@@ -25,6 +25,7 @@ dependencies:
   - toolz
   - tqdm
   - versioningit
+  - langchain
   # optional-dependencies: all
   - dask-mpi
   - mpi4py
