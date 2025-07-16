@@ -45,7 +45,6 @@ dependencies = [
     "langchain",
     "langchain-openai",
     "langchain-google-genai",
-    "markdown-it-py",
     "mistune",
     "pygments",
 ]
