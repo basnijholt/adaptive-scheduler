@@ -1081,7 +1081,7 @@ def info(  # noqa: PLR0915
         icon="table",
     )
     show_chat_button = ipyw.Button(
-        description="chat with LLM",
+        description="show chat",
         layout=layout,
         button_style="info",
         icon="comments",
@@ -1133,6 +1133,8 @@ def info(  # noqa: PLR0915
         "chat": {
             "widget": None,
             "init_func": lambda: chat_widget(run_manager),
+            "show_description": "show chat",
+            "hide_description": "hide chat",
             "output": ipyw.Output(),
         },
     }
