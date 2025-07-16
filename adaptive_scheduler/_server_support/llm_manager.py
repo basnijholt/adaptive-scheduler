@@ -5,14 +5,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import aiofiles
-from langchain.agents import AgentExecutor, OpenAIFunctionsAgent
+from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.memory import ConversationBufferMemory
-from langchain.prompts import MessagesPlaceholder
-from langchain.schema import HumanMessage, SystemMessage
 from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .base_manager import BaseManager
@@ -57,17 +57,19 @@ class LLMManager(BaseManager):
         )
         tools = self.toolkit.get_tools()
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-        system_message = SystemMessage(
-            content=(
-                "You are a helpful assistant that has access to tools."
-                " The working directory is the root of the `adaptive-scheduler` repo."
-            ),
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a helpful assistant that has access to tools."
+                    " The working directory is the root of the `adaptive-scheduler` repo.",
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("user", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ],
         )
-        prompt = OpenAIFunctionsAgent.create_prompt(
-            system_message=system_message,
-            extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
-        )
-        agent = OpenAIFunctionsAgent(llm=self.llm, tools=tools, prompt=prompt)
+        agent = create_openai_functions_agent(self.llm, tools, prompt)
         self.agent_executor = AgentExecutor(
             agent=agent,
             tools=tools,

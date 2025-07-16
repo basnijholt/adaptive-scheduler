@@ -55,8 +55,12 @@ def llm_manager() -> LLMManager:
     """An LLMManager instance with a mocked ChatOpenAI."""
     with (
         patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
-        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
-        patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai,
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.create_openai_functions_agent",
+        ),
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+        ) as mock_chat_openai,
     ):
         mock_chat_openai.spec = ChatOpenAI
         llm_manager = LLMManager(db_manager=MagicMock())
@@ -69,8 +73,12 @@ def run_manager() -> RunManager:
     """A RunManager instance with a mocked scheduler."""
     with (
         patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
-        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
-        patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai,
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.create_openai_functions_agent",
+        ),
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+        ) as mock_chat_openai,
     ):
         mock_chat_openai.spec = ChatOpenAI
         scheduler = MagicMock()
@@ -93,7 +101,9 @@ def test_run_manager_with_google_llm() -> None:
     """Test that the RunManager initializes with a Google LLM."""
     with (
         patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
-        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.create_openai_functions_agent",
+        ),
         patch(
             "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
         ) as mock_chat_google,
