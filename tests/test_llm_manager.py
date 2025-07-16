@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiofiles
 import ipywidgets as ipyw
 import pytest
-from langchain.schema import AIMessage
 from langchain_community.chat_models import ChatOpenAI
+from langchain_core.messages import AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from adaptive_scheduler._server_support.llm_manager import LLMManager
@@ -261,51 +261,28 @@ async def test_llm_manager_string_response_handling(llm_manager: LLMManager) -> 
     assert isinstance(result, str)
 
 
-def test_human_approval_tool_auto_approves_read_file() -> None:
-    """Test that human_approval tool automatically approves read_file operations."""
+def test_llm_manager_yolo_mode() -> None:
+    """Test that YOLO mode skips approval checks."""
     from unittest.mock import patch
-
-    from langchain_core.tools import tool
 
     from adaptive_scheduler._server_support.llm_manager import LLMManager
 
-    # Create a real LLMManager instance
+    # Create a real LLMManager instance in YOLO mode
     db_manager = MagicMock()
 
     with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
-        _llm_manager = LLMManager(db_manager=db_manager, yolo=False)
+        yolo_manager = LLMManager(db_manager=db_manager, yolo=True)
+        non_yolo_manager = LLMManager(db_manager=db_manager, yolo=False)
 
-        # Get the actual human_approval function by inspecting the graph
-        # We need to look at the tools that were added during initialization
-        from langchain_core.tools import tool
+        # Both should have the same tools (no human_approval tool anymore)
+        yolo_tools = [tool.name for tool in yolo_manager.toolkit.get_tools()]
+        non_yolo_tools = [tool.name for tool in non_yolo_manager.toolkit.get_tools()]
 
-        # Create the same tool function as in the LLMManager
-        @tool
-        def human_approval(action_description: str) -> str:
-            """Request human approval for an action."""
-            # Auto-approve read_file operations
-            action_lower = action_description.lower()
-            if (
-                ("read_file" in action_lower)
-                or ("reading" in action_lower)
-                or ("read" in action_lower and "file" in action_lower)
-            ):
-                return "approved"
+        # Should only have file management tools, no human_approval
+        expected_tools = ["read_file", "write_file", "list_directory", "move_file"]
+        assert yolo_tools == expected_tools
+        assert non_yolo_tools == expected_tools
 
-            # For test purposes, simulate the interrupt for other operations
-            msg = "Interrupt would be called for non-read operations"
-            raise RuntimeError(msg)
-
-        # Test that read_file operations are auto-approved
-        result = human_approval.func("read_file some_file.py")
-        assert result == "approved"
-
-        result = human_approval.func("Reading the configuration file")
-        assert result == "approved"
-
-        result = human_approval.func("I want to read the log file")
-        assert result == "approved"
-
-        # Test that other operations still require approval (would trigger interrupt)
-        with pytest.raises(RuntimeError, match="Interrupt would be called"):
-            human_approval.func("write_file some_file.py")
+        # The difference is in the yolo flag
+        assert yolo_manager.yolo is True
+        assert non_yolo_manager.yolo is False
