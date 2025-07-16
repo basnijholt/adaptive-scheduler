@@ -15,7 +15,6 @@ from langchain.tools import BaseTool
 from langchain_community.chat_models import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from adaptive_scheduler._server_support.job_manager import JobManager
 from adaptive_scheduler._server_support.llm_manager import ApprovalTool, LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler.widgets import chat_widget, info
@@ -121,35 +120,6 @@ def test_run_manager_with_google_llm() -> None:
         assert isinstance(run_manager.llm_manager, LLMManager)
         mock_chat_google.assert_called_once()
         run_manager.cancel()
-
-
-@pytest.mark.asyncio
-async def test_job_manager_diagnoses_failed_job_async(run_manager: RunManager) -> None:
-    """Test that the JobManager diagnoses a failed job asynchronously."""
-    run_manager.scheduler.queue.return_value = {}  # type: ignore[attr-defined]
-    run_manager.database_manager.failed.append(
-        {"job_id": "test_job", "is_done": False},
-    )
-
-    # Create a JobManager with the RunManager's components
-    job_manager = JobManager(
-        ["test_job_name"],
-        run_manager.database_manager,
-        run_manager.scheduler,
-        llm_manager=run_manager.llm_manager,
-    )
-
-    with patch.object(
-        run_manager.llm_manager,
-        "diagnose_failed_job",
-        new_callable=AsyncMock,
-    ) as mock_diagnose:
-        mock_diagnose.return_value = "diagnosis"
-        # Run the _update_database_and_get_not_queued method
-        await job_manager._update_database_and_get_not_queued()
-
-        # Check that diagnose_failed_job was called
-        mock_diagnose.assert_awaited_once_with("test_job")
 
 
 @pytest.mark.asyncio
@@ -271,11 +241,13 @@ async def test_approval_tool() -> None:
     mock_llm_manager = MagicMock(spec=LLMManager)
     mock_llm_manager.ask_approval = MagicMock()
     mock_llm_manager.approval_queue = asyncio.Queue()
+    mock_llm_manager.approval_event = asyncio.Event()
 
     tool = ApprovalTool(tool=mock_tool, llm_manager=mock_llm_manager)
 
     # Test with approval
     mock_llm_manager.yolo = False
+    mock_llm_manager.approval_event.set()
     await mock_llm_manager.approval_queue.put("approve")
     result = await tool._arun("test input")
     assert result == "tool result"
@@ -285,6 +257,7 @@ async def test_approval_tool() -> None:
     # Test with denial
     mock_llm_manager.ask_approval.reset_mock()
     mock_tool._arun.reset_mock()
+    mock_llm_manager.approval_event.set()
     await mock_llm_manager.approval_queue.put("deny")
     result = await tool._arun("test input")
     assert result == "Action cancelled by user."

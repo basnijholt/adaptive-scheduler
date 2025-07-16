@@ -1012,6 +1012,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
 
     if run_manager.llm_manager is not None:
         run_manager.llm_manager.ask_approval = ask_approval
+        run_manager.llm_manager.approval_event.set()
 
     @_create_task_wrapper(text_input)
     async def on_submit(sender: ipyw.Text) -> None:
@@ -1051,7 +1052,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         )
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-            chat_history.value = _render_chat_message(
+            chat_history.value += _render_chat_message(
                 "llm",
                 _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
             )

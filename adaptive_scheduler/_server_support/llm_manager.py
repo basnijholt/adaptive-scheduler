@@ -43,16 +43,18 @@ class ApprovalTool(BaseTool):
 
     async def _arun(self, *args: Any, **kwargs: Any) -> Any:
         """Run the tool with approval."""
-        if not self.llm_manager.yolo and self.llm_manager.ask_approval:
-            tool_input = args or kwargs
-            msg = (
-                f"The AI wants to run the tool `{self.name}` with input"
-                f" `{tool_input}`. Type 'approve' to allow."
-            )
-            self.llm_manager.ask_approval(msg)
-            approval = await self.llm_manager.approval_queue.get()
-            if approval.lower() != "approve":
-                return "Action cancelled by user."
+        if not self.llm_manager.yolo:
+            await self.llm_manager.approval_event.wait()  # Wait for UI to be ready
+            if self.llm_manager.ask_approval:
+                tool_input = args or kwargs
+                msg = (
+                    f"The AI wants to run the tool `{self.name}` with input"
+                    f" `{tool_input}`. Type 'approve' to allow."
+                )
+                self.llm_manager.ask_approval(msg)
+                approval = await self.llm_manager.approval_queue.get()
+                if approval.lower() != "approve":
+                    return "Action cancelled by user."
 
         return await self.tool._arun(*args, **kwargs)
 
@@ -129,6 +131,7 @@ class LLMManager(BaseManager):
         self.yolo = yolo
         self.ask_approval = ask_approval
         self.approval_queue: asyncio.Queue[str] = asyncio.Queue()
+        self.approval_event = asyncio.Event()
 
     async def _manage(self) -> None:
         """The main loop for the manager."""
