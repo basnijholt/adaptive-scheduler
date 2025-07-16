@@ -37,7 +37,7 @@ from .common import (
 from .database_manager import DatabaseManager
 from .job_manager import JobManager
 from .kill_manager import KillManager
-from .llm_manager import LLMManager
+from .llm_manager import LLMManager, LLMManagerKwargs
 from .parse_logs import parse_log_files
 
 if TYPE_CHECKING:
@@ -204,9 +204,7 @@ class RunManager(BaseManager):
         overwrite_db: bool = True,
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
-        llm_manager_kwargs: dict[str, Any] | None = None,
-        yolo: bool = False,
-        working_dir: str | Path = ".",
+        llm_manager_kwargs: LLMManagerKwargs | None = None,
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
@@ -237,8 +235,6 @@ class RunManager(BaseManager):
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
         self.llm_manager_kwargs = llm_manager_kwargs or {}
-        self.yolo = yolo
-        self.working_dir = working_dir
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
@@ -334,8 +330,6 @@ class RunManager(BaseManager):
         return LLMManager(
             db_manager=self.database_manager,
             move_old_logs_to=self.move_old_logs_to,
-            working_dir=self.working_dir,
-            yolo=self.yolo,
             **self.llm_manager_kwargs,
         )
 

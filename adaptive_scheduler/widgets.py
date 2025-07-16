@@ -970,7 +970,16 @@ def _render_chat_message(role: str, message: str) -> str:
 def _render_markdown(text: str) -> str:
     """Render markdown to HTML with syntax highlighting."""
     renderer = mistune.HTMLRenderer(escape=False)
-    markdown = mistune.Markdown(renderer=renderer)
+    markdown = mistune.Markdown(
+        renderer=renderer,
+        plugins=[
+            mistune.plugins.extra.plugin_strikethrough,
+            mistune.plugins.extra.plugin_table,
+            mistune.plugins.extra.plugin_url,
+            mistune.plugins.extra.plugin_task_lists,
+            lambda md: md.renderer.register("code", highlight_code),
+        ],
+    )
     return markdown(text)
 
 
@@ -1292,4 +1301,4 @@ def highlight_code(code: str, lang: str, _: str) -> str:
     except ValueError:
         lexer = get_lexer_by_name("text", stripall=True)
     formatter = HtmlFormatter(style="monokai", nowrap=True)
-    return highlight(code, lexer, formatter)
+    return f"<div>{highlight(code, lexer, formatter)}</div>"

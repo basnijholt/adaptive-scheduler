@@ -36,15 +36,15 @@ This document outlines the plan for integrating an LLM-powered chat feature into
     - [x] Refactor `llm_manager.py` and `widgets.py` for better readability and maintainability.
     - [x] Ensure all existing functionality is robust before adding new features.
 
-- [ ] **6. Add Tools to the AI**
+- [x] **6. Add Tools to the AI**
     - [x] Integrate `langchain`'s file system tools into `LLMManager`.
     - [x] Allow the AI to read and write files.
-    - [ ] Fine-tune the tool integration to ensure reliability and security.
+    - [x] Fine-tune the tool integration to ensure reliability and security.
 
-- [ ] **7. Implement "Approve" and "YOLO" Modes**
+- [x] **7. Implement "Approve" and "YOLO" Modes**
     - [x] Create a mechanism for the user to approve changes suggested by the AI (e.g., typing "approve").
     - [x] Add a "YOLO" mode to allow the AI to make changes without user confirmation.
-    - [ ] Refine the user interaction flow for clarity and ease of use.
+    - [x] Refine the user interaction flow for clarity and ease of use.
 
 - [ ] **8. Improve Chat Widget UI**
     - [ ] Use a JavaScript library (e.g., `marked.js` or similar) to render Markdown in the chat widget.

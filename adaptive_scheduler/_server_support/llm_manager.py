@@ -11,7 +11,6 @@ from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import BaseTool
@@ -21,8 +20,6 @@ from .base_manager import BaseManager
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from langchain.schema import BaseMessage
 
     from .database_manager import DatabaseManager
 
@@ -65,12 +62,11 @@ class ApprovalTool(BaseTool):
         raise NotImplementedError(msg)
 
 
-class LLMManagerKwargs(TypedDict):
+class LLMManagerKwargs(TypedDict, total=False):
     """Type for LLMManager keyword arguments."""
 
     model_name: str
     model_provider: str
-    move_old_logs_to: Path | None
     working_dir: str | Path
     yolo: bool
     ask_approval: Callable[[str], None] | None
@@ -108,15 +104,24 @@ class LLMManager(BaseManager):
         )
         tools = [ApprovalTool(tool, self) for tool in self.toolkit.get_tools()]
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        system_message = (
+            "You are an expert software developer assistant. Your purpose is to help"
+            " users analyze and debug failed jobs. You have access to tools for file"
+            " management. When you identify a fix, you should use the `write_file`"
+            " tool to apply it."
+        )
+        if not yolo:
+            system_message += (
+                " The user will be asked for approval before the tool is run."
+                " After proposing a fix, end your message with 'Type \"approve\" to apply this fix.'."
+            )
+        else:
+            system_message += " You are in YOLO mode. Apply any fixes without asking for approval."
+        system_message += " The working directory is the root of the `adaptive-scheduler` repo."
+
         prompt = ChatPromptTemplate.from_messages(
             [
-                (
-                    "system",
-                    "You are an expert software developer assistant. Your purpose is to help"
-                    " users analyze and debug failed jobs. You have access to tools for file"
-                    " management. If the fix is clear, proactively suggest to apply a code fix, use the tools"
-                    " to modify the file.",
-                ),
+                ("system", system_message),
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("user", "{input}"),
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -184,26 +189,12 @@ class LLMManager(BaseManager):
         ):
             return log_content
 
-        messages: list[BaseMessage] = [
-            SystemMessage(
-                content=(
-                    "You are an expert software developer assistant. Your task is to analyze"
-                    " job failure logs. If you find an error in a user's script, you"
-                    " should not only identify the cause but also suggest a concrete code"
-                    " change to fix it. You should also mention that you can apply the fix"
-                    " if the user agrees in the chat."
-                ),
-            ),
-            HumanMessage(
-                content=(
-                    "Analyze the following job log to determine the cause of failure. If the"
-                    " cause is a code error, provide the corrected code.\n\nLog"
-                    f" file(s):\n```\n{log_content}\n```"
-                ),
-            ),
-        ]
-        response = await self.llm.agenerate([messages])
-        diagnosis = response.generations[0][0].text
+        initial_message = (
+            "Analyze the following job log to determine the cause of failure. If the"
+            " cause is a code error, provide the corrected code.\n\nLog"
+            f" file(s):\n```\n{log_content}\n```"
+        )
+        diagnosis = await self.chat(initial_message)
         self._diagnoses_cache[job_id] = diagnosis
         return diagnosis
 

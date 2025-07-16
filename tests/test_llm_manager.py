@@ -26,11 +26,7 @@ if TYPE_CHECKING:
 @pytest.mark.asyncio
 async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     """Test that the diagnose_failed_job method returns a diagnosis."""
-    llm_manager.llm.agenerate = AsyncMock(
-        return_value=MagicMock(
-            generations=[[MagicMock(text="diagnosis")]],
-        ),
-    )
+    llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "diagnosis"})
     job_id = "test_job"
     llm_manager.db_manager.failed = [
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
@@ -162,11 +158,7 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
     ]
     with patch.object(llm_manager.db_manager, "as_dicts", return_value=[]):
-        llm_manager.llm.agenerate = AsyncMock(
-            return_value=MagicMock(
-                generations=[[MagicMock(text="diagnosis")]],
-            ),
-        )
+        llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "diagnosis"})
     with (
         patch.object(
             llm_manager,
@@ -181,7 +173,7 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
     ):
         await llm_manager.diagnose_failed_job(job_id)
         await llm_manager.diagnose_failed_job(job_id)
-        llm_manager.llm.agenerate.assert_called_once()
+        llm_manager.agent_executor.ainvoke.assert_called_once()
 
 
 @pytest.mark.asyncio
