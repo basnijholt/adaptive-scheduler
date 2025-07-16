@@ -247,20 +247,22 @@ def test_slurm_run_with_llm(
     fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with with_llm=True."""
-    from unittest.mock import patch
+    from unittest.mock import MagicMock, patch
 
-    llm_manager_kwargs = {"model_name": "test-model", "api_key": "test-key"}
-    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat:
+    from langchain_community.chat_models import ChatOpenAI
+
+    llm_manager_kwargs = {"model_name": "test-model"}
+    with patch(
+        "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+    ) as mock_chat:
+        mock_chat.return_value = MagicMock(spec=ChatOpenAI)
         rm = slurm_run(
             learners,
             fnames,
             with_llm=True,
             llm_manager_kwargs=llm_manager_kwargs,
         )
-        mock_chat.assert_called_once_with(
-            model_name="test-model",
-            api_key="test-key",
-        )
+        mock_chat.assert_called_once_with(model_name="test-model")
     assert rm.with_llm is True
     assert rm.llm_manager_kwargs == llm_manager_kwargs
 

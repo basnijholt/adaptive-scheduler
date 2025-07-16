@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import ipywidgets as ipyw
 import pytest
+from langchain.schema import AIMessage, HumanMessage
+from langchain_community.chat_models import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from adaptive_scheduler._server_support.job_manager import JobManager
 from adaptive_scheduler._server_support.llm_manager import LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler.widgets import info
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.mark.asyncio
@@ -31,14 +31,8 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     ]
     with (
         patch.object(llm_manager.db_manager, "as_dicts", return_value=[]),
-        patch(
-            "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
-        ) as mock_open,
-        patch.object(
-            llm_manager,
-            "_get_log_file_paths",
-            return_value=["some/path/to/log.txt"],
-        ),
+        patch("adaptive_scheduler._server_support.llm_manager.aiofiles.open") as mock_open,
+        patch.object(llm_manager, "_get_log_file_paths", return_value=["some/path/to/log.txt"]),
     ):
         mock_open.return_value.__aenter__.return_value.read.return_value = (
             "This is a log file with an error."
@@ -57,25 +51,37 @@ async def test_chat(llm_manager: LLMManager) -> None:
 
 
 @pytest.fixture
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-def llm_manager(mock_chat_openai: MagicMock) -> LLMManager:  # noqa: ARG001
+def llm_manager() -> LLMManager:
     """An LLMManager instance with a mocked ChatOpenAI."""
-    return LLMManager(db_manager=MagicMock())
+    with (
+        patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
+        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
+        patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai,
+    ):
+        mock_chat_openai.spec = ChatOpenAI
+        llm_manager = LLMManager(db_manager=MagicMock())
+        llm_manager.agent_executor = AsyncMock()
+        return llm_manager
 
 
 @pytest.fixture
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-def run_manager(mock_chat_openai: MagicMock) -> RunManager:  # noqa: ARG001
+def run_manager() -> RunManager:
     """A RunManager instance with a mocked scheduler."""
-    scheduler = MagicMock()
-    learners = [MagicMock()]
-    fnames = ["test_fname"]
-    return RunManager(
-        scheduler,
-        learners,
-        fnames,
-        with_llm=True,
-    )
+    with (
+        patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
+        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
+        patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai,
+    ):
+        mock_chat_openai.spec = ChatOpenAI
+        scheduler = MagicMock()
+        learners = [MagicMock()]
+        fnames = ["test_fname"]
+        return RunManager(
+            scheduler,
+            learners,
+            fnames,
+            with_llm=True,
+        )
 
 
 def test_run_manager_with_llm(run_manager: RunManager) -> None:
@@ -83,34 +89,34 @@ def test_run_manager_with_llm(run_manager: RunManager) -> None:
     assert isinstance(run_manager.llm_manager, LLMManager)
 
 
-@patch("adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI")
-def test_run_manager_with_google_llm(mock_chat_google: MagicMock) -> None:
+def test_run_manager_with_google_llm() -> None:
     """Test that the RunManager initializes with a Google LLM."""
-    scheduler = MagicMock()
-    learners = [MagicMock()]
-    fnames = ["test_fname"]
-    run_manager = RunManager(
-        scheduler,
-        learners,
-        fnames,
-        with_llm=True,
-        llm_manager_kwargs={"model_provider": "google"},
-    )
-    assert isinstance(run_manager.llm_manager, LLMManager)
-    mock_chat_google.assert_called_once()
+    with (
+        patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
+        patch("adaptive_scheduler._server_support.llm_manager.OpenAIFunctionsAgent"),
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
+        ) as mock_chat_google,
+    ):
+        mock_chat_google.spec = ChatGoogleGenerativeAI
+        scheduler = MagicMock()
+        learners = [MagicMock()]
+        fnames = ["test_fname"]
+        run_manager = RunManager(
+            scheduler,
+            learners,
+            fnames,
+            with_llm=True,
+            llm_manager_kwargs={"model_provider": "google"},
+        )
+        assert isinstance(run_manager.llm_manager, LLMManager)
+        mock_chat_google.assert_called_once()
 
 
 @pytest.mark.asyncio
-@patch("asyncio.to_thread")
-async def test_job_manager_diagnoses_failed_job_async(
-    mock_to_thread: MagicMock,
-    run_manager: RunManager,
-) -> None:
+async def test_job_manager_diagnoses_failed_job_async(run_manager: RunManager) -> None:
     """Test that the JobManager diagnoses a failed job asynchronously."""
-    # Mock the queue to return an empty dict
-    mock_to_thread.return_value = {}
-
-    # Add a failed job to the database
+    run_manager.scheduler.queue.return_value = {}  # type: ignore[attr-defined]
     run_manager.database_manager.failed.append(
         {"job_id": "test_job", "is_done": False},
     )
@@ -182,12 +188,26 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
 @pytest.mark.asyncio
 async def test_chat_history(llm_manager: LLMManager) -> None:
     """Test that the chat history is maintained."""
-    llm_manager.agent_executor.ainvoke = AsyncMock(
-        return_value={"output": "response"},
-    )
+
+    async def mock_ainvoke(inputs: dict[str, str]) -> dict[str, str]:
+        llm_manager.memory.save_context(inputs, {"output": "response"})
+        return {"output": "response"}
+
+    llm_manager.agent_executor.ainvoke = AsyncMock(side_effect=mock_ainvoke)
+
     await llm_manager.chat("Hello")
     await llm_manager.chat("How are you?")
-    assert len(llm_manager.memory.chat_memory.messages) == 4
+
+    history = llm_manager.memory.chat_memory.messages
+    assert len(history) == 4
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "Hello"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "response"
+    assert isinstance(history[2], HumanMessage)
+    assert history[2].content == "How are you?"
+    assert isinstance(history[3], AIMessage)
+    assert history[3].content == "response"
 
 
 @pytest.mark.asyncio
@@ -197,29 +217,51 @@ async def test_read_log_files(llm_manager: LLMManager, tmp_path: Path) -> None:
     log_file = tmp_path / "job_test.log"
     log_file.write_text(log_content)
 
-    read_content = await llm_manager._read_log_files([str(log_file)])
+    read_content = await llm_manager._read_log_files([log_file])
     assert read_content == log_content
+
+
+@pytest.mark.asyncio
+async def test_read_log_files_async(llm_manager: LLMManager, tmp_path: Path) -> None:
+    """Test that the _read_log_files method reads a file asynchronously."""
+    import aiofiles
+
+    log_content = "This is a test log file."
+    log_file = tmp_path / "job_test.log"
+    async with aiofiles.open(log_file, "w") as f:
+        await f.write(log_content)
+
+    read_content = await llm_manager._read_log_files([log_file])
+    assert read_content == log_content
+
+
+@pytest.mark.asyncio
+async def test_read_log_files_not_found(llm_manager: LLMManager) -> None:
+    """Test that the _read_log_files method handles a missing file."""
+    log_file = "non_existent_file.log"
+    read_content = await llm_manager._read_log_files([Path(log_file)])
+    assert "Log file not found" in read_content
 
 
 def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
     """Test that the chat widget's refresh button updates the failed jobs list."""
     from adaptive_scheduler.widgets import chat_widget
 
-    # Initially, there are no failed jobs
     run_manager.database_manager.failed = []
     widget = chat_widget(run_manager)
-    refresh_button = widget.children[1]
-    dropdown = widget.children[2]
-    assert dropdown.options == ()
+    (
+        _,  # title
+        refresh_button,
+        failed_job_dropdown,
+        yolo_checkbox,
+        chat_history,
+        text_input,
+    ) = widget.children
+    assert failed_job_dropdown.options == ()
 
-    # A job fails
     run_manager.database_manager.failed.append({"job_id": "failed_job_1"})
-
-    # Click the refresh button
     refresh_button.click()
-
-    # The dropdown should now contain the failed job
-    assert dropdown.options == ("failed_job_1",)
+    assert failed_job_dropdown.options == ("failed_job_1",)
 
 
 def test_info_widget_without_llm() -> None:

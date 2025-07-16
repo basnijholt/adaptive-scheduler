@@ -298,18 +298,7 @@ class RunManager(BaseManager):
             initializers=self.initializers,
             with_progress_bar=not self.quiet,
         )
-        self.llm_manager: LLMManager | None
-        if self.with_llm:
-            self.llm_manager = LLMManager(
-                db_manager=self.database_manager,
-                move_old_logs_to=self.move_old_logs_to,
-                working_dir=self.working_dir,
-                yolo=self.yolo,
-                **self.llm_manager_kwargs,
-            )
-        else:
-            self.llm_manager = None
-
+        self.llm_manager = self._init_llm_manager()
         self.job_manager = JobManager(
             self.job_names,
             self.database_manager,
@@ -340,6 +329,17 @@ class RunManager(BaseManager):
             )
         else:
             self.kill_manager = None
+
+    def _init_llm_manager(self) -> LLMManager | None:
+        if not self.with_llm:
+            return None
+        return LLMManager(
+            db_manager=self.database_manager,
+            move_old_logs_to=self.move_old_logs_to,
+            working_dir=self.working_dir,
+            yolo=self.yolo,
+            **self.llm_manager_kwargs,
+        )
 
     def _setup(self) -> None:
         self.database_manager.start()

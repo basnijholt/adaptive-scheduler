@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -53,10 +51,9 @@ class LLMManager(BaseManager):
             msg = f"Unknown model provider: {model_provider}"
             raise ValueError(msg)
         self._diagnoses_cache: dict[str, str] = {}
-        self._chat_history: list[BaseMessage] = []
         self.toolkit = FileManagementToolkit(
             root_dir=str(working_dir),
-            selected_tools=["read_file", "write_file", "list_directory"],
+            selected_tools=["read_file", "write_file", "list_directory", "move_file"],
         )
         tools = self.toolkit.get_tools()
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
@@ -89,25 +86,24 @@ class LLMManager(BaseManager):
         while not self.task.done():  # noqa: ASYNC110
             await asyncio.sleep(1)
 
-    def _get_log_file_paths(self, job_id: str) -> list[str]:
+    def _get_log_file_paths(self, job_id: str) -> list[Path]:
         """Get the log file paths from the database."""
-        # First check the failed jobs, then the active jobs.
         search_in = self.db_manager.failed + self.db_manager.as_dicts()
         for job in search_in:
             if job["job_id"] == job_id:
-                output_logs = job["output_logs"]
+                output_logs = [Path(log) for log in job["output_logs"]]
                 log_paths = []
-                for log in output_logs:
-                    if os.path.exists(log):  # noqa: PTH110
-                        log_paths.append(log)
+                for log_path in output_logs:
+                    if log_path.exists():
+                        log_paths.append(log_path)
                     elif self.move_old_logs_to:
-                        log_path_alt = self.move_old_logs_to / Path(log).name
-                        if os.path.exists(log_path_alt):  # noqa: PTH110
-                            log_paths.append(str(log_path_alt))
+                        log_path_alt = self.move_old_logs_to / log_path.name
+                        if log_path_alt.exists():
+                            log_paths.append(log_path_alt)
                 return log_paths
         return []
 
-    async def _read_log_files(self, log_paths: list[str]) -> str:
+    async def _read_log_files(self, log_paths: list[Path]) -> str:
         """Read and combine the content of multiple log files."""
         log_contents = []
         for log_path in log_paths:
@@ -153,24 +149,25 @@ class LLMManager(BaseManager):
     async def chat(self, message: str) -> str:
         """Handles a chat message and returns a response."""
         response = await self.agent_executor.ainvoke({"input": message})
-        if "intermediate_steps" in response:
-            # TODO: this is now just a single tool call, make it work for more
-            action, result = response["intermediate_steps"][0]
-            tool_name = action.tool
-            tool_input = action.tool_input
-            if not self.yolo and self.ask_approval is not None:
-                msg = (
-                    f"The AI wants to run the tool `{tool_name}` with input `{tool_input}`."
-                    " Type 'approve' to allow."
-                )
-                self.ask_approval(msg)
-                try:
-                    approval = await asyncio.wait_for(self.approval_queue.get(), timeout=60)
-                except asyncio.TimeoutError:
-                    return "Approval timed out."
-                if approval.lower() != "approve":
-                    return "Action cancelled by user."
-
+        if "intermediate_steps" in response and not self.yolo:
+            for action, _result in response["intermediate_steps"]:
+                tool_name = action.tool
+                tool_input = action.tool_input
+                if self.ask_approval is not None:
+                    msg = (
+                        f"The AI wants to run the tool `{tool_name}` with input"
+                        f" `{tool_input}`. Type 'approve' to allow."
+                    )
+                    self.ask_approval(msg)
+                    try:
+                        approval = await asyncio.wait_for(
+                            self.approval_queue.get(),
+                            timeout=60,
+                        )
+                    except asyncio.TimeoutError:
+                        return "Approval timed out."
+                    if approval.lower() != "approve":
+                        return "Action cancelled by user."
         return response["output"]
 
     def provide_approval(self, message: str) -> None:

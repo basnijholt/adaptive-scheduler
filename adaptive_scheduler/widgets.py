@@ -940,7 +940,34 @@ def _create_confirm_deny(
     )
 
 
-def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
+def _create_task_wrapper(
+    widget: ipyw.Widget,
+) -> Callable[[Callable[[Any], Any]], Callable[[Any], None]]:
+    """Create a wrapper that runs an async function when a widget changes."""
+
+    def wrapper(func: Callable[[Any], Any]) -> Callable[[Any], None]:
+        def on_change(change: Any) -> None:
+            task = asyncio.create_task(func(change))
+            if not hasattr(widget, "_tasks"):
+                widget._tasks = set()
+            widget._tasks.add(task)
+            task.add_done_callback(widget._tasks.remove)
+
+        return on_change
+
+    return wrapper
+
+
+def _render_chat_message(role: str, message: str) -> str:
+    """Render a chat message with a role-specific style."""
+    style = {
+        "user": "background-color: #dcf8c6; text-align: right; margin-left: auto;",
+        "llm": "background-color: #f1f0f0; text-align: left;",
+    }[role]
+    return f'<div style="padding: 5px; border-radius: 5px; margin: 5px; max-width: 80%; {style}">{message}</div>'
+
+
+def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     """Chat widget for interacting with the LLM."""
     import ipywidgets as ipyw
 
@@ -959,42 +986,37 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
             "height": "300px",
             "border": "1px solid black",
             "word-wrap": "break-word",
+            "overflow-y": "auto",
         },
     )
+    yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
 
     md = markdown_it.MarkdownIt("gfm-like", {"highlight": highlight_code})
 
     def ask_approval(message: str) -> None:
-        chat_history.value += md.render(f"**LLM:** {message}")
+        chat_history.value += _render_chat_message("llm", md.render(message))
 
     if run_manager.llm_manager is not None:
         run_manager.llm_manager.ask_approval = ask_approval
 
+    @_create_task_wrapper(text_input)
     async def on_submit(sender: ipyw.Text) -> None:
         message = sender.value
         sender.value = ""
         if run_manager.llm_manager is None:
             return
-        chat_history.value += md.render(f"**You:** {message}")
+        run_manager.llm_manager.yolo = yolo_checkbox.value
+        chat_history.value += _render_chat_message("user", md.render(message))
         if message.lower() == "approve":
             run_manager.llm_manager.provide_approval(message)
             return
         try:
             response = await run_manager.llm_manager.chat(message)
-            chat_history.value += md.render(f"**LLM:** {response}")
+            chat_history.value += _render_chat_message("llm", md.render(response))
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
 
-    def on_submit_wrapper(sender: ipyw.Text) -> None:
-        task = asyncio.create_task(on_submit(sender))
-        # Keep a reference to the task to prevent it from being garbage collected
-        # before it completes.
-        if not hasattr(text_input, "_tasks"):
-            text_input._tasks = set()
-        text_input._tasks.add(task)
-        task.add_done_callback(text_input._tasks.remove)
-
-    text_input.on_submit(on_submit_wrapper)
+    text_input.on_submit(on_submit)
 
     # Add a dropdown to select a failed job
     failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
@@ -1004,29 +1026,25 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         disabled=not failed_jobs,
     )
 
+    @_create_task_wrapper(failed_job_dropdown)
     async def on_failed_job_change(change: dict[str, Any]) -> None:
         job_id = change["new"]
         if run_manager.llm_manager is None:
             return
-        chat_history.value = md.render(f"Diagnosing job {job_id}...")
+        chat_history.value = _render_chat_message(
+            "llm",
+            md.render(f"Diagnosing job {job_id}..."),
+        )
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-            chat_history.value = md.render(
-                f"**Diagnosis for job {job_id}:**\n{diagnosis}",
+            chat_history.value = _render_chat_message(
+                "llm",
+                md.render(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
             )
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
 
-    def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
-        task = asyncio.create_task(on_failed_job_change(change))
-        # Keep a reference to the task to prevent it from being garbage collected
-        # before it completes.
-        if not hasattr(failed_job_dropdown, "_tasks"):
-            failed_job_dropdown._tasks = set()
-        failed_job_dropdown._tasks.add(task)
-        task.add_done_callback(failed_job_dropdown._tasks.remove)
-
-    failed_job_dropdown.observe(on_failed_job_change_wrapper, names="value")
+    failed_job_dropdown.observe(on_failed_job_change, names="value")
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
 
     def refresh_failed_jobs(_: Any) -> None:
@@ -1034,11 +1052,21 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         failed_job_dropdown.options = failed_jobs
         failed_job_dropdown.disabled = not failed_jobs
         if failed_jobs:
-            on_failed_job_change_wrapper({"new": failed_jobs[0], "type": "change", "name": "value"})
+            on_failed_job_change(
+                {"new": failed_jobs[0], "type": "change", "name": "value"},
+            )
 
     refresh_button.on_click(refresh_failed_jobs)
 
-    vbox = ipyw.VBox([refresh_button, failed_job_dropdown, chat_history, text_input])
+    vbox = ipyw.VBox(
+        [
+            refresh_button,
+            failed_job_dropdown,
+            yolo_checkbox,
+            chat_history,
+            text_input,
+        ],
+    )
     _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
     return vbox
 
@@ -1258,5 +1286,5 @@ def highlight_code(code: str, lang: str, _: str) -> str:
         lexer = get_lexer_by_name(lang, stripall=True)
     except ValueError:
         lexer = get_lexer_by_name("text", stripall=True)
-    formatter = HtmlFormatter(style="default", nowrap=True)
+    formatter = HtmlFormatter(style="monokai", nowrap=True)
     return highlight(code, lexer, formatter)
