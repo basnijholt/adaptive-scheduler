@@ -93,13 +93,6 @@ class LLMManager(BaseManager):
         ):
             return log_content
 
-        job_in_db = self.db_manager._db.get(lambda j: j.job_id == job_id)
-        if job_in_db is None:
-            # Job is not in the main database, so it must be in the failed list
-            job_in_db = next(j for j in self.db_manager.failed if j["job_id"] == job_id)
-        options = self.db_manager.scheduler._multi_job_script_options(job_in_db["index"])
-        job_script = self.db_manager.scheduler.job_script(options=options)
-
         messages: list[BaseMessage] = [
             SystemMessage(
                 content="You are a helpful assistant that analyzes job failure logs.",
@@ -107,7 +100,7 @@ class LLMManager(BaseManager):
             HumanMessage(
                 content=(
                     "Analyze the following job script and log file to determine the"
-                    f" cause of failure.\n\nJob script:\n```\n{job_script}\n```\n\nLog"
+                    f" cause of failure.\n\nLog"
                     f" file(s):\n```\n{log_content}\n```"
                 ),
             ),
