@@ -974,14 +974,14 @@ def _render_markdown(text: str) -> str:
         renderer = mistune.HTMLRenderer(escape=False)
         markdown = mistune.Markdown(renderer=renderer)
         return markdown(text)
-    except Exception:
+    except (TypeError, AttributeError, ValueError):
         # Fallback to simple HTML formatting
         import html
 
         return html.escape(text).replace("\n", "<br>")
 
 
-def chat_widget(run_manager: RunManager) -> ipyw.VBox:
+def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
     """Chat widget for interacting with the LLM."""
     import ipywidgets as ipyw
 
@@ -1049,7 +1049,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
                 "llm",
                 _render_markdown(f"🤖 {e}\n\n*Reply with 'approve' or 'deny' to continue.*"),
             )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as e:
             # Remove thinking indicator and add error
             chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))

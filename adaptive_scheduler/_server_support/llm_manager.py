@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .database_manager import DatabaseManager
 
 
-class InterruptedException(Exception):
+class InterruptedException(Exception):  # noqa: N818
     """Exception raised when the LLM execution is interrupted for human input."""
 
 
@@ -105,7 +105,7 @@ class LLMManager(BaseManager):
         # Define the graph
         graph = StateGraph(MessagesState)
 
-        async def call_model(state):
+        async def call_model(state: MessagesState) -> dict[str, list]:
             messages = state["messages"]
             response = await self.llm.bind_tools(tools).ainvoke(messages)
             return {"messages": [response]}
@@ -113,7 +113,7 @@ class LLMManager(BaseManager):
         graph.add_node("agent", call_model)
         graph.add_node("tools", ToolNode(tools))
 
-        def should_continue(state):
+        def should_continue(state: MessagesState) -> str:
             last_message = state["messages"][-1]
             if not last_message.tool_calls:
                 return END
@@ -198,14 +198,15 @@ class LLMManager(BaseManager):
         run_metadata: dict | None = None,
     ) -> str:
         """Handles a chat message and returns a response."""
+        metadata = run_metadata or {}
+        metadata["thread_id"] = thread_id
         config = {
             "configurable": {"thread_id": thread_id},
             "run_name": "LLM Manager Chat",
             "run_id": uuid.uuid4(),
             "tags": ["llm_manager"],
-            "metadata": run_metadata or {},
+            "metadata": metadata,
         }
-        config["metadata"]["thread_id"] = thread_id
 
         if isinstance(message, str):
             payload = {"messages": [HumanMessage(content=message)]}
@@ -221,9 +222,9 @@ class LLMManager(BaseManager):
 
             # Handle case where content is a list (structured output)
             if isinstance(content, list):
-                content = "\n".join(str(item) for item in content)
+                return "\n".join(str(item) for item in content)
 
-            return content
+            return content  # noqa: TRY300
         except Exception as e:
             # Check if this is an interruption that we need to handle
             if "interrupt" in str(e).lower() or "Interrupted" in str(e):
@@ -240,14 +241,15 @@ class LLMManager(BaseManager):
         """Resume an interrupted chat session with human approval."""
         from langgraph.types import Command
 
+        metadata = run_metadata or {}
+        metadata["thread_id"] = thread_id
         config = {
             "configurable": {"thread_id": thread_id},
             "run_name": "LLM Manager Resume Chat",
             "run_id": uuid.uuid4(),
             "tags": ["llm_manager"],
-            "metadata": run_metadata or {},
+            "metadata": metadata,
         }
-        config["metadata"]["thread_id"] = thread_id
 
         # Resume with the approval data
         command = Command(resume=approval_data)

@@ -11,7 +11,7 @@ from adaptive_scheduler.widgets import chat_widget
 class TestChatWidget:
     """Test suite for the chat widget."""
 
-    def test_chat_widget_structure(self):
+    def test_chat_widget_structure(self) -> None:
         """Test that the chat widget has the correct structure."""
         # Create mock run manager with failed jobs
         run_manager = MagicMock()
@@ -54,7 +54,7 @@ class TestChatWidget:
         assert "Hello!" in chat_history.value
         assert not yolo_checkbox.value
 
-    def test_chat_widget_empty_failed_jobs(self):
+    def test_chat_widget_empty_failed_jobs(self) -> None:
         """Test that the chat widget handles empty failed jobs correctly."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
@@ -66,7 +66,7 @@ class TestChatWidget:
         assert failed_job_dropdown.options == ()
         assert not failed_job_dropdown.disabled
 
-    def test_chat_widget_refresh_button_functionality(self):
+    def test_chat_widget_refresh_button_functionality(self) -> None:
         """Test that the refresh button works correctly."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -99,7 +99,7 @@ class TestChatWidget:
         # The dropdown should still be enabled when there are no failed jobs
         assert not failed_job_dropdown.disabled
 
-    def test_chat_widget_dropdown_disabled_state(self):
+    def test_chat_widget_dropdown_disabled_state(self) -> None:
         """Test that the dropdown disabled state works correctly."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -133,7 +133,7 @@ class TestChatWidget:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ("job_2",)
 
-    def test_chat_widget_no_llm_manager(self):
+    def test_chat_widget_no_llm_manager(self) -> None:
         """Test that the chat widget handles missing LLM manager gracefully."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -150,7 +150,7 @@ class TestChatWidget:
         # Chat history should have initial message
         assert "Hello!" in chat_history.value
 
-    def test_chat_widget_components_configuration(self):
+    def test_chat_widget_components_configuration(self) -> None:
         """Test that widget components are properly configured."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -180,7 +180,7 @@ class TestChatWidget:
         assert text_input.placeholder == "Ask a question..."
 
     @pytest.mark.asyncio
-    async def test_chat_widget_basic_functionality(self):
+    async def test_chat_widget_basic_functionality(self) -> None:
         """Test basic chat widget functionality."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
@@ -213,7 +213,7 @@ class TestChatWidget:
 class TestChatWidgetIntegration:
     """Integration tests for the chat widget."""
 
-    def test_chat_widget_with_multiple_scenarios(self):
+    def test_chat_widget_with_multiple_scenarios(self) -> None:
         """Test various scenarios with the chat widget."""
         run_manager = MagicMock()
         run_manager.llm_manager = MagicMock(spec=LLMManager)
@@ -244,7 +244,7 @@ class TestChatWidgetIntegration:
         assert not dropdown.disabled
         assert dropdown.options == ("job_1", "job_2", "job_3")
 
-    def test_chat_widget_observer_management(self):
+    def test_chat_widget_observer_management(self) -> None:
         """Test that the observer management works correctly during refresh."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [

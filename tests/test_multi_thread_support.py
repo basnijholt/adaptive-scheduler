@@ -11,7 +11,7 @@ from adaptive_scheduler.widgets import chat_widget
 class TestMultiThreadSupport:
     """Test suite for multi-thread support in chat widget."""
 
-    def test_chat_widget_has_proper_structure_for_multi_thread(self):
+    def test_chat_widget_has_proper_structure_for_multi_thread(self) -> None:
         """Test that chat widget has the proper structure for multi-thread support."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -31,7 +31,7 @@ class TestMultiThreadSupport:
         assert failed_job_dropdown.options == ("job_1", "job_2")
         assert not failed_job_dropdown.disabled
 
-    def test_llm_manager_uses_job_id_as_thread_id_for_diagnosis(self):
+    def test_llm_manager_uses_job_id_as_thread_id_for_diagnosis(self) -> None:
         """Test that LLM manager uses job_id as thread_id for diagnosis."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -49,7 +49,7 @@ class TestMultiThreadSupport:
         assert len(widget.children) == 6
         assert widget.children[2].options == ("job_123",)
 
-    def test_default_thread_when_no_job_selected(self):
+    def test_default_thread_when_no_job_selected(self) -> None:
         """Test that appropriate structure exists when no job is selected."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
@@ -63,7 +63,7 @@ class TestMultiThreadSupport:
         assert not failed_job_dropdown.disabled
 
     @pytest.mark.asyncio
-    async def test_llm_manager_diagnosis_uses_correct_thread_id(self):
+    async def test_llm_manager_diagnosis_uses_correct_thread_id(self) -> None:
         """Test that LLM manager diagnosis method uses job_id as thread_id."""
         from unittest.mock import patch
 
@@ -79,11 +79,11 @@ class TestMultiThreadSupport:
             llm_manager = LLMManager(db_manager=db_manager)
 
             # Mock the helper methods
-            llm_manager._get_log_file_paths = MagicMock(return_value=["fake_log.txt"])
-            llm_manager._read_log_files = AsyncMock(return_value="fake log content")
+            llm_manager._get_log_file_paths = MagicMock(return_value=["fake_log.txt"])  # type: ignore[method-assign]
+            llm_manager._read_log_files = AsyncMock(return_value="fake log content")  # type: ignore[method-assign]
 
             # Mock the chat method to capture its call
-            llm_manager.chat = AsyncMock(return_value="Test diagnosis")
+            llm_manager.chat = AsyncMock(return_value="Test diagnosis")  # type: ignore[method-assign]
 
             # Call diagnose_failed_job
             await llm_manager.diagnose_failed_job("test_job_456")
@@ -96,7 +96,7 @@ class TestMultiThreadSupport:
             assert call_args[1]["thread_id"] == "test_job_456"
 
     @pytest.mark.asyncio
-    async def test_chat_method_uses_provided_thread_id(self):
+    async def test_chat_method_uses_provided_thread_id(self) -> None:
         """Test that chat method uses the provided thread_id."""
         from unittest.mock import patch
 
@@ -124,7 +124,7 @@ class TestMultiThreadSupport:
             # Check that the thread_id in the config matches what we provided
             assert config["configurable"]["thread_id"] == "custom_thread_123"
 
-    def test_widget_structure_supports_multi_thread_workflow(self):
+    def test_widget_structure_supports_multi_thread_workflow(self) -> None:
         """Test that widget structure supports multi-thread workflow."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [

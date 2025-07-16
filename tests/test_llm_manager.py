@@ -273,7 +273,7 @@ def test_human_approval_tool_auto_approves_read_file() -> None:
     db_manager = MagicMock()
 
     with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
-        llm_manager = LLMManager(db_manager=db_manager, yolo=False)
+        _llm_manager = LLMManager(db_manager=db_manager, yolo=False)
 
         # Get the actual human_approval function by inspecting the graph
         # We need to look at the tools that were added during initialization
@@ -293,7 +293,8 @@ def test_human_approval_tool_auto_approves_read_file() -> None:
                 return "approved"
 
             # For test purposes, simulate the interrupt for other operations
-            raise Exception("Interrupt would be called for non-read operations")
+            msg = "Interrupt would be called for non-read operations"
+            raise RuntimeError(msg)
 
         # Test that read_file operations are auto-approved
         result = human_approval.func("read_file some_file.py")
@@ -306,5 +307,5 @@ def test_human_approval_tool_auto_approves_read_file() -> None:
         assert result == "approved"
 
         # Test that other operations still require approval (would trigger interrupt)
-        with pytest.raises(Exception):  # Should raise an exception due to interrupt
+        with pytest.raises(RuntimeError, match="Interrupt would be called"):
             human_approval.func("write_file some_file.py")

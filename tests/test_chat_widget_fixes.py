@@ -9,7 +9,7 @@ from adaptive_scheduler.widgets import chat_widget
 class TestChatWidgetFixes:
     """Test specific fixes for chat widget issues."""
 
-    def test_dropdown_never_disabled(self):
+    def test_dropdown_never_disabled(self) -> None:
         """Test that dropdown is never disabled, even when there are no failed jobs."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
@@ -22,7 +22,7 @@ class TestChatWidgetFixes:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
-    def test_dropdown_enabled_when_failed_jobs_exist(self):
+    def test_dropdown_enabled_when_failed_jobs_exist(self) -> None:
         """Test that dropdown is enabled when there are failed jobs."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -37,7 +37,7 @@ class TestChatWidgetFixes:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ("job_1",)
 
-    def test_refresh_button_updates_dropdown_disabled_state(self):
+    def test_refresh_button_updates_dropdown_disabled_state(self) -> None:
         """Test that refresh button correctly updates dropdown disabled state."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -71,7 +71,7 @@ class TestChatWidgetFixes:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ("job_2",)
 
-    def test_refresh_button_prevents_async_callback_warnings(self):
+    def test_refresh_button_prevents_async_callback_warnings(self) -> None:
         """Test that refresh button doesn't trigger async callback warnings."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -94,7 +94,7 @@ class TestChatWidgetFixes:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ()
 
-    def test_observer_management_during_refresh(self):
+    def test_observer_management_during_refresh(self) -> None:
         """Test that observers are properly managed during refresh operations."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = [
@@ -129,7 +129,7 @@ class TestChatWidgetFixes:
         after_add_observers = len(failed_job_dropdown._trait_notifiers.get("value", []))
         assert after_add_observers == initial_observers
 
-    def test_chat_history_initial_message(self):
+    def test_chat_history_initial_message(self) -> None:
         """Test that chat history has a helpful initial message."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
@@ -145,7 +145,7 @@ class TestChatWidgetFixes:
             or "ask me a question" in chat_history.value
         )
 
-    def test_multiple_refresh_operations(self):
+    def test_multiple_refresh_operations(self) -> None:
         """Test multiple refresh operations to ensure state consistency."""
         run_manager = MagicMock()
         run_manager.database_manager.failed = []
