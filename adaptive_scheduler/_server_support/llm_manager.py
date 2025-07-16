@@ -51,7 +51,9 @@ class LLMManager(BaseManager):
 
     def _get_log_file_path(self, job_id: str) -> str | None:
         """Get the log file path from the database."""
-        for job in self.db_manager.as_dicts():
+        # First check the failed jobs, then the active jobs.
+        search_in = self.db_manager.failed + self.db_manager.as_dicts()
+        for job in search_in:
             if job["job_id"] == job_id:
                 log_fname = job["log_fname"]
                 if os.path.exists(log_fname):  # noqa: PTH110
