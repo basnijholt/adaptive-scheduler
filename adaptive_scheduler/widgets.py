@@ -959,9 +959,9 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         sender.value = ""
         if run_manager.llm_manager is None:
             return
+        chat_history.value += f"You: {message}\n"
         try:
             response = await run_manager.llm_manager.chat(message)
-            chat_history.value += f"You: {message}\n"
             chat_history.value += f"LLM: {response}\n"
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
