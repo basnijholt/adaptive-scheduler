@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import asyncio
-import random
+from typing import TYPE_CHECKING
 
 import aiofiles
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage, SystemMessage
 
 from .base_manager import BaseManager
+
+if TYPE_CHECKING:
+    from langchain.schema import BaseMessage
 
 
 class LLMManager(BaseManager):
     """A manager for handling interactions with a language model."""
 
-    def __init__(self) -> None:
+    def __init__(self, model_name: str = "gpt-4") -> None:
         super().__init__()
+        self.llm = ChatOpenAI(model_name=model_name)
         self._diagnoses_cache: dict[str, str] = {}
-        self._chat_history: list[dict[str, str]] = []
+        self._chat_history: list[BaseMessage] = []
 
     async def _manage(self) -> None:
         """The main loop for the manager."""
@@ -47,31 +53,24 @@ class LLMManager(BaseManager):
         log_content = await self._read_log_file(log_path)
         if log_content == "Log file not found.":
             return log_content
-        # In a real implementation, this would be an API call to an LLM
-        diagnosis = await self._simulate_llm_call(
-            f"Analyze the following log and determine the cause of failure:\n\n{log_content}",
-        )
+
+        messages: list[BaseMessage] = [
+            SystemMessage(
+                content="You are a helpful assistant that analyzes job failure logs.",
+            ),
+            HumanMessage(
+                content=f"Analyze the following log and determine the cause of failure:\n\n{log_content}",
+            ),
+        ]
+        response = await self.llm.agenerate([messages])
+        diagnosis = response.generations[0][0].text
         self._diagnoses_cache[job_id] = diagnosis
         return diagnosis
 
     async def chat(self, message: str) -> str:
         """Handles a chat message and returns a response."""
-        self._chat_history.append({"role": "user", "content": message})
-        # In a real implementation, this would be an API call to an LLM
-        response = await self._simulate_llm_call(str(self._chat_history))
-        self._chat_history.append({"role": "assistant", "content": response})
-        return response
-
-    async def _simulate_llm_call(self, prompt: str) -> str:  # noqa: ARG002
-        """Simulates a call to a language model."""
-        await asyncio.sleep(
-            random.uniform(0.1, 0.5),  # noqa: S311
-        )  # Simulate network latency
-        responses = [
-            "It seems like there was a `FileNotFoundError`. Check if the input files are correctly specified.",
-            "The job failed due to a `MemoryError`. Try requesting more memory for your job.",
-            "I see a `ValueError` in the logs. It seems like an invalid argument was passed to a function.",
-            "The simulation diverged. You might want to adjust the simulation parameters.",
-            "I'm not sure what went wrong. Could you provide more details?",
-        ]
-        return random.choice(responses)  # noqa: S311
+        self._chat_history.append(HumanMessage(content=message))
+        response = await self.llm.agenerate([self._chat_history])
+        result = response.generations[0][0].text
+        self._chat_history.append(SystemMessage(content=result))
+        return result

@@ -959,9 +959,12 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         sender.value = ""
         if run_manager.llm_manager is None:
             return
-        response = await run_manager.llm_manager.chat(message)
-        chat_history.value += f"You: {message}\n"
-        chat_history.value += f"LLM: {response}\n"
+        try:
+            response = await run_manager.llm_manager.chat(message)
+            chat_history.value += f"You: {message}\n"
+            chat_history.value += f"LLM: {response}\n"
+        except Exception as e:  # noqa: BLE001
+            chat_history.value += f"Error: {e}\n"
 
     def on_submit_wrapper(sender: ipyw.Text) -> None:
         task = asyncio.create_task(on_submit(sender))
@@ -986,8 +989,11 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         job_id = change["new"]
         if run_manager.llm_manager is None:
             return
-        diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-        chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
+        try:
+            diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
+            chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
+        except Exception as e:  # noqa: BLE001
+            chat_history.value = f"Error: {e}\n"
 
     def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
         task = asyncio.create_task(on_failed_job_change(change))
