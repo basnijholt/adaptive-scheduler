@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import aiofiles
 from langchain.agents import AgentExecutor, create_openai_functions_agent
@@ -13,6 +13,8 @@ from langchain_community.agent_toolkits.file_management.toolkit import (
 from langchain_community.chat_models import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.pydantic_v1 import BaseModel, Field
+from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .base_manager import BaseManager
@@ -23,6 +25,55 @@ if TYPE_CHECKING:
     from langchain.schema import BaseMessage
 
     from .database_manager import DatabaseManager
+
+
+class ApprovalTool(BaseTool):
+    """A tool that requires approval before running."""
+
+    tool: BaseTool
+    llm_manager: LLMManager = Field(exclude=True)
+
+    name: str = ""
+    description: str = ""
+    args_schema: type[BaseModel] | None = None
+
+    def __init__(self, tool: BaseTool, llm_manager: LLMManager, **kwargs: Any) -> None:
+        super().__init__(tool=tool, llm_manager=llm_manager, **kwargs)
+        self.name = tool.name
+        self.description = tool.description
+        self.args_schema = tool.args_schema
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> Any:
+        """Run the tool with approval."""
+        if not self.llm_manager.yolo and self.llm_manager.ask_approval:
+            tool_input = args or kwargs
+            msg = (
+                f"The AI wants to run the tool `{self.name}` with input"
+                f" `{tool_input}`. Type 'approve' to allow."
+            )
+            self.llm_manager.ask_approval(msg)
+            approval = await self.llm_manager.approval_queue.get()
+            if approval.lower() != "approve":
+                return "Action cancelled by user."
+
+        return await self.tool._arun(*args, **kwargs)
+
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """Run the tool with approval."""
+        # This tool is async only
+        msg = "This tool does not support sync execution."
+        raise NotImplementedError(msg)
+
+
+class LLMManagerKwargs(TypedDict):
+    """Type for LLMManager keyword arguments."""
+
+    model_name: str
+    model_provider: str
+    move_old_logs_to: Path | None
+    working_dir: str | Path
+    yolo: bool
+    ask_approval: Callable[[str], None] | None
 
 
 class LLMManager(BaseManager):
@@ -55,7 +106,7 @@ class LLMManager(BaseManager):
             root_dir=str(working_dir),
             selected_tools=["read_file", "write_file", "list_directory", "move_file"],
         )
-        tools = self.toolkit.get_tools()
+        tools = [ApprovalTool(tool, self) for tool in self.toolkit.get_tools()]
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -151,25 +202,6 @@ class LLMManager(BaseManager):
     async def chat(self, message: str) -> str:
         """Handles a chat message and returns a response."""
         response = await self.agent_executor.ainvoke({"input": message})
-        if "intermediate_steps" in response and not self.yolo:
-            for action, _result in response["intermediate_steps"]:
-                tool_name = action.tool
-                tool_input = action.tool_input
-                if self.ask_approval is not None:
-                    msg = (
-                        f"The AI wants to run the tool `{tool_name}` with input"
-                        f" `{tool_input}`. Type 'approve' to allow."
-                    )
-                    self.ask_approval(msg)
-                    try:
-                        approval = await asyncio.wait_for(
-                            self.approval_queue.get(),
-                            timeout=60,
-                        )
-                    except asyncio.TimeoutError:
-                        return "Approval timed out."
-                    if approval.lower() != "approve":
-                        return "Action cancelled by user."
         return response["output"]
 
     def provide_approval(self, message: str) -> None:

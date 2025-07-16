@@ -29,6 +29,7 @@ dependencies = [
     "cloudpickle",
     "dill",
     "ipyparallel",
+    "ipython-autotime",
     "ipywidgets",
     "itables",
     "loky",
@@ -45,6 +46,7 @@ dependencies = [
     "langchain-openai",
     "langchain-google-genai",
     "markdown-it-py",
+    "mistune",
     "pygments",
 ]
 [project.optional-dependencies]

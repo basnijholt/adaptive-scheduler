@@ -205,7 +205,6 @@ class RunManager(BaseManager):
         job_manager_kwargs: dict[str, Any] | None = None,
         kill_manager_kwargs: dict[str, Any] | None = None,
         llm_manager_kwargs: dict[str, Any] | None = None,
-        with_llm: bool = False,
         yolo: bool = False,
         working_dir: str | Path = ".",
         loky_start_method: LOKY_START_METHODS = "loky",
@@ -238,7 +237,6 @@ class RunManager(BaseManager):
         self.job_manager_kwargs = job_manager_kwargs or {}
         self.kill_manager_kwargs = kill_manager_kwargs or {}
         self.llm_manager_kwargs = llm_manager_kwargs or {}
-        self.with_llm = with_llm
         self.yolo = yolo
         self.working_dir = working_dir
         self.loky_start_method = loky_start_method
@@ -331,7 +329,7 @@ class RunManager(BaseManager):
             self.kill_manager = None
 
     def _init_llm_manager(self) -> LLMManager | None:
-        if not self.with_llm:
+        if not self.llm_manager_kwargs:
             return None
         return LLMManager(
             db_manager=self.database_manager,

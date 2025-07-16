@@ -12,7 +12,7 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import markdown_it
+import mistune
 import numpy as np
 import pandas as pd
 from pygments import highlight
@@ -967,6 +967,13 @@ def _render_chat_message(role: str, message: str) -> str:
     return f'<div style="padding: 5px; border-radius: 5px; margin: 5px; max-width: 80%; {style}">{message}</div>'
 
 
+def _render_markdown(text: str) -> str:
+    """Render markdown to HTML with syntax highlighting."""
+    renderer = mistune.HTMLRenderer(escape=False)
+    markdown = mistune.Markdown(renderer=renderer)
+    return markdown(text)
+
+
 def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     """Chat widget for interacting with the LLM."""
     import ipywidgets as ipyw
@@ -991,10 +998,8 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     )
     yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
 
-    md = markdown_it.MarkdownIt("gfm-like", {"highlight": highlight_code})
-
     def ask_approval(message: str) -> None:
-        chat_history.value += _render_chat_message("llm", md.render(message))
+        chat_history.value += _render_chat_message("llm", _render_markdown(message))
 
     if run_manager.llm_manager is not None:
         run_manager.llm_manager.ask_approval = ask_approval
@@ -1006,13 +1011,13 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         if run_manager.llm_manager is None:
             return
         run_manager.llm_manager.yolo = yolo_checkbox.value
-        chat_history.value += _render_chat_message("user", md.render(message))
+        chat_history.value += _render_chat_message("user", _render_markdown(message))
         if message.lower() == "approve":
             run_manager.llm_manager.provide_approval(message)
             return
         try:
             response = await run_manager.llm_manager.chat(message)
-            chat_history.value += _render_chat_message("llm", md.render(response))
+            chat_history.value += _render_chat_message("llm", _render_markdown(response))
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
 
@@ -1033,13 +1038,13 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
             return
         chat_history.value = _render_chat_message(
             "llm",
-            md.render(f"Diagnosing job {job_id}..."),
+            _render_markdown(f"Diagnosing job {job_id}..."),
         )
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
             chat_history.value = _render_chat_message(
                 "llm",
-                md.render(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
+                _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
             )
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
@@ -1156,7 +1161,7 @@ def info(  # noqa: PLR0915
         "database": show_db_button,
         "results": show_results_button,
     }
-    if run_manager.with_llm:
+    if run_manager.llm_manager:
         widgets["chat"] = show_chat_button
 
     def update(_: Any) -> None:
@@ -1220,7 +1225,7 @@ def info(  # noqa: PLR0915
     widgets["queue"].on_click(toggle_queue)
     widgets["database"].on_click(toggle_database)
     widgets["results"].on_click(toggle_results)
-    if run_manager.with_llm:
+    if run_manager.llm_manager:
         toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
         widgets["chat"].on_click(toggle_chat)
     widgets["load learners"].on_click(load_learners)

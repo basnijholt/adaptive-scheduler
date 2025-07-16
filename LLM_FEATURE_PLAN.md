@@ -36,26 +36,26 @@ This document outlines the plan for integrating an LLM-powered chat feature into
     - [x] Refactor `llm_manager.py` and `widgets.py` for better readability and maintainability.
     - [x] Ensure all existing functionality is robust before adding new features.
 
-- [x] **6. Add Tools to the AI**
+- [ ] **6. Add Tools to the AI**
     - [x] Integrate `langchain`'s file system tools into `LLMManager`.
     - [x] Allow the AI to read and write files.
     - [ ] Fine-tune the tool integration to ensure reliability and security.
 
-- [x] **7. Implement "Approve" and "YOLO" Modes**
+- [ ] **7. Implement "Approve" and "YOLO" Modes**
     - [x] Create a mechanism for the user to approve changes suggested by the AI (e.g., typing "approve").
     - [x] Add a "YOLO" mode to allow the AI to make changes without user confirmation.
-    - [x] Refine the user interaction flow for clarity and ease of use.
+    - [ ] Refine the user interaction flow for clarity and ease of use.
 
-- [x] **8. Improve Chat Widget UI**
-    - [x] Use a JavaScript library (e.g., `marked.js` or similar) to render Markdown in the chat widget.
-    - [x] Add syntax highlighting for code blocks.
-    - [x] Polish the visual appearance of the chat bubbles and overall layout.
+- [ ] **8. Improve Chat Widget UI**
+    - [ ] Use a JavaScript library (e.g., `marked.js` or similar) to render Markdown in the chat widget.
+    - [ ] Add syntax highlighting for code blocks.
+    - [ ] Polish the visual appearance of the chat bubbles and overall layout.
 
-- [x] **9. Finalize and Test**
+- [ ] **9. Finalize and Test**
     - [x] **Increase Test Coverage:**
         - [x] Add tests for async file I/O in `LLMManager`.
         - [x] Add tests for the async integration between `JobManager` and `LLMManager`.
         - [x] Add tests for the async UI interactions in the `chat_widget`.
         - [x] Add tests for the AI tools and approve/YOLO modes.
-    - [x] Write unit tests for the new components.
-    - [x] Perform end-to-end testing in a Jupyter notebook.
+    - [ ] Write unit tests for the new components.
+    - [ ] Perform end-to-end testing in a Jupyter notebook.

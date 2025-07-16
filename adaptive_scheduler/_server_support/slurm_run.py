@@ -52,7 +52,6 @@ def slurm_run(
     overwrite_db: bool = True,
     job_manager_kwargs: dict[str, Any] | None = None,
     kill_manager_kwargs: dict[str, Any] | None = None,
-    with_llm: bool = False,
     llm_manager_kwargs: dict[str, Any] | None = None,
     loky_start_method: LOKY_START_METHODS = "loky",
     cleanup_first: bool = True,
@@ -150,8 +149,6 @@ def slurm_run(
         Keyword arguments for the `JobManager` function that aren't set in ``__init__`` here.
     kill_manager_kwargs
         Keyword arguments for the `KillManager` function that aren't set in ``__init__`` here.
-    with_llm
-        Whether to start an `LLMManager`.
     llm_manager_kwargs
         Keyword arguments for the `LLMManager` function that aren't set in ``__init__`` here.
     loky_start_method
@@ -266,7 +263,6 @@ def slurm_run(
         overwrite_db=overwrite_db,
         job_manager_kwargs=job_manager_kwargs,
         kill_manager_kwargs=kill_manager_kwargs,
-        with_llm=with_llm,
         llm_manager_kwargs=llm_manager_kwargs,
         loky_start_method=loky_start_method,
         cleanup_first=cleanup_first,

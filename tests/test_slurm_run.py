@@ -259,11 +259,10 @@ def test_slurm_run_with_llm(
         rm = slurm_run(
             learners,
             fnames,
-            with_llm=True,
             llm_manager_kwargs=llm_manager_kwargs,
         )
         mock_chat.assert_called_once_with(model_name="test-model")
-    assert rm.with_llm is True
+    assert rm.llm_manager is not None
     assert rm.llm_manager_kwargs == llm_manager_kwargs
 
 
