@@ -40,11 +40,18 @@ This document outlines the plan for integrating an LLM-powered chat feature into
     - [x] Integrate `langchain`'s file system tools into `LLMManager`.
     - [x] Allow the AI to read and write files.
     - [x] Fine-tune the tool integration to ensure reliability and security.
+    - [ ] Read the documentation of `langchain` tools to ensure we are using the most appropriate and up to date tools for our needs.
 
 - [x] **7. Implement "Approve" and "YOLO" Modes**
     - [x] Create a mechanism for the user to approve changes suggested by the AI (e.g., typing "approve").
     - [x] Add a "YOLO" mode to allow the AI to make changes without user confirmation.
     - [x] Refine the user interaction flow for clarity and ease of use.
+
+- [ ] **8. Migrate to `langgraph`**
+    - [x] Replace `AgentExecutor` with `create_react_agent` from `langgraph`.
+    - [x] Update `LLMManager` to use the new `langgraph` agent.
+    - [x] Refactor tests to align with the new `langgraph` implementation.
+    - [ ] Fix remaining test failures.
 
 - [ ] **8. Improve Chat Widget UI**
     - [ ] Use a JavaScript library (e.g., `marked.js` or similar) to render Markdown in the chat widget.

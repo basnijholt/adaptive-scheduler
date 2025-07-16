@@ -5,16 +5,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
 import aiofiles
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain.memory import ConversationBufferMemory
 from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import create_react_agent
 
 from .base_manager import BaseManager
 
@@ -103,7 +103,7 @@ class LLMManager(BaseManager):
             selected_tools=["read_file", "write_file", "list_directory", "move_file"],
         )
         tools = [ApprovalTool(tool, self) for tool in self.toolkit.get_tools()]
-        self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        self.memory = MemorySaver()
         system_message = (
             "You are an expert software developer assistant. Your purpose is to help"
             " users analyze and debug failed jobs. You have access to tools for file"
@@ -119,22 +119,12 @@ class LLMManager(BaseManager):
             system_message += " You are in YOLO mode. Apply any fixes without asking for approval."
         system_message += " The working directory is the root of the `adaptive-scheduler` repo."
 
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", system_message),
-                MessagesPlaceholder(variable_name="chat_history"),
-                ("user", "{input}"),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ],
+        self.agent_executor = create_react_agent(
+            self.llm,
+            tools,
+            checkpointer=self.memory,
         )
-        agent = create_openai_functions_agent(self.llm, tools, prompt)
-        self.agent_executor = AgentExecutor(
-            agent=agent,
-            tools=tools,
-            memory=self.memory,
-            verbose=True,
-            return_intermediate_steps=True,
-        )
+        self.agent_executor.system_message = system_message
         self.yolo = yolo
         self.ask_approval = ask_approval
         self.approval_queue: asyncio.Queue[str] = asyncio.Queue()
@@ -148,8 +138,7 @@ class LLMManager(BaseManager):
 
     def _get_log_file_paths(self, job_id: str) -> list[Path]:
         """Get the log file paths from the database."""
-        search_in = self.db_manager.failed + self.db_manager.as_dicts()
-        for job in search_in:
+        for job in self.db_manager.failed:
             if job["job_id"] == job_id:
                 output_logs = [Path(log) for log in job["output_logs"]]
                 log_paths = []
@@ -198,10 +187,14 @@ class LLMManager(BaseManager):
         self._diagnoses_cache[job_id] = diagnosis
         return diagnosis
 
-    async def chat(self, message: str) -> str:
+    async def chat(self, message: str, thread_id: str = "1") -> str:
         """Handles a chat message and returns a response."""
-        response = await self.agent_executor.ainvoke({"input": message})
-        return response["output"]
+        config = {"configurable": {"thread_id": thread_id}}
+        response = await self.agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=message)]},
+            config,
+        )
+        return response["messages"][-1].content
 
     def provide_approval(self, message: str) -> None:
         """Provide approval for a tool to run."""

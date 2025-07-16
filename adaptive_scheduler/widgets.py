@@ -973,10 +973,10 @@ def _render_markdown(text: str) -> str:
     markdown = mistune.Markdown(
         renderer=renderer,
         plugins=[
-            mistune.plugins.extra.plugin_strikethrough,
-            mistune.plugins.extra.plugin_table,
-            mistune.plugins.extra.plugin_url,
-            mistune.plugins.extra.plugin_task_lists,
+            "strikethrough",
+            "table",
+            "url",
+            "task_lists",
             lambda md: md.renderer.register("code", highlight_code),
         ],
     )

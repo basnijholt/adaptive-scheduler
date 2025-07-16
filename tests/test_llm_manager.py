@@ -26,7 +26,9 @@ if TYPE_CHECKING:
 @pytest.mark.asyncio
 async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     """Test that the diagnose_failed_job method returns a diagnosis."""
-    llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "diagnosis"})
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={"messages": [AIMessage(content="diagnosis")]},
+    )
     job_id = "test_job"
     llm_manager.db_manager.failed = [
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
@@ -46,7 +48,9 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
 @pytest.mark.asyncio
 async def test_chat(llm_manager: LLMManager) -> None:
     """Test that the chat method returns a response."""
-    llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "response"})
+    llm_manager.agent_executor.ainvoke = AsyncMock(
+        return_value={"messages": [AIMessage(content="response")]},
+    )
     message = "Hello, world!"
     response = await llm_manager.chat(message)
     assert response == "response"
@@ -55,19 +59,17 @@ async def test_chat(llm_manager: LLMManager) -> None:
 @pytest.fixture
 def llm_manager() -> LLMManager:
     """An LLMManager instance with a mocked ChatOpenAI."""
-    with (
-        patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
-        patch(
-            "adaptive_scheduler._server_support.llm_manager.create_openai_functions_agent",
-        ),
-        patch(
+    with patch(
+        "adaptive_scheduler._server_support.llm_manager.create_react_agent",
+    ) as mock_create_agent:
+        mock_create_agent.return_value = AsyncMock()
+        with patch(
             "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
-        ) as mock_chat_openai,
-    ):
-        mock_chat_openai.spec = ChatOpenAI
-        llm_manager = LLMManager(db_manager=MagicMock())
-        llm_manager.agent_executor = AsyncMock()
-        return llm_manager
+        ) as mock_chat_openai:
+            mock_chat_openai.spec = ChatOpenAI
+            llm_manager = LLMManager(db_manager=MagicMock())
+            llm_manager.agent_executor = mock_create_agent.return_value
+            return llm_manager
 
 
 @pytest.fixture
@@ -101,9 +103,8 @@ def test_run_manager_with_google_llm() -> None:
         patch(
             "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
         ) as mock_chat_google,
-        patch("adaptive_scheduler._server_support.llm_manager.AgentExecutor"),
         patch(
-            "adaptive_scheduler._server_support.llm_manager.create_openai_functions_agent",
+            "adaptive_scheduler._server_support.llm_manager.create_react_agent",
         ),
     ):
         mock_chat_google.spec = ChatGoogleGenerativeAI
@@ -158,7 +159,9 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
     ]
     with patch.object(llm_manager.db_manager, "as_dicts", return_value=[]):
-        llm_manager.agent_executor.ainvoke = AsyncMock(return_value={"output": "diagnosis"})
+        llm_manager.agent_executor.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="diagnosis")]},
+        )
     with (
         patch.object(
             llm_manager,
@@ -190,28 +193,39 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
 
 
 @pytest.mark.asyncio
-async def test_chat_history(llm_manager: LLMManager) -> None:
+async def test_chat_history() -> None:
     """Test that the chat history is maintained."""
+    from unittest.mock import MagicMock, patch
 
-    async def mock_ainvoke(inputs: dict[str, str]) -> dict[str, str]:
-        llm_manager.memory.save_context(inputs, {"output": "response"})
-        return {"output": "response"}
+    from langchain.schema import AIMessage
 
-    llm_manager.agent_executor.ainvoke = AsyncMock(side_effect=mock_ainvoke)
+    from adaptive_scheduler._server_support.llm_manager import LLMManager
 
-    await llm_manager.chat("Hello")
-    await llm_manager.chat("How are you?")
+    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai:
+        mock_llm = mock_chat_openai.return_value
+        # The agent will call the LLM, we need to mock the response
+        mock_llm.ainvoke.return_value = AIMessage(content="response")
 
-    history = llm_manager.memory.chat_memory.messages
-    assert len(history) == 4
-    assert isinstance(history[0], HumanMessage)
-    assert history[0].content == "Hello"
-    assert isinstance(history[1], AIMessage)
-    assert history[1].content == "response"
-    assert isinstance(history[2], HumanMessage)
-    assert history[2].content == "How are you?"
-    assert isinstance(history[3], AIMessage)
-    assert history[3].content == "response"
+        # We create a real LLMManager, which will create a real agent_executor
+        llm_manager = LLMManager(db_manager=MagicMock())
+
+        await llm_manager.chat("Hello", thread_id="test_thread")
+        await llm_manager.chat("How are you?", thread_id="test_thread")
+
+        checkpoint_tuple = llm_manager.memory.get_tuple(
+            {"configurable": {"thread_id": "test_thread"}},
+        )
+        history = checkpoint_tuple.checkpoint["channel_values"]["messages"]
+
+        assert len(history) == 4
+        assert isinstance(history[0], HumanMessage)
+        assert history[0].content == "Hello"
+        assert isinstance(history[1], AIMessage)
+        assert history[1].content == "response"
+        assert isinstance(history[2], HumanMessage)
+        assert history[2].content == "How are you?"
+        assert isinstance(history[3], AIMessage)
+        assert history[3].content == "response"
 
 
 @pytest.mark.asyncio
