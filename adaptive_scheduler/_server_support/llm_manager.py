@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 from langchain.agents import AgentExecutor, OpenAIFunctionsAgent
-from langchain.agents.agent_toolkits import FileManagementToolkit
-from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import MessagesPlaceholder
 from langchain.schema import HumanMessage, SystemMessage
+from langchain_community.agent_toolkits.file_management.toolkit import (
+    FileManagementToolkit,
+)
+from langchain_community.chat_models import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .base_manager import BaseManager
