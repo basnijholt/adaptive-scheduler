@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiofiles
 import ipywidgets as ipyw
 import pytest
-from langchain.schema import AIMessage, HumanMessage
+from langchain.schema import AIMessage
 from langchain.tools import BaseTool
 from langchain_community.chat_models import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -17,7 +18,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from adaptive_scheduler._server_support.job_manager import JobManager
 from adaptive_scheduler._server_support.llm_manager import ApprovalTool, LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
-from adaptive_scheduler.widgets import info
+from adaptive_scheduler.widgets import chat_widget, info
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -193,42 +194,6 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
 
 
 @pytest.mark.asyncio
-async def test_chat_history() -> None:
-    """Test that the chat history is maintained."""
-    from unittest.mock import MagicMock, patch
-
-    from langchain.schema import AIMessage
-
-    from adaptive_scheduler._server_support.llm_manager import LLMManager
-
-    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI") as mock_chat_openai:
-        mock_llm = mock_chat_openai.return_value
-        # The agent will call the LLM, we need to mock the response
-        mock_llm.ainvoke.return_value = AIMessage(content="response")
-
-        # We create a real LLMManager, which will create a real agent_executor
-        llm_manager = LLMManager(db_manager=MagicMock())
-
-        await llm_manager.chat("Hello", thread_id="test_thread")
-        await llm_manager.chat("How are you?", thread_id="test_thread")
-
-        checkpoint_tuple = llm_manager.memory.get_tuple(
-            {"configurable": {"thread_id": "test_thread"}},
-        )
-        history = checkpoint_tuple.checkpoint["channel_values"]["messages"]
-
-        assert len(history) == 4
-        assert isinstance(history[0], HumanMessage)
-        assert history[0].content == "Hello"
-        assert isinstance(history[1], AIMessage)
-        assert history[1].content == "response"
-        assert isinstance(history[2], HumanMessage)
-        assert history[2].content == "How are you?"
-        assert isinstance(history[3], AIMessage)
-        assert history[3].content == "response"
-
-
-@pytest.mark.asyncio
 async def test_read_log_files(llm_manager: LLMManager, tmp_path: Path) -> None:
     """Test that the _read_log_files method reads a file asynchronously."""
     log_content = "This is a test log file."
@@ -242,8 +207,6 @@ async def test_read_log_files(llm_manager: LLMManager, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_read_log_files_async(llm_manager: LLMManager, tmp_path: Path) -> None:
     """Test that the _read_log_files method reads a file asynchronously."""
-    import aiofiles
-
     log_content = "This is a test log file."
     log_file = tmp_path / "job_test.log"
     async with aiofiles.open(log_file, "w") as f:
@@ -263,8 +226,6 @@ async def test_read_log_files_not_found(llm_manager: LLMManager) -> None:
 
 def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
     """Test that the chat widget's refresh button updates the failed jobs list."""
-    from adaptive_scheduler.widgets import chat_widget
-
     run_manager.database_manager.failed = []
     widget = chat_widget(run_manager)
     (

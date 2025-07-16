@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -183,13 +184,31 @@ class LLMManager(BaseManager):
             " cause is a code error, provide the corrected code.\n\nLog"
             f" file(s):\n```\n{log_content}\n```"
         )
-        diagnosis = await self.chat(initial_message)
+        # Use job_id as thread_id and pass job_id in metadata for better tracking
+        run_metadata = {"job_id": job_id}
+        diagnosis = await self.chat(
+            initial_message,
+            thread_id=job_id,
+            run_metadata=run_metadata,
+        )
         self._diagnoses_cache[job_id] = diagnosis
         return diagnosis
 
-    async def chat(self, message: str, thread_id: str = "1") -> str:
+    async def chat(
+        self,
+        message: str,
+        thread_id: str = "1",
+        run_metadata: dict | None = None,
+    ) -> str:
         """Handles a chat message and returns a response."""
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "run_name": "LLM Manager Chat",
+            "run_id": uuid.uuid4(),
+            "tags": ["llm_manager"],
+            "metadata": run_metadata or {},
+        }
+        config["metadata"]["thread_id"] = thread_id  # type: ignore[index]
         response = await self.agent_executor.ainvoke(
             {"messages": [HumanMessage(content=message)]},
             config,
