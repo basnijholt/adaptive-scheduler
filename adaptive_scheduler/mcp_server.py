@@ -1,3 +1,5 @@
+"""A server for handling MCP requests."""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,17 +12,18 @@ class MCPServer:
     """A server for handling MCP requests."""
 
     def __init__(self, llm_manager: LLMManager) -> None:
+        """Initialize the MCP server."""
         self.llm_manager = llm_manager
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handles a request and returns a response."""
         if request["method"] == "diagnose_failed_job":
             job_id = request["params"]["job_id"]
-            diagnosis = self.llm_manager.diagnose_failed_job(job_id)
+            diagnosis = await self.llm_manager.diagnose_failed_job(job_id)
             return {"result": diagnosis}
         if request["method"] == "chat":
             message = request["params"]["message"]
-            response = self.llm_manager.chat(message)
+            response = await self.llm_manager.chat(message)
             return {"result": response}
         return {"error": "Unknown method"}
 

@@ -957,12 +957,20 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     async def on_submit(sender: ipyw.Text) -> None:
         message = sender.value
         sender.value = ""
+        if run_manager.llm_manager is None:
+            return
         response = await run_manager.llm_manager.chat(message)
         chat_history.value += f"You: {message}\n"
         chat_history.value += f"LLM: {response}\n"
 
     def on_submit_wrapper(sender: ipyw.Text) -> None:
-        asyncio.create_task(on_submit(sender))
+        task = asyncio.create_task(on_submit(sender))
+        # Keep a reference to the task to prevent it from being garbage collected
+        # before it completes.
+        if not hasattr(text_input, "_tasks"):
+            text_input._tasks = set()
+        text_input._tasks.add(task)
+        task.add_done_callback(text_input._tasks.remove)
 
     text_input.on_submit(on_submit_wrapper)
 
@@ -976,11 +984,19 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
 
     async def on_failed_job_change(change: dict[str, Any]) -> None:
         job_id = change["new"]
+        if run_manager.llm_manager is None:
+            return
         diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
         chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
 
     def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
-        asyncio.create_task(on_failed_job_change(change))
+        task = asyncio.create_task(on_failed_job_change(change))
+        # Keep a reference to the task to prevent it from being garbage collected
+        # before it completes.
+        if not hasattr(failed_job_dropdown, "_tasks"):
+            failed_job_dropdown._tasks = set()
+        failed_job_dropdown._tasks.add(task)
+        task.add_done_callback(failed_job_dropdown._tasks.remove)
 
     failed_job_dropdown.observe(on_failed_job_change_wrapper, names="value")
 
@@ -989,7 +1005,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     return vbox
 
 
-def info(
+def info(  # noqa: PLR0915
     run_manager: RunManager,
     *,
     display_widget: bool = True,

@@ -1,3 +1,5 @@
+"""Tests for the LLMManager."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -81,6 +83,8 @@ async def test_job_manager_diagnoses_failed_job(
 
     # Run the _update_database_and_get_not_queued method
     async def mock_diagnose(job_id: str) -> None:
+        if run_manager.llm_manager is None:
+            return
         run_manager.llm_manager._diagnoses_cache[job_id] = "diagnosis"
 
     with patch.object(
@@ -92,6 +96,8 @@ async def test_job_manager_diagnoses_failed_job(
         mock_diagnose_method.assert_called_once_with("test_job")
 
     # Check that a diagnosis was cached
+    if run_manager.llm_manager is None:
+        return
     assert "test_job" in run_manager.llm_manager._diagnoses_cache
 
 

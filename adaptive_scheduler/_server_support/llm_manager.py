@@ -18,7 +18,9 @@ class LLMManager(BaseManager):
 
     async def _manage(self) -> None:
         """The main loop for the manager."""
-        while not self.task.done():
+        if self.task is None:
+            return
+        while not self.task.done():  # noqa: ASYNC110
             await asyncio.sleep(1)
 
     def _get_log_file_path(self, job_id: str) -> str | None:
@@ -60,9 +62,11 @@ class LLMManager(BaseManager):
         self._chat_history.append({"role": "assistant", "content": response})
         return response
 
-    async def _simulate_llm_call(self, prompt: str) -> str:
+    async def _simulate_llm_call(self, prompt: str) -> str:  # noqa: ARG002
         """Simulates a call to a language model."""
-        await asyncio.sleep(random.uniform(0.1, 0.5))  # Simulate network latency
+        await asyncio.sleep(
+            random.uniform(0.1, 0.5),  # noqa: S311
+        )  # Simulate network latency
         responses = [
             "It seems like there was a `FileNotFoundError`. Check if the input files are correctly specified.",
             "The job failed due to a `MemoryError`. Try requesting more memory for your job.",
@@ -70,4 +74,4 @@ class LLMManager(BaseManager):
             "The simulation diverged. You might want to adjust the simulation parameters.",
             "I'm not sure what went wrong. Could you provide more details?",
         ]
-        return random.choice(responses)
+        return random.choice(responses)  # noqa: S311
