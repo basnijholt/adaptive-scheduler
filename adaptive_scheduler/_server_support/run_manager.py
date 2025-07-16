@@ -206,6 +206,8 @@ class RunManager(BaseManager):
         kill_manager_kwargs: dict[str, Any] | None = None,
         llm_manager_kwargs: dict[str, Any] | None = None,
         with_llm: bool = False,
+        yolo: bool = False,
+        working_dir: str | Path = ".",
         loky_start_method: LOKY_START_METHODS = "loky",
         cleanup_first: bool = False,
         save_dataframe: bool = False,
@@ -237,6 +239,8 @@ class RunManager(BaseManager):
         self.kill_manager_kwargs = kill_manager_kwargs or {}
         self.llm_manager_kwargs = llm_manager_kwargs or {}
         self.with_llm = with_llm
+        self.yolo = yolo
+        self.working_dir = working_dir
         self.loky_start_method = loky_start_method
         self.save_dataframe = save_dataframe
         self.dataframe_format = dataframe_format
@@ -299,6 +303,8 @@ class RunManager(BaseManager):
             self.llm_manager = LLMManager(
                 db_manager=self.database_manager,
                 move_old_logs_to=self.move_old_logs_to,
+                working_dir=self.working_dir,
+                yolo=self.yolo,
                 **self.llm_manager_kwargs,
             )
         else:

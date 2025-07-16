@@ -12,8 +12,12 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import markdown_it
 import numpy as np
 import pandas as pd
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import get_lexer_by_name
 
 from adaptive_scheduler.utils import load_dataframes
 
@@ -946,23 +950,33 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         description="You:",
         disabled=False,
     )
-    chat_history = ipyw.Textarea(
+    chat_history = ipyw.HTML(
         value="",
         placeholder="",
         description="Chat:",
-        disabled=True,
-        layout={"width": "auto", "height": "300px"},
+        layout={"width": "auto", "height": "300px", "border": "1px solid black"},
     )
+
+    md = markdown_it.MarkdownIt("gfm-like", {"highlight": highlight_code})
+
+    def ask_approval(message: str) -> None:
+        chat_history.value += md.render(f"**LLM:** {message}")
+
+    if run_manager.llm_manager is not None:
+        run_manager.llm_manager.ask_approval = ask_approval
 
     async def on_submit(sender: ipyw.Text) -> None:
         message = sender.value
         sender.value = ""
         if run_manager.llm_manager is None:
             return
-        chat_history.value += f"You: {message}\n"
+        chat_history.value += md.render(f"**You:** {message}")
+        if message.lower() == "approve":
+            run_manager.llm_manager.provide_approval(message)
+            return
         try:
             response = await run_manager.llm_manager.chat(message)
-            chat_history.value += f"LLM: {response}\n"
+            chat_history.value += md.render(f"**LLM:** {response}")
         except Exception as e:  # noqa: BLE001
             chat_history.value += f"Error: {e}\n"
 
@@ -989,12 +1003,14 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         job_id = change["new"]
         if run_manager.llm_manager is None:
             return
-        chat_history.value = f"Diagnosing job {job_id}..."
+        chat_history.value = md.render(f"Diagnosing job {job_id}...")
         try:
             diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-            chat_history.value = f"Diagnosis for job {job_id}:\n{diagnosis}\n"
+            chat_history.value = md.render(
+                f"**Diagnosis for job {job_id}:**\n{diagnosis}",
+            )
         except Exception as e:  # noqa: BLE001
-            chat_history.value = f"Error: {e}\n"
+            chat_history.value += f"Error: {e}\n"
 
     def on_failed_job_change_wrapper(change: dict[str, Any]) -> None:
         task = asyncio.create_task(on_failed_job_change(change))
@@ -1228,3 +1244,13 @@ def _disable_widgets_output_scrollbar() -> None:
         </style>
         """
     display(ipyw.HTML(style))
+
+
+def highlight_code(code: str, lang: str, _: str) -> str:
+    """Highlight code blocks with pygments."""
+    try:
+        lexer = get_lexer_by_name(lang, stripall=True)
+    except ValueError:
+        lexer = get_lexer_by_name("text", stripall=True)
+    formatter = HtmlFormatter(style="default", nowrap=True)
+    return highlight(code, lexer, formatter)

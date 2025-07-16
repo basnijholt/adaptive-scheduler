@@ -38,3 +38,15 @@ This document outlines the plan for integrating an LLM-powered chat feature into
         - [ ] Add tests for the async UI interactions in the `chat_widget`.
     - [x] Write unit tests for the new components.
     - [x] Perform end-to-end testing in a Jupyter notebook.
+
+- [x] **6. Add Tools to the AI**
+    - [x] Integrate `langchain`'s file system tools into `LLMManager`.
+    - [x] Allow the AI to read and write files.
+
+- [x] **7. Implement "Approve" and "YOLO" Modes**
+    - [x] Create a mechanism for the user to approve changes suggested by the AI.
+    - [x] Add a "YOLO" mode to allow the AI to make changes without user confirmation.
+
+- [x] **8. Improve Chat Widget UI**
+    - [x] Use a JavaScript library to render Markdown in the chat widget.
+    - [x] Add syntax highlighting for code blocks.

@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import aiofiles
+from langchain.agents import AgentExecutor, OpenAIFunctionsAgent
+from langchain.agents.agent_toolkits import FileManagementToolkit
 from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import MessagesPlaceholder
 from langchain.schema import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -27,6 +32,9 @@ class LLMManager(BaseManager):
         model_name: str = "gpt-4",
         model_provider: str = "openai",
         move_old_logs_to: Path | None = None,
+        working_dir: str | Path = ".",
+        yolo: bool = False,
+        ask_approval: Callable[[str], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -41,6 +49,33 @@ class LLMManager(BaseManager):
             raise ValueError(msg)
         self._diagnoses_cache: dict[str, str] = {}
         self._chat_history: list[BaseMessage] = []
+        self.toolkit = FileManagementToolkit(
+            root_dir=str(working_dir),
+            selected_tools=["read_file", "write_file", "list_directory"],
+        )
+        tools = self.toolkit.get_tools()
+        self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        system_message = SystemMessage(
+            content=(
+                "You are a helpful assistant that has access to tools."
+                " The working directory is the root of the `adaptive-scheduler` repo."
+            ),
+        )
+        prompt = OpenAIFunctionsAgent.create_prompt(
+            system_message=system_message,
+            extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
+        )
+        agent = OpenAIFunctionsAgent(llm=self.llm, tools=tools, prompt=prompt)
+        self.agent_executor = AgentExecutor(
+            agent=agent,
+            tools=tools,
+            memory=self.memory,
+            verbose=True,
+            return_intermediate_steps=True,
+        )
+        self.yolo = yolo
+        self.ask_approval = ask_approval
+        self.approval_queue: asyncio.Queue[str] = asyncio.Queue()
 
     async def _manage(self) -> None:
         """The main loop for the manager."""
@@ -112,8 +147,27 @@ class LLMManager(BaseManager):
 
     async def chat(self, message: str) -> str:
         """Handles a chat message and returns a response."""
-        self._chat_history.append(HumanMessage(content=message))
-        response = await self.llm.agenerate([self._chat_history])
-        result = response.generations[0][0].text
-        self._chat_history.append(SystemMessage(content=result))
-        return result
+        response = await self.agent_executor.ainvoke({"input": message})
+        if "intermediate_steps" in response:
+            # TODO: this is now just a single tool call, make it work for more
+            action, result = response["intermediate_steps"][0]
+            tool_name = action.tool
+            tool_input = action.tool_input
+            if not self.yolo and self.ask_approval is not None:
+                msg = (
+                    f"The AI wants to run the tool `{tool_name}` with input `{tool_input}`."
+                    " Type 'approve' to allow."
+                )
+                self.ask_approval(msg)
+                try:
+                    approval = await asyncio.wait_for(self.approval_queue.get(), timeout=60)
+                except asyncio.TimeoutError:
+                    return "Approval timed out."
+                if approval.lower() != "approve":
+                    return "Action cancelled by user."
+
+        return response["output"]
+
+    def provide_approval(self, message: str) -> None:
+        """Provide approval for a tool to run."""
+        self.approval_queue.put_nowait(message)
