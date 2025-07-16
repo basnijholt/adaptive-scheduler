@@ -26,6 +26,7 @@ dependencies:
   - tqdm
   - versioningit
   - langchain
+  - langchain-openai
   # optional-dependencies: all
   - dask-mpi
   - mpi4py
