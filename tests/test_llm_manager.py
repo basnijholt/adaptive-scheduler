@@ -81,6 +81,23 @@ def test_run_manager_with_llm(run_manager: RunManager) -> None:
     assert isinstance(run_manager.llm_manager, LLMManager)
 
 
+@patch("adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI")
+def test_run_manager_with_google_llm(mock_chat_google: MagicMock) -> None:
+    """Test that the RunManager initializes with a Google LLM."""
+    scheduler = MagicMock()
+    learners = [MagicMock()]
+    fnames = ["test_fname"]
+    run_manager = RunManager(
+        scheduler,
+        learners,
+        fnames,
+        with_llm=True,
+        model_provider="google",
+    )
+    assert isinstance(run_manager.llm_manager, LLMManager)
+    mock_chat_google.assert_called_once()
+
+
 @pytest.mark.asyncio
 @patch("asyncio.to_thread")
 async def test_job_manager_diagnoses_failed_job_async(

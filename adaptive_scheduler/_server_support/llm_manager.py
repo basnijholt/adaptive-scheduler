@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import aiofiles
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .base_manager import BaseManager
 
@@ -22,10 +23,17 @@ class LLMManager(BaseManager):
         self,
         db_manager: DatabaseManager,
         model_name: str = "gpt-4",
+        model_provider: str = "openai",
     ) -> None:
         super().__init__()
         self.db_manager = db_manager
-        self.llm = ChatOpenAI(model_name=model_name)
+        if model_provider == "openai":
+            self.llm = ChatOpenAI(model_name=model_name)
+        elif model_provider == "google":
+            self.llm = ChatGoogleGenerativeAI(model=model_name)
+        else:
+            msg = f"Unknown model provider: {model_provider}"
+            raise ValueError(msg)
         self._diagnoses_cache: dict[str, str] = {}
         self._chat_history: list[BaseMessage] = []
 
