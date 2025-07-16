@@ -970,18 +970,15 @@ def _render_chat_message(role: str, message: str) -> str:
 
 def _render_markdown(text: str) -> str:
     """Render markdown to HTML with syntax highlighting."""
-    renderer = mistune.HTMLRenderer(escape=False)
-    markdown = mistune.Markdown(
-        renderer=renderer,
-        plugins=[
-            "strikethrough",
-            "table",
-            "url",
-            "task_lists",
-            lambda md: md.renderer.register("code", highlight_code),
-        ],
-    )
-    return markdown(text)
+    try:
+        renderer = mistune.HTMLRenderer(escape=False)
+        markdown = mistune.Markdown(renderer=renderer)
+        return markdown(text)
+    except Exception:
+        # Fallback to simple HTML formatting
+        import html
+
+        return html.escape(text).replace("\n", "<br>")
 
 
 def chat_widget(run_manager: RunManager) -> ipyw.VBox:
@@ -995,7 +992,10 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
         disabled=False,
     )
     chat_history = ipyw.HTML(
-        value="",
+        value=_render_chat_message(
+            "llm",
+            _render_markdown("👋 Hello! Select a failed job to diagnose or ask me a question."),
+        ),
         placeholder="",
         description="Chat:",
         layout={
@@ -1067,6 +1067,10 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     @_create_task_wrapper(failed_job_dropdown)
     async def on_failed_job_change(change: dict[str, Any]) -> None:
         job_id = change["new"]
+        if job_id is None:
+            # No job selected, nothing to do
+            return
+
         if run_manager.llm_manager is None:
             chat_history.value = _render_chat_message(
                 "llm",
@@ -1099,24 +1103,31 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
                     f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
                 ),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Replace diagnosing indicator with error
             chat_history.value = _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
         finally:
-            # Re-enable dropdown
-            failed_job_dropdown.disabled = False
+            # Re-enable dropdown only if there are failed jobs
+            if run_manager.database_manager.failed:
+                failed_job_dropdown.disabled = False
 
     failed_job_dropdown.observe(on_failed_job_change, names="value")
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
 
     def refresh_failed_jobs(_: Any) -> None:
         failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+        # Temporarily remove the observer to prevent triggering during refresh
+        failed_job_dropdown.unobserve(on_failed_job_change, names="value")
         failed_job_dropdown.options = failed_jobs
         failed_job_dropdown.disabled = not failed_jobs
         if failed_jobs:
-            on_failed_job_change(
-                {"new": failed_jobs[0], "type": "change", "name": "value"},
-            )
+            # Set the value to trigger the observe callback automatically
+            failed_job_dropdown.value = failed_jobs[0]
+        else:
+            # Clear the value when there are no failed jobs
+            failed_job_dropdown.value = None
+        # Re-add the observer
+        failed_job_dropdown.observe(on_failed_job_change, names="value")
 
     refresh_button.on_click(refresh_failed_jobs)
 
