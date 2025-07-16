@@ -1006,7 +1006,16 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
 
     failed_job_dropdown.observe(on_failed_job_change_wrapper, names="value")
 
-    vbox = ipyw.VBox([failed_job_dropdown, chat_history, text_input])
+    refresh_button = ipyw.Button(description="Refresh Failed Jobs")
+
+    def refresh_failed_jobs(_: Any) -> None:
+        failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+        failed_job_dropdown.options = failed_jobs
+        failed_job_dropdown.disabled = not failed_jobs
+
+    refresh_button.on_click(refresh_failed_jobs)
+
+    vbox = ipyw.VBox([refresh_button, failed_job_dropdown, chat_history, text_input])
     _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
     return vbox
 

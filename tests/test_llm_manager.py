@@ -184,3 +184,24 @@ async def test_read_log_file(llm_manager: LLMManager, tmp_path: Path) -> None:
 
     read_content = await llm_manager._read_log_file(str(log_file))
     assert read_content == log_content
+
+
+def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
+    """Test that the chat widget's refresh button updates the failed jobs list."""
+    from adaptive_scheduler.widgets import chat_widget
+
+    # Initially, there are no failed jobs
+    run_manager.database_manager.failed = []
+    widget = chat_widget(run_manager)
+    refresh_button = widget.children[1]
+    dropdown = widget.children[2]
+    assert dropdown.options == ()
+
+    # A job fails
+    run_manager.database_manager.failed.append({"job_id": "failed_job_1"})
+
+    # Click the refresh button
+    refresh_button.click()
+
+    # The dropdown should now contain the failed job
+    assert dropdown.options == ("failed_job_1",)
