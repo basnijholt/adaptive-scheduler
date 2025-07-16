@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import aiofiles
@@ -24,10 +25,12 @@ class LLMManager(BaseManager):
         db_manager: DatabaseManager,
         model_name: str = "gpt-4",
         model_provider: str = "openai",
+        move_old_logs_to: Path | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
         self.db_manager = db_manager
+        self.move_old_logs_to = move_old_logs_to
         if model_provider == "openai":
             self.llm = ChatOpenAI(model_name=model_name, **kwargs)
         elif model_provider == "google":
@@ -58,6 +61,13 @@ class LLMManager(BaseManager):
             async with aiofiles.open(log_path) as f:
                 return await f.read()
         except FileNotFoundError:
+            if self.move_old_logs_to:
+                log_path_alt = self.move_old_logs_to / Path(log_path).name
+                try:
+                    async with aiofiles.open(log_path_alt) as f:
+                        return await f.read()
+                except FileNotFoundError:
+                    return "Log file not found."
             return "Log file not found."
 
     async def diagnose_failed_job(self, job_id: str) -> str:

@@ -127,6 +127,7 @@ class MockRunManager:
         self._folder = tmp_folder
         self.database_manager = MockDatabaseManager(tmp_folder)
         self.job_names = ["adaptive-{i}" for i in range(3)]
+        self.with_llm = False
 
     def status(self) -> str:
         """Return the status of the RunManager."""

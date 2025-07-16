@@ -94,7 +94,7 @@ def test_run_manager_with_google_llm(mock_chat_google: MagicMock) -> None:
         learners,
         fnames,
         with_llm=True,
-        model_provider="google",
+        llm_manager_kwargs={"model_provider": "google"},
     )
     assert isinstance(run_manager.llm_manager, LLMManager)
     mock_chat_google.assert_called_once()

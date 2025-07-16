@@ -298,6 +298,7 @@ class RunManager(BaseManager):
         if self.with_llm:
             self.llm_manager = LLMManager(
                 db_manager=self.database_manager,
+                move_old_logs_to=self.move_old_logs_to,
                 **self.llm_manager_kwargs,
             )
         else:
