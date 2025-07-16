@@ -13,6 +13,7 @@ dependencies:
   - cloudpickle
   - dill
   - ipyparallel
+  - ipython-autotime
   - ipywidgets
   - itables
   - loky
@@ -28,7 +29,7 @@ dependencies:
   - langchain
   - langchain-openai
   - langchain-google-genai
-  - markdown-it-py
+  - mistune
   - pygments
   # optional-dependencies: all
   - dask-mpi
