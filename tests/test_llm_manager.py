@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,11 +10,10 @@ import aiofiles
 import ipywidgets as ipyw
 import pytest
 from langchain.schema import AIMessage
-from langchain.tools import BaseTool
 from langchain_community.chat_models import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from adaptive_scheduler._server_support.llm_manager import ApprovalTool, LLMManager
+from adaptive_scheduler._server_support.llm_manager import LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler.widgets import chat_widget, info
 
@@ -60,16 +58,13 @@ async def test_chat(llm_manager: LLMManager) -> None:
 def llm_manager() -> LLMManager:
     """An LLMManager instance with a mocked ChatOpenAI."""
     with patch(
-        "adaptive_scheduler._server_support.llm_manager.create_react_agent",
-    ) as mock_create_agent:
-        mock_create_agent.return_value = AsyncMock()
-        with patch(
-            "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
-        ) as mock_chat_openai:
-            mock_chat_openai.spec = ChatOpenAI
-            llm_manager = LLMManager(db_manager=MagicMock())
-            llm_manager.agent_executor = mock_create_agent.return_value
-            return llm_manager
+        "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+    ) as mock_chat_openai:
+        mock_chat_openai.spec = ChatOpenAI
+        llm_manager = LLMManager(db_manager=MagicMock())
+        llm_manager.agent_executor = MagicMock()
+        llm_manager.agent_executor.ainvoke = AsyncMock()
+        return llm_manager
 
 
 @pytest.fixture
@@ -99,14 +94,9 @@ def test_run_manager_with_llm(run_manager: RunManager) -> None:
 
 def test_run_manager_with_google_llm() -> None:
     """Test that the RunManager initializes with a Google LLM."""
-    with (
-        patch(
-            "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
-        ) as mock_chat_google,
-        patch(
-            "adaptive_scheduler._server_support.llm_manager.create_react_agent",
-        ),
-    ):
+    with patch(
+        "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
+    ) as mock_chat_google:
         mock_chat_google.spec = ChatGoogleGenerativeAI
         scheduler = MagicMock()
         learners = [MagicMock()]
@@ -227,48 +217,3 @@ def test_info_widget_without_llm() -> None:
     buttons = widget.children[0].children[1].children
     assert not any("chat" in b.description.lower() for b in buttons if isinstance(b, ipyw.Button))
     run_manager.cancel()
-
-
-@pytest.mark.asyncio
-async def test_approval_tool() -> None:
-    """Test the approval mechanism of the ApprovalTool."""
-    mock_tool = AsyncMock(spec=BaseTool)
-    mock_tool.name = "mock_tool"
-    mock_tool.description = "mock_tool_description"
-    mock_tool.args_schema = None
-    mock_tool._arun = AsyncMock(return_value="tool result")
-
-    mock_llm_manager = MagicMock(spec=LLMManager)
-    mock_llm_manager.ask_approval = MagicMock()
-    mock_llm_manager.approval_queue = asyncio.Queue()
-    mock_llm_manager.approval_event = asyncio.Event()
-
-    tool = ApprovalTool(tool=mock_tool, llm_manager=mock_llm_manager)
-
-    # Test with approval
-    mock_llm_manager.yolo = False
-    mock_llm_manager.approval_event.set()
-    await mock_llm_manager.approval_queue.put("approve")
-    result = await tool._arun("test input")
-    assert result == "tool result"
-    mock_llm_manager.ask_approval.assert_called_once()
-    mock_tool._arun.assert_awaited_once_with("test input")
-
-    # Test with denial
-    mock_llm_manager.ask_approval.reset_mock()
-    mock_tool._arun.reset_mock()
-    mock_llm_manager.approval_event.set()
-    await mock_llm_manager.approval_queue.put("deny")
-    result = await tool._arun("test input")
-    assert result == "Action cancelled by user."
-    mock_llm_manager.ask_approval.assert_called_once()
-    mock_tool._arun.assert_not_awaited()
-
-    # Test with YOLO mode
-    mock_llm_manager.ask_approval.reset_mock()
-    mock_tool._arun.reset_mock()
-    mock_llm_manager.yolo = True
-    result = await tool._arun("test input")
-    assert result == "tool result"
-    mock_llm_manager.ask_approval.assert_not_called()
-    mock_tool._arun.assert_awaited_once_with("test input")

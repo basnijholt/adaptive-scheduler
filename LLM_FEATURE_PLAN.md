@@ -1,6 +1,8 @@
 # LLM Feature Implementation Plan
 
 This document outlines the plan for integrating an LLM-powered chat feature into the Adaptive Scheduler. The goal is to create a system that can automatically diagnose failed jobs and allow users to interact with an LLM to understand job statuses and results.
+The LLMManager needs to proactively diagnose failed jobs and provide a chat interface for users to interact with the LLM.
+It needs to propose a fix to problematic files and allow users to approve or reject these fixes.
 
 ## Todo
 

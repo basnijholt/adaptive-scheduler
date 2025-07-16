@@ -10,59 +10,21 @@ from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_core.messages import HumanMessage
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain_core.tools import BaseTool
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent
+from langgraph.graph import END, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode
+from langgraph.types import interrupt
 
 from .base_manager import BaseManager
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from .database_manager import DatabaseManager
 
 
-class ApprovalTool(BaseTool):
-    """A tool that requires approval before running."""
-
-    tool: BaseTool
-    llm_manager: LLMManager = Field(exclude=True)
-
-    name: str = ""
-    description: str = ""
-    args_schema: type[BaseModel] | None = None
-
-    def __init__(self, tool: BaseTool, llm_manager: LLMManager, **kwargs: Any) -> None:
-        super().__init__(tool=tool, llm_manager=llm_manager, **kwargs)
-        self.name = tool.name
-        self.description = tool.description
-        self.args_schema = tool.args_schema
-
-    async def _arun(self, *args: Any, **kwargs: Any) -> Any:
-        """Run the tool with approval."""
-        if not self.llm_manager.yolo:
-            await self.llm_manager.approval_event.wait()  # Wait for UI to be ready
-            if self.llm_manager.ask_approval:
-                tool_input = args or kwargs
-                msg = (
-                    f"The AI wants to run the tool `{self.name}` with input"
-                    f" `{tool_input}`. Type 'approve' to allow."
-                )
-                self.llm_manager.ask_approval(msg)
-                approval = await self.llm_manager.approval_queue.get()
-                if approval.lower() != "approve":
-                    return "Action cancelled by user."
-
-        return await self.tool._arun(*args, **kwargs)
-
-    def _run(self, *args: Any, **kwargs: Any) -> Any:
-        """Run the tool with approval."""
-        # This tool is async only
-        msg = "This tool does not support sync execution."
-        raise NotImplementedError(msg)
+class InterruptedException(Exception):
+    """Exception raised when the LLM execution is interrupted for human input."""
 
 
 class LLMManagerKwargs(TypedDict, total=False):
@@ -72,7 +34,6 @@ class LLMManagerKwargs(TypedDict, total=False):
     model_provider: str
     working_dir: str | Path
     yolo: bool
-    ask_approval: Callable[[str], None] | None
 
 
 class LLMManager(BaseManager):
@@ -87,7 +48,6 @@ class LLMManager(BaseManager):
         working_dir: str | Path = ".",
         *,
         yolo: bool = False,
-        ask_approval: Callable[[str], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -105,33 +65,29 @@ class LLMManager(BaseManager):
             root_dir=str(working_dir),
             selected_tools=["read_file", "write_file", "list_directory", "move_file"],
         )
-        tools = [ApprovalTool(tool, self) for tool in self.toolkit.get_tools()]
+        tools = self.toolkit.get_tools()
         self.memory = MemorySaver()
-        system_message = (
-            "You are an expert software developer assistant. Your purpose is to help"
-            " users analyze and debug failed jobs. You have access to tools for file"
-            " management. When you identify a fix, you should use the `write_file`"
-            " tool to apply it."
-        )
-        if not yolo:
-            system_message += (
-                " The user will be asked for approval before the tool is run."
-                " After proposing a fix, end your message with 'Type \"approve\" to apply this fix.'."
-            )
-        else:
-            system_message += " You are in YOLO mode. Apply any fixes without asking for approval."
-        system_message += " The working directory is the root of the `adaptive-scheduler` repo."
 
-        self.agent_executor = create_react_agent(
-            self.llm,
-            tools,
-            checkpointer=self.memory,
-        )
-        self.agent_executor.system_message = system_message
+        # Define the graph
+        graph = StateGraph(MessagesState)
+        graph.add_node("agent", self.llm.bind_tools(tools))
+        graph.add_node("tools", ToolNode(tools))
+
+        def should_continue(state):
+            last_message = state["messages"][-1]
+            if not last_message.tool_calls:
+                return END
+            if yolo:
+                return "tools"
+            # Use interrupt() to pause execution for human approval
+            interrupt(last_message.tool_calls)
+            return "tools"
+
+        graph.add_conditional_edges("agent", should_continue)
+        graph.add_edge("tools", "agent")
+        graph.set_entry_point("agent")
+        self.agent_executor = graph.compile(checkpointer=self.memory)
         self.yolo = yolo
-        self.ask_approval = ask_approval
-        self.approval_queue: asyncio.Queue[str] = asyncio.Queue()
-        self.approval_event = asyncio.Event()
 
     async def _manage(self) -> None:
         """The main loop for the manager."""
@@ -199,7 +155,7 @@ class LLMManager(BaseManager):
 
     async def chat(
         self,
-        message: str,
+        message: str | list[ToolMessage],
         thread_id: str = "1",
         run_metadata: dict | None = None,
     ) -> str:
@@ -211,13 +167,50 @@ class LLMManager(BaseManager):
             "tags": ["llm_manager"],
             "metadata": run_metadata or {},
         }
-        config["metadata"]["thread_id"] = thread_id  # type: ignore[index]
+        config["metadata"]["thread_id"] = thread_id
+
+        if isinstance(message, str):
+            payload = {"messages": [HumanMessage(content=message)]}
+        else:
+            payload = {"messages": message}
+
+        try:
+            response = await self.agent_executor.ainvoke(
+                payload,
+                config,
+            )
+            return response["messages"][-1].content
+        except Exception as e:
+            # Check if this is an interruption that we need to handle
+            if "interrupt" in str(e).lower():
+                # Re-raise as a custom exception that the UI can handle
+                raise InterruptedException(str(e)) from e
+            raise
+
+    async def resume_chat(
+        self,
+        user_input: str | None = None,
+        thread_id: str = "1",
+        run_metadata: dict | None = None,
+    ) -> str:
+        """Resume an interrupted chat session."""
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "run_name": "LLM Manager Resume Chat",
+            "run_id": uuid.uuid4(),
+            "tags": ["llm_manager"],
+            "metadata": run_metadata or {},
+        }
+        config["metadata"]["thread_id"] = thread_id
+
+        # If user provided input, add it to the messages
+        if user_input:
+            payload = {"messages": [HumanMessage(content=user_input)]}
+        else:
+            payload = None
+
         response = await self.agent_executor.ainvoke(
-            {"messages": [HumanMessage(content=message)]},
+            payload,
             config,
         )
         return response["messages"][-1].content
-
-    def provide_approval(self, message: str) -> None:
-        """Provide approval for a tool to run."""
-        self.approval_queue.put_nowait(message)

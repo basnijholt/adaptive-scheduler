@@ -19,6 +19,7 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 
+from adaptive_scheduler._server_support import InterruptedException
 from adaptive_scheduler.utils import load_dataframes
 
 if TYPE_CHECKING:
@@ -1010,10 +1011,6 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
     def ask_approval(message: str) -> None:
         chat_history.value += _render_chat_message("llm", _render_markdown(message))
 
-    if run_manager.llm_manager is not None:
-        run_manager.llm_manager.ask_approval = ask_approval
-        run_manager.llm_manager.approval_event.set()
-
     @_create_task_wrapper(text_input)
     async def on_submit(sender: ipyw.Text) -> None:
         message = sender.value
@@ -1022,13 +1019,17 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
             return
         run_manager.llm_manager.yolo = yolo_checkbox.value
         chat_history.value += _render_chat_message("user", _render_markdown(message))
-        if message.lower() == "approve":
-            run_manager.llm_manager.provide_approval(message)
-            return
         try:
             response = await run_manager.llm_manager.chat(message)
             chat_history.value += _render_chat_message("llm", _render_markdown(response))
-        except Exception as e:  # noqa: BLE001
+        except InterruptedException as e:
+            chat_history.value += _render_chat_message(
+                "llm",
+                _render_markdown(
+                    f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
+                ),
+            )
+        except Exception as e:
             chat_history.value += f"Error: {e}\n"
 
     text_input.on_submit(on_submit)
@@ -1056,7 +1057,14 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:
                 "llm",
                 _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
             )
-        except Exception as e:  # noqa: BLE001
+        except InterruptedException as e:
+            chat_history.value += _render_chat_message(
+                "llm",
+                _render_markdown(
+                    f"The AI wants to run the following tools. Type 'approve' to allow.\n\n{e}",
+                ),
+            )
+        except Exception as e:
             chat_history.value += f"Error: {e}\n"
 
     failed_job_dropdown.observe(on_failed_job_change, names="value")
