@@ -42,6 +42,7 @@ dependencies = [
     "tqdm",
     "versioningit",
     "langchain",
+    "langchain-openai",
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]

@@ -16,21 +16,24 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.asyncio
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-async def test_diagnose_failed_job(mock_chat_openai: MagicMock) -> None:
+async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     """Test that the diagnose_failed_job method returns a diagnosis."""
-    mock_llm = mock_chat_openai.return_value
-    mock_llm.agenerate = AsyncMock(
+    llm_manager.llm.agenerate = AsyncMock(
         return_value=MagicMock(
             generations=[[MagicMock(text="diagnosis")]],
         ),
     )
-
-    llm_manager = LLMManager()
     job_id = "test_job"
-    with patch(
-        "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
-    ) as mock_open:
+    with (
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
+        ) as mock_open,
+        patch.object(
+            llm_manager,
+            "_get_log_file_path",
+            return_value="some/path/to/log.txt",
+        ),
+    ):
         mock_open.return_value.__aenter__.return_value.read.return_value = (
             "This is a log file with an error."
         )
@@ -39,16 +42,13 @@ async def test_diagnose_failed_job(mock_chat_openai: MagicMock) -> None:
 
 
 @pytest.mark.asyncio
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-async def test_chat(mock_chat_openai: MagicMock) -> None:
+async def test_chat(llm_manager: LLMManager) -> None:
     """Test that the chat method returns a response."""
-    mock_llm = mock_chat_openai.return_value
-    mock_llm.agenerate = AsyncMock(
+    llm_manager.llm.agenerate = AsyncMock(
         return_value=MagicMock(
             generations=[[MagicMock(text="response")]],
         ),
     )
-    llm_manager = LLMManager()
     message = "Hello, world!"
     response = await llm_manager.chat(message)
     assert response == "response"
@@ -58,7 +58,7 @@ async def test_chat(mock_chat_openai: MagicMock) -> None:
 @patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
 def llm_manager(mock_chat_openai: MagicMock) -> LLMManager:  # noqa: ARG001
     """An LLMManager instance with a mocked ChatOpenAI."""
-    return LLMManager()
+    return LLMManager(db_manager=MagicMock())
 
 
 @pytest.fixture
@@ -126,10 +126,17 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
             generations=[[MagicMock(text="diagnosis")]],
         ),
     )
-    with patch.object(
-        llm_manager,
-        "_read_log_file",
-        return_value="log content",
+    with (
+        patch.object(
+            llm_manager,
+            "_read_log_file",
+            return_value="log content",
+        ),
+        patch.object(
+            llm_manager,
+            "_get_log_file_path",
+            return_value="some/path/to/log.txt",
+        ),
     ):
         await llm_manager.diagnose_failed_job(job_id)
         await llm_manager.diagnose_failed_job(job_id)
@@ -137,16 +144,19 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
 
 
 @pytest.mark.asyncio
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-async def test_diagnose_failed_job_file_not_found(
-    mock_chat_openai: MagicMock,  # noqa: ARG001
-) -> None:
+async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> None:
     """Test that the diagnose_failed_job method handles a missing log file."""
-    llm_manager = LLMManager()
     job_id = "test_job"
-    with patch(
-        "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
-    ) as mock_open:
+    with (
+        patch(
+            "adaptive_scheduler._server_support.llm_manager.aiofiles.open",
+        ) as mock_open,
+        patch.object(
+            llm_manager,
+            "_get_log_file_path",
+            return_value="some/path/to/log.txt",
+        ),
+    ):
         mock_open.side_effect = FileNotFoundError
         diagnosis = await llm_manager.diagnose_failed_job(job_id)
     assert "log file not found" in diagnosis.lower()
@@ -166,13 +176,8 @@ async def test_chat_history(llm_manager: LLMManager) -> None:
 
 
 @pytest.mark.asyncio
-@patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI")
-async def test_read_log_file(
-    mock_chat_openai: MagicMock,  # noqa: ARG001
-    tmp_path: Path,
-) -> None:
+async def test_read_log_file(llm_manager: LLMManager, tmp_path: Path) -> None:
     """Test that the _read_log_file method reads a file asynchronously."""
-    llm_manager = LLMManager()
     log_content = "This is a test log file."
     log_file = tmp_path / "job_test.log"
     log_file.write_text(log_content)

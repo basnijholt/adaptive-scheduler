@@ -296,7 +296,10 @@ class RunManager(BaseManager):
         )
         self.llm_manager: LLMManager | None
         if self.with_llm:
-            self.llm_manager = LLMManager(**self.llm_manager_kwargs)
+            self.llm_manager = LLMManager(
+                db_manager=self.database_manager,
+                **self.llm_manager_kwargs,
+            )
         else:
             self.llm_manager = None
 

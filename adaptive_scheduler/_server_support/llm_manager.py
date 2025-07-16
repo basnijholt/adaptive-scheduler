@@ -12,12 +12,19 @@ from .base_manager import BaseManager
 if TYPE_CHECKING:
     from langchain.schema import BaseMessage
 
+    from .database_manager import DatabaseManager
+
 
 class LLMManager(BaseManager):
     """A manager for handling interactions with a language model."""
 
-    def __init__(self, model_name: str = "gpt-4") -> None:
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        model_name: str = "gpt-4",
+    ) -> None:
         super().__init__()
+        self.db_manager = db_manager
         self.llm = ChatOpenAI(model_name=model_name)
         self._diagnoses_cache: dict[str, str] = {}
         self._chat_history: list[BaseMessage] = []
@@ -30,8 +37,11 @@ class LLMManager(BaseManager):
             await asyncio.sleep(1)
 
     def _get_log_file_path(self, job_id: str) -> str | None:
-        # In a real implementation, this would look up the log file path from the database
-        return f"logs/job_{job_id}.log"
+        """Get the log file path from the database."""
+        for job in self.db_manager.as_dicts():
+            if job["job_id"] == job_id:
+                return job["log_fname"]
+        return None
 
     async def _read_log_file(self, log_path: str) -> str:
         # In a real implementation, this would read the content of the log file
