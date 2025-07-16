@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import ipywidgets as ipyw
 import pytest
 
 from adaptive_scheduler._server_support.job_manager import JobManager
 from adaptive_scheduler._server_support.llm_manager import LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
+from adaptive_scheduler.widgets import info
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -222,3 +224,19 @@ def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
 
     # The dropdown should now contain the failed job
     assert dropdown.options == ("failed_job_1",)
+
+
+def test_info_widget_without_llm() -> None:
+    """Test that the info widget does not show the chat button if with_llm=False."""
+    scheduler = MagicMock()
+    learners = [MagicMock()]
+    fnames = ["test_fname"]
+    run_manager = RunManager(
+        scheduler,
+        learners,
+        fnames,
+        with_llm=False,
+    )
+    widget = info(run_manager, display_widget=False)
+    buttons = widget.children[0].children[1].children
+    assert not any("chat" in b.description.lower() for b in buttons if isinstance(b, ipyw.Button))

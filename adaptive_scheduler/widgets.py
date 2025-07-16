@@ -1104,8 +1104,9 @@ def info(  # noqa: PLR0915
         "queue": show_queue_button,
         "database": show_db_button,
         "results": show_results_button,
-        "chat": show_chat_button,
     }
+    if run_manager.with_llm:
+        widgets["chat"] = show_chat_button
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -1164,12 +1165,13 @@ def info(  # noqa: PLR0915
     toggle_queue = _toggle_widget("queue", widgets, toggle_dict)
     toggle_database = _toggle_widget("database", widgets, toggle_dict)
     toggle_results = _toggle_widget("results", widgets, toggle_dict)
-    toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
     widgets["logs"].on_click(toggle_logs)
     widgets["queue"].on_click(toggle_queue)
     widgets["database"].on_click(toggle_database)
     widgets["results"].on_click(toggle_results)
-    widgets["chat"].on_click(toggle_chat)
+    if run_manager.with_llm:
+        toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
+        widgets["chat"].on_click(toggle_chat)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
