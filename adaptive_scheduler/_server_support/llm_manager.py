@@ -269,6 +269,10 @@ class LLMManager(BaseManager):
             run_metadata,
         )
 
+    def get_history(self, thread_id: str) -> MessagesState:
+        """Get the message history for a thread."""
+        return self.agent_executor.get_state({"configurable": {"thread_id": thread_id}}).values
+
 
 def _extract_write_operations(last_message: ToolMessage) -> list[str]:
     """Extract write operations from tool calls for approval context."""

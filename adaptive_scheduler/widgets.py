@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from adaptive_scheduler._llm_widgets import chat_widget
 from adaptive_scheduler.utils import load_dataframes
 
 if TYPE_CHECKING:
@@ -950,6 +949,8 @@ def info(  # noqa: PLR0915
     """
     import ipywidgets as ipyw
     from IPython.display import display
+
+    from adaptive_scheduler._llm_widgets import chat_widget
 
     if disable_widgets_output_scrollbar:
         _disable_widgets_output_scrollbar()

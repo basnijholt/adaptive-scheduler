@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import html
 from typing import TYPE_CHECKING, Any
 
+import ipywidgets as ipyw
 import mistune
 import rich
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from adaptive_scheduler._server_support.llm_manager import (
+    AIMessage,
+    HumanMessage,
+    ToolMessage,
+)
 
-    import ipywidgets as ipyw
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Coroutine
+
+    from langchain_core.messages import BaseMessage
 
     from adaptive_scheduler.server_support import LLMManager
 
@@ -26,9 +34,6 @@ def _render_markdown(text: str) -> str:
         markdown = mistune.Markdown(renderer=renderer)
         return markdown(text)
     except (TypeError, AttributeError, ValueError):
-        # Fallback to simple HTML formatting
-        import html
-
         return html.escape(text).replace("\n", "<br>")
 
 
@@ -37,241 +42,210 @@ def _render_chat_message(role: str, message: str) -> str:
     style = {
         "user": "background-color: #dcf8c6; text-align: right; margin-left: auto;",
         "llm": "background-color: #f1f0f0; text-align: left;",
+        "tool": "background-color: #c6d8f8; text-align: center; margin-left: auto; margin-right: auto;",
     }[role]
     return f'<div style="padding: 5px; border-radius: 5px; margin: 5px; max-width: 80%; {style}">{message}</div>'
 
 
-def _create_task_wrapper(
-    widget: ipyw.Widget,
-) -> Callable[[Callable[[Any], Any]], Callable[[Any], None]]:
-    """Create a wrapper that runs an async function when a widget changes."""
+class ChatWidget:
+    """A chat widget for interacting with the LLM."""
 
-    def wrapper(func: Callable[[Any], Any]) -> Callable[[Any], None]:
-        def on_change(change: Any) -> None:
-            task = asyncio.create_task(func(change))
-            if not hasattr(widget, "_tasks"):
-                widget._tasks = set()
-            widget._tasks.add(task)
-            task.add_done_callback(widget._tasks.remove)
+    def __init__(self, llm_manager: LLMManager) -> None:
+        """Initialize the chat widget."""
+        self.llm_manager = llm_manager
+        self.thread_id = "1"  # Default thread
+        self.waiting_for_approval = False
+        self._tasks: set[asyncio.Task] = set()
 
-        return on_change
+        self._build_widget()
 
-    return wrapper
+    def _build_widget(self) -> None:
+        """Build the widget components."""
+        from .widgets import _add_title
 
+        self.text_input = ipyw.Text(
+            value="",
+            placeholder="Ask a question...",
+            description="You:",
+            disabled=False,
+        )
+        self.chat_history = ipyw.HTML(
+            value=_render_chat_message(
+                "llm",
+                _render_markdown("👋 Hello! Select a failed job to diagnose or ask me a question."),
+            ),
+            layout={
+                "width": "auto",
+                "height": "300px",
+                "border": "1px solid black",
+                "word-wrap": "break-word",
+                "overflow-y": "auto",
+            },
+        )
+        self.yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
+        self.failed_job_dropdown = ipyw.Dropdown(
+            options=[job["job_id"] for job in self.llm_manager.db_manager.failed],
+            description="Failed Job:",
+            disabled=False,
+        )
+        self.refresh_button = ipyw.Button(description="Refresh Failed Jobs")
 
-console = rich.get_console()
+        # Register event handlers
+        self.text_input.on_submit(self._on_submit)
+        self.failed_job_dropdown.observe(self._on_failed_job_change, names="value")
+        self.refresh_button.on_click(self._refresh_failed_jobs)
 
+        # Assemble the widget
+        self.widget = ipyw.VBox(
+            [
+                self.refresh_button,
+                self.failed_job_dropdown,
+                self.yolo_checkbox,
+                self.chat_history,
+                self.text_input,
+            ],
+        )
+        _add_title("adaptive_scheduler.widgets.ChatWidget", self.widget)
 
-def chat_widget(llm_manager: LLMManager) -> ipyw.VBox:  # noqa: PLR0915
-    """Chat widget for interacting with the LLM."""
-    import ipywidgets as ipyw
+        # Trigger diagnosis if a job is already selected
+        if self.failed_job_dropdown.value:
+            self._on_failed_job_change({"new": self.failed_job_dropdown.value})
 
-    from adaptive_scheduler.widgets import _add_title
+    def _create_task(self, awaitable: Coroutine) -> None:
+        """Run an async function as a background task."""
+        task: asyncio.Task = asyncio.create_task(awaitable)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.remove)
 
-    text_input = ipyw.Text(
-        value="",
-        placeholder="Ask a question...",
-        description="You:",
-        disabled=False,
-    )
-    chat_history = ipyw.HTML(
-        value=_render_chat_message(
-            "llm",
-            _render_markdown("👋 Hello! Select a failed job to diagnose or ask me a question."),
-        ),
-        placeholder="",
-        description="Chat:",
-        layout={
-            "width": "auto",
-            "height": "300px",
-            "border": "1px solid black",
-            "word-wrap": "break-word",
-            "overflow-y": "auto",
-        },
-    )
-    yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
-
-    def ask_approval(message: str) -> None:
-        chat_history.value += _render_chat_message("llm", _render_markdown(message))
-
-    # Track the current thread context for chat messages
-    current_thread_id = "1"  # Default thread
-    waiting_for_approval = False  # Track if we're waiting for approval
-
-    @_create_task_wrapper(text_input)
-    async def on_submit(sender: ipyw.Text) -> None:
-        nonlocal current_thread_id, waiting_for_approval
-        message = sender.value
+    def _on_submit(self, sender: ipyw.Text) -> None:
+        self._create_task(self._handle_submission(sender.value))
         sender.value = ""
-        if llm_manager is None:
-            chat_history.value += _render_chat_message(
-                "llm",
-                _render_markdown("⚠️ No LLM manager available."),
-            )
+
+    def _on_failed_job_change(self, change: dict[str, Any]) -> None:
+        self._create_task(self._handle_job_selection(change["new"]))
+
+    async def _handle_submission(self, message: str) -> None:
+        """Handle logic for when the user submits text."""
+        if not message:
             return
 
-        # Disable input while processing
-        sender.disabled = True
+        self.llm_manager.yolo = self.yolo_checkbox.value
 
-        llm_manager.yolo = yolo_checkbox.value
-        chat_history.value += _render_chat_message("user", _render_markdown(message))
+        if self.waiting_for_approval and message.lower() in [
+            "approve",
+            "approved",
+            "deny",
+            "denied",
+        ]:
+            approval_data = "approved" if message.lower() in ["approve", "approved"] else "denied"
+            await self._run_llm_interaction(
+                self.llm_manager.resume_chat(approval_data, thread_id=self.thread_id),
+            )
+            self.waiting_for_approval = False
+        else:
+            await self._run_llm_interaction(
+                self.llm_manager.chat(message, thread_id=self.thread_id),
+            )
 
-        # Show thinking indicator
-        thinking_message = _render_chat_message("llm", _render_markdown("🤔 Thinking..."))
-        chat_history.value += thinking_message
-
-        try:
-            # Check if we're responding to an approval request
-            if waiting_for_approval and message.lower() in [
-                "approve",
-                "approved",
-                "deny",
-                "denied",
-            ]:
-                approval_data = (
-                    "approved" if message.lower() in ["approve", "approved"] else "denied"
-                )
-                result = await llm_manager.resume_chat(
-                    approval_data,
-                    thread_id=current_thread_id,
-                )
-                waiting_for_approval = False
-            else:
-                # Regular chat
-                result = await llm_manager.chat(message, thread_id=current_thread_id)
-
-            # Remove thinking indicator
-            chat_history.value = chat_history.value.replace(thinking_message, "")
-
-            # Handle the result
-            if result.interrupted:
-                # First show the LLM's content if there is any (the explanation)
-                if result.content:
-                    chat_history.value += _render_chat_message(
-                        "llm",
-                        _render_markdown(result.content),
-                    )
-
-                # Then add the interruption message
-                chat_history.value += _render_chat_message(
-                    "llm",
-                    _render_markdown(
-                        f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*",
-                    ),
-                )
-                waiting_for_approval = True
-            else:
-                # Add regular response
-                chat_history.value += _render_chat_message("llm", _render_markdown(result.content))
-        except (ValueError, TypeError, RuntimeError) as e:
-            # Remove thinking indicator and add error
-            chat_history.value = chat_history.value.replace(thinking_message, "")
-            console.print_exception(show_locals=True)
-            chat_history.value += _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
-        finally:
-            # Re-enable input
-            sender.disabled = False
-
-    text_input.on_submit(on_submit)
-
-    # Add a dropdown to select a failed job
-    failed_jobs = [job["job_id"] for job in llm_manager.db_manager.failed]
-    failed_job_dropdown = ipyw.Dropdown(
-        options=failed_jobs,
-        description="Failed Job:",
-        disabled=False,
-    )
-
-    @_create_task_wrapper(failed_job_dropdown)
-    async def on_failed_job_change(change: dict[str, Any]) -> None:
-        nonlocal current_thread_id
-        job_id = change["new"]
+    async def _handle_job_selection(self, job_id: str | None) -> None:
+        """Handle logic for when a failed job is selected."""
         if job_id is None:
-            # No job selected, reset to default thread
-            current_thread_id = "1"
+            self.thread_id = "1"
             return
 
-        if llm_manager is None:
-            chat_history.value = _render_chat_message(
-                "llm",
-                _render_markdown("⚠️ No LLM manager available."),
-            )
-            return
-
-        # Set the current thread context to this job's thread
-        current_thread_id = job_id
-
-        # Disable dropdown while processing
-        failed_job_dropdown.disabled = True
-
-        # Show diagnosing indicator
-        diagnosing_message = _render_chat_message(
+        self.thread_id = job_id
+        self.chat_history.value = _render_chat_message(
             "llm",
             _render_markdown(f"🔍 Diagnosing job {job_id}..."),
         )
-        chat_history.value = diagnosing_message
+        await self._run_llm_interaction(
+            self.llm_manager.diagnose_failed_job(job_id),
+            is_diagnosis=True,
+        )
+
+    async def _run_llm_interaction(
+        self,
+        coro: Awaitable,
+        *,
+        is_diagnosis: bool = False,
+    ) -> None:
+        """Central method to run LLM interactions and handle UI updates."""
+        self.text_input.disabled = True
+        self.failed_job_dropdown.disabled = True
+
+        thinking_message = _render_chat_message("llm", _render_markdown("🤔 Thinking..."))
+        if not is_diagnosis:
+            # Show thinking message but don't add to history
+            self.chat_history.value = self._render_history() + thinking_message
 
         try:
-            result = await llm_manager.diagnose_failed_job(job_id)
-            # Replace diagnosing indicator with result
+            result = await coro
+            self.chat_history.value = self._render_history()
+
             if result.interrupted:
-                # First show the LLM's analysis if there is any
-                if result.content:
-                    chat_history.value = _render_chat_message(
-                        "llm",
-                        _render_markdown(f"**Diagnosis for job {job_id}:**\n{result.content}"),
-                    )
-
-                # Then add the interruption message
-                chat_history.value += _render_chat_message(
-                    "llm",
-                    _render_markdown(
-                        f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*",
-                    ),
-                )
+                self.waiting_for_approval = True
+                interrupt_msg = f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*"
+                self._add_message("llm", interrupt_msg)
             else:
-                chat_history.value = _render_chat_message(
-                    "llm",
-                    _render_markdown(f"**Diagnosis for job {job_id}:**\n{result.content}"),
-                )
+                self.waiting_for_approval = False
+
         except Exception as e:  # noqa: BLE001
-            # Replace diagnosing indicator with error
             console.print_exception(show_locals=True)
-            chat_history.value = _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))
+            self.chat_history.value = self.chat_history.value.replace(thinking_message, "")
+            self._add_message("llm", f"❌ Error: {e}")
         finally:
-            # Re-enable dropdown after processing
-            failed_job_dropdown.disabled = False
+            self.text_input.disabled = False
+            self.failed_job_dropdown.disabled = False
 
-    failed_job_dropdown.observe(on_failed_job_change, names="value")
-    refresh_button = ipyw.Button(description="Refresh Failed Jobs")
+    def _add_message(self, role: str, message: str) -> None:
+        """Add a message to the chat history display."""
+        self.chat_history.value += _render_chat_message(role, _render_markdown(message))
 
-    def refresh_failed_jobs(_: Any) -> None:
-        failed_jobs = [job["job_id"] for job in llm_manager.db_manager.failed]
-        # Temporarily remove the observer to prevent triggering during refresh
-        failed_job_dropdown.unobserve(on_failed_job_change, names="value")
-        failed_job_dropdown.options = failed_jobs
-        if failed_jobs:
-            # Set the value to trigger the observe callback automatically
-            failed_job_dropdown.value = failed_jobs[0]
-        else:
-            # Clear the value when there are no failed jobs
-            failed_job_dropdown.value = None
-        # Re-add the observer
-        failed_job_dropdown.observe(on_failed_job_change, names="value")
+    def _render_history(self) -> str:
+        """Render the entire chat history."""
+        history = self.llm_manager.get_history(self.thread_id)
+        messages = history.get("messages", [])
+        return "".join(self._render_message(msg) for msg in messages)
 
-    refresh_button.on_click(refresh_failed_jobs)
+    def _render_message(self, msg: BaseMessage) -> str:
+        """Render a single message."""
+        if isinstance(msg, HumanMessage):
+            return _render_chat_message("user", _render_markdown(msg.content))
+        if isinstance(msg, AIMessage):
+            return _render_chat_message("llm", _render_markdown(msg.content))
+        if isinstance(msg, ToolMessage):
+            return _render_chat_message("tool", _render_markdown(msg.content))
+        return ""
 
-    vbox = ipyw.VBox(
-        [
-            refresh_button,
-            failed_job_dropdown,
-            yolo_checkbox,
-            chat_history,
-            text_input,
-        ],
-    )
-    _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
-    return vbox
+    def _refresh_failed_jobs(self, _: ipyw.Button) -> None:
+        """Refresh the list of failed jobs in the dropdown."""
+        failed_jobs = [job["job_id"] for job in self.llm_manager.db_manager.failed]
+        self.failed_job_dropdown.unobserve(self._on_failed_job_change, names="value")
+        self.failed_job_dropdown.options = failed_jobs
+        self.failed_job_dropdown.value = None
+        self.failed_job_dropdown.observe(self._on_failed_job_change, names="value")
+
+
+def chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
+    """Creates and returns a chat widget for interacting with the LLM.
+
+    This widget provides a user interface for chatting with a language model,
+    diagnosing failed jobs, and approving or denying operations that
+    require user intervention.
+
+    Parameters
+    ----------
+    llm_manager
+        An instance of `LLMManager` that the widget will use to communicate
+        with the language model and the database.
+
+    Returns
+    -------
+    ipyw.VBox
+        A VBox widget containing the entire chat interface.
+
+    """
+    return ChatWidget(llm_manager).widget
 
 
 def _highlight_code(code: str, lang: str, _: str) -> str:
