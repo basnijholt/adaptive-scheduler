@@ -315,10 +315,12 @@ def _create_diagnosis_prompt(log_content: str) -> str:
     """Create the initial prompt for job failure diagnosis."""
     return (
         "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
-        "If you can identify the problem from the log alone, provide the corrected code.\n"
-        "You can freely read files without asking for permission.\n"
-        "For write operations, IMMEDIATELY proceed directly with the file tools without asking.\n"
-        "The user will automatically be prompted for approval by their client.\n\n"
+        "Follow these instructions carefully:\n"
+        "1.  **Tool Use**: You have access to file system tools. Use them directly when you need them. Do not ask for permission first.\n"
+        "2.  **Reading Files**: You can read any file you need to diagnose the problem. The `read_file` tool does not require user approval and will be executed automatically.\n"
+        "3.  **Reading Strategy**: If you need to read a file, submit a single tool call for `read_file` by itself. Do not bundle it with other tool calls.\n"
+        "4.  **Writing Files**: For any write operations (like `write_file` or `move_file`), my system will automatically handle asking for user approval. Propose the tool calls directly, and I will be prompted to approve or deny them.\n"
+        "5.  **Goal**: Your goal is to identify the cause of the failure and provide a corrected code snippet or file.\n\n"
         f"Log file(s):\n```\n{log_content}\n```\n\n"
         "What caused this failure and how can it be fixed?"
     )
