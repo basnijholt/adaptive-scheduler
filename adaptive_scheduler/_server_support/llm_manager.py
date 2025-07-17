@@ -50,29 +50,32 @@ class ChatResult:
         return self.interrupted and self.interrupt_message is not None
 
 
-async def chat(
+def _format_response_content(content: Any) -> str:
+    """Format response content, handling both strings and lists."""
+    if isinstance(content, list):
+        return "\n".join(str(item) for item in content)
+    return content or ""
+
+
+async def _execute_agent(
     agent_executor: Any,
-    message: str | list[ToolMessage],
+    input_data: Any,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
+    run_name: str = "LLM Manager",
 ) -> ChatResult:
-    """Handle a chat message and return a response."""
+    """Execute the agent with input data and return a ChatResult."""
     metadata = run_metadata or {}
     metadata["thread_id"] = thread_id
     config = {
         "configurable": {"thread_id": thread_id},
-        "run_name": "LLM Manager Chat",
+        "run_name": run_name,
         "run_id": uuid.uuid4(),
         "tags": ["llm_manager"],
         "metadata": metadata,
     }
 
-    if isinstance(message, str):
-        payload = {"messages": [HumanMessage(content=message)]}
-    else:
-        payload = {"messages": message}
-
-    response = await agent_executor.ainvoke(payload, config)
+    response = await agent_executor.ainvoke(input_data, config)
 
     # Check if the graph is in an interrupted state (LangGraph official way)
     if "__interrupt__" in response:
@@ -94,6 +97,27 @@ async def chat(
     return ChatResult(content=content, thread_id=thread_id)
 
 
+async def chat(
+    agent_executor: Any,
+    message: str | list[ToolMessage],
+    thread_id: str = "1",
+    run_metadata: dict[str, Any] | None = None,
+) -> ChatResult:
+    """Handle a chat message and return a response."""
+    if isinstance(message, str):
+        payload = {"messages": [HumanMessage(content=message)]}
+    else:
+        payload = {"messages": message}
+
+    return await _execute_agent(
+        agent_executor,
+        payload,
+        thread_id,
+        run_metadata,
+        "LLM Manager Chat",
+    )
+
+
 async def resume_chat(
     agent_executor: Any,
     approval_data: Any,
@@ -103,34 +127,14 @@ async def resume_chat(
     """Resume an interrupted chat session with human approval."""
     from langgraph.types import Command
 
-    metadata = run_metadata or {}
-    metadata["thread_id"] = thread_id
-    config = {
-        "configurable": {"thread_id": thread_id},
-        "run_name": "LLM Manager Resume Chat",
-        "run_id": uuid.uuid4(),
-        "tags": ["llm_manager"],
-        "metadata": metadata,
-    }
-
-    # Resume with the approval data
     command = Command(resume=approval_data)
-
-    response = await agent_executor.ainvoke(command, config)
-
-    # Check for further interrupts (LangGraph official way)
-    if "__interrupt__" in response:
-        interrupt_info = response["__interrupt__"][0]  # Get first interrupt
-        interrupt_msg = interrupt_info.value.get("message", "Approval needed")
-        return ChatResult(
-            content="",
-            interrupted=True,
-            interrupt_message=interrupt_msg,
-            thread_id=thread_id,
-        )
-
-    content = response["messages"][-1].content if response["messages"] else ""
-    return ChatResult(content=content, thread_id=thread_id)
+    return await _execute_agent(
+        agent_executor,
+        command,
+        thread_id,
+        run_metadata,
+        "LLM Manager Resume Chat",
+    )
 
 
 def create_agent_graph(llm: Any, tools: list[Any], *, yolo: bool) -> StateGraph:
@@ -348,13 +352,6 @@ def _create_should_continue_function(*, yolo: bool) -> Callable[[MessagesState],
         return "tools"
 
     return should_continue
-
-
-def _format_response_content(content: Any) -> str:
-    """Format response content, handling both strings and lists."""
-    if isinstance(content, list):
-        return "\n".join(str(item) for item in content)
-    return content or ""
 
 
 def _create_diagnosis_prompt(log_content: str) -> str:
