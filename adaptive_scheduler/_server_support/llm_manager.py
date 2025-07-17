@@ -11,7 +11,7 @@ from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
@@ -311,7 +311,7 @@ def _human_approval_node(state: MessagesState) -> dict[str, list]:
     last_message = messages[-1]
 
     # Extract write operations for detailed approval message
-    assert isinstance(last_message, ToolMessage)
+    assert isinstance(last_message, AIMessage), last_message
     write_ops = _extract_write_operations(last_message)
 
     # Create approval message with operation details
