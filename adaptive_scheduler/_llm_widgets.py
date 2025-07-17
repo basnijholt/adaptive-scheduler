@@ -38,7 +38,7 @@ class ChatHistoryManager:
     def render(self) -> str:
         """Render the content wrapped in a scrollable container."""
         return f"""
-        <div style="height: 300px; overflow-y: auto; border: 1px solid black; padding: 5px; word-wrap: break-word;">
+        <div style="height: 420px; overflow-y: auto; border: 1px solid black; padding: 5px; word-wrap: break-word;">
             {self.content}
         </div>
         """
@@ -120,7 +120,7 @@ class ChatWidget:
             value=self._history_manager.render(),
             layout={
                 "width": "auto",
-                "height": "300px",
+                "height": "430px",
             },
         )
         self.yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
