@@ -59,7 +59,7 @@ class ChatHistoryManager:
             return _render_chat_message("llm", _render_markdown(msg.content))
         if isinstance(msg, ToolMessage):
             return _render_chat_message("tool", _render_markdown(msg.content))
-        return ""
+        return msg.content
 
 
 def _render_markdown(text: str | list[str]) -> str:

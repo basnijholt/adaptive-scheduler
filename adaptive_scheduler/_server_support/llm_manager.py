@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from langchain_core.language_models import BaseLanguageModel
-    from langchain_core.messages import BaseMessage
     from langchain_core.runnables import RunnableConfig
     from langgraph.graph.state import CompiledStateGraph
 
@@ -119,7 +118,7 @@ def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) 
     # Add edges
     graph.add_conditional_edges("agent", _create_should_continue_function(yolo=yolo))
     graph.add_edge("tools", "agent")
-    graph.add_edge("human_approval", "tools")
+    graph.add_conditional_edges("human_approval", _after_human_approval)
     graph.set_entry_point("agent")
 
     return graph
@@ -252,17 +251,6 @@ def _extract_write_operations(last_message: ToolMessage) -> list[str]:
     return write_ops
 
 
-def _needs_approval(last_message: BaseMessage, *, yolo: bool) -> bool:
-    """Check if the message contains tool calls that need approval."""
-    if yolo or not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-        return False
-
-    return any(
-        tool_call.get("name", "") in ["write_file", "move_file"]
-        for tool_call in last_message.tool_calls
-    )
-
-
 def _human_approval_node(state: MessagesState) -> dict[str, list]:
     """Node that requests human approval for write operations."""
     messages = state["messages"]
@@ -292,18 +280,34 @@ def _create_should_continue_function(*, yolo: bool) -> Callable[[MessagesState],
 
     def should_continue(state: MessagesState) -> str:
         last_message = state["messages"][-1]
+        assert isinstance(last_message, AIMessage)
 
-        # Only AI messages can have tool calls
         if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
             return END
 
-        # Check if any tool call needs approval
-        if _needs_approval(last_message, yolo=yolo):
+        if yolo:
+            return "tools"
+
+        if any(
+            tool_call["name"] in ["write_file", "move_file"]
+            for tool_call in last_message.tool_calls
+        ):
             return "human_approval"
 
         return "tools"
 
     return should_continue
+
+
+def _after_human_approval(state: MessagesState) -> str:
+    """Determine the next step after human approval."""
+    last_message = state["messages"][-1]
+    if (
+        isinstance(last_message, HumanMessage)
+        and last_message.content == "Operations denied by user."
+    ):
+        return "agent"  # Go back to the agent to replan
+    return "tools"  # Proceed with tool execution
 
 
 def _create_diagnosis_prompt(log_content: str) -> str:
