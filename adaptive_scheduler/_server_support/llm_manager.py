@@ -108,8 +108,8 @@ class LLMManager(BaseManager):
                 denial_msg = HumanMessage(content="Operations denied by user.")
                 return {"messages": [denial_msg]}
 
-            # If approved, return empty (will proceed to tools via graph edges)
-            return {"messages": []}
+            # If approved, don't add any messages, just return empty dict
+            return {}
 
         graph.add_node("agent", call_model)
         graph.add_node("tools", ToolNode(tools))
@@ -117,7 +117,9 @@ class LLMManager(BaseManager):
 
         def should_continue(state: MessagesState) -> str:
             last_message = state["messages"][-1]
-            if not last_message.tool_calls:
+
+            # Only AI messages can have tool calls
+            if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
                 return END
 
             # Check if any tool call needs approval
@@ -229,13 +231,27 @@ class LLMManager(BaseManager):
                 payload,
                 config,
             )
-            content = response["messages"][-1].content
 
-            # Handle case where content is a list (structured output)
-            if isinstance(content, list):
-                return "\n".join(str(item) for item in content)
+            # After execution, check if the graph is in an interrupted state
+            snapshot = self.agent_executor.get_state(config)
+            if snapshot.interrupts:
+                # Graph is interrupted, extract the interrupt message
+                interrupt_info = snapshot.interrupts[0]
+                interrupt_msg = interrupt_info.value.get("message", "Approval needed")
+                raise InterruptedException(interrupt_msg)
 
-            return content  # noqa: TRY300
+            # Get the last message content
+            if response["messages"]:
+                content = response["messages"][-1].content
+                # Handle case where content is a list (structured output)
+                if isinstance(content, list):
+                    return "\n".join(str(item) for item in content)
+                return content or ""  # Return empty string if content is None
+
+            return ""  # No messages in response
+        except InterruptedException:
+            # Re-raise interrupt exceptions as-is
+            raise
         except Exception as e:
             # Check if this is an interruption that we need to handle
             if "interrupt" in str(e).lower() or "Interrupted" in str(e):

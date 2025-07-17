@@ -1013,10 +1013,11 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
 
     # Track the current thread context for chat messages
     current_thread_id = "1"  # Default thread
+    waiting_for_approval = False  # Track if we're waiting for approval
 
     @_create_task_wrapper(text_input)
     async def on_submit(sender: ipyw.Text) -> None:
-        nonlocal current_thread_id
+        nonlocal current_thread_id, waiting_for_approval
         message = sender.value
         sender.value = ""
         if run_manager.llm_manager is None:
@@ -1037,8 +1038,27 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         chat_history.value += thinking_message
 
         try:
-            # Use the current thread_id which gets set when a job is selected
-            response = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
+            # Check if we're responding to an approval request
+            if waiting_for_approval and message.lower() in [
+                "approve",
+                "approved",
+                "deny",
+                "denied",
+            ]:
+                approval_data = {
+                    "approval": "approved"
+                    if message.lower() in ["approve", "approved"]
+                    else "denied"
+                }
+                response = await run_manager.llm_manager.resume_chat(
+                    approval_data,
+                    thread_id=current_thread_id,
+                )
+                waiting_for_approval = False
+            else:
+                # Regular chat
+                response = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
+
             # Remove thinking indicator and add response
             chat_history.value = chat_history.value.replace(thinking_message, "")
             chat_history.value += _render_chat_message("llm", _render_markdown(response))
@@ -1049,6 +1069,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
                 "llm",
                 _render_markdown(f"🤖 {e}\n\n*Reply with 'approve' or 'deny' to continue.*"),
             )
+            waiting_for_approval = True
         except (ValueError, TypeError, RuntimeError) as e:
             # Remove thinking indicator and add error
             chat_history.value = chat_history.value.replace(thinking_message, "")

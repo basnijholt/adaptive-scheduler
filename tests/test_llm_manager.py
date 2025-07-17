@@ -27,6 +27,11 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     llm_manager.agent_executor.ainvoke = AsyncMock(
         return_value={"messages": [AIMessage(content="diagnosis")]},
     )
+    # Mock get_state to return empty interrupts (no approval needed)
+    mock_snapshot = MagicMock()
+    mock_snapshot.interrupts = []
+    llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
+
     job_id = "test_job"
     llm_manager.db_manager.failed = [
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
