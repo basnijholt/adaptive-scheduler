@@ -13,6 +13,7 @@ from pygments.lexers import get_lexer_by_name
 
 from adaptive_scheduler._server_support.llm_manager import (
     AIMessage,
+    ChatResult,
     HumanMessage,
     ToolMessage,
 )
@@ -40,9 +41,10 @@ def _render_markdown(text: str) -> str:
 def _render_chat_message(role: str, message: str) -> str:
     """Render a chat message with a role-specific style."""
     style = {
-        "user": "background-color: #dcf8c6; text-align: right; margin-left: auto;",
+        "user": "background-color: #dcf8c6; text-align: left0; margin-left: auto;",
         "llm": "background-color: #f1f0f0; text-align: left;",
         "tool": "background-color: #c6d8f8; text-align: center; margin-left: auto; margin-right: auto;",
+        "error": "background-color: #f8d6d6; text-align: center; margin-left: auto; margin-right: auto;",
     }[role]
     return f'<div style="padding: 5px; border-radius: 5px; margin: 5px; max-width: 80%; {style}">{message}</div>'
 
@@ -171,7 +173,7 @@ class ChatWidget:
 
     async def _run_llm_interaction(
         self,
-        coro: Awaitable,
+        coro: Awaitable[ChatResult],
         *,
         is_diagnosis: bool = False,
     ) -> None:
@@ -187,6 +189,9 @@ class ChatWidget:
         try:
             result = await coro
             self.chat_history.value = self._render_history()
+            if not self.chat_history.value:
+                # e.g., some error message like "Could not find log files"
+                self.chat_history.value = _render_chat_message("error", result.content)
 
             if result.interrupted:
                 self.waiting_for_approval = True
