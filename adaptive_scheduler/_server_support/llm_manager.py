@@ -317,7 +317,7 @@ def _create_diagnosis_prompt(log_content: str) -> str:
         "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
         "If you can identify the problem from the log alone, provide the corrected code.\n"
         "You can freely read files without asking for permission.\n"
-        "For write operations, proceed directly with the file tools.\n"
+        "For write operations, IMMEDIATELY proceed directly with the file tools without asking.\n"
         "The user will automatically be prompted for approval by their client.\n\n"
         f"Log file(s):\n```\n{log_content}\n```\n\n"
         "What caused this failure and how can it be fixed?"
