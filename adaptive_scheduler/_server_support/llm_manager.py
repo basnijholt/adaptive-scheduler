@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -20,11 +21,141 @@ from langgraph.types import interrupt
 from .base_manager import BaseManager
 
 if TYPE_CHECKING:
+    from langchain_core.messages import BaseMessage
+
     from .database_manager import DatabaseManager
 
 
 class InterruptedException(Exception):  # noqa: N818
     """Exception raised when the LLM execution is interrupted for human input."""
+
+
+def extract_write_operations(last_message: BaseMessage) -> list[str]:
+    """Extract write operations from tool calls for approval context."""
+    write_ops = []
+    for tool_call in last_message.tool_calls:
+        tool_name = tool_call.get("name", "")
+        if tool_name in ["write_file", "move_file"]:
+            args = tool_call.get("args", {})
+            if tool_name == "write_file":
+                file_path = args.get("file_path", "unknown file")
+                content = args.get("text", "")
+                # Show preview of content for context
+                content_preview = content[:100] + "..." if len(content) > 100 else content
+                write_ops.append(f"write to {file_path}:\n```\n{content_preview}\n```")
+            elif tool_name == "move_file":
+                src = args.get("src_path", "unknown")
+                dst = args.get("new_path", "unknown")
+                write_ops.append(f"move {src} to {dst}")
+    return write_ops
+
+
+def needs_approval(last_message: BaseMessage, yolo: bool) -> bool:
+    """Check if the message contains tool calls that need approval."""
+    if yolo or not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+        return False
+
+    return any(
+        tool_call.get("name", "") in ["write_file", "move_file"]
+        for tool_call in last_message.tool_calls
+    )
+
+
+def human_approval_node(state: MessagesState) -> dict[str, list]:
+    """Node that requests human approval for write operations."""
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # Extract write operations for detailed approval message
+    write_ops = extract_write_operations(last_message)
+
+    # Create approval message with operation details
+    approval_message = "Approve these operations?\n\n" + "\n\n".join(write_ops)
+
+    # Interrupt for human approval
+    decision = interrupt(
+        {
+            "message": approval_message,
+            "operations": write_ops,
+        },
+    )
+
+    if decision != "approved":
+        # Add denial message if not approved
+        denial_msg = HumanMessage(content="Operations denied by user.")
+        return {"messages": [denial_msg]}
+
+    # If approved, don't add any messages, just return empty dict
+    return {}
+
+
+def create_should_continue_function(yolo: bool) -> Callable[[MessagesState], str]:
+    """Create the conditional edge function for the graph."""
+
+    def should_continue(state: MessagesState) -> str:
+        last_message = state["messages"][-1]
+
+        # Only AI messages can have tool calls
+        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+            return END
+
+        # Check if any tool call needs approval
+        if needs_approval(last_message, yolo):
+            return "human_approval"
+
+        return "tools"
+
+    return should_continue
+
+
+def format_response_content(content: Any) -> str:
+    """Format response content, handling both strings and lists."""
+    if isinstance(content, list):
+        return "\n".join(str(item) for item in content)
+    return content or ""
+
+
+def check_for_interrupts(agent_executor: Any, config: dict[str, Any]) -> str | None:
+    """Check if the graph is in an interrupted state and return interrupt message."""
+    snapshot = agent_executor.get_state(config)
+    if snapshot.interrupts:
+        interrupt_info = snapshot.interrupts[0]
+        return interrupt_info.value.get("message", "Approval needed")
+    return None
+
+
+def create_diagnosis_prompt(log_content: str) -> str:
+    """Create the initial prompt for job failure diagnosis."""
+    return (
+        "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
+        "If you can identify the problem from the log alone, provide the corrected code.\n"
+        "You can freely read files without asking for permission. For write operations, proceed directly with the file tools - approval will be handled automatically.\n\n"
+        f"Log file(s):\n```\n{log_content}\n```\n\n"
+        "What caused this failure and how can it be fixed?"
+    )
+
+
+def create_agent_graph(llm: Any, tools: list[Any], yolo: bool) -> StateGraph:
+    """Create the LangGraph agent with approval flow."""
+    graph = StateGraph(MessagesState)
+
+    async def call_model(state: MessagesState) -> dict[str, list]:
+        messages = state["messages"]
+        response = await llm.bind_tools(tools).ainvoke(messages)
+        return {"messages": [response]}
+
+    # Add nodes
+    graph.add_node("agent", call_model)
+    graph.add_node("tools", ToolNode(tools))
+    graph.add_node("human_approval", human_approval_node)
+
+    # Add edges
+    graph.add_conditional_edges("agent", create_should_continue_function(yolo))
+    graph.add_edge("tools", "agent")
+    graph.add_edge("human_approval", "tools")
+    graph.set_entry_point("agent")
+
+    return graph
 
 
 class LLMManagerKwargs(TypedDict, total=False):
@@ -69,72 +200,8 @@ class LLMManager(BaseManager):
 
         self.memory = MemorySaver()
 
-        # Define the graph
-        graph = StateGraph(MessagesState)
-
-        async def call_model(state: MessagesState) -> dict[str, list]:
-            messages = state["messages"]
-            response = await self.llm.bind_tools(tools).ainvoke(messages)
-            return {"messages": [response]}
-
-        def human_approval_node(state: MessagesState) -> dict[str, list]:
-            """Node that requests human approval for write operations."""
-            messages = state["messages"]
-            last_message = messages[-1]
-
-            # Find write operations for approval context
-            write_ops = []
-            for tool_call in last_message.tool_calls:
-                tool_name = tool_call.get("name", "")
-                if tool_name in ["write_file", "move_file"]:
-                    args = tool_call.get("args", {})
-                    if tool_name == "write_file":
-                        write_ops.append(f"write to {args.get('file_path', 'unknown file')}")
-                    elif tool_name == "move_file":
-                        src = args.get("src_path", "unknown")
-                        dst = args.get("new_path", "unknown")
-                        write_ops.append(f"move {src} to {dst}")
-
-            # Interrupt for human approval
-            decision = interrupt(
-                {
-                    "message": f"Approve these operations: {', '.join(write_ops)}?",
-                    "operations": write_ops,
-                },
-            )
-
-            if decision != "approved":
-                # Add denial message if not approved
-                denial_msg = HumanMessage(content="Operations denied by user.")
-                return {"messages": [denial_msg]}
-
-            # If approved, don't add any messages, just return empty dict
-            return {}
-
-        graph.add_node("agent", call_model)
-        graph.add_node("tools", ToolNode(tools))
-        graph.add_node("human_approval", human_approval_node)
-
-        def should_continue(state: MessagesState) -> str:
-            last_message = state["messages"][-1]
-
-            # Only AI messages can have tool calls
-            if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-                return END
-
-            # Check if any tool call needs approval
-            if not yolo:
-                for tool_call in last_message.tool_calls:
-                    tool_name = tool_call.get("name", "")
-                    if tool_name in ["write_file", "move_file"]:
-                        return "human_approval"
-
-            return "tools"
-
-        graph.add_conditional_edges("agent", should_continue)
-        graph.add_edge("tools", "agent")
-        graph.add_edge("human_approval", "tools")
-        graph.set_entry_point("agent")
+        # Create the agent graph using extracted functions
+        graph = create_agent_graph(self.llm, tools, yolo)
         self.agent_executor = graph.compile(checkpointer=self.memory)
         self.yolo = yolo
 
@@ -187,13 +254,7 @@ class LLMManager(BaseManager):
         ):
             return log_content
 
-        initial_message = (
-            "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
-            "If you can identify the problem from the log alone, provide the corrected code.\n"
-            "You can freely read files without asking for permission. For write operations, proceed directly with the file tools - approval will be handled automatically.\n\n"
-            f"Log file(s):\n```\n{log_content}\n```\n\n"
-            "What caused this failure and how can it be fixed?"
-        )
+        initial_message = create_diagnosis_prompt(log_content)
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}
         diagnosis = await self.chat(
@@ -208,7 +269,7 @@ class LLMManager(BaseManager):
         self,
         message: str | list[ToolMessage],
         thread_id: str = "1",
-        run_metadata: dict | None = None,
+        run_metadata: dict[str, Any] | None = None,
     ) -> str:
         """Handles a chat message and returns a response."""
         metadata = run_metadata or {}
@@ -233,20 +294,14 @@ class LLMManager(BaseManager):
             )
 
             # After execution, check if the graph is in an interrupted state
-            snapshot = self.agent_executor.get_state(config)
-            if snapshot.interrupts:
-                # Graph is interrupted, extract the interrupt message
-                interrupt_info = snapshot.interrupts[0]
-                interrupt_msg = interrupt_info.value.get("message", "Approval needed")
+            interrupt_msg = check_for_interrupts(self.agent_executor, config)
+            if interrupt_msg:
                 raise InterruptedException(interrupt_msg)
 
             # Get the last message content
             if response["messages"]:
                 content = response["messages"][-1].content
-                # Handle case where content is a list (structured output)
-                if isinstance(content, list):
-                    return "\n".join(str(item) for item in content)
-                return content or ""  # Return empty string if content is None
+                return format_response_content(content)
 
             return ""  # No messages in response
         except InterruptedException:
@@ -261,9 +316,9 @@ class LLMManager(BaseManager):
 
     async def resume_chat(
         self,
-        approval_data: dict,
+        approval_data: Any,
         thread_id: str = "1",
-        run_metadata: dict | None = None,
+        run_metadata: dict[str, Any] | None = None,
     ) -> str:
         """Resume an interrupted chat session with human approval."""
         from langgraph.types import Command
