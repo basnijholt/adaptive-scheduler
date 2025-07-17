@@ -62,8 +62,12 @@ class ChatHistoryManager:
         return ""
 
 
-def _render_markdown(text: str) -> str:
+def _render_markdown(text: str | list[str]) -> str:
     """Render markdown to HTML with syntax highlighting."""
+    # Handle case where text is a list (from some LLM providers)
+    if isinstance(text, list):
+        text = "".join(str(item) for item in text)
+
     try:
         renderer = mistune.HTMLRenderer(escape=False)
         markdown = mistune.Markdown(renderer=renderer)
