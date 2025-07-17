@@ -57,25 +57,30 @@ def _format_response_content(content: Any) -> str:
     return content or ""
 
 
-async def _execute_agent(
+async def chat(
     agent_executor: CompiledStateGraph,
-    input_data: Any,
+    message: str | list[ToolMessage] | bool,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
-    run_name: str = "LLM Manager",
 ) -> ChatResult:
-    """Execute the agent with input data and return a ChatResult."""
+    """Handle a chat message and return a response."""
+    if isinstance(message, str):
+        payload = {"messages": [HumanMessage(content=message)]}
+    elif isinstance(message, bool):
+        payload = Command(resume="approved" if message else "denied")
+    else:
+        payload = {"messages": message}
+
     metadata = run_metadata or {}
     metadata["thread_id"] = thread_id
     config: RunnableConfig = {
         "configurable": {"thread_id": thread_id},
-        "run_name": run_name,
         "run_id": uuid.uuid4(),
         "tags": ["llm_manager"],
         "metadata": metadata,
     }
 
-    response = await agent_executor.ainvoke(input_data, config)
+    response = await agent_executor.ainvoke(payload, config)
 
     # Check if the graph is in an interrupted state (LangGraph official way)
     if "__interrupt__" in response:
@@ -95,29 +100,6 @@ async def _execute_agent(
         content = _format_response_content(content)
 
     return ChatResult(content=content, thread_id=thread_id)
-
-
-async def chat(
-    agent_executor: CompiledStateGraph,
-    message: str | list[ToolMessage] | bool,
-    thread_id: str = "1",
-    run_metadata: dict[str, Any] | None = None,
-) -> ChatResult:
-    """Handle a chat message and return a response."""
-    if isinstance(message, str):
-        payload = {"messages": [HumanMessage(content=message)]}
-    elif isinstance(message, bool):
-        payload = Command(resume="approved" if message else "denied")
-    else:
-        payload = {"messages": message}
-
-    return await _execute_agent(
-        agent_executor,
-        payload,
-        thread_id,
-        run_metadata,
-        "LLM Manager Chat",
-    )
 
 
 def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) -> StateGraph:
@@ -216,9 +198,10 @@ class LLMManager(BaseManager):
             return ChatResult(content=log_content, thread_id=job_id)
 
         initial_message = _create_diagnosis_prompt(log_content)
+
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}
-        result = await chat(
+        chat_result = await chat(
             self.agent_executor,
             initial_message,
             thread_id=job_id,
@@ -226,10 +209,10 @@ class LLMManager(BaseManager):
         )
 
         # Only cache completed diagnoses, not interrupted ones
-        if not result.interrupted:
-            self._diagnoses_cache[job_id] = result.content
+        if not chat_result.interrupted:
+            self._diagnoses_cache[job_id] = chat_result.content
 
-        return result
+        return chat_result
 
     async def chat(
         self,
