@@ -54,6 +54,11 @@ async def test_chat(llm_manager: LLMManager) -> None:
     llm_manager.agent_executor.ainvoke = AsyncMock(
         return_value={"messages": [AIMessage(content="response")]},
     )
+    # Mock get_state to return empty interrupts (no approval needed)
+    mock_snapshot = MagicMock()
+    mock_snapshot.interrupts = []
+    llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
+    
     message = "Hello, world!"
     response = await llm_manager.chat(message)
     assert response == "response"
@@ -124,6 +129,11 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
     llm_manager.db_manager.failed = [
         {"job_id": job_id, "job_name": "test_job_name", "output_logs": []},
     ]
+    # Mock get_state to return empty interrupts (no approval needed)
+    mock_snapshot = MagicMock()
+    mock_snapshot.interrupts = []
+    llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
+    
     with patch.object(llm_manager.db_manager, "as_dicts", return_value=[]):
         llm_manager.agent_executor.ainvoke = AsyncMock(
             return_value={"messages": [AIMessage(content="diagnosis")]},
@@ -237,6 +247,10 @@ async def test_llm_manager_list_response_handling(llm_manager: LLMManager) -> No
     llm_manager.agent_executor.ainvoke = AsyncMock(
         return_value={"messages": [AIMessage(content=list_response)]},
     )
+    # Mock get_state to return empty interrupts (no approval needed)
+    mock_snapshot = MagicMock()
+    mock_snapshot.interrupts = []
+    llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
 
     result = await llm_manager.chat("Test message")
 
@@ -258,6 +272,10 @@ async def test_llm_manager_string_response_handling(llm_manager: LLMManager) -> 
     llm_manager.agent_executor.ainvoke = AsyncMock(
         return_value={"messages": [AIMessage(content=string_response)]},
     )
+    # Mock get_state to return empty interrupts (no approval needed)
+    mock_snapshot = MagicMock()
+    mock_snapshot.interrupts = []
+    llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
 
     result = await llm_manager.chat("Test message")
 
