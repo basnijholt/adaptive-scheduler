@@ -1061,7 +1061,14 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
 
             # Handle the result
             if result.interrupted:
-                # Add interruption message
+                # First show the LLM's content if there is any (the explanation)
+                if result.content:
+                    chat_history.value += _render_chat_message(
+                        "llm",
+                        _render_markdown(result.content),
+                    )
+
+                # Then add the interruption message
                 chat_history.value += _render_chat_message(
                     "llm",
                     _render_markdown(
@@ -1123,7 +1130,15 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
             result = await run_manager.llm_manager.diagnose_failed_job(job_id)
             # Replace diagnosing indicator with result
             if result.interrupted:
-                chat_history.value = _render_chat_message(
+                # First show the LLM's analysis if there is any
+                if result.content:
+                    chat_history.value = _render_chat_message(
+                        "llm",
+                        _render_markdown(f"**Diagnosis for job {job_id}:**\n{result.content}"),
+                    )
+
+                # Then add the interruption message
+                chat_history.value += _render_chat_message(
                     "llm",
                     _render_markdown(
                         f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*",
