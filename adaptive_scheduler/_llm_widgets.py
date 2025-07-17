@@ -184,9 +184,9 @@ class ChatWidget:
             "deny",
             "denied",
         ]:
-            approval_data = "approved" if message.lower() in ["approve", "approved"] else "denied"
+            is_approved = message.lower() in ["approve", "approved"]
             await self._run_llm_interaction(
-                self.llm_manager.resume_chat(approval_data, thread_id=self.thread_id),
+                self.llm_manager.chat(is_approved, thread_id=self.thread_id),
             )
             self.waiting_for_approval = False
         else:

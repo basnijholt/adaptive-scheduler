@@ -99,13 +99,15 @@ async def _execute_agent(
 
 async def chat(
     agent_executor: CompiledStateGraph,
-    message: str | list[ToolMessage],
+    message: str | list[ToolMessage] | bool,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
 ) -> ChatResult:
     """Handle a chat message and return a response."""
     if isinstance(message, str):
         payload = {"messages": [HumanMessage(content=message)]}
+    elif isinstance(message, bool):
+        payload = Command(resume="approved" if message else "denied")
     else:
         payload = {"messages": message}
 
@@ -115,23 +117,6 @@ async def chat(
         thread_id,
         run_metadata,
         "LLM Manager Chat",
-    )
-
-
-async def resume_chat(
-    agent_executor: CompiledStateGraph,
-    approval_data: Any,
-    thread_id: str = "1",
-    run_metadata: dict[str, Any] | None = None,
-) -> ChatResult:
-    """Resume an interrupted chat session with human approval."""
-    command = Command(resume=approval_data)
-    return await _execute_agent(
-        agent_executor,
-        command,
-        thread_id,
-        run_metadata,
-        "LLM Manager Resume Chat",
     )
 
 
@@ -248,26 +233,12 @@ class LLMManager(BaseManager):
 
     async def chat(
         self,
-        message: str | list[ToolMessage],
+        message: str | list[ToolMessage] | bool,
         thread_id: str = "1",
         run_metadata: dict[str, Any] | None = None,
     ) -> ChatResult:
         """Handle a chat message and return a response."""
         return await chat(self.agent_executor, message, thread_id, run_metadata)
-
-    async def resume_chat(
-        self,
-        approval_data: Any,
-        thread_id: str = "1",
-        run_metadata: dict[str, Any] | None = None,
-    ) -> ChatResult:
-        """Resume an interrupted chat session with human approval."""
-        return await resume_chat(
-            self.agent_executor,
-            approval_data,
-            thread_id,
-            run_metadata,
-        )
 
     def get_history(self, thread_id: str) -> MessagesState:
         """Get the message history for a thread."""
