@@ -13,8 +13,8 @@ class TestMultiThreadSupport:
 
     def test_chat_widget_has_proper_structure_for_multi_thread(self) -> None:
         """Test that chat widget has the proper structure for multi-thread support."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
         ]
@@ -22,9 +22,9 @@ class TestMultiThreadSupport:
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.diagnose_failed_job = AsyncMock(return_value="Test diagnosis")
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         failed_job_dropdown = widget.children[2]
 
         # Verify that dropdown has multiple jobs available
@@ -33,17 +33,17 @@ class TestMultiThreadSupport:
 
     def test_llm_manager_uses_job_id_as_thread_id_for_diagnosis(self) -> None:
         """Test that LLM manager uses job_id as thread_id for diagnosis."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_123", "job_name": "test_job", "output_logs": []},
         ]
 
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.diagnose_failed_job = AsyncMock(return_value="Test diagnosis")
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
 
         # Verify that the widget structure is correct for multi-thread support
         assert len(widget.children) == 6
@@ -51,11 +51,12 @@ class TestMultiThreadSupport:
 
     def test_default_thread_when_no_job_selected(self) -> None:
         """Test that appropriate structure exists when no job is selected."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = []
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        db_manager = MagicMock()
+        db_manager.failed = []
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         failed_job_dropdown = widget.children[2]
 
         # No jobs available, dropdown should be empty but enabled
@@ -139,8 +140,8 @@ class TestMultiThreadSupport:
 
     def test_widget_structure_supports_multi_thread_workflow(self) -> None:
         """Test that widget structure supports multi-thread workflow."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
             {"job_id": "job_3", "job_name": "test_job_3", "output_logs": []},
@@ -149,9 +150,9 @@ class TestMultiThreadSupport:
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.diagnose_failed_job = AsyncMock(return_value="Test diagnosis")
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
 
         # Get widget components
         refresh_button = widget.children[1]
@@ -166,7 +167,8 @@ class TestMultiThreadSupport:
         assert failed_job_dropdown.options == ("job_1", "job_2", "job_3")
         assert not failed_job_dropdown.disabled
         assert yolo_checkbox.description == "YOLO mode"
-        assert chat_history.description == "Chat:"
+        # The chat history doesn't have a description in the new implementation
+        assert "Hello!" in chat_history.value
         assert text_input.description == "You:"
 
         # Verify that the dropdown has observers (which handle thread switching)

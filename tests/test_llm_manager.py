@@ -219,6 +219,8 @@ def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
     """Test that the chat widget's refresh button updates the failed jobs list."""
     run_manager.database_manager.failed = []
     assert run_manager.llm_manager is not None
+    # The LLMManager is mocked, so we need to set up the db_manager attribute
+    run_manager.llm_manager.db_manager = run_manager.database_manager
     widget = chat_widget(run_manager.llm_manager)
     (
         _,  # title

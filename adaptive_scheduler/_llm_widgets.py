@@ -109,7 +109,13 @@ class ChatWidget:
 
         # Trigger diagnosis if a job is already selected
         if self.failed_job_dropdown.value:
-            self._on_failed_job_change({"new": self.failed_job_dropdown.value})
+            try:
+                # Only trigger if we have a running event loop
+                asyncio.get_running_loop()
+                self._on_failed_job_change({"new": self.failed_job_dropdown.value})
+            except RuntimeError:
+                # No event loop running, skip async initialization
+                pass
 
     def _create_task(self, awaitable: Coroutine) -> None:
         """Run an async function as a background task."""

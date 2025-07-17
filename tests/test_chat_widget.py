@@ -13,9 +13,9 @@ class TestChatWidget:
 
     def test_chat_widget_structure(self) -> None:
         """Test that the chat widget has the correct structure."""
-        # Create mock run manager with failed jobs
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        # Create mock database manager with failed jobs
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
         ]
@@ -24,10 +24,10 @@ class TestChatWidget:
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.diagnose_failed_job = AsyncMock(return_value="Test diagnosis")
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
         # Create the chat widget
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
 
         # Check widget structure
         assert len(widget.children) == 6
@@ -56,11 +56,12 @@ class TestChatWidget:
 
     def test_chat_widget_empty_failed_jobs(self) -> None:
         """Test that the chat widget handles empty failed jobs correctly."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = []
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        db_manager = MagicMock()
+        db_manager.failed = []
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         failed_job_dropdown = widget.children[2]
 
         assert failed_job_dropdown.options == ()
@@ -68,13 +69,14 @@ class TestChatWidget:
 
     def test_chat_widget_refresh_button_functionality(self) -> None:
         """Test that the refresh button works correctly."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
         ]
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         refresh_button = widget.children[1]
         failed_job_dropdown = widget.children[2]
 
@@ -83,7 +85,7 @@ class TestChatWidget:
         assert not failed_job_dropdown.disabled
 
         # Add another job
-        run_manager.database_manager.failed.append(
+        db_manager.failed.append(
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
         )
 
@@ -93,7 +95,7 @@ class TestChatWidget:
         assert not failed_job_dropdown.disabled
 
         # Remove all jobs
-        run_manager.database_manager.failed = []
+        db_manager.failed = []
         refresh_button.click()
         assert failed_job_dropdown.options == ()
         # The dropdown should still be enabled when there are no failed jobs
@@ -101,13 +103,14 @@ class TestChatWidget:
 
     def test_chat_widget_dropdown_disabled_state(self) -> None:
         """Test that the dropdown disabled state works correctly."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
         ]
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         refresh_button = widget.children[1]
         failed_job_dropdown = widget.children[2]
 
@@ -116,7 +119,7 @@ class TestChatWidget:
         assert failed_job_dropdown.options == ("job_1",)
 
         # Clear failed jobs
-        run_manager.database_manager.failed = []
+        db_manager.failed = []
         refresh_button.click()
 
         # Should have no options but still be enabled
@@ -124,7 +127,7 @@ class TestChatWidget:
         assert failed_job_dropdown.options == ()
 
         # Add job back
-        run_manager.database_manager.failed = [
+        db_manager.failed = [
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
         ]
         refresh_button.click()
@@ -133,36 +136,19 @@ class TestChatWidget:
         assert not failed_job_dropdown.disabled
         assert failed_job_dropdown.options == ("job_2",)
 
-    def test_chat_widget_no_llm_manager(self) -> None:
-        """Test that the chat widget handles missing LLM manager gracefully."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
-            {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
-        ]
-        run_manager.llm_manager = None
-
-        widget = chat_widget(run_manager)
-        chat_history = widget.children[4]
-
-        # Should still create the widget
-        assert len(widget.children) == 6
-
-        # Chat history should have initial message
-        assert "Hello!" in chat_history.value
-
     def test_chat_widget_components_configuration(self) -> None:
         """Test that widget components are properly configured."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
         ]
 
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.diagnose_failed_job = AsyncMock(return_value="Test diagnosis")
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
 
         # Get components
         refresh_button = widget.children[1]
@@ -175,22 +161,23 @@ class TestChatWidget:
         assert refresh_button.description == "Refresh Failed Jobs"
         assert failed_job_dropdown.description == "Failed Job:"
         assert yolo_checkbox.description == "YOLO mode"
-        assert chat_history.description == "Chat:"
+        # The chat history doesn't have a description in the new implementation
+        assert "Hello!" in chat_history.value
         assert text_input.description == "You:"
         assert text_input.placeholder == "Ask a question..."
 
     @pytest.mark.asyncio
     async def test_chat_widget_basic_functionality(self) -> None:
         """Test basic chat widget functionality."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = []
+        db_manager = MagicMock()
+        db_manager.failed = []
 
         llm_manager = MagicMock(spec=LLMManager)
         llm_manager.chat = AsyncMock(return_value="Test response")
         llm_manager.yolo = False
-        run_manager.llm_manager = llm_manager
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         text_input = widget.children[5]
         chat_history = widget.children[4]
         yolo_checkbox = widget.children[3]
@@ -200,7 +187,7 @@ class TestChatWidget:
         assert yolo_checkbox.value
 
         # Test that the LLM manager exists
-        assert run_manager.llm_manager is not None
+        assert llm_manager is not None
 
         # Test that the chat history has the initial message
         assert "Hello!" in chat_history.value
@@ -215,44 +202,46 @@ class TestChatWidgetIntegration:
 
     def test_chat_widget_with_multiple_scenarios(self) -> None:
         """Test various scenarios with the chat widget."""
-        run_manager = MagicMock()
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        db_manager = MagicMock()
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
         # Test with no failed jobs
-        run_manager.database_manager.failed = []
-        widget = chat_widget(run_manager)
+        db_manager.failed = []
+        widget = chat_widget(llm_manager)
         dropdown = widget.children[2]
         assert not dropdown.disabled
 
         # Test with one failed job
-        run_manager.database_manager.failed = [
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
         ]
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         dropdown = widget.children[2]
         assert not dropdown.disabled
         assert dropdown.options == ("job_1",)
 
         # Test with multiple failed jobs
-        run_manager.database_manager.failed = [
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
             {"job_id": "job_2", "job_name": "test_job_2", "output_logs": []},
             {"job_id": "job_3", "job_name": "test_job_3", "output_logs": []},
         ]
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         dropdown = widget.children[2]
         assert not dropdown.disabled
         assert dropdown.options == ("job_1", "job_2", "job_3")
 
     def test_chat_widget_observer_management(self) -> None:
         """Test that the observer management works correctly during refresh."""
-        run_manager = MagicMock()
-        run_manager.database_manager.failed = [
+        db_manager = MagicMock()
+        db_manager.failed = [
             {"job_id": "job_1", "job_name": "test_job_1", "output_logs": []},
         ]
-        run_manager.llm_manager = MagicMock(spec=LLMManager)
+        llm_manager = MagicMock(spec=LLMManager)
+        llm_manager.db_manager = db_manager
 
-        widget = chat_widget(run_manager)
+        widget = chat_widget(llm_manager)
         refresh_button = widget.children[1]
         failed_job_dropdown = widget.children[2]
 
@@ -264,7 +253,7 @@ class TestChatWidgetIntegration:
         assert len(failed_job_dropdown._trait_notifiers.get("value", [])) > 0
 
         # Clear jobs and refresh
-        run_manager.database_manager.failed = []
+        db_manager.failed = []
         refresh_button.click()
 
         # Observers should still be there
