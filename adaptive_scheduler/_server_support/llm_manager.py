@@ -6,9 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 import aiofiles
 from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
@@ -19,7 +16,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.types import interrupt
+from langgraph.types import Command, interrupt
 
 from .base_manager import BaseManager
 
@@ -125,8 +122,6 @@ async def resume_chat(
     run_metadata: dict[str, Any] | None = None,
 ) -> ChatResult:
     """Resume an interrupted chat session with human approval."""
-    from langgraph.types import Command
-
     command = Command(resume=approval_data)
     return await _execute_agent(
         agent_executor,
