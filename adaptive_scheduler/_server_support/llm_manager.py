@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import aiofiles
 from langchain_community.agent_toolkits.file_management.toolkit import (
@@ -21,121 +23,97 @@ from langgraph.types import interrupt
 from .base_manager import BaseManager
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from langchain_core.messages import BaseMessage
 
     from .database_manager import DatabaseManager
 
 
-class InterruptedException(Exception):  # noqa: N818
-    """Exception raised when the LLM execution is interrupted for human input."""
+# Constants
+CONTENT_PREVIEW_LENGTH = 100
 
 
-def extract_write_operations(last_message: BaseMessage) -> list[str]:
-    """Extract write operations from tool calls for approval context."""
-    write_ops = []
-    for tool_call in last_message.tool_calls:
-        tool_name = tool_call.get("name", "")
-        if tool_name in ["write_file", "move_file"]:
-            args = tool_call.get("args", {})
-            if tool_name == "write_file":
-                file_path = args.get("file_path", "unknown file")
-                content = args.get("text", "")
-                # Show preview of content for context
-                content_preview = content[:100] + "..." if len(content) > 100 else content
-                write_ops.append(f"write to {file_path}:\n```\n{content_preview}\n```")
-            elif tool_name == "move_file":
-                src = args.get("src_path", "unknown")
-                dst = args.get("new_path", "unknown")
-                write_ops.append(f"move {src} to {dst}")
-    return write_ops
+async def chat(
+    agent_executor: Any,
+    message: str | list[ToolMessage],
+    thread_id: str = "1",
+    run_metadata: dict[str, Any] | None = None,
+) -> str:
+    """Handle a chat message and return a response."""
+    metadata = run_metadata or {}
+    metadata["thread_id"] = thread_id
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "run_name": "LLM Manager Chat",
+        "run_id": uuid.uuid4(),
+        "tags": ["llm_manager"],
+        "metadata": metadata,
+    }
+
+    if isinstance(message, str):
+        payload = {"messages": [HumanMessage(content=message)]}
+    else:
+        payload = {"messages": message}
+
+    try:
+        response = await agent_executor.ainvoke(
+            payload,
+            config,
+        )
+
+        # After execution, check if the graph is in an interrupted state
+        interrupt_msg = check_for_interrupts(agent_executor, config)
+        if interrupt_msg:
+            raise InterruptedException(interrupt_msg)  # noqa: TRY301
+
+        # Get the last message content
+        if response["messages"]:
+            content = response["messages"][-1].content
+            return format_response_content(content)
+
+        return ""  # No messages in response  # noqa: TRY300
+    except InterruptedException:
+        # Re-raise interrupt exceptions as-is
+        raise
+    except Exception as e:
+        # Check if this is an interruption that we need to handle
+        if "interrupt" in str(e).lower() or "Interrupted" in str(e):
+            # Re-raise as a custom exception that the UI can handle
+            raise InterruptedException(str(e)) from e
+        raise
 
 
-def needs_approval(last_message: BaseMessage, yolo: bool) -> bool:
-    """Check if the message contains tool calls that need approval."""
-    if yolo or not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-        return False
+async def resume_chat(
+    agent_executor: Any,
+    approval_data: Any,
+    thread_id: str = "1",
+    run_metadata: dict[str, Any] | None = None,
+) -> str:
+    """Resume an interrupted chat session with human approval."""
+    from langgraph.types import Command
 
-    return any(
-        tool_call.get("name", "") in ["write_file", "move_file"]
-        for tool_call in last_message.tool_calls
+    metadata = run_metadata or {}
+    metadata["thread_id"] = thread_id
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "run_name": "LLM Manager Resume Chat",
+        "run_id": uuid.uuid4(),
+        "tags": ["llm_manager"],
+        "metadata": metadata,
+    }
+
+    # Resume with the approval data
+    command = Command(resume=approval_data)
+
+    response = await agent_executor.ainvoke(
+        command,
+        config,
     )
+    return response["messages"][-1].content
 
 
-def human_approval_node(state: MessagesState) -> dict[str, list]:
-    """Node that requests human approval for write operations."""
-    messages = state["messages"]
-    last_message = messages[-1]
-
-    # Extract write operations for detailed approval message
-    write_ops = extract_write_operations(last_message)
-
-    # Create approval message with operation details
-    approval_message = "Approve these operations?\n\n" + "\n\n".join(write_ops)
-
-    # Interrupt for human approval
-    decision = interrupt(
-        {
-            "message": approval_message,
-            "operations": write_ops,
-        },
-    )
-
-    if decision != "approved":
-        # Add denial message if not approved
-        denial_msg = HumanMessage(content="Operations denied by user.")
-        return {"messages": [denial_msg]}
-
-    # If approved, don't add any messages, just return empty dict
-    return {}
-
-
-def create_should_continue_function(yolo: bool) -> Callable[[MessagesState], str]:
-    """Create the conditional edge function for the graph."""
-
-    def should_continue(state: MessagesState) -> str:
-        last_message = state["messages"][-1]
-
-        # Only AI messages can have tool calls
-        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-            return END
-
-        # Check if any tool call needs approval
-        if needs_approval(last_message, yolo):
-            return "human_approval"
-
-        return "tools"
-
-    return should_continue
-
-
-def format_response_content(content: Any) -> str:
-    """Format response content, handling both strings and lists."""
-    if isinstance(content, list):
-        return "\n".join(str(item) for item in content)
-    return content or ""
-
-
-def check_for_interrupts(agent_executor: Any, config: dict[str, Any]) -> str | None:
-    """Check if the graph is in an interrupted state and return interrupt message."""
-    snapshot = agent_executor.get_state(config)
-    if snapshot.interrupts:
-        interrupt_info = snapshot.interrupts[0]
-        return interrupt_info.value.get("message", "Approval needed")
-    return None
-
-
-def create_diagnosis_prompt(log_content: str) -> str:
-    """Create the initial prompt for job failure diagnosis."""
-    return (
-        "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
-        "If you can identify the problem from the log alone, provide the corrected code.\n"
-        "You can freely read files without asking for permission. For write operations, proceed directly with the file tools - approval will be handled automatically.\n\n"
-        f"Log file(s):\n```\n{log_content}\n```\n\n"
-        "What caused this failure and how can it be fixed?"
-    )
-
-
-def create_agent_graph(llm: Any, tools: list[Any], yolo: bool) -> StateGraph:
+def create_agent_graph(llm: Any, tools: list[Any], *, yolo: bool) -> StateGraph:
     """Create the LangGraph agent with approval flow."""
     graph = StateGraph(MessagesState)
 
@@ -147,10 +125,10 @@ def create_agent_graph(llm: Any, tools: list[Any], yolo: bool) -> StateGraph:
     # Add nodes
     graph.add_node("agent", call_model)
     graph.add_node("tools", ToolNode(tools))
-    graph.add_node("human_approval", human_approval_node)
+    graph.add_node("human_approval", _human_approval_node)
 
     # Add edges
-    graph.add_conditional_edges("agent", create_should_continue_function(yolo))
+    graph.add_conditional_edges("agent", _create_should_continue_function(yolo=yolo))
     graph.add_edge("tools", "agent")
     graph.add_edge("human_approval", "tools")
     graph.set_entry_point("agent")
@@ -201,7 +179,7 @@ class LLMManager(BaseManager):
         self.memory = MemorySaver()
 
         # Create the agent graph using extracted functions
-        graph = create_agent_graph(self.llm, tools, yolo)
+        graph = create_agent_graph(self.llm, tools, yolo=yolo)
         self.agent_executor = graph.compile(checkpointer=self.memory)
         self.yolo = yolo
 
@@ -212,43 +190,16 @@ class LLMManager(BaseManager):
         while not self.task.done():  # noqa: ASYNC110
             await asyncio.sleep(1)
 
-    def _get_log_file_paths(self, job_id: str) -> list[Path]:
-        """Get the log file paths from the database."""
-        for job in self.db_manager.failed:
-            if job["job_id"] == job_id:
-                output_logs = [Path(log) for log in job["output_logs"]]
-                log_paths = []
-                for log_path in output_logs:
-                    if log_path.exists():
-                        log_paths.append(log_path)
-                    elif self.move_old_logs_to:
-                        log_path_alt = self.move_old_logs_to / log_path.name
-                        if log_path_alt.exists():
-                            log_paths.append(log_path_alt)
-                return log_paths
-        return []
-
-    async def _read_log_files(self, log_paths: list[Path]) -> str:
-        """Read and combine the content of multiple log files."""
-        log_contents = []
-        for log_path in log_paths:
-            try:
-                async with aiofiles.open(log_path) as f:
-                    log_contents.append(await f.read())
-            except FileNotFoundError:  # noqa: PERF203
-                log_contents.append(f"Log file not found: {log_path}")
-        return "\n".join(log_contents)
-
     async def diagnose_failed_job(self, job_id: str) -> str:
         """Analyzes the log file of a failed job and returns a diagnosis."""
         if job_id in self._diagnoses_cache:
             return self._diagnoses_cache[job_id]
 
-        log_paths = self._get_log_file_paths(job_id)
+        log_paths = _get_log_file_paths(self.db_manager, job_id, self.move_old_logs_to)
         if not log_paths:
             return f"Could not find log files for job {job_id}"
 
-        log_content = await self._read_log_files(log_paths)
+        log_content = await _read_log_files_async(log_paths)
         if "Log file not found" in log_content and not any(
             "Log file not found" not in c for c in log_content.splitlines()
         ):
@@ -257,7 +208,8 @@ class LLMManager(BaseManager):
         initial_message = create_diagnosis_prompt(log_content)
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}
-        diagnosis = await self.chat(
+        diagnosis = await chat(
+            self.agent_executor,
             initial_message,
             thread_id=job_id,
             run_metadata=run_metadata,
@@ -271,48 +223,8 @@ class LLMManager(BaseManager):
         thread_id: str = "1",
         run_metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Handles a chat message and returns a response."""
-        metadata = run_metadata or {}
-        metadata["thread_id"] = thread_id
-        config = {
-            "configurable": {"thread_id": thread_id},
-            "run_name": "LLM Manager Chat",
-            "run_id": uuid.uuid4(),
-            "tags": ["llm_manager"],
-            "metadata": metadata,
-        }
-
-        if isinstance(message, str):
-            payload = {"messages": [HumanMessage(content=message)]}
-        else:
-            payload = {"messages": message}
-
-        try:
-            response = await self.agent_executor.ainvoke(
-                payload,
-                config,
-            )
-
-            # After execution, check if the graph is in an interrupted state
-            interrupt_msg = check_for_interrupts(self.agent_executor, config)
-            if interrupt_msg:
-                raise InterruptedException(interrupt_msg)
-
-            # Get the last message content
-            if response["messages"]:
-                content = response["messages"][-1].content
-                return format_response_content(content)
-
-            return ""  # No messages in response
-        except InterruptedException:
-            # Re-raise interrupt exceptions as-is
-            raise
-        except Exception as e:
-            # Check if this is an interruption that we need to handle
-            if "interrupt" in str(e).lower() or "Interrupted" in str(e):
-                # Re-raise as a custom exception that the UI can handle
-                raise InterruptedException(str(e)) from e
-            raise
+        """Handle a chat message and return a response."""
+        return await chat(self.agent_executor, message, thread_id, run_metadata)
 
     async def resume_chat(
         self,
@@ -321,23 +233,155 @@ class LLMManager(BaseManager):
         run_metadata: dict[str, Any] | None = None,
     ) -> str:
         """Resume an interrupted chat session with human approval."""
-        from langgraph.types import Command
-
-        metadata = run_metadata or {}
-        metadata["thread_id"] = thread_id
-        config = {
-            "configurable": {"thread_id": thread_id},
-            "run_name": "LLM Manager Resume Chat",
-            "run_id": uuid.uuid4(),
-            "tags": ["llm_manager"],
-            "metadata": metadata,
-        }
-
-        # Resume with the approval data
-        command = Command(resume=approval_data)
-
-        response = await self.agent_executor.ainvoke(
-            command,
-            config,
+        return await resume_chat(
+            self.agent_executor,
+            approval_data,
+            thread_id,
+            run_metadata,
         )
-        return response["messages"][-1].content
+
+
+class InterruptedException(Exception):  # noqa: N818
+    """Exception raised when the LLM execution is interrupted for human input."""
+
+
+def _extract_write_operations(last_message: BaseMessage) -> list[str]:
+    """Extract write operations from tool calls for approval context."""
+    write_ops = []
+    for tool_call in last_message.tool_calls:
+        tool_name = tool_call.get("name", "")
+        if tool_name in ["write_file", "move_file"]:
+            args = tool_call.get("args", {})
+            if tool_name == "write_file":
+                file_path = args.get("file_path", "unknown file")
+                content = args.get("text", "")
+                # Show preview of content for context
+                content_preview = (
+                    content[:CONTENT_PREVIEW_LENGTH] + "..."
+                    if len(content) > CONTENT_PREVIEW_LENGTH
+                    else content
+                )
+                write_ops.append(f"write to {file_path}:\n```\n{content_preview}\n```")
+            elif tool_name == "move_file":
+                src = args.get("src_path", "unknown")
+                dst = args.get("new_path", "unknown")
+                write_ops.append(f"move {src} to {dst}")
+    return write_ops
+
+
+def _needs_approval(last_message: BaseMessage, *, yolo: bool) -> bool:
+    """Check if the message contains tool calls that need approval."""
+    if yolo or not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+        return False
+
+    return any(
+        tool_call.get("name", "") in ["write_file", "move_file"]
+        for tool_call in last_message.tool_calls
+    )
+
+
+def _human_approval_node(state: MessagesState) -> dict[str, list]:
+    """Node that requests human approval for write operations."""
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # Extract write operations for detailed approval message
+    write_ops = _extract_write_operations(last_message)
+
+    # Create approval message with operation details
+    approval_message = "Approve these operations?\n\n" + "\n\n".join(write_ops)
+
+    # Interrupt for human approval
+    decision = interrupt(
+        {
+            "message": approval_message,
+            "operations": write_ops,
+        },
+    )
+
+    if decision != "approved":
+        # Add denial message if not approved
+        denial_msg = HumanMessage(content="Operations denied by user.")
+        return {"messages": [denial_msg]}
+
+    # If approved, don't add any messages, just return empty dict
+    return {}
+
+
+def _create_should_continue_function(*, yolo: bool) -> Callable[[MessagesState], str]:
+    """Create the conditional edge function for the graph."""
+
+    def should_continue(state: MessagesState) -> str:
+        last_message = state["messages"][-1]
+
+        # Only AI messages can have tool calls
+        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+            return END
+
+        # Check if any tool call needs approval
+        if _needs_approval(last_message, yolo=yolo):
+            return "human_approval"
+
+        return "tools"
+
+    return should_continue
+
+
+def format_response_content(content: Any) -> str:
+    """Format response content, handling both strings and lists."""
+    if isinstance(content, list):
+        return "\n".join(str(item) for item in content)
+    return content or ""
+
+
+def check_for_interrupts(agent_executor: Any, config: dict[str, Any]) -> str | None:
+    """Check if the graph is in an interrupted state and return interrupt message."""
+    snapshot = agent_executor.get_state(config)
+    if snapshot.interrupts:
+        interrupt_info = snapshot.interrupts[0]
+        return interrupt_info.value.get("message", "Approval needed")
+    return None
+
+
+def create_diagnosis_prompt(log_content: str) -> str:
+    """Create the initial prompt for job failure diagnosis."""
+    return (
+        "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
+        "If you can identify the problem from the log alone, provide the corrected code.\n"
+        "You can freely read files without asking for permission. For write operations, proceed directly with the file tools - approval will be handled automatically.\n\n"
+        f"Log file(s):\n```\n{log_content}\n```\n\n"
+        "What caused this failure and how can it be fixed?"
+    )
+
+
+async def _read_log_files_async(log_paths: list[Path]) -> str:
+    """Read and combine the content of multiple log files asynchronously."""
+    log_contents = []
+    for log_path in log_paths:
+        try:
+            async with aiofiles.open(log_path) as f:
+                log_contents.append(await f.read())
+        except FileNotFoundError:  # noqa: PERF203
+            log_contents.append(f"Log file not found: {log_path}")
+    return "\n".join(log_contents)
+
+
+def _get_log_file_paths(
+    db_manager: DatabaseManager,
+    job_id: str,
+    move_old_logs_to: Path | None = None,
+) -> list[Path]:
+    """Get the log file paths from the database."""
+    for job in db_manager.failed:
+        if job["job_id"] == job_id:
+            output_logs = [Path(log) for log in job["output_logs"]]
+            log_paths = []
+            for log_path in output_logs:
+                if log_path.exists():
+                    log_paths.append(log_path)
+                elif move_old_logs_to:
+                    log_path_alt = move_old_logs_to / log_path.name
+                    if log_path_alt.exists():
+                        log_paths.append(log_path_alt)
+            return log_paths
+    return []

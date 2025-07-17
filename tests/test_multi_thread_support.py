@@ -75,12 +75,18 @@ class TestMultiThreadSupport:
             {"job_id": "test_job_456", "job_name": "test_job", "output_logs": []},
         ]
 
-        with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
+        with (
+            patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"),
+            patch(
+                "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
+                return_value=["fake_log.txt"],
+            ),
+            patch(
+                "adaptive_scheduler._server_support.llm_manager._read_log_files_async",
+                return_value="fake log content",
+            ),
+        ):
             llm_manager = LLMManager(db_manager=db_manager)
-
-            # Mock the helper methods
-            llm_manager._get_log_file_paths = MagicMock(return_value=["fake_log.txt"])  # type: ignore[method-assign]
-            llm_manager._read_log_files = AsyncMock(return_value="fake log content")  # type: ignore[method-assign]
 
             # Mock the chat method to capture its call
             llm_manager.chat = AsyncMock(return_value="Test diagnosis")  # type: ignore[method-assign]

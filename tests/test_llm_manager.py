@@ -39,7 +39,10 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
     with (
         patch.object(llm_manager.db_manager, "as_dicts", return_value=[]),
         patch("adaptive_scheduler._server_support.llm_manager.aiofiles.open") as mock_open,
-        patch.object(llm_manager, "_get_log_file_paths", return_value=["some/path/to/log.txt"]),
+        patch(
+            "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
+            return_value=["some/path/to/log.txt"],
+        ),
     ):
         mock_open.return_value.__aenter__.return_value.read.return_value = (
             "This is a log file with an error."
@@ -139,14 +142,12 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
             return_value={"messages": [AIMessage(content="diagnosis")]},
         )
     with (
-        patch.object(
-            llm_manager,
-            "_read_log_files",
+        patch(
+            "adaptive_scheduler._server_support.llm_manager._read_log_files_async",
             return_value="log content",
         ),
-        patch.object(
-            llm_manager,
-            "_get_log_file_paths",
+        patch(
+            "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
             return_value=["some/path/to/log.txt"],
         ),
     ):
@@ -159,9 +160,8 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
 async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> None:
     """Test that the diagnose_failed_job method handles a missing log file."""
     job_id = "test_job"
-    with patch.object(
-        llm_manager,
-        "_get_log_file_paths",
+    with patch(
+        "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
         return_value=[],
     ):
         diagnosis = await llm_manager.diagnose_failed_job(job_id)
@@ -169,33 +169,39 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
 
 
 @pytest.mark.asyncio
-async def test_read_log_files(llm_manager: LLMManager, tmp_path: Path) -> None:
+async def test_read_log_files(tmp_path: Path) -> None:
     """Test that the _read_log_files method reads a file asynchronously."""
+    from adaptive_scheduler._server_support.llm_manager import _read_log_files_async
+
     log_content = "This is a test log file."
     log_file = tmp_path / "job_test.log"
     log_file.write_text(log_content)
 
-    read_content = await llm_manager._read_log_files([log_file])
+    read_content = await _read_log_files_async([log_file])
     assert read_content == log_content
 
 
 @pytest.mark.asyncio
-async def test_read_log_files_async(llm_manager: LLMManager, tmp_path: Path) -> None:
+async def test_read_log_files_async(tmp_path: Path) -> None:
     """Test that the _read_log_files method reads a file asynchronously."""
+    from adaptive_scheduler._server_support.llm_manager import _read_log_files_async
+
     log_content = "This is a test log file."
     log_file = tmp_path / "job_test.log"
     async with aiofiles.open(log_file, "w") as f:
         await f.write(log_content)
 
-    read_content = await llm_manager._read_log_files([log_file])
+    read_content = await _read_log_files_async([log_file])
     assert read_content == log_content
 
 
 @pytest.mark.asyncio
-async def test_read_log_files_not_found(llm_manager: LLMManager) -> None:
+async def test_read_log_files_not_found() -> None:
     """Test that the _read_log_files method handles a missing file."""
+    from adaptive_scheduler._server_support.llm_manager import _read_log_files_async
+
     log_file = "non_existent_file.log"
-    read_content = await llm_manager._read_log_files([Path(log_file)])
+    read_content = await _read_log_files_async([Path(log_file)])
     assert "Log file not found" in read_content
 
 
