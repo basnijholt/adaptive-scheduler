@@ -10,7 +10,7 @@ from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
@@ -83,79 +83,65 @@ class LLMManager(BaseManager):
 
             messages = state["messages"]
 
-            # Find the last AI message with tool calls
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage) and msg.tool_calls:
-                    # Check if any tool call is a write operation that needs approval
-                    for tool_call in msg.tool_calls:
-                        tool_name = tool_call.get("name", "")
-                        if tool_name in ["write_file", "move_file"]:
-                            # Get the action description from the tool call args
-                            args = tool_call.get("args", {})
-                            if tool_name == "write_file":
-                                file_path = args.get("file_path", "unknown file")
-                                action_description = f"write to file {file_path}"
-                            elif tool_name == "move_file":
-                                src = args.get("src_path", "unknown source")
-                                dst = args.get("new_path", "unknown destination")
-                                action_description = f"move file from {src} to {dst}"
-                            else:
-                                action_description = f"perform {tool_name} operation"
+            # Get the last AI message (we know it has tool calls from should_continue)
+            last_message = messages[-1]
 
-                            # Interrupt for human approval
-                            decision = interrupt(
-                                {
-                                    "action": action_description,
-                                    "message": f"Do you approve of this action: {action_description}",
-                                },
-                            )
+            # Find the first write operation that needs approval
+            for tool_call in last_message.tool_calls:
+                tool_name = tool_call.get("name", "")
+                if tool_name in ["write_file", "move_file"]:
+                    # Get the action description from the tool call args
+                    args = tool_call.get("args", {})
+                    if tool_name == "write_file":
+                        file_path = args.get("file_path", "unknown file")
+                        action_description = f"write to file {file_path}"
+                    elif tool_name == "move_file":
+                        src = args.get("src_path", "unknown source")
+                        dst = args.get("new_path", "unknown destination")
+                        action_description = f"move file from {src} to {dst}"
+                    else:
+                        action_description = f"perform {tool_name} operation"
 
-                            if decision == "approved":
-                                return Command(goto="tools")
-                            # If denied, go back to agent with denial message
-                            from langchain_core.messages import HumanMessage
+                    # Interrupt for human approval
+                    decision = interrupt(
+                        {
+                            "action": action_description,
+                            "message": f"Do you approve of this action: {action_description}",
+                        }
+                    )
 
-                            denial_msg = HumanMessage(
-                                content=f"Action denied by user: {action_description}",
-                            )
-                            return Command(goto="agent", update={"messages": [denial_msg]})
+                    if decision == "approved":
+                        return Command(goto="tools")
+                    # If denied, go back to agent with denial message
+                    from langchain_core.messages import HumanMessage
+
+                    denial_msg = HumanMessage(
+                        content=f"Action denied by user: {action_description}",
+                    )
+                    return Command(goto="agent", update={"messages": [denial_msg]})
 
             # No write operations found, proceed to tools
             return Command(goto="tools")
 
-        def check_approval_needed(state: MessagesState) -> str:
-            """Check if human approval is needed before tool execution."""
-            if yolo:
-                return "tools"  # Skip approval in YOLO mode
-
-            messages = state["messages"]
-
-            # Check if the last AI message has tool calls that need approval
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage) and msg.tool_calls:
-                    for tool_call in msg.tool_calls:
-                        tool_name = tool_call.get("name", "")
-                        # Write operations need approval (read operations are auto-approved)
-                        if tool_name in ["write_file", "move_file"]:
-                            return "human_approval"
-                    break
-
-            return "tools"
-
         graph.add_node("agent", call_model)
         graph.add_node("tools", ToolNode(tools))
         graph.add_node("human_approval", human_approval_node)
-        graph.add_node("check_approval", lambda state: {})
 
         def should_continue(state: MessagesState) -> str:
             last_message = state["messages"][-1]
             if not last_message.tool_calls:
                 return END
-            # Check if approval is needed before executing tools
-            return "check_approval"
+
+            # Check if any tool call needs approval
+            if not yolo:
+                for tool_call in last_message.tool_calls:
+                    tool_name = tool_call.get("name", "")
+                    if tool_name in ["write_file", "move_file"]:
+                        return "human_approval"
+
+            return "tools"
 
         graph.add_conditional_edges("agent", should_continue)
-        graph.add_conditional_edges("check_approval", check_approval_needed)
         graph.add_edge("tools", "agent")
         # human_approval uses Command(goto=...) so no explicit edges needed
         graph.set_entry_point("agent")
