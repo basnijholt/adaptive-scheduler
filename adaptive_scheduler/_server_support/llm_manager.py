@@ -318,12 +318,7 @@ def _human_approval_node(state: MessagesState) -> dict[str, list]:
     approval_message = "Approve these operations?\n\n" + "\n\n".join(write_ops)
 
     # Interrupt for human approval
-    decision = interrupt(
-        {
-            "message": approval_message,
-            "operations": write_ops,
-        },
-    )
+    decision = interrupt({"message": approval_message, "operations": write_ops})
 
     if decision != "approved":
         # Add denial message if not approved

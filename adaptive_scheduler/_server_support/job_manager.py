@@ -230,15 +230,6 @@ class JobManager(BaseManager):
                     )
                     tasks.append(task)
                     job["diagnosed"] = True
-            if tasks:
-                # Handle diagnosis results - some may be interrupted
-                results = await asyncio.gather(*tasks)
-                for result in results:
-                    if result.interrupted:
-                        log.info(f"Job diagnosis interrupted: {result.interrupt_message}")
-                        # Could store interrupt info for later handling
-                    else:
-                        log.info(f"Job diagnosis completed: {result.content[:100]}...")
 
         queued = self._queued(running)  # running `job_name`s
         not_queued = set(self.job_names) - queued
