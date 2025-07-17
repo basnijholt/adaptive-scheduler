@@ -123,7 +123,7 @@ def test_run_manager_with_google_llm() -> None:
             scheduler,
             learners,
             fnames,
-            llm_manager_kwargs={"model_provider": "google_genai", "model_name": "gemini-2.5-flash"},
+            llm_manager_kwargs={"model_provider": "google", "model_name": "gemini-2.5-flash"},
         )
         assert isinstance(run_manager.llm_manager, LLMManager)
         mock_chat_google.assert_called_once()
@@ -218,7 +218,8 @@ async def test_read_log_files_not_found() -> None:
 def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
     """Test that the chat widget's refresh button updates the failed jobs list."""
     run_manager.database_manager.failed = []
-    widget = chat_widget(run_manager)
+    assert run_manager.llm_manager is not None
+    widget = chat_widget(run_manager.llm_manager)
     (
         _,  # title
         refresh_button,

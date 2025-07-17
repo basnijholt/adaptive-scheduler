@@ -1,18 +1,22 @@
-import asyncio
-from collections.abc import Callable
-from typing import Any
+from __future__ import annotations
 
-import ipywidgets as ipyw
+import asyncio
+from typing import TYPE_CHECKING, Any
+
 import mistune
 import rich
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
-from rich.console import get_console
 
-from adaptive_scheduler.server_support import RunManager
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-console = get_console()
+    import ipywidgets as ipyw
+
+    from adaptive_scheduler.server_support import LLMManager
+
+console = rich.get_console()
 
 
 def _render_markdown(text: str) -> str:
@@ -58,7 +62,7 @@ def _create_task_wrapper(
 console = rich.get_console()
 
 
-def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
+def chat_widget(llm_manager: LLMManager) -> ipyw.VBox:  # noqa: PLR0915
     """Chat widget for interacting with the LLM."""
     import ipywidgets as ipyw
 
@@ -99,7 +103,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         nonlocal current_thread_id, waiting_for_approval
         message = sender.value
         sender.value = ""
-        if run_manager.llm_manager is None:
+        if llm_manager is None:
             chat_history.value += _render_chat_message(
                 "llm",
                 _render_markdown("⚠️ No LLM manager available."),
@@ -109,7 +113,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         # Disable input while processing
         sender.disabled = True
 
-        run_manager.llm_manager.yolo = yolo_checkbox.value
+        llm_manager.yolo = yolo_checkbox.value
         chat_history.value += _render_chat_message("user", _render_markdown(message))
 
         # Show thinking indicator
@@ -127,14 +131,14 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
                 approval_data = (
                     "approved" if message.lower() in ["approve", "approved"] else "denied"
                 )
-                result = await run_manager.llm_manager.resume_chat(
+                result = await llm_manager.resume_chat(
                     approval_data,
                     thread_id=current_thread_id,
                 )
                 waiting_for_approval = False
             else:
                 # Regular chat
-                result = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
+                result = await llm_manager.chat(message, thread_id=current_thread_id)
 
             # Remove thinking indicator
             chat_history.value = chat_history.value.replace(thinking_message, "")
@@ -171,7 +175,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
     text_input.on_submit(on_submit)
 
     # Add a dropdown to select a failed job
-    failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+    failed_jobs = [job["job_id"] for job in llm_manager.db_manager.failed]
     failed_job_dropdown = ipyw.Dropdown(
         options=failed_jobs,
         description="Failed Job:",
@@ -187,7 +191,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
             current_thread_id = "1"
             return
 
-        if run_manager.llm_manager is None:
+        if llm_manager is None:
             chat_history.value = _render_chat_message(
                 "llm",
                 _render_markdown("⚠️ No LLM manager available."),
@@ -208,7 +212,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         chat_history.value = diagnosing_message
 
         try:
-            result = await run_manager.llm_manager.diagnose_failed_job(job_id)
+            result = await llm_manager.diagnose_failed_job(job_id)
             # Replace diagnosing indicator with result
             if result.interrupted:
                 # First show the LLM's analysis if there is any
@@ -242,7 +246,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
 
     def refresh_failed_jobs(_: Any) -> None:
-        failed_jobs = [job["job_id"] for job in run_manager.database_manager.failed]
+        failed_jobs = [job["job_id"] for job in llm_manager.db_manager.failed]
         # Temporarily remove the observer to prevent triggering during refresh
         failed_job_dropdown.unobserve(on_failed_job_change, names="value")
         failed_job_dropdown.options = failed_jobs

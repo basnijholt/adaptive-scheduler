@@ -1059,7 +1059,7 @@ def info(  # noqa: PLR0915
         },
         "chat": {
             "widget": None,
-            "init_func": lambda: chat_widget(run_manager),
+            "init_func": lambda: chat_widget(run_manager.llm_manager),  # type: ignore[arg-type]
             "show_description": "show chat",
             "hide_description": "hide chat",
             "output": ipyw.Output(),
