@@ -14,9 +14,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from pygments import highlight
-from pygments.formatters import HtmlFormatter
-from pygments.lexers import get_lexer_by_name
 
 from adaptive_scheduler._llm_widgets import chat_widget
 from adaptive_scheduler.utils import load_dataframes
@@ -1147,13 +1144,3 @@ def _disable_widgets_output_scrollbar() -> None:
         </style>
         """
     display(ipyw.HTML(style))
-
-
-def highlight_code(code: str, lang: str, _: str) -> str:
-    """Highlight code blocks with pygments."""
-    try:
-        lexer = get_lexer_by_name(lang, stripall=True)
-    except ValueError:
-        lexer = get_lexer_by_name("text", stripall=True)
-    formatter = HtmlFormatter(style="monokai", nowrap=True)
-    return f"<div>{highlight(code, lexer, formatter)}</div>"

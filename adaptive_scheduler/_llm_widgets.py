@@ -5,6 +5,9 @@ from typing import Any
 import ipywidgets as ipyw
 import mistune
 import rich
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import get_lexer_by_name
 from rich.console import get_console
 
 from adaptive_scheduler.server_support import RunManager
@@ -265,3 +268,13 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
     )
     _add_title("adaptive_scheduler.widgets.chat_widget", vbox)
     return vbox
+
+
+def _highlight_code(code: str, lang: str, _: str) -> str:
+    """Highlight code blocks with pygments."""
+    try:
+        lexer = get_lexer_by_name(lang, stripall=True)
+    except ValueError:
+        lexer = get_lexer_by_name("text", stripall=True)
+    formatter = HtmlFormatter(style="monokai", nowrap=True)
+    return f"<div>{highlight(code, lexer, formatter)}</div>"
