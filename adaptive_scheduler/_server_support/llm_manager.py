@@ -100,7 +100,7 @@ class LLMManager(BaseManager):
                 {
                     "message": f"Approve these operations: {', '.join(write_ops)}?",
                     "operations": write_ops,
-                }
+                },
             )
 
             if decision != "approved":
