@@ -13,9 +13,10 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_core.messages import AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from adaptive_scheduler._llm_widgets import chat_widget
 from adaptive_scheduler._server_support.llm_manager import ChatResult, LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
-from adaptive_scheduler.widgets import chat_widget, info
+from adaptive_scheduler.widgets import info
 
 if TYPE_CHECKING:
     from collections.abc import Generator

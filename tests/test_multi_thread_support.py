@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from adaptive_scheduler._llm_widgets import chat_widget
 from adaptive_scheduler._server_support.llm_manager import LLMManager
-from adaptive_scheduler.widgets import chat_widget
 
 
 class TestMultiThreadSupport:
