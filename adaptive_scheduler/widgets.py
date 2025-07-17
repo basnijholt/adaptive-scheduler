@@ -1046,9 +1046,7 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
                 "denied",
             ]:
                 approval_data = (
-                    "approved"
-                    if message.lower() in ["approve", "approved"]
-                    else "denied"
+                    "approved" if message.lower() in ["approve", "approved"] else "denied"
                 )
                 response = await run_manager.llm_manager.resume_chat(
                     approval_data,

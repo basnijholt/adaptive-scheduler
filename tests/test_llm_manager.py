@@ -58,7 +58,7 @@ async def test_chat(llm_manager: LLMManager) -> None:
     mock_snapshot = MagicMock()
     mock_snapshot.interrupts = []
     llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
-    
+
     message = "Hello, world!"
     response = await llm_manager.chat(message)
     assert response == "response"
@@ -133,7 +133,7 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
     mock_snapshot = MagicMock()
     mock_snapshot.interrupts = []
     llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
-    
+
     with patch.object(llm_manager.db_manager, "as_dicts", return_value=[]):
         llm_manager.agent_executor.ainvoke = AsyncMock(
             return_value={"messages": [AIMessage(content="diagnosis")]},
