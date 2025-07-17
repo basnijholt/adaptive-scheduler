@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
 import aiofiles
+from langchain.chat_models import init_chat_model
 from langchain_community.agent_toolkits.file_management.toolkit import (
     FileManagementToolkit,
 )
-from langchain_community.chat_models import ChatOpenAI
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -116,7 +115,7 @@ def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) 
     graph.add_node("human_approval", _human_approval_node)
 
     # Add edges
-    graph.add_conditional_edges("agent", _create_should_continue_function(yolo=yolo))
+    graph.add_conditional_edges("agent", _agent_to_tool_maybe_via_approval(yolo=yolo))
     graph.add_edge("tools", "agent")
     graph.add_conditional_edges("human_approval", _after_human_approval)
     graph.set_entry_point("agent")
@@ -127,7 +126,7 @@ def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) 
 class LLMManagerKwargs(TypedDict, total=False):
     """Type for LLMManager keyword arguments."""
 
-    model_name: str
+    model: str
     model_provider: str
     working_dir: str | Path
     yolo: bool
@@ -139,7 +138,7 @@ class LLMManager(BaseManager):
     def __init__(
         self,
         db_manager: DatabaseManager,
-        model_name: str = "gpt-4",
+        model: str = "gpt-4",
         model_provider: str = "openai",
         move_old_logs_to: Path | None = None,
         working_dir: str | Path = ".",
@@ -150,13 +149,15 @@ class LLMManager(BaseManager):
         super().__init__()
         self.db_manager = db_manager
         self.move_old_logs_to = move_old_logs_to
-        if model_provider == "openai":
-            self.llm = ChatOpenAI(model_name=model_name, **kwargs)
-        elif model_provider == "google":
-            self.llm = ChatGoogleGenerativeAI(model=model_name, **kwargs)
-        else:
-            msg = f"Unknown model provider: {model_provider}"
-            raise ValueError(msg)
+
+        # Map legacy provider names to init_chat_model provider names
+        provider_mapping = {
+            "google": "google_genai",
+            "openai": "openai",
+        }
+        mapped_provider = provider_mapping.get(model_provider, model_provider)
+
+        self.llm = init_chat_model(model=model, model_provider=mapped_provider, **kwargs)
         self._diagnoses_cache: dict[str, str] = {}
         self.toolkit = FileManagementToolkit(
             root_dir=str(working_dir),
@@ -275,7 +276,7 @@ def _human_approval_node(state: MessagesState) -> dict[str, list]:
     return {}
 
 
-def _create_should_continue_function(*, yolo: bool) -> Callable[[MessagesState], str]:
+def _agent_to_tool_maybe_via_approval(*, yolo: bool) -> Callable[[MessagesState], str]:
     """Create the conditional edge function for the graph."""
 
     def should_continue(state: MessagesState) -> str:

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_community.chat_models import ChatOpenAI
 
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler._server_support.slurm_run import slurm_run
@@ -247,13 +249,9 @@ def test_slurm_run_with_llm(
     fnames: list[str] | list[Path],
 ) -> None:
     """Test slurm_run function with with_llm=True."""
-    from unittest.mock import MagicMock, patch
-
-    from langchain_community.chat_models import ChatOpenAI
-
-    llm_manager_kwargs = {"model_name": "test-model"}
+    llm_manager_kwargs = {"model": "test-model"}
     with patch(
-        "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+        "adaptive_scheduler._server_support.llm_manager.init_chat_model",
     ) as mock_chat:
         mock_chat.return_value = MagicMock(spec=ChatOpenAI)
         rm = slurm_run(
@@ -261,7 +259,7 @@ def test_slurm_run_with_llm(
             fnames,
             llm_manager_kwargs=llm_manager_kwargs,
         )
-        mock_chat.assert_called_once_with(model_name="test-model")
+        mock_chat.assert_called_once_with(model="test-model", model_provider="openai")
     assert rm.llm_manager is not None
     assert rm.llm_manager_kwargs == llm_manager_kwargs
 

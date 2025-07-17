@@ -76,7 +76,7 @@ async def test_chat(llm_manager: LLMManager) -> None:
 def llm_manager() -> LLMManager:
     """An LLMManager instance with a mocked ChatOpenAI."""
     with patch(
-        "adaptive_scheduler._server_support.llm_manager.ChatOpenAI",
+        "langchain.chat_models.base._init_chat_model_helper",
     ) as mock_chat_openai:
         mock_chat_openai.spec = ChatOpenAI
         llm_manager = LLMManager(db_manager=MagicMock())
@@ -113,7 +113,7 @@ def test_run_manager_with_llm(run_manager: RunManager) -> None:
 def test_run_manager_with_google_llm() -> None:
     """Test that the RunManager initializes with a Google LLM."""
     with patch(
-        "adaptive_scheduler._server_support.llm_manager.ChatGoogleGenerativeAI",
+        "langchain.chat_models.base._init_chat_model_helper",
     ) as mock_chat_google:
         mock_chat_google.spec = ChatGoogleGenerativeAI
         scheduler = MagicMock()
@@ -123,7 +123,7 @@ def test_run_manager_with_google_llm() -> None:
             scheduler,
             learners,
             fnames,
-            llm_manager_kwargs={"model_provider": "google", "model_name": "gemini-2.5-flash"},
+            llm_manager_kwargs={"model_provider": "google", "model": "gemini-2.5-flash"},
         )
         assert isinstance(run_manager.llm_manager, LLMManager)
         mock_chat_google.assert_called_once()
@@ -314,7 +314,7 @@ def test_llm_manager_yolo_mode() -> None:
     # Create a real LLMManager instance in YOLO mode
     db_manager = MagicMock()
 
-    with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
+    with patch("langchain.chat_models.base._init_chat_model_helper"):
         yolo_manager = LLMManager(db_manager=db_manager, yolo=True)
         non_yolo_manager = LLMManager(db_manager=db_manager, yolo=False)
 

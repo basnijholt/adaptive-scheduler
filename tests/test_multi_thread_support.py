@@ -1,11 +1,11 @@
 """Tests for multi-thread support in chat widget."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from adaptive_scheduler._llm_widgets import chat_widget
-from adaptive_scheduler._server_support.llm_manager import LLMManager
+from adaptive_scheduler._server_support.llm_manager import ChatResult, LLMManager
 
 
 class TestMultiThreadSupport:
@@ -66,10 +66,6 @@ class TestMultiThreadSupport:
     @pytest.mark.asyncio
     async def test_llm_manager_diagnosis_uses_correct_thread_id(self) -> None:
         """Test that LLM manager diagnosis method uses job_id as thread_id."""
-        from unittest.mock import patch
-
-        from adaptive_scheduler._server_support.llm_manager import LLMManager
-
         # Create a real LLMManager instance but mock the executor
         db_manager = MagicMock()
         db_manager.failed = [
@@ -77,7 +73,7 @@ class TestMultiThreadSupport:
         ]
 
         with (
-            patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"),
+            patch("langchain.chat_models.base._init_chat_model_helper"),
             patch(
                 "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
                 return_value=["fake_log.txt"],
@@ -90,7 +86,6 @@ class TestMultiThreadSupport:
             llm_manager = LLMManager(db_manager=db_manager)
 
             # Mock the chat function directly to capture its call
-            from adaptive_scheduler._server_support.llm_manager import ChatResult
 
             with patch(
                 "adaptive_scheduler._server_support.llm_manager.chat",
@@ -112,14 +107,10 @@ class TestMultiThreadSupport:
     @pytest.mark.asyncio
     async def test_chat_method_uses_provided_thread_id(self) -> None:
         """Test that chat method uses the provided thread_id."""
-        from unittest.mock import patch
-
-        from adaptive_scheduler._server_support.llm_manager import LLMManager
-
         # Create a real LLMManager instance but mock the executor
         db_manager = MagicMock()
 
-        with patch("adaptive_scheduler._server_support.llm_manager.ChatOpenAI"):
+        with patch("langchain.chat_models.base._init_chat_model_helper"):
             llm_manager = LLMManager(db_manager=db_manager)
 
             # Mock the agent executor
