@@ -190,7 +190,7 @@ class LLMManager(BaseManager):
         initial_message = (
             "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
             "If you can identify the problem from the log alone, provide the corrected code.\n"
-            "You can freely read files without asking for permission. For write operations, ask for permission first.\n\n"
+            "You can freely read files without asking for permission. For write operations, proceed directly with the file tools - approval will be handled automatically.\n\n"
             f"Log file(s):\n```\n{log_content}\n```\n\n"
             "What caused this failure and how can it be fixed?"
         )
