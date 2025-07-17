@@ -25,7 +25,41 @@ if TYPE_CHECKING:
 
     from adaptive_scheduler.server_support import LLMManager
 
+
 console = rich.get_console()
+
+
+class ChatHistoryManager:
+    """Manages the HTML content for chat history with scrolling."""
+
+    def __init__(self, initial_content: str = "") -> None:
+        self.content = initial_content
+
+    def render(self) -> str:
+        """Render the content wrapped in a scrollable container."""
+        return f"""
+        <div style="height: 300px; overflow-y: auto; border: 1px solid black; padding: 5px; word-wrap: break-word;">
+            {self.content}
+        </div>
+        """
+
+    def add_message(self, role: str, message: str) -> None:
+        """Add a message to the chat history."""
+        self.content += _render_chat_message(role, _render_markdown(message))
+
+    def render_history_from_messages(self, messages: list[BaseMessage]) -> None:
+        """Render the entire chat history from a list of messages."""
+        self.content = "".join(self._render_message(msg) for msg in messages)
+
+    def _render_message(self, msg: BaseMessage) -> str:
+        """Render a single message."""
+        if isinstance(msg, HumanMessage):
+            return _render_chat_message("user", _render_markdown(msg.content))
+        if isinstance(msg, AIMessage):
+            return _render_chat_message("llm", _render_markdown(msg.content))
+        if isinstance(msg, ToolMessage):
+            return _render_chat_message("tool", _render_markdown(msg.content))
+        return ""
 
 
 def _render_markdown(text: str) -> str:
@@ -41,7 +75,7 @@ def _render_markdown(text: str) -> str:
 def _render_chat_message(role: str, message: str) -> str:
     """Render a chat message with a role-specific style."""
     style = {
-        "user": "background-color: #dcf8c6; text-align: left0; margin-left: auto;",
+        "user": "background-color: #dcf8c6; text-align: right; margin-left: auto;",
         "llm": "background-color: #f1f0f0; text-align: left;",
         "tool": "background-color: #c6d8f8; text-align: center; margin-left: auto; margin-right: auto;",
         "error": "background-color: #f8d6d6; text-align: center; margin-left: auto; margin-right: auto;",
@@ -58,6 +92,7 @@ class ChatWidget:
         self.thread_id = "1"  # Default thread
         self.waiting_for_approval = False
         self._tasks: set[asyncio.Task] = set()
+        self._history_manager = ChatHistoryManager()
 
         self._build_widget()
 
@@ -71,17 +106,17 @@ class ChatWidget:
             description="You:",
             disabled=False,
         )
+        # Initialize history manager with welcome message
+        self._history_manager.add_message(
+            "llm",
+            "👋 Hello! Select a failed job to diagnose or ask me a question.",
+        )
+
         self.chat_history = ipyw.HTML(
-            value=_render_chat_message(
-                "llm",
-                _render_markdown("👋 Hello! Select a failed job to diagnose or ask me a question."),
-            ),
+            value=self._history_manager.render(),
             layout={
                 "width": "auto",
                 "height": "300px",
-                "border": "1px solid black",
-                "word-wrap": "break-word",
-                "overflow-y": "auto",
             },
         )
         self.yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
@@ -162,10 +197,9 @@ class ChatWidget:
             return
 
         self.thread_id = job_id
-        self.chat_history.value = _render_chat_message(
-            "llm",
-            _render_markdown(f"🔍 Diagnosing job {job_id}..."),
-        )
+        self._history_manager.content = ""
+        self._history_manager.add_message("llm", f"🔍 Diagnosing job {job_id}...")
+        self.chat_history.value = self._history_manager.render()
         await self._run_llm_interaction(
             self.llm_manager.diagnose_failed_job(job_id),
             is_diagnosis=True,
@@ -184,14 +218,18 @@ class ChatWidget:
         thinking_message = _render_chat_message("llm", _render_markdown("🤔 Thinking..."))
         if not is_diagnosis:
             # Show thinking message but don't add to history
-            self.chat_history.value = self._render_history() + thinking_message
+            self._update_history_from_llm()
+            self._history_manager.content += thinking_message
+            self.chat_history.value = self._history_manager.render()
 
         try:
             result = await coro
-            self.chat_history.value = self._render_history()
-            if not self.chat_history.value:
+            self._update_history_from_llm()
+            if not self._history_manager.content:
                 # e.g., some error message like "Could not find log files"
-                self.chat_history.value = _render_chat_message("error", result.content)
+                self._history_manager.content = ""
+                self._history_manager.add_message("error", result.content)
+            self.chat_history.value = self._history_manager.render()
 
             if result.interrupted:
                 self.waiting_for_approval = True
@@ -202,7 +240,8 @@ class ChatWidget:
 
         except Exception as e:  # noqa: BLE001
             console.print_exception(show_locals=True)
-            self.chat_history.value = self.chat_history.value.replace(thinking_message, "")
+            # Remove thinking message and add error message
+            self._update_history_from_llm()
             self._add_message("llm", f"❌ Error: {e}")
         finally:
             self.text_input.disabled = False
@@ -210,23 +249,14 @@ class ChatWidget:
 
     def _add_message(self, role: str, message: str) -> None:
         """Add a message to the chat history display."""
-        self.chat_history.value += _render_chat_message(role, _render_markdown(message))
+        self._history_manager.add_message(role, message)
+        self.chat_history.value = self._history_manager.render()
 
-    def _render_history(self) -> str:
-        """Render the entire chat history."""
+    def _update_history_from_llm(self) -> None:
+        """Update the history manager with messages from the LLM."""
         history = self.llm_manager.get_history(self.thread_id)
         messages = history.get("messages", [])
-        return "".join(self._render_message(msg) for msg in messages)
-
-    def _render_message(self, msg: BaseMessage) -> str:
-        """Render a single message."""
-        if isinstance(msg, HumanMessage):
-            return _render_chat_message("user", _render_markdown(msg.content))
-        if isinstance(msg, AIMessage):
-            return _render_chat_message("llm", _render_markdown(msg.content))
-        if isinstance(msg, ToolMessage):
-            return _render_chat_message("tool", _render_markdown(msg.content))
-        return ""
+        self._history_manager.render_history_from_messages(messages)
 
     def _refresh_failed_jobs(self, _: ipyw.Button) -> None:
         """Refresh the list of failed jobs in the dropdown."""
