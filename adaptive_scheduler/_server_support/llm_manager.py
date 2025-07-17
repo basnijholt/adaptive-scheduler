@@ -77,51 +77,39 @@ class LLMManager(BaseManager):
             response = await self.llm.bind_tools(tools).ainvoke(messages)
             return {"messages": [response]}
 
-        def human_approval_node(state: MessagesState):
-            """Node that handles human approval requests for write operations."""
-            from langgraph.types import Command
-
+        def human_approval_node(state: MessagesState) -> dict[str, list]:
+            """Node that requests human approval for write operations."""
             messages = state["messages"]
-
-            # Get the last AI message (we know it has tool calls from should_continue)
             last_message = messages[-1]
 
-            # Find the first write operation that needs approval
+            # Find write operations for approval context
+            write_ops = []
             for tool_call in last_message.tool_calls:
                 tool_name = tool_call.get("name", "")
                 if tool_name in ["write_file", "move_file"]:
-                    # Get the action description from the tool call args
                     args = tool_call.get("args", {})
                     if tool_name == "write_file":
-                        file_path = args.get("file_path", "unknown file")
-                        action_description = f"write to file {file_path}"
+                        write_ops.append(f"write to {args.get('file_path', 'unknown file')}")
                     elif tool_name == "move_file":
-                        src = args.get("src_path", "unknown source")
-                        dst = args.get("new_path", "unknown destination")
-                        action_description = f"move file from {src} to {dst}"
-                    else:
-                        action_description = f"perform {tool_name} operation"
+                        src = args.get("src_path", "unknown")
+                        dst = args.get("new_path", "unknown")
+                        write_ops.append(f"move {src} to {dst}")
 
-                    # Interrupt for human approval
-                    decision = interrupt(
-                        {
-                            "action": action_description,
-                            "message": f"Do you approve of this action: {action_description}",
-                        }
-                    )
+            # Interrupt for human approval
+            decision = interrupt(
+                {
+                    "message": f"Approve these operations: {', '.join(write_ops)}?",
+                    "operations": write_ops,
+                }
+            )
 
-                    if decision == "approved":
-                        return Command(goto="tools")
-                    # If denied, go back to agent with denial message
-                    from langchain_core.messages import HumanMessage
+            if decision != "approved":
+                # Add denial message if not approved
+                denial_msg = HumanMessage(content="Operations denied by user.")
+                return {"messages": [denial_msg]}
 
-                    denial_msg = HumanMessage(
-                        content=f"Action denied by user: {action_description}",
-                    )
-                    return Command(goto="agent", update={"messages": [denial_msg]})
-
-            # No write operations found, proceed to tools
-            return Command(goto="tools")
+            # If approved, return empty (will proceed to tools via graph edges)
+            return {"messages": []}
 
         graph.add_node("agent", call_model)
         graph.add_node("tools", ToolNode(tools))
@@ -143,7 +131,7 @@ class LLMManager(BaseManager):
 
         graph.add_conditional_edges("agent", should_continue)
         graph.add_edge("tools", "agent")
-        # human_approval uses Command(goto=...) so no explicit edges needed
+        graph.add_edge("human_approval", "tools")
         graph.set_entry_point("agent")
         self.agent_executor = graph.compile(checkpointer=self.memory)
         self.yolo = yolo
