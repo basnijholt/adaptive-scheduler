@@ -122,7 +122,7 @@ def test_run_manager_with_google_llm() -> None:
             scheduler,
             learners,
             fnames,
-            llm_manager_kwargs={"model_provider": "google"},
+            llm_manager_kwargs={"model_provider": "google_genai", "model_name": "gemini-2.5-flash"},
         )
         assert isinstance(run_manager.llm_manager, LLMManager)
         mock_chat_google.assert_called_once()

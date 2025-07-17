@@ -23,7 +23,10 @@ from .base_manager import BaseManager
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from langchain_core.language_models import BaseLanguageModel
     from langchain_core.messages import BaseMessage
+    from langchain_core.runnables import RunnableConfig
+    from langgraph.graph.state import CompiledStateGraph
 
     from .database_manager import DatabaseManager
 
@@ -55,7 +58,7 @@ def _format_response_content(content: Any) -> str:
 
 
 async def _execute_agent(
-    agent_executor: Any,
+    agent_executor: CompiledStateGraph,
     input_data: Any,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
@@ -64,7 +67,7 @@ async def _execute_agent(
     """Execute the agent with input data and return a ChatResult."""
     metadata = run_metadata or {}
     metadata["thread_id"] = thread_id
-    config = {
+    config: RunnableConfig = {
         "configurable": {"thread_id": thread_id},
         "run_name": run_name,
         "run_id": uuid.uuid4(),
@@ -95,7 +98,7 @@ async def _execute_agent(
 
 
 async def chat(
-    agent_executor: Any,
+    agent_executor: CompiledStateGraph,
     message: str | list[ToolMessage],
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
@@ -116,7 +119,7 @@ async def chat(
 
 
 async def resume_chat(
-    agent_executor: Any,
+    agent_executor: CompiledStateGraph,
     approval_data: Any,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
@@ -132,7 +135,7 @@ async def resume_chat(
     )
 
 
-def create_agent_graph(llm: Any, tools: list[Any], *, yolo: bool) -> StateGraph:
+def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) -> StateGraph:
     """Create the LangGraph agent with approval flow."""
     graph = StateGraph(MessagesState)
 
@@ -199,7 +202,7 @@ class LLMManager(BaseManager):
 
         # Create the agent graph using extracted functions
         graph = create_agent_graph(self.llm, tools, yolo=yolo)
-        self.agent_executor = graph.compile(checkpointer=self.memory)
+        self.agent_executor: CompiledStateGraph = graph.compile(checkpointer=self.memory)
         self.yolo = yolo
 
     async def _manage(self) -> None:
@@ -267,16 +270,16 @@ class LLMManager(BaseManager):
         )
 
 
-def _extract_write_operations(last_message: BaseMessage) -> list[str]:
+def _extract_write_operations(last_message: ToolMessage) -> list[str]:
     """Extract write operations from tool calls for approval context."""
     write_ops = []
     for tool_call in last_message.tool_calls:
-        tool_name = tool_call.get("name", "")
+        tool_name = tool_call["name"]
         if tool_name in ["write_file", "move_file"]:
-            args = tool_call.get("args", {})
+            args = tool_call["args"]
             if tool_name == "write_file":
-                file_path = args.get("file_path", "unknown file")
-                content = args.get("text", "")
+                file_path = args["file_path"]
+                content = args["text"]
                 # Show preview of content for context
                 content_preview = (
                     content[:CONTENT_PREVIEW_LENGTH] + "..."
@@ -285,8 +288,8 @@ def _extract_write_operations(last_message: BaseMessage) -> list[str]:
                 )
                 write_ops.append(f"write to {file_path}:\n```\n{content_preview}\n```")
             elif tool_name == "move_file":
-                src = args.get("src_path", "unknown")
-                dst = args.get("new_path", "unknown")
+                src = args["src_path"]
+                dst = args["new_path"]
                 write_ops.append(f"move {src} to {dst}")
     return write_ops
 
@@ -308,6 +311,7 @@ def _human_approval_node(state: MessagesState) -> dict[str, list]:
     last_message = messages[-1]
 
     # Extract write operations for detailed approval message
+    assert isinstance(last_message, ToolMessage)
     write_ops = _extract_write_operations(last_message)
 
     # Create approval message with operation details
