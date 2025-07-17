@@ -1,5 +1,5 @@
 """server_support code."""
 
-from .llm_manager import InterruptedException, LLMManager
+from .llm_manager import LLMManager
 
-__all__ = ["InterruptedException", "LLMManager"]
+__all__ = ["LLMManager"]

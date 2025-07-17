@@ -88,18 +88,25 @@ class TestMultiThreadSupport:
         ):
             llm_manager = LLMManager(db_manager=db_manager)
 
-            # Mock the chat method to capture its call
-            llm_manager.chat = AsyncMock(return_value="Test diagnosis")  # type: ignore[method-assign]
+            # Mock the chat function directly to capture its call
+            from adaptive_scheduler._server_support.llm_manager import ChatResult
 
-            # Call diagnose_failed_job
-            await llm_manager.diagnose_failed_job("test_job_456")
+            with patch(
+                "adaptive_scheduler._server_support.llm_manager.chat",
+                new_callable=AsyncMock,
+                return_value=ChatResult(content="Test diagnosis", thread_id="test_job_456"),
+            ) as mock_chat:
+                # Call diagnose_failed_job
+                result = await llm_manager.diagnose_failed_job("test_job_456")
 
-            # Verify that chat was called with the correct thread_id
-            llm_manager.chat.assert_called_once()
-            call_args = llm_manager.chat.call_args
+                # Verify that chat was called with the correct thread_id
+                mock_chat.assert_called_once()
+                call_args = mock_chat.call_args
 
-            # Check that the thread_id matches the job_id
-            assert call_args[1]["thread_id"] == "test_job_456"
+                # Check that the thread_id matches the job_id
+                assert call_args[1]["thread_id"] == "test_job_456"
+                assert isinstance(result, ChatResult)
+                assert result.content == "Test diagnosis"
 
     @pytest.mark.asyncio
     async def test_chat_method_uses_provided_thread_id(self) -> None:

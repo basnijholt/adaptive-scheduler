@@ -13,7 +13,7 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_core.messages import AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from adaptive_scheduler._server_support.llm_manager import LLMManager
+from adaptive_scheduler._server_support.llm_manager import ChatResult, LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler.widgets import chat_widget, info
 
@@ -47,8 +47,10 @@ async def test_diagnose_failed_job(llm_manager: LLMManager) -> None:
         mock_open.return_value.__aenter__.return_value.read.return_value = (
             "This is a log file with an error."
         )
-        diagnosis = await llm_manager.diagnose_failed_job(job_id)
-    assert diagnosis == "diagnosis"
+        result = await llm_manager.diagnose_failed_job(job_id)
+    assert isinstance(result, ChatResult)
+    assert result.content == "diagnosis"
+    assert not result.interrupted
 
 
 @pytest.mark.asyncio
@@ -63,8 +65,10 @@ async def test_chat(llm_manager: LLMManager) -> None:
     llm_manager.agent_executor.get_state = MagicMock(return_value=mock_snapshot)
 
     message = "Hello, world!"
-    response = await llm_manager.chat(message)
-    assert response == "response"
+    result = await llm_manager.chat(message)
+    assert isinstance(result, ChatResult)
+    assert result.content == "response"
+    assert not result.interrupted
 
 
 @pytest.fixture
@@ -151,8 +155,11 @@ async def test_llm_manager_cache(llm_manager: LLMManager) -> None:
             return_value=["some/path/to/log.txt"],
         ),
     ):
-        await llm_manager.diagnose_failed_job(job_id)
-        await llm_manager.diagnose_failed_job(job_id)
+        result1 = await llm_manager.diagnose_failed_job(job_id)
+        result2 = await llm_manager.diagnose_failed_job(job_id)
+        # First call should invoke the agent, second should use cache
+        assert result1.content == "diagnosis"
+        assert result2.content == "diagnosis"
         llm_manager.agent_executor.ainvoke.assert_called_once()
 
 
@@ -164,8 +171,10 @@ async def test_diagnose_failed_job_file_not_found(llm_manager: LLMManager) -> No
         "adaptive_scheduler._server_support.llm_manager._get_log_file_paths",
         return_value=[],
     ):
-        diagnosis = await llm_manager.diagnose_failed_job(job_id)
-    assert "Could not find log files" in diagnosis
+        result = await llm_manager.diagnose_failed_job(job_id)
+    assert isinstance(result, ChatResult)
+    assert "Could not find log files" in result.content
+    assert not result.interrupted
 
 
 @pytest.mark.asyncio
@@ -262,11 +271,12 @@ async def test_llm_manager_list_response_handling(llm_manager: LLMManager) -> No
 
     # Should be joined with newlines
     expected = "\n".join(list_response)
-    assert result == expected
-    assert isinstance(result, str)
-    assert "The job log indicates" in result
-    assert "python\nimport numpy" in result
-    assert "Reason for the fix" in result
+    assert isinstance(result, ChatResult)
+    assert result.content == expected
+    assert not result.interrupted
+    assert "The job log indicates" in result.content
+    assert "python\nimport numpy" in result.content
+    assert "Reason for the fix" in result.content
 
 
 @pytest.mark.asyncio
@@ -286,8 +296,9 @@ async def test_llm_manager_string_response_handling(llm_manager: LLMManager) -> 
     result = await llm_manager.chat("Test message")
 
     # Should be unchanged
-    assert result == string_response
-    assert isinstance(result, str)
+    assert isinstance(result, ChatResult)
+    assert result.content == string_response
+    assert not result.interrupted
 
 
 def test_llm_manager_yolo_mode() -> None:

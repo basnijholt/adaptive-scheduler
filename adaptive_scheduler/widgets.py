@@ -19,7 +19,6 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 
-from adaptive_scheduler._server_support import InterruptedException
 from adaptive_scheduler.utils import load_dataframes
 
 if TYPE_CHECKING:
@@ -1048,26 +1047,31 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
                 approval_data = (
                     "approved" if message.lower() in ["approve", "approved"] else "denied"
                 )
-                response = await run_manager.llm_manager.resume_chat(
+                result = await run_manager.llm_manager.resume_chat(
                     approval_data,
                     thread_id=current_thread_id,
                 )
                 waiting_for_approval = False
             else:
                 # Regular chat
-                response = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
+                result = await run_manager.llm_manager.chat(message, thread_id=current_thread_id)
 
-            # Remove thinking indicator and add response
+            # Remove thinking indicator
             chat_history.value = chat_history.value.replace(thinking_message, "")
-            chat_history.value += _render_chat_message("llm", _render_markdown(response))
-        except InterruptedException as e:
-            # Remove thinking indicator and add interruption message
-            chat_history.value = chat_history.value.replace(thinking_message, "")
-            chat_history.value += _render_chat_message(
-                "llm",
-                _render_markdown(f"🤖 {e}\n\n*Reply with 'approve' or 'deny' to continue.*"),
-            )
-            waiting_for_approval = True
+
+            # Handle the result
+            if result.interrupted:
+                # Add interruption message
+                chat_history.value += _render_chat_message(
+                    "llm",
+                    _render_markdown(
+                        f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*",
+                    ),
+                )
+                waiting_for_approval = True
+            else:
+                # Add regular response
+                chat_history.value += _render_chat_message("llm", _render_markdown(result.content))
         except (ValueError, TypeError, RuntimeError) as e:
             # Remove thinking indicator and add error
             chat_history.value = chat_history.value.replace(thinking_message, "")
@@ -1116,18 +1120,20 @@ def chat_widget(run_manager: RunManager) -> ipyw.VBox:  # noqa: PLR0915
         chat_history.value = diagnosing_message
 
         try:
-            diagnosis = await run_manager.llm_manager.diagnose_failed_job(job_id)
-            # Replace diagnosing indicator with actual diagnosis
-            chat_history.value = _render_chat_message(
-                "llm",
-                _render_markdown(f"**Diagnosis for job {job_id}:**\n{diagnosis}"),
-            )
-        except InterruptedException as e:
-            # Replace diagnosing indicator with interruption message
-            chat_history.value = _render_chat_message(
-                "llm",
-                _render_markdown(f"🤖 {e}"),
-            )
+            result = await run_manager.llm_manager.diagnose_failed_job(job_id)
+            # Replace diagnosing indicator with result
+            if result.interrupted:
+                chat_history.value = _render_chat_message(
+                    "llm",
+                    _render_markdown(
+                        f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*",
+                    ),
+                )
+            else:
+                chat_history.value = _render_chat_message(
+                    "llm",
+                    _render_markdown(f"**Diagnosis for job {job_id}:**\n{result.content}"),
+                )
         except Exception as e:  # noqa: BLE001
             # Replace diagnosing indicator with error
             chat_history.value = _render_chat_message("llm", _render_markdown(f"❌ Error: {e}"))

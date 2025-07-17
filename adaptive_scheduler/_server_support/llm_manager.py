@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -34,12 +35,27 @@ if TYPE_CHECKING:
 CONTENT_PREVIEW_LENGTH = 100
 
 
+@dataclass
+class ChatResult:
+    """Result of a chat operation."""
+
+    content: str
+    interrupted: bool = False
+    interrupt_message: str | None = None
+    thread_id: str | None = None
+
+    @property
+    def needs_approval(self) -> bool:
+        """Check if this result requires human approval."""
+        return self.interrupted and self.interrupt_message is not None
+
+
 async def chat(
     agent_executor: Any,
     message: str | list[ToolMessage],
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
-) -> str:
+) -> ChatResult:
     """Handle a chat message and return a response."""
     metadata = run_metadata or {}
     metadata["thread_id"] = thread_id
@@ -56,32 +72,26 @@ async def chat(
     else:
         payload = {"messages": message}
 
-    try:
-        response = await agent_executor.ainvoke(
-            payload,
-            config,
+    response = await agent_executor.ainvoke(payload, config)
+
+    # Check if the graph is in an interrupted state (LangGraph official way)
+    if "__interrupt__" in response:
+        interrupt_info = response["__interrupt__"][0]  # Get first interrupt
+        interrupt_msg = interrupt_info.value.get("message", "Approval needed")
+        return ChatResult(
+            content="",
+            interrupted=True,
+            interrupt_message=interrupt_msg,
+            thread_id=thread_id,
         )
 
-        # After execution, check if the graph is in an interrupted state
-        interrupt_msg = check_for_interrupts(agent_executor, config)
-        if interrupt_msg:
-            raise InterruptedException(interrupt_msg)  # noqa: TRY301
+    # Get the last message content
+    content = ""
+    if response["messages"]:
+        content = response["messages"][-1].content
+        content = _format_response_content(content)
 
-        # Get the last message content
-        if response["messages"]:
-            content = response["messages"][-1].content
-            return format_response_content(content)
-
-        return ""  # No messages in response  # noqa: TRY300
-    except InterruptedException:
-        # Re-raise interrupt exceptions as-is
-        raise
-    except Exception as e:
-        # Check if this is an interruption that we need to handle
-        if "interrupt" in str(e).lower() or "Interrupted" in str(e):
-            # Re-raise as a custom exception that the UI can handle
-            raise InterruptedException(str(e)) from e
-        raise
+    return ChatResult(content=content, thread_id=thread_id)
 
 
 async def resume_chat(
@@ -89,7 +99,7 @@ async def resume_chat(
     approval_data: Any,
     thread_id: str = "1",
     run_metadata: dict[str, Any] | None = None,
-) -> str:
+) -> ChatResult:
     """Resume an interrupted chat session with human approval."""
     from langgraph.types import Command
 
@@ -106,11 +116,21 @@ async def resume_chat(
     # Resume with the approval data
     command = Command(resume=approval_data)
 
-    response = await agent_executor.ainvoke(
-        command,
-        config,
-    )
-    return response["messages"][-1].content
+    response = await agent_executor.ainvoke(command, config)
+
+    # Check for further interrupts (LangGraph official way)
+    if "__interrupt__" in response:
+        interrupt_info = response["__interrupt__"][0]  # Get first interrupt
+        interrupt_msg = interrupt_info.value.get("message", "Approval needed")
+        return ChatResult(
+            content="",
+            interrupted=True,
+            interrupt_message=interrupt_msg,
+            thread_id=thread_id,
+        )
+
+    content = response["messages"][-1].content if response["messages"] else ""
+    return ChatResult(content=content, thread_id=thread_id)
 
 
 def create_agent_graph(llm: Any, tools: list[Any], *, yolo: bool) -> StateGraph:
@@ -190,39 +210,46 @@ class LLMManager(BaseManager):
         while not self.task.done():  # noqa: ASYNC110
             await asyncio.sleep(1)
 
-    async def diagnose_failed_job(self, job_id: str) -> str:
-        """Analyzes the log file of a failed job and returns a diagnosis."""
+    async def diagnose_failed_job(self, job_id: str) -> ChatResult:
+        """Analyzes the log file of a failed job and returns a diagnosis result."""
         if job_id in self._diagnoses_cache:
-            return self._diagnoses_cache[job_id]
+            return ChatResult(content=self._diagnoses_cache[job_id], thread_id=job_id)
 
         log_paths = _get_log_file_paths(self.db_manager, job_id, self.move_old_logs_to)
         if not log_paths:
-            return f"Could not find log files for job {job_id}"
+            return ChatResult(
+                content=f"Could not find log files for job {job_id}",
+                thread_id=job_id,
+            )
 
         log_content = await _read_log_files_async(log_paths)
         if "Log file not found" in log_content and not any(
             "Log file not found" not in c for c in log_content.splitlines()
         ):
-            return log_content
+            return ChatResult(content=log_content, thread_id=job_id)
 
-        initial_message = create_diagnosis_prompt(log_content)
+        initial_message = _create_diagnosis_prompt(log_content)
         # Use job_id as thread_id and pass job_id in metadata for better tracking
         run_metadata = {"job_id": job_id}
-        diagnosis = await chat(
+        result = await chat(
             self.agent_executor,
             initial_message,
             thread_id=job_id,
             run_metadata=run_metadata,
         )
-        self._diagnoses_cache[job_id] = diagnosis
-        return diagnosis
+
+        # Only cache completed diagnoses, not interrupted ones
+        if not result.interrupted:
+            self._diagnoses_cache[job_id] = result.content
+
+        return result
 
     async def chat(
         self,
         message: str | list[ToolMessage],
         thread_id: str = "1",
         run_metadata: dict[str, Any] | None = None,
-    ) -> str:
+    ) -> ChatResult:
         """Handle a chat message and return a response."""
         return await chat(self.agent_executor, message, thread_id, run_metadata)
 
@@ -231,7 +258,7 @@ class LLMManager(BaseManager):
         approval_data: Any,
         thread_id: str = "1",
         run_metadata: dict[str, Any] | None = None,
-    ) -> str:
+    ) -> ChatResult:
         """Resume an interrupted chat session with human approval."""
         return await resume_chat(
             self.agent_executor,
@@ -239,10 +266,6 @@ class LLMManager(BaseManager):
             thread_id,
             run_metadata,
         )
-
-
-class InterruptedException(Exception):  # noqa: N818
-    """Exception raised when the LLM execution is interrupted for human input."""
 
 
 def _extract_write_operations(last_message: BaseMessage) -> list[str]:
@@ -327,23 +350,14 @@ def _create_should_continue_function(*, yolo: bool) -> Callable[[MessagesState],
     return should_continue
 
 
-def format_response_content(content: Any) -> str:
+def _format_response_content(content: Any) -> str:
     """Format response content, handling both strings and lists."""
     if isinstance(content, list):
         return "\n".join(str(item) for item in content)
     return content or ""
 
 
-def check_for_interrupts(agent_executor: Any, config: dict[str, Any]) -> str | None:
-    """Check if the graph is in an interrupted state and return interrupt message."""
-    snapshot = agent_executor.get_state(config)
-    if snapshot.interrupts:
-        interrupt_info = snapshot.interrupts[0]
-        return interrupt_info.value.get("message", "Approval needed")
-    return None
-
-
-def create_diagnosis_prompt(log_content: str) -> str:
+def _create_diagnosis_prompt(log_content: str) -> str:
     """Create the initial prompt for job failure diagnosis."""
     return (
         "Analyze this job failure log and provide a diagnosis with a fix.\n\n"
