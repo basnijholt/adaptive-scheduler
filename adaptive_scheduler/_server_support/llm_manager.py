@@ -355,7 +355,8 @@ def _create_diagnosis_prompt(log_content: str) -> str:
         "2.  **Reading Files**: You can read any file you need to diagnose the problem. The `read_file` tool does not require user approval and will be executed automatically.\n"
         "3.  **Reading Strategy**: If you need to read a file, submit a single tool call for `read_file` by itself. Do not bundle it with other tool calls.\n"
         "4.  **Writing Files**: For any write operations (like `write_file` or `move_file`), my system will automatically handle asking for user approval. Propose the tool calls directly, and I will be prompted to approve or deny them.\n"
-        "5.  **Goal**: Your goal is to identify the cause of the failure and provide a corrected code snippet or file.\n\n"
+        "5.  **Code Formatting**: When providing code examples or fixes, always use language-specific code blocks (e.g., ```python, ```bash, ```yaml) instead of generic ``` blocks. This improves syntax highlighting and readability.\n"
+        "6.  **Goal**: Your goal is to identify the cause of the failure and provide a corrected code snippet or file.\n\n"
         f"Log file(s):\n```\n{log_content}\n```\n\n"
         "What caused this failure and how can it be fixed?"
     )
