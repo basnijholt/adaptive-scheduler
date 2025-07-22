@@ -12,9 +12,9 @@ _widget_path = Path(__file__).parent.parent / "assistant-ui-anywidget" / "python
 if str(_widget_path) not in sys.path:
     sys.path.insert(0, str(_widget_path))
 
-from agent_widget import AgentWidget
+from agent_widget import AgentWidget  # noqa: E402
 
-from adaptive_scheduler._server_support.llm_manager import ChatResult
+from adaptive_scheduler._server_support.llm_manager import ChatResult  # noqa: E402, TC001
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -43,15 +43,15 @@ class LLMChatWidget(AgentWidget):
             "👋 Hello! Select a failed job to diagnose or ask me a question.",
         )
 
-    def _handle_message(self, _, content, buffers=None):
+    def _handle_message(self, _: Any, content: dict[str, Any], buffers: Any = None) -> None:  # noqa: ARG002
         """Handle incoming messages from the frontend."""
         if content.get("type") == "user_message":
             user_text = content.get("text", "")
 
             # Add user message to chat history
-            new_history = list(self.chat_history)
+            new_history = list(self.chat_history)  # type: ignore[has-type]
             new_history.append({"role": "user", "content": user_text})
-            self.chat_history = new_history
+            self.chat_history = new_history  # type: ignore[has-type]
 
             # Handle the message asynchronously
             self._create_task(self._handle_user_message(user_text))
@@ -70,19 +70,18 @@ class LLMChatWidget(AgentWidget):
         try:
             if self.waiting_for_approval and message.lower() in [
                 "approve",
-                "approved",
                 "deny",
-                "denied",
             ]:
-                is_approved = message.lower() in ["approve", "approved"]
+                is_approved = message.lower() == "approve"
                 result = await self.llm_manager.chat(is_approved, thread_id=self.thread_id)
                 self.waiting_for_approval = False
+                self.clear_action_buttons()  # Clear the action buttons
             else:
                 result = await self.llm_manager.chat(message, thread_id=self.thread_id)
 
             await self._handle_llm_response(result)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.add_message("assistant", f"❌ Error: {e}")
 
     async def _handle_llm_response(self, result: ChatResult) -> None:
@@ -92,10 +91,10 @@ class LLMChatWidget(AgentWidget):
 
         if result.interrupted:
             self.waiting_for_approval = True
-            interrupt_msg = (
-                f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*"
-            )
+            interrupt_msg = f"🤖 {result.interrupt_message}"
             self.add_message("assistant", interrupt_msg)
+            # Show approval buttons
+            self.set_action_buttons(["Approve", "Deny"])
 
     async def diagnose_job(self, job_id: str) -> None:
         """Diagnose a failed job."""
@@ -106,10 +105,10 @@ class LLMChatWidget(AgentWidget):
         try:
             result = await self.llm_manager.diagnose_failed_job(job_id)
             await self._handle_llm_response(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.add_message("assistant", f"❌ Error diagnosing job: {e}")
 
-    def set_yolo_mode(self, enabled: bool) -> None:
+    def set_yolo_mode(self, *, enabled: bool) -> None:
         """Set YOLO mode on the LLM manager."""
         self.llm_manager.yolo = enabled
 
@@ -136,14 +135,14 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     )
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
 
-    def on_yolo_change(change):
-        chat_widget.set_yolo_mode(change["new"])
+    def on_yolo_change(change: dict[str, Any]) -> None:
+        chat_widget.set_yolo_mode(enabled=change["new"])
 
-    def on_job_change(change):
+    def on_job_change(change: dict[str, Any]) -> None:
         if change["new"] is not None:
             chat_widget._create_task(chat_widget.diagnose_job(str(change["new"])))
 
-    def on_refresh(_):
+    def on_refresh(_: Any) -> None:
         failed_jobs = llm_manager.db_manager.failed
         job_ids = [
             job["job_id"] for job in failed_jobs if job["job_id"] is not None and job["job_id"]
