@@ -127,9 +127,19 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
             print(f"Debug: First job structure: {failed_jobs_data[0]}")
             print(f"Debug: First job keys: {list(failed_jobs_data[0].keys()) if isinstance(failed_jobs_data[0], dict) else 'Not a dict'}")
         
-        # Use the exact same logic as the original working implementation
-        job_ids = [job["job_id"] for job in failed_jobs_data]
-        print(f"Debug: Extracted job IDs: {job_ids}")
+        # Extract job IDs, filtering out None, empty strings, and other invalid values
+        job_ids = []
+        filtered_count = 0
+        for job in failed_jobs_data:
+            job_id = job.get("job_id")
+            if job_id is not None and str(job_id).strip():  # Not None and not empty when converted to string
+                job_ids.append(str(job_id))  # Ensure it's a string
+            else:
+                filtered_count += 1
+        
+        print(f"Debug: Extracted {len(job_ids)} valid job IDs: {job_ids}")
+        if filtered_count > 0:
+            print(f"Debug: Filtered out {filtered_count} invalid job IDs (None, empty, or whitespace)")
         
         # Additional validation
         if not job_ids:
@@ -175,9 +185,19 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
             failed_jobs_data = llm_manager.db_manager.failed
             print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
             
-            # Use the exact same logic as the original working implementation
-            job_ids = [job["job_id"] for job in failed_jobs_data]
-            print(f"Debug: Refreshed job IDs: {job_ids}")
+            # Extract job IDs, filtering out invalid values
+            job_ids = []
+            filtered_count = 0
+            for job in failed_jobs_data:
+                job_id = job.get("job_id")
+                if job_id is not None and str(job_id).strip():
+                    job_ids.append(str(job_id))
+                else:
+                    filtered_count += 1
+            
+            print(f"Debug: Refreshed {len(job_ids)} valid job IDs: {job_ids}")
+            if filtered_count > 0:
+                print(f"Debug: Filtered out {filtered_count} invalid job IDs during refresh")
             
             failed_job_dropdown.unobserve(on_job_change, names="value")
             failed_job_dropdown.options = job_ids
