@@ -93,8 +93,13 @@ class LLMChatWidget(AgentWidget):
             self.waiting_for_approval = True
             interrupt_msg = f"🤖 {result.interrupt_message}"
             self.add_message("assistant", interrupt_msg)
-            # Show approval buttons
-            self.set_action_buttons(["Approve", "Deny"])
+            # Show approval buttons with styling
+            self.set_action_buttons(
+                [
+                    {"text": "Approve", "color": "#28a745", "icon": "✓"},
+                    {"text": "Deny", "color": "#dc3545", "icon": "✗"},
+                ],
+            )
 
     async def diagnose_job(self, job_id: str) -> None:
         """Diagnose a failed job."""
