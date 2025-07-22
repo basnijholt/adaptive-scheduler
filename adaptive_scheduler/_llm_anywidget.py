@@ -117,16 +117,38 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     # Create control widgets
     yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
     
-    # Debug: Check what failed jobs look like
-    failed_jobs_data = llm_manager.db_manager.failed
-    print(f"Debug: Found {len(failed_jobs_data)} failed jobs")
-    if failed_jobs_data:
-        print(f"Debug: First job structure: {failed_jobs_data[0]}")
-        job_ids = [job.get("job_id", str(job)) for job in failed_jobs_data if job.get("job_id")]
+    # Extract failed job IDs (same as original working implementation)
+    try:
+        failed_jobs_data = llm_manager.db_manager.failed
+        print(f"Debug: Found {len(failed_jobs_data)} failed jobs")
+        print(f"Debug: Failed jobs data type: {type(failed_jobs_data)}")
+        
+        if failed_jobs_data:
+            print(f"Debug: First job structure: {failed_jobs_data[0]}")
+            print(f"Debug: First job keys: {list(failed_jobs_data[0].keys()) if isinstance(failed_jobs_data[0], dict) else 'Not a dict'}")
+        
+        # Use the exact same logic as the original working implementation
+        job_ids = [job["job_id"] for job in failed_jobs_data]
         print(f"Debug: Extracted job IDs: {job_ids}")
-    else:
+        
+        # Additional validation
+        if not job_ids:
+            print("Debug: No job IDs extracted - checking why...")
+            for i, job in enumerate(failed_jobs_data[:3]):  # Check first 3 jobs
+                print(f"Debug: Job {i}: {job}")
+                if isinstance(job, dict):
+                    if "job_id" in job:
+                        print(f"Debug: Job {i} has job_id: {job['job_id']}")
+                    else:
+                        print(f"Debug: Job {i} missing 'job_id' key, has: {list(job.keys())}")
+                else:
+                    print(f"Debug: Job {i} is not a dict: {type(job)}")
+        
+    except Exception as e:
+        print(f"Debug: Error extracting job IDs: {e}")
+        import traceback
+        traceback.print_exc()
         job_ids = []
-        print("Debug: No failed jobs found")
     
     failed_job_dropdown = ipyw.Dropdown(
         options=job_ids,
@@ -149,15 +171,23 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
             print("Debug: No job selected (value is None)")
     
     def on_refresh(_):
-        failed_jobs_data = llm_manager.db_manager.failed
-        print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
-        job_ids = [job.get("job_id", str(job)) for job in failed_jobs_data if job.get("job_id")]
-        print(f"Debug: Refreshed job IDs: {job_ids}")
-        
-        failed_job_dropdown.unobserve(on_job_change, names="value")
-        failed_job_dropdown.options = job_ids
-        failed_job_dropdown.value = None
-        failed_job_dropdown.observe(on_job_change, names="value")
+        try:
+            failed_jobs_data = llm_manager.db_manager.failed
+            print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
+            
+            # Use the exact same logic as the original working implementation
+            job_ids = [job["job_id"] for job in failed_jobs_data]
+            print(f"Debug: Refreshed job IDs: {job_ids}")
+            
+            failed_job_dropdown.unobserve(on_job_change, names="value")
+            failed_job_dropdown.options = job_ids
+            failed_job_dropdown.value = None
+            failed_job_dropdown.observe(on_job_change, names="value")
+            
+        except Exception as e:
+            print(f"Debug: Error during refresh: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Register event handlers
     yolo_checkbox.observe(on_yolo_change, names="value")
