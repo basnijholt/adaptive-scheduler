@@ -950,7 +950,7 @@ def info(  # noqa: PLR0915
     import ipywidgets as ipyw
     from IPython.display import display
 
-    from adaptive_scheduler._llm_widgets import chat_widget
+    from adaptive_scheduler._llm_anywidget import chat_widget
 
     if disable_widgets_output_scrollbar:
         _disable_widgets_output_scrollbar()
