@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ipywidgets as ipyw
-import sys
-from pathlib import Path
 
 # Add the assistant-ui-anywidget python directory to the path
 _widget_path = Path(__file__).parent.parent / "assistant-ui-anywidget" / "python"
@@ -16,25 +16,19 @@ from agent_widget import AgentWidget
 
 from adaptive_scheduler._server_support.llm_manager import ChatResult
 
-# Debug toggle - set to False to disable debug output
-DEBUG_LLM_WIDGET = False
-
-def _debug_print(*args, **kwargs):
-    """Print debug message only if debugging is enabled."""
-    if DEBUG_LLM_WIDGET:
-        print(*args, **kwargs)
-
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Coroutine
+    from collections.abc import Coroutine
 
     from adaptive_scheduler.server_support import LLMManager
 
 
 class LLMChatWidget(AgentWidget):
     """An AnyWidget-based chat interface for the LLMManager."""
-    
+
     # Override the _esm path to point to the correct location
-    _esm = str(Path(__file__).parent.parent / "assistant-ui-anywidget" / "frontend" / "dist" / "index.js")
+    _esm = str(
+        Path(__file__).parent.parent / "assistant-ui-anywidget" / "frontend" / "dist" / "index.js",
+    )
 
     def __init__(self, llm_manager: LLMManager, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -42,44 +36,31 @@ class LLMChatWidget(AgentWidget):
         self.thread_id = "1"  # Default thread
         self.waiting_for_approval = False
         self._tasks: set[asyncio.Task] = set()
-        
+
         # Add welcome message
-        self.add_message("assistant", "👋 Hello! Select a failed job to diagnose or ask me a question.")
+        self.add_message(
+            "assistant",
+            "👋 Hello! Select a failed job to diagnose or ask me a question.",
+        )
 
     def _handle_message(self, _, content, buffers=None):
         """Handle incoming messages from the frontend."""
         if content.get("type") == "user_message":
             user_text = content.get("text", "")
-            
+
             # Add user message to chat history
             new_history = list(self.chat_history)
             new_history.append({"role": "user", "content": user_text})
             self.chat_history = new_history
-            
+
             # Handle the message asynchronously
             self._create_task(self._handle_user_message(user_text))
 
     def _create_task(self, awaitable: Coroutine) -> None:
         """Run an async function as a background task."""
-        try:
-            task: asyncio.Task = asyncio.create_task(awaitable)
-            self._tasks.add(task)
-            
-            def task_done_callback(t):
-                self._tasks.discard(t)  # Use discard instead of remove to avoid KeyError
-                if t.exception():
-                    _debug_print(f"Debug: Task failed with exception: {t.exception()}")
-                    if DEBUG_LLM_WIDGET:
-                        import traceback
-                        traceback.print_exception(type(t.exception()), t.exception(), t.exception().__traceback__)
-            
-            task.add_done_callback(task_done_callback)
-            
-        except Exception as e:
-            _debug_print(f"Debug: Error creating task: {e}")
-            if DEBUG_LLM_WIDGET:
-                import traceback
-                traceback.print_exc()
+        task: asyncio.Task = asyncio.create_task(awaitable)
+        self._tasks.add(task)
+        task.add_done_callback(lambda t: self._tasks.discard(t))
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle logic for when the user submits text."""
@@ -89,7 +70,7 @@ class LLMChatWidget(AgentWidget):
         try:
             if self.waiting_for_approval and message.lower() in [
                 "approve",
-                "approved", 
+                "approved",
                 "deny",
                 "denied",
             ]:
@@ -98,9 +79,9 @@ class LLMChatWidget(AgentWidget):
                 self.waiting_for_approval = False
             else:
                 result = await self.llm_manager.chat(message, thread_id=self.thread_id)
-            
+
             await self._handle_llm_response(result)
-            
+
         except Exception as e:
             self.add_message("assistant", f"❌ Error: {e}")
 
@@ -108,32 +89,22 @@ class LLMChatWidget(AgentWidget):
         """Handle the LLM response."""
         if result.content:
             self.add_message("assistant", result.content)
-        
+
         if result.interrupted:
             self.waiting_for_approval = True
-            interrupt_msg = f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*"
+            interrupt_msg = (
+                f"🤖 {result.interrupt_message}\n\n*Reply with 'approve' or 'deny' to continue.*"
+            )
             self.add_message("assistant", interrupt_msg)
 
     async def diagnose_job(self, job_id: str) -> None:
         """Diagnose a failed job."""
-        # Handle local testing with mapped job IDs
-        actual_job_id = job_id
-        if hasattr(self, '_job_id_mapping') and self._job_id_mapping and job_id in self._job_id_mapping:
-            # For local testing, use the index to get the actual job
-            job_index = self._job_id_mapping[job_id]
-            failed_jobs = self.llm_manager.db_manager.failed
-            if job_index < len(failed_jobs):
-                # Use the actual job data but with our placeholder ID
-                actual_job_id = None  # The real job_id is None
-                _debug_print(f"Debug: Mapped {job_id} to job at index {job_index}")
-        
-        self.thread_id = job_id  # Use the displayed ID for thread tracking
+        self.thread_id = job_id
         self.clear_chat_history()
         self.add_message("assistant", f"🔍 Diagnosing job {job_id}...")
-        
+
         try:
-            # Pass the actual job_id (which might be None) to the LLM manager
-            result = await self.llm_manager.diagnose_failed_job(actual_job_id or job_id)
+            result = await self.llm_manager.diagnose_failed_job(job_id)
             await self._handle_llm_response(result)
         except Exception as e:
             self.add_message("assistant", f"❌ Error diagnosing job: {e}")
@@ -146,127 +117,58 @@ class LLMChatWidget(AgentWidget):
 def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     """Create an enhanced chat widget with job selection and controls."""
     from .widgets import _add_title
-    
+
     # Create the main chat widget
     chat_widget = LLMChatWidget(llm_manager)
-    
+
     # Create control widgets
     yolo_checkbox = ipyw.Checkbox(description="YOLO mode", value=False, indent=False)
-    
+
     # Extract failed job IDs (same as original working implementation)
-    try:
-        failed_jobs_data = llm_manager.db_manager.failed
-        _debug_print(f"Debug: Found {len(failed_jobs_data)} failed jobs")
-        
-        if DEBUG_LLM_WIDGET and failed_jobs_data:
-            _debug_print(f"Debug: First 3 jobs:")
-            for i, job in enumerate(failed_jobs_data[:3]):
-                _debug_print(f"  Job {i}: job_id={job.get('job_id')!r}, type={type(job.get('job_id'))}")
-        
-        # Extract job IDs - if all are None, generate placeholder IDs for local testing
-        job_ids = [job["job_id"] for job in failed_jobs_data]
-        
-        # Check if we're in a local testing scenario (all job IDs are None)
-        if job_ids and all(job_id is None for job_id in job_ids):
-            _debug_print("Debug: All job IDs are None - likely local SLURM testing")
-            # Generate placeholder IDs based on index
-            job_ids = [f"local_job_{i}" for i in range(len(failed_jobs_data))]
-            # Store mapping for later use
-            chat_widget._job_id_mapping = {f"local_job_{i}": i for i in range(len(failed_jobs_data))}
-        else:
-            chat_widget._job_id_mapping = None
-            
-        _debug_print(f"Debug: Extracted job IDs: {job_ids}")
-        
-        # Additional validation
-        if DEBUG_LLM_WIDGET and not job_ids:
-            _debug_print("Debug: No job IDs extracted - checking why...")
-            for i, job in enumerate(failed_jobs_data[:3]):  # Check first 3 jobs
-                _debug_print(f"Debug: Job {i}: {job}")
-                if isinstance(job, dict):
-                    if "job_id" in job:
-                        _debug_print(f"Debug: Job {i} has job_id: {job['job_id']}")
-                    else:
-                        _debug_print(f"Debug: Job {i} missing 'job_id' key, has: {list(job.keys())}")
-                else:
-                    _debug_print(f"Debug: Job {i} is not a dict: {type(job)}")
-        
-    except Exception as e:
-        _debug_print(f"Debug: Error extracting job IDs: {e}")
-        if DEBUG_LLM_WIDGET:
-            import traceback
-            traceback.print_exc()
-        job_ids = []
-    
+    failed_jobs = llm_manager.db_manager.failed
+    job_ids = [job["job_id"] for job in failed_jobs if job["job_id"] is not None and job["job_id"]]
+
     failed_job_dropdown = ipyw.Dropdown(
         options=job_ids,
         description="Failed Job:",
         disabled=False,
-        value=None
+        value=None,
     )
     refresh_button = ipyw.Button(description="Refresh Failed Jobs")
-    
+
     def on_yolo_change(change):
         chat_widget.set_yolo_mode(change["new"])
-    
+
     def on_job_change(change):
-        try:
-            _debug_print(f"Debug: Job selection changed - old: {change.get('old')!r}, new: {change.get('new')!r}")
-            
-            if change["new"] is not None:  # More explicit check
-                # Create task to diagnose job
-                _debug_print(f"Debug: Starting diagnosis for job: {change['new']!r}")
-                chat_widget._create_task(chat_widget.diagnose_job(str(change["new"])))
-            else:
-                _debug_print("Debug: No job selected (value is None)")
-        except Exception as e:
-            _debug_print(f"Debug: Error in job change handler: {e}")
-            if DEBUG_LLM_WIDGET:
-                import traceback
-                traceback.print_exc()
-    
+        if change["new"] is not None:
+            chat_widget._create_task(chat_widget.diagnose_job(str(change["new"])))
+
     def on_refresh(_):
-        try:
-            failed_jobs_data = llm_manager.db_manager.failed
-            _debug_print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
-            
-            # Extract job IDs - handle None values for local testing
-            job_ids = [job["job_id"] for job in failed_jobs_data]
-            
-            # Check if we're in local testing scenario
-            if job_ids and all(job_id is None for job_id in job_ids):
-                _debug_print("Debug: Refresh - All job IDs are None - using placeholders")
-                job_ids = [f"local_job_{i}" for i in range(len(failed_jobs_data))]
-                chat_widget._job_id_mapping = {f"local_job_{i}": i for i in range(len(failed_jobs_data))}
-            else:
-                chat_widget._job_id_mapping = None
-                
-            _debug_print(f"Debug: Refreshed job IDs: {job_ids}")
-            
-            failed_job_dropdown.unobserve(on_job_change, names="value")
-            failed_job_dropdown.options = job_ids
-            failed_job_dropdown.value = None
-            failed_job_dropdown.observe(on_job_change, names="value")
-            
-        except Exception as e:
-            _debug_print(f"Debug: Error during refresh: {e}")
-            if DEBUG_LLM_WIDGET:
-                import traceback
-                traceback.print_exc()
-    
+        failed_jobs = llm_manager.db_manager.failed
+        job_ids = [
+            job["job_id"] for job in failed_jobs if job["job_id"] is not None and job["job_id"]
+        ]
+
+        failed_job_dropdown.unobserve(on_job_change, names="value")
+        failed_job_dropdown.options = job_ids
+        failed_job_dropdown.value = None
+        failed_job_dropdown.observe(on_job_change, names="value")
+
     # Register event handlers
     yolo_checkbox.observe(on_yolo_change, names="value")
     failed_job_dropdown.observe(on_job_change, names="value")
     refresh_button.on_click(on_refresh)
-    
+
     # Assemble the widget
-    widget = ipyw.VBox([
-        refresh_button,
-        failed_job_dropdown,
-        yolo_checkbox,
-        chat_widget,
-    ])
-    
+    widget = ipyw.VBox(
+        [
+            refresh_button,
+            failed_job_dropdown,
+            yolo_checkbox,
+            chat_widget,
+        ],
+    )
+
     _add_title("adaptive_scheduler.widgets.LLMChatWidget", widget)
     return widget
 
@@ -274,8 +176,8 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
 def chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     """Creates and returns an AnyWidget-based chat widget for interacting with the LLM.
 
-    This widget provides a modern React-based user interface for chatting with a 
-    language model, diagnosing failed jobs, and approving or denying operations 
+    This widget provides a modern React-based user interface for chatting with a
+    language model, diagnosing failed jobs, and approving or denying operations
     that require user intervention.
 
     Parameters
