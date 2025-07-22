@@ -135,7 +135,7 @@ async def chat(
     return ChatResult(content=content, thread_id=thread_id)
 
 
-def create_agent_graph(llm: BaseLanguageModel, tools: list["BaseTool"], *, yolo: bool) -> StateGraph:
+def create_agent_graph(llm: BaseLanguageModel, tools: list[BaseTool], *, yolo: bool) -> StateGraph:
     """Create the LangGraph agent with approval flow."""
     graph = StateGraph(MessagesState)
 
