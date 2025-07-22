@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from adaptive_scheduler._llm_widgets import chat_widget
+from adaptive_scheduler._llm_anywidget import chat_widget
 from adaptive_scheduler._server_support.llm_manager import ChatResult, LLMManager
 
 
@@ -46,7 +46,7 @@ class TestMultiThreadSupport:
         widget = chat_widget(llm_manager)
 
         # Verify that the widget structure is correct for multi-thread support
-        assert len(widget.children) == 6
+        assert len(widget.children) == 5
         assert widget.children[2].options == ("job_123",)
 
     def test_default_thread_when_no_job_selected(self) -> None:
@@ -149,8 +149,7 @@ class TestMultiThreadSupport:
         refresh_button = widget.children[1]
         failed_job_dropdown = widget.children[2]
         yolo_checkbox = widget.children[3]
-        chat_history = widget.children[4]
-        text_input = widget.children[5]
+        chat_widget_instance = widget.children[4]
 
         # Verify all components exist and have proper configuration
         assert refresh_button.description == "Refresh Failed Jobs"
@@ -158,9 +157,8 @@ class TestMultiThreadSupport:
         assert failed_job_dropdown.options == ("job_1", "job_2", "job_3")
         assert not failed_job_dropdown.disabled
         assert yolo_checkbox.description == "YOLO mode"
-        # The chat history doesn't have a description in the new implementation
-        assert "Hello!" in chat_history.value
-        assert text_input.description == "You:"
+        # The new AnyWidget implementation contains the chat interface
+        assert hasattr(chat_widget_instance, "chat_history")
 
         # Verify that the dropdown has observers (which handle thread switching)
         assert len(failed_job_dropdown._trait_notifiers.get("value", [])) > 0

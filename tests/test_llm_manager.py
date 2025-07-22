@@ -13,7 +13,7 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_core.messages import AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from adaptive_scheduler._llm_widgets import chat_widget
+from adaptive_scheduler._llm_anywidget import chat_widget
 from adaptive_scheduler._server_support.llm_manager import ChatResult, LLMManager
 from adaptive_scheduler._server_support.run_manager import RunManager
 from adaptive_scheduler.widgets import info
@@ -227,8 +227,7 @@ def test_chat_widget_refresh_button(run_manager: RunManager) -> None:
         refresh_button,
         failed_job_dropdown,
         yolo_checkbox,
-        chat_history,
-        text_input,
+        chat_widget_instance,
     ) = widget.children
     assert failed_job_dropdown.options == ()
 

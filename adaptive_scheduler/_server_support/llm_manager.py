@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypedDict
 
 import aiofiles
 from langchain.chat_models import init_chat_model
@@ -24,9 +24,44 @@ if TYPE_CHECKING:
 
     from langchain_core.language_models import BaseLanguageModel
     from langchain_core.runnables import RunnableConfig
+    from langchain_core.tools.base import BaseTool
     from langgraph.graph.state import CompiledStateGraph
 
     from .database_manager import DatabaseManager
+
+# Type aliases for better clarity
+MessageContent: TypeAlias = str | list[dict[str, Any]]
+RunMetadata: TypeAlias = dict[str, str | int | float | bool]
+
+
+class ToolCall(TypedDict):
+    """Structure of a tool call in an AI message."""
+
+    name: str
+    args: dict[str, Any]
+    id: str
+
+
+class WriteFileArgs(TypedDict):
+    """Arguments for write_file tool."""
+
+    file_path: str
+    text: str
+
+
+class MoveFileArgs(TypedDict):
+    """Arguments for move_file tool."""
+
+    src_path: str
+    new_path: str
+
+
+class JobInfo(TypedDict):
+    """Structure of a job in the database."""
+
+    job_id: str
+    job_name: str
+    output_logs: list[str]
 
 
 # Constants
@@ -48,7 +83,7 @@ class ChatResult:
         return self.interrupted and self.interrupt_message is not None
 
 
-def _format_response_content(content: Any) -> str:
+def _format_response_content(content: MessageContent) -> str:
     """Format response content, handling both strings and lists."""
     if isinstance(content, list):
         return "\n".join(str(item) for item in content)
@@ -59,7 +94,7 @@ async def chat(
     agent_executor: CompiledStateGraph,
     message: str | list[ToolMessage] | bool,
     thread_id: str = "1",
-    run_metadata: dict[str, Any] | None = None,
+    run_metadata: RunMetadata | None = None,
 ) -> ChatResult:
     """Handle a chat message and return a response."""
     if isinstance(message, str):
@@ -100,7 +135,7 @@ async def chat(
     return ChatResult(content=content, thread_id=thread_id)
 
 
-def create_agent_graph(llm: BaseLanguageModel, tools: list[Any], *, yolo: bool) -> StateGraph:
+def create_agent_graph(llm: BaseLanguageModel, tools: list["BaseTool"], *, yolo: bool) -> StateGraph:
     """Create the LangGraph agent with approval flow."""
     graph = StateGraph(MessagesState)
 
@@ -144,7 +179,7 @@ class LLMManager(BaseManager):
         working_dir: str | Path = ".",
         *,
         yolo: bool = False,
-        **kwargs: Any,
+        **kwargs: Any,  # These are passed to init_chat_model
     ) -> None:
         super().__init__()
         self.db_manager = db_manager
@@ -200,7 +235,7 @@ class LLMManager(BaseManager):
         initial_message = _create_diagnosis_prompt(log_content)
 
         # Use job_id as thread_id and pass job_id in metadata for better tracking
-        run_metadata = {"job_id": job_id}
+        run_metadata: RunMetadata = {"job_id": job_id}
         chat_result = await chat(
             self.agent_executor,
             initial_message,
@@ -218,7 +253,7 @@ class LLMManager(BaseManager):
         self,
         message: str | list[ToolMessage] | bool,
         thread_id: str = "1",
-        run_metadata: dict[str, Any] | None = None,
+        run_metadata: RunMetadata | None = None,
     ) -> ChatResult:
         """Handle a chat message and return a response."""
         return await chat(self.agent_executor, message, thread_id, run_metadata)
@@ -228,7 +263,7 @@ class LLMManager(BaseManager):
         return self.agent_executor.get_state({"configurable": {"thread_id": thread_id}}).values
 
 
-def _extract_write_operations(last_message: ToolMessage) -> list[str]:
+def _extract_write_operations(last_message: AIMessage) -> list[str]:
     """Extract write operations from tool calls for approval context."""
     write_ops = []
     for tool_call in last_message.tool_calls:
@@ -300,7 +335,7 @@ def _agent_to_tool_maybe_via_approval(*, yolo: bool) -> Callable[[MessagesState]
     return should_continue
 
 
-def _after_human_approval(state: MessagesState) -> str:
+def _after_human_approval(state: MessagesState) -> Literal["agent", "tools"]:
     """Determine the next step after human approval."""
     last_message = state["messages"][-1]
     if (
@@ -344,7 +379,8 @@ def _get_log_file_paths(
     move_old_logs_to: Path | None = None,
 ) -> list[Path]:
     """Get the log file paths from the database."""
-    for job in db_manager.failed:
+    failed_jobs: list[JobInfo] = db_manager.failed  # type: ignore[assignment]
+    for job in failed_jobs:
         if job["job_id"] == job_id:
             output_logs = [Path(log) for log in job["output_logs"]]
             log_paths = []
