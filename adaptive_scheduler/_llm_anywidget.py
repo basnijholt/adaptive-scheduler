@@ -68,16 +68,18 @@ class LLMChatWidget(AgentWidget):
             def task_done_callback(t):
                 self._tasks.discard(t)  # Use discard instead of remove to avoid KeyError
                 if t.exception():
-                    print(f"Debug: Task failed with exception: {t.exception()}")
-                    import traceback
-                    traceback.print_exception(type(t.exception()), t.exception(), t.exception().__traceback__)
+                    _debug_print(f"Debug: Task failed with exception: {t.exception()}")
+                    if DEBUG_LLM_WIDGET:
+                        import traceback
+                        traceback.print_exception(type(t.exception()), t.exception(), t.exception().__traceback__)
             
             task.add_done_callback(task_done_callback)
             
         except Exception as e:
-            print(f"Debug: Error creating task: {e}")
-            import traceback
-            traceback.print_exc()
+            _debug_print(f"Debug: Error creating task: {e}")
+            if DEBUG_LLM_WIDGET:
+                import traceback
+                traceback.print_exc()
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle logic for when the user submits text."""
@@ -114,12 +116,24 @@ class LLMChatWidget(AgentWidget):
 
     async def diagnose_job(self, job_id: str) -> None:
         """Diagnose a failed job."""
-        self.thread_id = job_id
+        # Handle local testing with mapped job IDs
+        actual_job_id = job_id
+        if hasattr(self, '_job_id_mapping') and self._job_id_mapping and job_id in self._job_id_mapping:
+            # For local testing, use the index to get the actual job
+            job_index = self._job_id_mapping[job_id]
+            failed_jobs = self.llm_manager.db_manager.failed
+            if job_index < len(failed_jobs):
+                # Use the actual job data but with our placeholder ID
+                actual_job_id = None  # The real job_id is None
+                _debug_print(f"Debug: Mapped {job_id} to job at index {job_index}")
+        
+        self.thread_id = job_id  # Use the displayed ID for thread tracking
         self.clear_chat_history()
         self.add_message("assistant", f"🔍 Diagnosing job {job_id}...")
         
         try:
-            result = await self.llm_manager.diagnose_failed_job(job_id)
+            # Pass the actual job_id (which might be None) to the LLM manager
+            result = await self.llm_manager.diagnose_failed_job(actual_job_id or job_id)
             await self._handle_llm_response(result)
         except Exception as e:
             self.add_message("assistant", f"❌ Error diagnosing job: {e}")
@@ -142,34 +156,46 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     # Extract failed job IDs (same as original working implementation)
     try:
         failed_jobs_data = llm_manager.db_manager.failed
-        print(f"Debug: Found {len(failed_jobs_data)} failed jobs")
+        _debug_print(f"Debug: Found {len(failed_jobs_data)} failed jobs")
         
-        if failed_jobs_data:
-            print(f"Debug: First 3 jobs:")
+        if DEBUG_LLM_WIDGET and failed_jobs_data:
+            _debug_print(f"Debug: First 3 jobs:")
             for i, job in enumerate(failed_jobs_data[:3]):
-                print(f"  Job {i}: job_id={job.get('job_id')!r}, type={type(job.get('job_id'))}")
+                _debug_print(f"  Job {i}: job_id={job.get('job_id')!r}, type={type(job.get('job_id'))}")
         
-        # Use EXACT same logic as original working implementation - no filtering
+        # Extract job IDs - if all are None, generate placeholder IDs for local testing
         job_ids = [job["job_id"] for job in failed_jobs_data]
+        
+        # Check if we're in a local testing scenario (all job IDs are None)
+        if job_ids and all(job_id is None for job_id in job_ids):
+            _debug_print("Debug: All job IDs are None - likely local SLURM testing")
+            # Generate placeholder IDs based on index
+            job_ids = [f"local_job_{i}" for i in range(len(failed_jobs_data))]
+            # Store mapping for later use
+            chat_widget._job_id_mapping = {f"local_job_{i}": i for i in range(len(failed_jobs_data))}
+        else:
+            chat_widget._job_id_mapping = None
+            
         _debug_print(f"Debug: Extracted job IDs: {job_ids}")
         
         # Additional validation
-        if not job_ids:
-            print("Debug: No job IDs extracted - checking why...")
+        if DEBUG_LLM_WIDGET and not job_ids:
+            _debug_print("Debug: No job IDs extracted - checking why...")
             for i, job in enumerate(failed_jobs_data[:3]):  # Check first 3 jobs
-                print(f"Debug: Job {i}: {job}")
+                _debug_print(f"Debug: Job {i}: {job}")
                 if isinstance(job, dict):
                     if "job_id" in job:
-                        print(f"Debug: Job {i} has job_id: {job['job_id']}")
+                        _debug_print(f"Debug: Job {i} has job_id: {job['job_id']}")
                     else:
-                        print(f"Debug: Job {i} missing 'job_id' key, has: {list(job.keys())}")
+                        _debug_print(f"Debug: Job {i} missing 'job_id' key, has: {list(job.keys())}")
                 else:
-                    print(f"Debug: Job {i} is not a dict: {type(job)}")
+                    _debug_print(f"Debug: Job {i} is not a dict: {type(job)}")
         
     except Exception as e:
-        print(f"Debug: Error extracting job IDs: {e}")
-        import traceback
-        traceback.print_exc()
+        _debug_print(f"Debug: Error extracting job IDs: {e}")
+        if DEBUG_LLM_WIDGET:
+            import traceback
+            traceback.print_exc()
         job_ids = []
     
     failed_job_dropdown = ipyw.Dropdown(
@@ -185,28 +211,36 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
     
     def on_job_change(change):
         try:
-            print(f"Debug: Job selection changed - old: {change.get('old')!r}, new: {change.get('new')!r}")
-            print(f"Debug: Change object keys: {list(change.keys())}")
-            print(f"Debug: Full change object: {change}")
+            _debug_print(f"Debug: Job selection changed - old: {change.get('old')!r}, new: {change.get('new')!r}")
             
             if change["new"] is not None:  # More explicit check
                 # Create task to diagnose job
-                print(f"Debug: Starting diagnosis for job: {change['new']!r}")
+                _debug_print(f"Debug: Starting diagnosis for job: {change['new']!r}")
                 chat_widget._create_task(chat_widget.diagnose_job(str(change["new"])))
             else:
-                print("Debug: No job selected (value is None)")
+                _debug_print("Debug: No job selected (value is None)")
         except Exception as e:
-            print(f"Debug: Error in job change handler: {e}")
-            import traceback
-            traceback.print_exc()
+            _debug_print(f"Debug: Error in job change handler: {e}")
+            if DEBUG_LLM_WIDGET:
+                import traceback
+                traceback.print_exc()
     
     def on_refresh(_):
         try:
             failed_jobs_data = llm_manager.db_manager.failed
-            print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
+            _debug_print(f"Debug: Refreshing - found {len(failed_jobs_data)} failed jobs")
             
-            # Use EXACT same logic as original - no filtering
+            # Extract job IDs - handle None values for local testing
             job_ids = [job["job_id"] for job in failed_jobs_data]
+            
+            # Check if we're in local testing scenario
+            if job_ids and all(job_id is None for job_id in job_ids):
+                _debug_print("Debug: Refresh - All job IDs are None - using placeholders")
+                job_ids = [f"local_job_{i}" for i in range(len(failed_jobs_data))]
+                chat_widget._job_id_mapping = {f"local_job_{i}": i for i in range(len(failed_jobs_data))}
+            else:
+                chat_widget._job_id_mapping = None
+                
             _debug_print(f"Debug: Refreshed job IDs: {job_ids}")
             
             failed_job_dropdown.unobserve(on_job_change, names="value")
@@ -215,9 +249,10 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
             failed_job_dropdown.observe(on_job_change, names="value")
             
         except Exception as e:
-            print(f"Debug: Error during refresh: {e}")
-            import traceback
-            traceback.print_exc()
+            _debug_print(f"Debug: Error during refresh: {e}")
+            if DEBUG_LLM_WIDGET:
+                import traceback
+                traceback.print_exc()
     
     # Register event handlers
     yolo_checkbox.observe(on_yolo_change, names="value")
