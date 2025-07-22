@@ -53,9 +53,23 @@ class LLMChatWidget(AgentWidget):
 
     def _create_task(self, awaitable: Coroutine) -> None:
         """Run an async function as a background task."""
-        task: asyncio.Task = asyncio.create_task(awaitable)
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.remove)
+        try:
+            task: asyncio.Task = asyncio.create_task(awaitable)
+            self._tasks.add(task)
+            
+            def task_done_callback(t):
+                self._tasks.discard(t)  # Use discard instead of remove to avoid KeyError
+                if t.exception():
+                    print(f"Debug: Task failed with exception: {t.exception()}")
+                    import traceback
+                    traceback.print_exception(type(t.exception()), t.exception(), t.exception().__traceback__)
+            
+            task.add_done_callback(task_done_callback)
+            
+        except Exception as e:
+            print(f"Debug: Error creating task: {e}")
+            import traceback
+            traceback.print_exc()
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle logic for when the user submits text."""
@@ -172,13 +186,18 @@ def create_enhanced_chat_widget(llm_manager: LLMManager) -> ipyw.VBox:
         chat_widget.set_yolo_mode(change["new"])
     
     def on_job_change(change):
-        print(f"Debug: Job selection changed - old: {change.get('old')}, new: {change.get('new')}")
-        if change["new"]:
-            # Create task to diagnose job
-            print(f"Debug: Starting diagnosis for job: {change['new']}")
-            chat_widget._create_task(chat_widget.diagnose_job(change["new"]))
-        else:
-            print("Debug: No job selected (value is None)")
+        try:
+            print(f"Debug: Job selection changed - old: {change.get('old')}, new: {change.get('new')}")
+            if change["new"]:
+                # Create task to diagnose job
+                print(f"Debug: Starting diagnosis for job: {change['new']}")
+                chat_widget._create_task(chat_widget.diagnose_job(change["new"]))
+            else:
+                print("Debug: No job selected (value is None)")
+        except Exception as e:
+            print(f"Debug: Error in job change handler: {e}")
+            import traceback
+            traceback.print_exc()
     
     def on_refresh(_):
         try:
