@@ -47,6 +47,9 @@ dependencies = [
     "langgraph",
     "mistune",
     "pygments",
+    # "assistant-ui-widget",
+    "langchain-community>=0.3.27",
+    "anywidget>=0.9.18",
 ]
 [project.optional-dependencies]
 all = ["dask-mpi", "mpi4py"]
@@ -150,3 +153,13 @@ max-complexity = 18
 
 [tool.mypy]
 python_version = "3.10"
+
+[tool.uv.sources]
+assistant-ui-widget = { path = "assistant-ui-anywidget" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+]
