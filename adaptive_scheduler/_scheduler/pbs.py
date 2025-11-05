@@ -140,7 +140,7 @@ class PBS(BaseScheduler):
         """
         job_script = textwrap.dedent(
             f"""\
-            #!/bin/sh
+            #!/usr/bin/env sh
             #PBS -l nodes={self.nnodes}:ppn={self.cores_per_node}
             #PBS -V
             #PBS -o /tmp/placeholder

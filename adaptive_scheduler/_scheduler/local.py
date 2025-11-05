@@ -93,7 +93,7 @@ class LocalMockScheduler(BaseScheduler):
         """
         job_script = textwrap.dedent(
             """\
-            #!/bin/sh
+            #!/usr/bin/env sh
 
             {extra_env_vars}
 

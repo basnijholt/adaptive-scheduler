@@ -59,7 +59,7 @@ class MockScheduler(BaseScheduler):
         """Return a job script for the mock scheduler."""
         job_script = textwrap.dedent(
             f"""\
-            #!/bin/bash
+            #!/usr/bin/env bash
             #MOCK --cores {self.cores}
             {{extra_scheduler}}
 

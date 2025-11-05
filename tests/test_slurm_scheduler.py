@@ -183,7 +183,7 @@ def test_slurm_scheduler_job_script_ipyparallel() -> None:
         job_script.strip()
         == textwrap.dedent(
             f"""\
-        #!/bin/bash
+        #!/usr/bin/env bash
         #SBATCH --ntasks 4
         #SBATCH --no-requeue
         #SBATCH --exclusive=user

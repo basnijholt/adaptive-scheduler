@@ -362,7 +362,7 @@ class SLURM(BaseScheduler):
         cores = self._get_cores(index=index)
         job_script = textwrap.dedent(
             f"""\
-            #!/bin/bash
+            #!/usr/bin/env bash
             #SBATCH --ntasks {cores}
             #SBATCH --no-requeue
             {{extra_scheduler}}
