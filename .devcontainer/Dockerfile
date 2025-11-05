@@ -53,7 +53,7 @@ RUN chmod 644 /etc/slurm/slurm.conf && \
     chown -R slurm:slurm /var/spool/slurmd /var/run/slurm /var/log/slurm /var/lock/slurm /var/spool/slurm
 
 # Create a startup script to ensure SLURM services are running
-RUN echo '#!/bin/bash' > /usr/local/bin/startup.sh && \
+RUN echo '#!/usr/bin/env bash' > /usr/local/bin/startup.sh && \
     echo 'service munge start' >> /usr/local/bin/startup.sh && \
     echo 'service slurmd start' >> /usr/local/bin/startup.sh && \
     echo 'service slurmctld start' >> /usr/local/bin/startup.sh && \

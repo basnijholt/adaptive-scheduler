@@ -22,7 +22,7 @@ def test_base_scheduler_job_script() -> None:
     log_fname = s.log_fname("${NAME}")
     assert job_script == textwrap.dedent(
         f"""\
-        #!/bin/bash
+        #!/usr/bin/env bash
         #MOCK --cores 4
         ##MOCK --exclusive=user
         ##MOCK --time=1
