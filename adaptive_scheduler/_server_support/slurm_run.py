@@ -240,8 +240,7 @@ def slurm_run(
         assert "extra_env_vars" not in extra_scheduler_kwargs
         extra_scheduler_kwargs["extra_env_vars"] = extra_env_vars
     if memory is not None:
-        # "memory" used to be passed via the extra_scheduler_kwargs
-        # this ensures backwards compatibility
+        # "memory" can also be passed via extra_scheduler_kwargs
         assert "memory" not in extra_scheduler_kwargs
         extra_scheduler_kwargs["memory"] = memory
 
