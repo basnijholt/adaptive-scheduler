@@ -62,7 +62,7 @@ class SLURM(BaseScheduler):
 
     ``cores``, ``nodes``, ``cores_per_node``, ``extra_scheduler``,
     ``executor_type``, ``extra_script``, ``exclusive``, ``extra_env_vars``,
-    ``num_threads`` and ``partition`` can be either a single value or a tuple of
+    ``num_threads``, ``memory`` and ``partition`` can be either a single value or a tuple of
     values. If a tuple is given, then the length of the tuple should be the same
     as the number of learners (jobs) that are run. This allows for different
     resources for different jobs. The tuple elements are also allowed to be
@@ -83,6 +83,8 @@ class SLURM(BaseScheduler):
         Either `nodes` and `cores_per_node` or use `cores`.
     partition
         The SLURM partition to submit the job to.
+    memory
+        Memory per job, e.g. ``"4GB"`` or ``"500MB"``. Adds ``--mem`` to the SBATCH options.
     exclusive
         Whether to use exclusive nodes (e.g., if SLURM it adds ``--exclusive`` as option).
     log_folder
@@ -124,6 +126,7 @@ class SLURM(BaseScheduler):
         nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
         cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
         partition: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
+        memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
         exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -142,6 +145,7 @@ class SLURM(BaseScheduler):
         self._nodes = nodes
         self._cores_per_node = cores_per_node
         self._partition = partition
+        self._memory = memory
         self._executor_type = executor_type
         self._num_threads = num_threads
         self._exclusive = exclusive
@@ -169,6 +173,7 @@ class SLURM(BaseScheduler):
             nodes,
             cores_per_node,
             partition,
+            memory,
             executor_type,
             num_threads,
             exclusive,
@@ -181,6 +186,7 @@ class SLURM(BaseScheduler):
         self.nodes = _maybe_as_tuple(nodes, n, check_type=int)  # type: ignore[arg-type]
         self.cores_per_node = _maybe_as_tuple(cores_per_node, n, check_type=int)  # type: ignore[arg-type]
         self.partition = _maybe_as_tuple(partition, n, check_type=str)  # type: ignore[arg-type]
+        self.memory = _maybe_as_tuple(memory, n, check_type=str)  # type: ignore[arg-type]
         executor_type = _maybe_as_tuple(executor_type, n, check_type=str)  # type: ignore[assignment]
         num_threads = _maybe_as_tuple(num_threads, n, check_type=int)  # type: ignore[assignment]
         self.exclusive = _maybe_as_tuple(exclusive, n, check_type=bool)
@@ -254,6 +260,17 @@ class SLURM(BaseScheduler):
             if partition is not None:
                 slurm_args.append(f"--partition={partition}")
 
+        if self.memory is not None:
+            if self.single_job_script:
+                assert isinstance(self.memory, str)
+                memory = self.memory
+            else:
+                assert isinstance(self.memory, tuple)
+                assert index is not None
+                memory = _maybe_call(self.memory[index])
+            if memory is not None:
+                slurm_args.append(f"--mem={memory}")
+
         if self.single_job_script:
             assert isinstance(self.exclusive, bool)
             exclusive = self.exclusive
@@ -280,6 +297,7 @@ class SLURM(BaseScheduler):
         state["nodes"] = self._nodes
         state["cores_per_node"] = self._cores_per_node
         state["partition"] = self._partition
+        state["memory"] = self._memory
         state["executor_type"] = self._executor_type
         state["num_threads"] = self._num_threads
         state["exclusive"] = self._exclusive
