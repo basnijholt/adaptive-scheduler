@@ -216,6 +216,8 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     cores_per_node
         The number of cores per node to use. If None, then all cores on the partition
         will be used.
+    memory
+        Memory per job, e.g. ``"4GB"`` or ``"500MB"``. Adds ``--mem`` to the SBATCH options.
     num_threads
         The number of threads to use.
     exclusive
@@ -228,6 +230,9 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         Extra ``#SLURM`` (depending on scheduler type)
         arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
         e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
+    extra_env_vars
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
     goal
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
@@ -304,12 +309,14 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = (
         1  # `slurm_run` defaults to `None`
     )
+    memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None
     num_threads: int | tuple[int | Callable[[], int], ...] = 1
     exclusive: bool | tuple[bool | Callable[[], bool], ...] = False
     executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = (
         "process-pool"
     )
     extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None
+    extra_env_vars: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None
     # slurm_run: Same as RunManager below (except dependencies and initializers)
     goal: GoalTypes | None = None
     check_goal_on_start: bool = True
@@ -490,10 +497,12 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
             partition=self.partition,
             nodes=self.nodes,
             cores_per_node=self.cores_per_node,
+            memory=self.memory,
             num_threads=self.num_threads,
             exclusive=self.exclusive,
             executor_type=self.executor_type,
             extra_scheduler=self.extra_scheduler,
+            extra_env_vars=self.extra_env_vars,
             # Same as RunManager below (except job_name, move_old_logs_to, and db_fname)
             goal=self.goal,
             check_goal_on_start=self.check_goal_on_start,

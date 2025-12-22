@@ -33,11 +33,13 @@ def slurm_run(
     partition: str | tuple[str | Callable[[], str], ...] | None = None,
     nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1,
     cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
+    memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
     num_threads: int | tuple[int | Callable[[], int], ...] = 1,
     exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
     executor_type: EXECUTOR_TYPES
     | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = "process-pool",
     extra_scheduler: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
+    extra_env_vars: list[str] | tuple[list[str] | Callable[[], list[str]], ...] | None = None,
     # Same as RunManager below (except job_name, move_old_logs_to, and db_fname)
     goal: GoalTypes | None = None,
     check_goal_on_start: bool = True,
@@ -67,8 +69,8 @@ def slurm_run(
 ) -> RunManager:
     """Run adaptive on a SLURM cluster.
 
-    ``cores_per_node``, ``nodes``, ``extra_scheduler``,
-    ``executor_type``, ``exclusive``,
+    ``cores_per_node``, ``nodes``, ``extra_scheduler``, ``extra_env_vars``,
+    ``executor_type``, ``exclusive``, ``memory``,
     ``num_threads`` and ``partition`` can be either a single value or a tuple of
     values. If a tuple is given, then the length of the tuple should be the same
     as the number of learners (jobs) that are run. This allows for different
@@ -98,6 +100,8 @@ def slurm_run(
     cores_per_node
         The number of cores per node to use. If None, then all cores on the partition
         will be used.
+    memory
+        Memory per job, e.g. ``"4GB"`` or ``"500MB"``. Adds ``--mem`` to the SBATCH options.
     num_threads
         The number of threads to use.
     exclusive
@@ -110,6 +114,9 @@ def slurm_run(
         Extra ``#SLURM`` (depending on scheduler type)
         arguments, e.g. ``["--exclusive=user", "--time=1"]`` or a tuple of lists,
         e.g. ``(["--time=10"], ["--time=20"]])`` for two jobs.
+    extra_env_vars
+        Extra environment variables that are exported in the job
+        script. e.g. ``["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"]``.
     goal
         The goal passed to the `adaptive.Runner`. Note that this function will
         be serialized and pasted in the ``job_script``. Can be a smart-goal
@@ -227,6 +234,16 @@ def slurm_run(
         # this ensures backwards compatibility
         assert "extra_scheduler" not in extra_scheduler_kwargs
         extra_scheduler_kwargs["extra_scheduler"] = extra_scheduler
+    if extra_env_vars is not None:
+        # "extra_env_vars" used to be passed via the extra_scheduler_kwargs
+        # this ensures backwards compatibility
+        assert "extra_env_vars" not in extra_scheduler_kwargs
+        extra_scheduler_kwargs["extra_env_vars"] = extra_env_vars
+    if memory is not None:
+        # "memory" used to be passed via the extra_scheduler_kwargs
+        # this ensures backwards compatibility
+        assert "memory" not in extra_scheduler_kwargs
+        extra_scheduler_kwargs["memory"] = memory
 
     slurm_kwargs = dict(
         _get_default_args(SLURM),
