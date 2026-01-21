@@ -353,13 +353,13 @@ class SLURM(BaseScheduler):
             sleep 10
 
             echo "Launching engines"
-            srun --ntasks {cores} ipengine \\
+            srun --exclusive --ntasks {cores} ipengine \\
                 --profile={profile} \\
                 --cluster-id='' \\
                 --log-to-file &
 
             echo "Starting the Python script"
-            srun --ntasks 1 {self.python_executable} {self.launcher} \\
+            srun --exclusive --ntasks 1 {self.python_executable} {self.launcher} \\
             """,
         )
         custom = (f"    --profile {profile}",)
