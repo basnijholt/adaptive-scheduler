@@ -557,11 +557,13 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     def new(self, update: dict[str, Any] | None = None) -> SlurmExecutor:
         """Create a new SlurmExecutor with the same parameters."""
+        import copy
+
         data = {}
         for key in SlurmExecutor.__dataclass_fields__:
             if key.startswith("_"):
                 continue
-            data[key] = getattr(self, key)
+            data[key] = copy.deepcopy(getattr(self, key))
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)
