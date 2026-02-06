@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import contextlib
+import copy
 import datetime
 import functools
 import os
@@ -561,7 +562,7 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
         for key in SlurmExecutor.__dataclass_fields__:
             if key.startswith("_"):
                 continue
-            data[key] = getattr(self, key)
+            data[key] = copy.deepcopy(getattr(self, key))
         if update is not None:
             data.update(update)
         return SlurmExecutor(**data)

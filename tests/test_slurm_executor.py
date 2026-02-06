@@ -387,3 +387,49 @@ def test_mapping_multiple_functions(tmp_path: Path) -> None:
     }
     assert mapping == expected_mapping
     assert len(learners) == 2
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+@pytest.mark.asyncio
+async def test_new_executor_does_not_share_mutable_fields(tmp_path: Path) -> None:
+    """Test that new() deep-copies mutable fields to avoid cross-contamination."""
+    original_kwargs = {"extra_env_vars": ["FOO=bar"]}
+    executor = SlurmExecutor(
+        folder=tmp_path,
+        extra_scheduler_kwargs=original_kwargs,
+    )
+    new_exec = executor.new(update={"name": "new-name"})
+    # Mutating the new executor's dict should not affect the original
+    assert new_exec.extra_scheduler_kwargs is not executor.extra_scheduler_kwargs
+    new_exec.extra_scheduler_kwargs["injected"] = "value"  # type: ignore[index]
+    assert "injected" not in executor.extra_scheduler_kwargs  # type: ignore[operator]
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
+@pytest.mark.asyncio
+async def test_executor_reuse_via_new_and_finalize(tmp_path: Path) -> None:
+    """Test that creating executors via new() and finalizing them doesn't corrupt shared state.
+
+    This reproduces a bug where slurm_run() mutated extra_scheduler_kwargs in-place,
+    causing an AssertionError when a second executor (created via new()) was finalized.
+    """
+    executor = SlurmExecutor(
+        folder=tmp_path / "original",
+        extra_scheduler_kwargs={"extra_env_vars": ["FOO=bar"]},
+        extra_scheduler=["--time=10"],
+    )
+
+    # First executor created from original
+    exec1 = executor.new(update={"name": "exec1", "folder": tmp_path / "exec1"})
+    exec1.submit(example_func, 1.0)
+    exec1.finalize(start=False)
+
+    # Second executor created from the same original should not fail
+    exec2 = executor.new(update={"name": "exec2", "folder": tmp_path / "exec2"})
+    exec2.submit(example_func, 2.0)
+    exec2.finalize(start=False)  # This used to raise AssertionError
+
+    # Original's extra_scheduler_kwargs should be unmodified
+    assert "extra_scheduler" not in executor.extra_scheduler_kwargs  # type: ignore[operator]

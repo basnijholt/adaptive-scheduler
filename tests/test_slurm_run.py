@@ -204,6 +204,28 @@ def test_slurm_run_with_extra_scheduler_kwargs(
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 @pytest.mark.usefixtures("_mock_slurm_queue")
+def test_slurm_run_does_not_mutate_extra_scheduler_kwargs(
+    learners: list[adaptive.Learner1D]
+    | list[adaptive.BalancingLearner]
+    | list[adaptive.SequenceLearner],
+    fnames: list[str] | list[Path],
+) -> None:
+    """Test that slurm_run does not mutate the caller's extra_scheduler_kwargs dict."""
+    kwargs = {"extra_env_vars": ["FOO=bar"]}
+    original_keys = set(kwargs.keys())
+    slurm_run(
+        learners,
+        fnames,
+        extra_scheduler=["--time=10"],
+        extra_scheduler_kwargs=kwargs,
+    )
+    # The original dict must not have been mutated
+    assert set(kwargs.keys()) == original_keys
+    assert "extra_scheduler" not in kwargs
+
+
+@pytest.mark.usefixtures("_mock_slurm_partitions")
+@pytest.mark.usefixtures("_mock_slurm_queue")
 @pytest.mark.parametrize("executor_type", ["ipyparallel", "dask-mpi", "mpi4py"])
 def test_slurm_run_with_custom_executor_type(
     learners: list[adaptive.Learner1D]

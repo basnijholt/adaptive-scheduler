@@ -227,8 +227,7 @@ def slurm_run(
             else partitions[partition]
         )
 
-    if extra_scheduler_kwargs is None:
-        extra_scheduler_kwargs = {}
+    extra_scheduler_kwargs = {} if extra_scheduler_kwargs is None else dict(extra_scheduler_kwargs)
     if extra_scheduler is not None:
         # "extra_scheduler" used to be passed via the extra_scheduler_kwargs
         # this ensures backwards compatibility
