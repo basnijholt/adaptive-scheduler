@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import contextlib
+import copy
 import datetime
 import functools
 import os
@@ -557,8 +558,6 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
 
     def new(self, update: dict[str, Any] | None = None) -> SlurmExecutor:
         """Create a new SlurmExecutor with the same parameters."""
-        import copy
-
         data = {}
         for key in SlurmExecutor.__dataclass_fields__:
             if key.startswith("_"):
