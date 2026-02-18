@@ -936,7 +936,7 @@ def _create_confirm_deny(
     )
 
 
-def info(
+def info(  # noqa: PLR0915
     run_manager: RunManager,
     *,
     display_widget: bool = True,
@@ -949,6 +949,8 @@ def info(
     """
     import ipywidgets as ipyw
     from IPython.display import display
+
+    from adaptive_scheduler._llm_anywidget import chat_widget
 
     if disable_widgets_output_scrollbar:
         _disable_widgets_output_scrollbar()
@@ -1005,6 +1007,12 @@ def info(
         button_style="info",
         icon="table",
     )
+    show_chat_button = ipyw.Button(
+        description="show chat",
+        layout=layout,
+        button_style="info",
+        icon="comments",
+    )
     widgets = {
         "update info": update_info_button,
         "cancel": ipyw.HBox([cancel_button], layout=layout),
@@ -1015,6 +1023,8 @@ def info(
         "database": show_db_button,
         "results": show_results_button,
     }
+    if run_manager.llm_manager:
+        widgets["chat"] = show_chat_button
 
     def update(_: Any) -> None:
         status.value = _info_html(run_manager)
@@ -1048,6 +1058,13 @@ def info(
             ),
             "output": ipyw.Output(),
         },
+        "chat": {
+            "widget": None,
+            "init_func": lambda: chat_widget(run_manager.llm_manager),  # type: ignore[arg-type]
+            "show_description": "show chat",
+            "hide_description": "hide chat",
+            "output": ipyw.Output(),
+        },
     }
 
     def cancel() -> None:
@@ -1070,6 +1087,9 @@ def info(
     widgets["queue"].on_click(toggle_queue)
     widgets["database"].on_click(toggle_database)
     widgets["results"].on_click(toggle_results)
+    if run_manager.llm_manager:
+        toggle_chat = _toggle_widget("chat", widgets, toggle_dict)
+        widgets["chat"].on_click(toggle_chat)
     widgets["load learners"].on_click(load_learners)
 
     # Cancel button with confirm/deny option
