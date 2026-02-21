@@ -7,6 +7,7 @@ import copy
 import datetime
 import functools
 import os
+import threading
 import time
 import uuid
 from concurrent.futures import Executor, Future
@@ -589,16 +590,71 @@ def _name(func: Callable[..., Any]) -> str:
     return func.__name__ if hasattr(func, "__name__") else "func"
 
 
+class ThreadedFileWriter:
+    """Utility class for writing data to disk in a background thread."""
+
+    def __init__(
+        self,
+        filepath: str | Path,
+        data: bytes,
+        *,
+        thread_name: str = "file_writer",
+    ) -> None:
+        self.filepath = Path(filepath)
+        self._write_complete = threading.Event()
+        self._write_thread = threading.Thread(
+            target=self._write_to_disk,
+            args=(data,),
+            name=thread_name,
+        )
+        self._write_thread.start()
+
+    def _write_to_disk(self, data: bytes) -> None:
+        """Write data to disk."""
+        try:
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            with self.filepath.open("wb") as f:
+                f.write(data)
+        finally:
+            self._write_complete.set()
+
+    def wait_for_completion(self) -> None:
+        """Wait for the write operation to complete."""
+        self._write_complete.wait()
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if the write operation is complete without blocking."""
+        return self._write_complete.is_set()
+
+
 class _DiskFunction:
     def __init__(self, func: Callable[..., Any], fname: str | Path) -> None:
         self.fname = Path(fname)
-        self.fname.parent.mkdir(parents=True, exist_ok=True)
-        with self.fname.open("wb") as f:
-            cloudpickle.dump(func, f)
+
+        # Prepare the function bytes and start threaded write
+        func_bytes = cloudpickle.dumps(func)
+        self._writer = ThreadedFileWriter(fname, func_bytes, thread_name="disk_writer")
+        self._writer.wait_for_completion()
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.func(*args, **kwargs)
 
     @functools.cached_property
     def func(self) -> Callable[..., Any]:
+        # Ensure the write operation is complete before reading
+        if hasattr(self, "_writer"):
+            self._writer.wait_for_completion()
         return cloudpickle.loads(self.fname.read_bytes())
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Custom pickling: ensure write is complete and exclude threading objects."""
+        if hasattr(self, "_writer"):
+            self._writer.wait_for_completion()
+        # Return only the file path - the file should be written by now
+        return {"fname": self.fname}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Custom unpickling: restore state without threading objects."""
+        self.fname = state["fname"]
+        # Don't recreate the writer - the file should already exist
