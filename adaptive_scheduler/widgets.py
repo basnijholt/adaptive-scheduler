@@ -37,6 +37,8 @@ class RunManagerInfo:
     n_pending: int
     n_done: int
     n_failed: int
+    n_code_failures: int
+    n_infra_failures: int
     n_unscheduled: int
     elapsed_time: timedelta
     total_data_size: int
@@ -77,6 +79,8 @@ class RunManagerInfo:
         n_pending = sum(job["state"] in ("PENDING", "Q", "CONFIGURING") for job in jobs)
         n_done = sum(1 for job in dbm.as_dicts() if job["is_done"])
         n_failed = len(dbm.failed)
+        n_code_failures = dbm.n_code_failures
+        n_infra_failures = dbm.n_infra_failures
         n_unscheduled = len(dbm.fnames) - n_running - n_pending - n_done
 
         # Get basic status information
@@ -121,6 +125,8 @@ class RunManagerInfo:
             n_pending=n_pending,
             n_done=n_done,
             n_failed=n_failed,
+            n_code_failures=n_code_failures,
+            n_infra_failures=n_infra_failures,
             n_unscheduled=n_unscheduled,
             elapsed_time=elapsed_time,
             total_data_size=total_data_size,
@@ -138,7 +144,7 @@ class RunManagerInfo:
             f"Running jobs:     {self.n_running}",
             f"Pending jobs:     {self.n_pending}",
             f"Finished jobs:    {self.n_done}",
-            f"Failed jobs:      {self.n_failed}",
+            f"Failed jobs:      {self.n_failed} ({self.n_code_failures} code, {self.n_infra_failures} infra)",
             f"Unscheduled jobs: {self.n_unscheduled}",
             f"Elapsed time:     {self.elapsed_time}",
             f"Total data size:  {_bytes_to_human_readable(self.total_data_size)}",
@@ -641,7 +647,10 @@ def _info_html(run_manager: RunManager) -> str:
         ("# running jobs", f'<font color="blue">{data.n_running}</font>'),
         ("# pending jobs", f'<font color="orange">{data.n_pending}</font>'),
         ("# finished jobs", f'<font color="green">{data.n_done}</font>'),
-        ("# failed jobs", f'<font color="{n_failed_color}">{data.n_failed}</font>'),
+        (
+            "# failed jobs",
+            f'<font color="{n_failed_color}">{data.n_failed} ({data.n_code_failures} code, {data.n_infra_failures} infra)</font>',
+        ),
         ("# unscheduled jobs", f'<font color="{n_unscheduled_color}">{data.n_unscheduled}</font>'),
         ("elapsed time", data.elapsed_time),
         ("total data size", _bytes_to_human_readable(data.total_data_size)),

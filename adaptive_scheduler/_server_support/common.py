@@ -32,10 +32,12 @@ log = structlog.wrap_logger(logger)
 
 
 class MaxRestartsReachedError(Exception):
-    """Max restarts reached.
+    """Max restarts reached due to code failures.
 
-    Jobs can fail instantly because of an error in
-    your Python code which results jobs being started indefinitely.
+    Only failures where the job actually started running (code failures)
+    count towards this limit. Infrastructure failures — such as VMs
+    failing to provision on cloud clusters — are retried indefinitely
+    and do not trigger this error.
     """
 
 

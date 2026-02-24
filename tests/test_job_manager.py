@@ -32,10 +32,10 @@ async def test_job_manager_queued(job_manager: JobManager) -> None:
 
 @pytest.mark.asyncio
 async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) -> None:
-    """Test the JobManager when the maximum restarts are reached."""
-    job_manager.n_started = 105
-    # Should fail after n_started > n_learners * max_fails_per_job
-    # Which is `105 > 2 * 50 = True`
+    """Test the JobManager when the maximum code failures are reached."""
+    # Should fail after n_code_failures > n_learners * max_fails_per_job
+    # Which is `101 > 2 * 50 = True`
+    job_manager.database_manager.n_code_failures = 101
     job_manager.scheduler._queue_info = {}  # type: ignore[attr-defined]
     job_manager.database_manager.start()
     job_manager.start()
@@ -43,9 +43,26 @@ async def test_job_manager_manage_max_restarts_reached(job_manager: JobManager) 
     await asyncio.sleep(0.1)
     with pytest.raises(
         MaxRestartsReachedError,
-        match="Too many jobs failed, your Python code probably has a bug",
+        match="Too many code failures",
     ):
         job_manager.task.result()
+
+
+@pytest.mark.asyncio
+async def test_job_manager_infra_failures_not_counted(job_manager: JobManager) -> None:
+    """Test that infrastructure failures don't trigger MaxRestartsReachedError."""
+    # Set infra failures way above the limit, but zero code failures
+    job_manager.database_manager.n_infra_failures = 10000
+    job_manager.database_manager.n_code_failures = 0
+    job_manager.scheduler._queue_info = {}  # type: ignore[attr-defined]
+    job_manager.database_manager.n_done = MagicMock(return_value=0)  # type: ignore[method-assign]
+    job_manager.max_simultaneous_jobs = 0  # don't start any new jobs
+    job_manager.database_manager.start()
+    job_manager.start()
+    assert job_manager.task is not None
+    await asyncio.sleep(0.15)
+    # Task should still be running (not failed), since only infra failures occurred
+    assert not job_manager.task.done()
 
 
 @pytest.mark.asyncio
