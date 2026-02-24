@@ -540,20 +540,29 @@ def slurm_partitions(
 ) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     try:
-        output = subprocess.run(
+        # Try with -M all first to include partitions from all clusters in a
+        # federation. Falls back to local-only if slurmdbd is not available.
+        for cmd in [
+            ["sinfo", "-ahO", "partition", "-M", "all"],
             ["sinfo", "-ahO", "partition"],
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
+        ]:
+            output = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+            if output.returncode == 0:
+                break
     except FileNotFoundError:
         return {} if with_ncores else []
     lines = output.stdout.decode("utf-8").split("\n")
     partitions = sorted(partition for line in lines if (partition := line.strip()))
     # Sort partitions alphabetically, but put the default partition first
     partitions = sorted(partitions, key=lambda s: ("*" not in s, s))
-    # Remove asterisk, which is used for default partition
-    partitions = [partition.replace("*", "") for partition in partitions]
+    # Remove asterisk, which is used for default partition, and deduplicate
+    # (partitions may appear multiple times when querying a federation)
+    partitions = list(dict.fromkeys(p.replace("*", "") for p in partitions))
     if not with_ncores:
         return partitions
 
