@@ -540,12 +540,20 @@ def slurm_partitions(
 ) -> list[str] | dict[str, int | None]:
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     try:
-        output = subprocess.run(
+        # Try with -M all first to include partitions from all clusters in a
+        # federation. Falls back to local-only if slurmdbd is not available.
+        for cmd in [
             ["sinfo", "-ahO", "partition", "-M", "all"],
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
+            ["sinfo", "-ahO", "partition"],
+        ]:
+            output = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+            if output.returncode == 0:
+                break
     except FileNotFoundError:
         return {} if with_ncores else []
     lines = output.stdout.decode("utf-8").split("\n")
