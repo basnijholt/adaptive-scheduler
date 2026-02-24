@@ -647,7 +647,10 @@ def _info_html(run_manager: RunManager) -> str:
         ("# running jobs", f'<font color="blue">{data.n_running}</font>'),
         ("# pending jobs", f'<font color="orange">{data.n_pending}</font>'),
         ("# finished jobs", f'<font color="green">{data.n_done}</font>'),
-        ("# failed jobs", f'<font color="{n_failed_color}">{data.n_failed} ({data.n_code_failures} code, {data.n_infra_failures} infra)</font>'),
+        (
+            "# failed jobs",
+            f'<font color="{n_failed_color}">{data.n_failed} ({data.n_code_failures} code, {data.n_infra_failures} infra)</font>',
+        ),
         ("# unscheduled jobs", f'<font color="{n_unscheduled_color}">{data.n_unscheduled}</font>'),
         ("elapsed time", data.elapsed_time),
         ("total data size", _bytes_to_human_readable(data.total_data_size)),
