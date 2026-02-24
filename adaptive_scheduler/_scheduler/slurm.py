@@ -560,8 +560,9 @@ def slurm_partitions(
     partitions = sorted(partition for line in lines if (partition := line.strip()))
     # Sort partitions alphabetically, but put the default partition first
     partitions = sorted(partitions, key=lambda s: ("*" not in s, s))
-    # Remove asterisk, which is used for default partition
-    partitions = [partition.replace("*", "") for partition in partitions]
+    # Remove asterisk, which is used for default partition, and deduplicate
+    # (partitions may appear multiple times when querying a federation)
+    partitions = list(dict.fromkeys(p.replace("*", "") for p in partitions))
     if not with_ncores:
         return partitions
 
