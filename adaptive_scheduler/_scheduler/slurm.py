@@ -541,7 +541,7 @@ def slurm_partitions(
     """Get the available slurm partitions, raises subprocess.TimeoutExpired after timeout."""
     try:
         output = subprocess.run(
-            ["sinfo", "-ahO", "partition"],
+            ["sinfo", "-ahO", "partition", "-M", "all"],
             capture_output=True,
             timeout=timeout,
             check=False,
