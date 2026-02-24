@@ -115,10 +115,12 @@ class JobManager(BaseManager):
         jobs will run forever, resulting in the jobs that were not initially started
         (because of this `max_simultaneous_jobs` condition) to not ever start.
     max_fails_per_job
-        Maximum number of times that a job can fail. This is here as a fail switch
-        because a job might fail instantly because of a bug inside your code.
-        The job manager will stop when
-        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+        Maximum number of times that a job can fail due to code errors. This is
+        here as a fail switch because a job might fail instantly because of a bug
+        inside your code. The job manager will stop when
+        ``total_code_failures > max_fails_per_job * n_jobs`` is true.
+        Infrastructure failures (e.g., VM provisioning failures on cloud clusters)
+        are not counted towards this limit and are retried indefinitely.
     save_dataframe
         Whether to periodically save the learner's data as a `pandas.DataFame`.
     dataframe_format
@@ -257,8 +259,17 @@ class JobManager(BaseManager):
                     return
                 queued, not_queued = update
                 await self._start_new_jobs(not_queued, queued)
-                if self.n_started > self.max_job_starts:
-                    msg = "Too many jobs failed, your Python code probably has a bug."
+                n_code = self.database_manager.n_code_failures
+                n_infra = self.database_manager.n_infra_failures
+                if n_code > self.max_job_starts:
+                    msg = (
+                        f"Too many code failures ({n_code} code failures,"
+                        f" {n_infra} infrastructure failures)."
+                        " This likely indicates a bug in your code."
+                        " Check the SLURM output logs to debug."
+                        " Infrastructure failures (e.g., VM provisioning"
+                        " failures) are NOT counted towards this limit."
+                    )
                     raise MaxRestartsReachedError(msg)  # noqa: TRY301
                 if await sleep_unless_task_is_done(
                     self.database_manager.task,  # type: ignore[arg-type]
@@ -273,6 +284,8 @@ class JobManager(BaseManager):
                 log.exception(
                     "too many jobs have failed, cancelling the job manager",
                     n_started=self.n_started,
+                    n_code_failures=self.database_manager.n_code_failures,
+                    n_infra_failures=self.database_manager.n_infra_failures,
                     max_fails_per_job=self.max_fails_per_job,
                     max_job_starts=self.max_job_starts,
                     exception=str(e),
