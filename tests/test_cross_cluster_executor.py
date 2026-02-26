@@ -614,7 +614,9 @@ class TestMonitor:
 
         sacct_calls: list[tuple[list[str], str | None]] = []
 
-        def tracking_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+        def tracking_sacct(
+            job_ids: list[str], cluster: str | None = None
+        ) -> dict[str, tuple[str, str]]:
             sacct_calls.append((job_ids, cluster))
             return dict.fromkeys(job_ids, ("RUNNING", "0:0"))
 
