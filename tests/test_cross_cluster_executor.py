@@ -616,7 +616,8 @@ class TestMonitor:
         sacct_calls: list[tuple[list[str], str | None]] = []
 
         def tracking_sacct(
-            job_ids: list[str], cluster: str | None = None
+            job_ids: list[str],
+            cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             sacct_calls.append((job_ids, cluster))
             return dict.fromkeys(job_ids, ("RUNNING", "0:0"))
@@ -890,7 +891,9 @@ class TestRetryLogic:
         future = CrossClusterFuture(job_id="100", cluster=None)
         retry_executor._pending["100"] = (future, task_dir)
 
-        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+        def fake_sacct(
+            job_ids: list[str], cluster: str | None = None
+        ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
                 if jid == "100":
@@ -930,7 +933,9 @@ class TestRetryLogic:
         future = CrossClusterFuture(job_id="200", cluster=None)
         retry_executor._pending["200"] = (future, task_dir)
 
-        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+        def fake_sacct(
+            job_ids: list[str], cluster: str | None = None
+        ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
                 if jid == "200":
@@ -1018,8 +1023,10 @@ class TestRetryLogic:
 
         sbatch_count = 0
 
-        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
-            return {jid: ("NODE_FAIL", "9:0") for jid in job_ids}
+        def fake_sacct(
+            job_ids: list[str], cluster: str | None = None
+        ) -> dict[str, tuple[str, str]]:
+            return dict.fromkeys(job_ids, ("NODE_FAIL", "9:0"))
 
         def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
             nonlocal sbatch_count
@@ -1174,7 +1181,7 @@ class TestRetryLogic:
 
     def test_retryable_states_constant(self) -> None:
         """RETRYABLE_STATES contains exactly NODE_FAIL and PREEMPTED."""
-        assert RETRYABLE_STATES == frozenset({"NODE_FAIL", "PREEMPTED"})
+        assert frozenset({"NODE_FAIL", "PREEMPTED"}) == RETRYABLE_STATES
 
     def test_max_retries_stored(self, tmp_path: Path) -> None:
         """max_retries parameter is stored on the executor."""
