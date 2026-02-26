@@ -893,7 +893,7 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            cluster: str | None = None,
+            _cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -903,7 +903,7 @@ class TestRetryLogic:
                     result[jid] = ("COMPLETED", "0:0")
             return result
 
-        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+        def fake_sbatch(_task_dir: Path) -> tuple[str, str | None]:
             return ("101", None)
 
         payload = {"status": "ok", "result": 42}
@@ -936,7 +936,7 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            cluster: str | None = None,
+            _cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -946,7 +946,7 @@ class TestRetryLogic:
                     result[jid] = ("COMPLETED", "0:0")
             return result
 
-        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+        def fake_sbatch(_task_dir: Path) -> tuple[str, str | None]:
             return ("201", None)
 
         payload = {"status": "ok", "result": 99}
@@ -1027,11 +1027,11 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            cluster: str | None = None,
+            _cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             return dict.fromkeys(job_ids, ("NODE_FAIL", "9:0"))
 
-        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+        def fake_sbatch(_task_dir: Path) -> tuple[str, str | None]:
             nonlocal sbatch_count
             sbatch_count += 1
             return (f"50{sbatch_count}", None)
@@ -1119,7 +1119,7 @@ class TestRetryLogic:
         assert future.cluster is None
         assert future.attempts == 1
 
-        def fake_sbatch(td: Path) -> tuple[str, str | None]:
+        def fake_sbatch(_td: Path) -> tuple[str, str | None]:
             return ("801", "ionqgcp")
 
         with patch.object(retry_executor, "_sbatch", side_effect=fake_sbatch):

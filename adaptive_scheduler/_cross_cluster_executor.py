@@ -440,7 +440,7 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         future: CrossClusterFuture,
         task_dir: Path,
         state: str,
-        exit_code: str,
+        _exit_code: str,
     ) -> str:
         """Re-submit a failed job for retry.
 
