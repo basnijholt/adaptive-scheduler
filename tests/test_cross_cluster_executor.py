@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from adaptive_scheduler._cross_cluster_executor import (
+    RETRYABLE_STATES,
     CrossClusterFuture,
     CrossClusterSlurmExecutor,
     RemoteJobError,
@@ -849,3 +850,343 @@ class TestEndToEnd:
         assert any("-Mionqgcp" in c for c in sacct_cmds)
 
         executor.shutdown(wait=False)
+
+
+# ---------------------------------------------------------------------------
+# 13. Retry logic
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def retry_executor(tmp_path: Path) -> CrossClusterSlurmExecutor:
+    """Executor with retries enabled and fast polling."""
+    return CrossClusterSlurmExecutor(
+        base_dir=tmp_path / "cc-jobs",
+        poll_interval=0.01,
+        max_retries=2,
+    )
+
+
+class TestRetryLogic:
+    """Tests for automatic retry on transient SLURM failures."""
+
+    def _run_monitor_once(self, executor: CrossClusterSlurmExecutor) -> None:
+        """Set _shutdown so the monitor exits after processing pending jobs."""
+        executor._shutdown = True
+        with patch(f"{MODULE}.time.sleep"):
+            executor._monitor()
+
+    def test_retry_on_node_fail(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """NODE_FAIL with max_retries=2: first attempt fails, retry succeeds."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        (task_dir / "wrapper.sh").write_text("#!/bin/bash\n")
+        (task_dir / "input.pkl").write_bytes(b"dummy")
+
+        future = CrossClusterFuture(job_id="100", cluster=None)
+        retry_executor._pending["100"] = (future, task_dir)
+
+        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+            result: dict[str, tuple[str, str]] = {}
+            for jid in job_ids:
+                if jid == "100":
+                    result[jid] = ("NODE_FAIL", "9:0")
+                elif jid == "101":
+                    result[jid] = ("COMPLETED", "0:0")
+            return result
+
+        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+            return ("101", None)
+
+        payload = {"status": "ok", "result": 42}
+
+        with (
+            patch.object(retry_executor, "_query_sacct_batch", side_effect=fake_sacct),
+            patch.object(retry_executor, "_sbatch", side_effect=fake_sbatch),
+            patch.object(retry_executor, "_fetch_result", return_value=payload),
+            patch(f"{MODULE}.time.sleep"),
+        ):
+            retry_executor._shutdown = True
+            retry_executor._monitor()
+
+        assert future.result() == 42
+        assert future.attempts == 2
+
+    def test_retry_on_preempted(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """PREEMPTED with max_retries=2: first attempt preempted, retry succeeds."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        (task_dir / "wrapper.sh").write_text("#!/bin/bash\n")
+        (task_dir / "input.pkl").write_bytes(b"dummy")
+
+        future = CrossClusterFuture(job_id="200", cluster=None)
+        retry_executor._pending["200"] = (future, task_dir)
+
+        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+            result: dict[str, tuple[str, str]] = {}
+            for jid in job_ids:
+                if jid == "200":
+                    result[jid] = ("PREEMPTED", "0:15")
+                elif jid == "201":
+                    result[jid] = ("COMPLETED", "0:0")
+            return result
+
+        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+            return ("201", None)
+
+        payload = {"status": "ok", "result": 99}
+
+        with (
+            patch.object(retry_executor, "_query_sacct_batch", side_effect=fake_sacct),
+            patch.object(retry_executor, "_sbatch", side_effect=fake_sbatch),
+            patch.object(retry_executor, "_fetch_result", return_value=payload),
+            patch(f"{MODULE}.time.sleep"),
+        ):
+            retry_executor._shutdown = True
+            retry_executor._monitor()
+
+        assert future.result() == 99
+        assert future.attempts == 2
+
+    def test_no_retry_on_failed(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """FAILED state is not retryable even with max_retries=2."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+
+        future = CrossClusterFuture(job_id="300", cluster=None)
+        retry_executor._pending["300"] = (future, task_dir)
+
+        sacct_out = _sacct_result(["300|FAILED|1:0"])
+        with patch(f"{MODULE}.subprocess.run", return_value=sacct_out):
+            self._run_monitor_once(retry_executor)
+
+        with pytest.raises(RemoteJobError, match="state=FAILED"):
+            future.result()
+        assert future.attempts == 1  # no retry was attempted
+
+    def test_no_retry_on_python_error(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """COMPLETED + Python error in output.pkl should not trigger retry."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        payload = {"status": "error", "error": "ZeroDivisionError", "tb": "Traceback..."}
+        (task_dir / "output.pkl").write_bytes(pickle.dumps(payload))
+
+        future = CrossClusterFuture(job_id="400", cluster=None)
+        retry_executor._pending["400"] = (future, task_dir)
+
+        sacct_out = _sacct_result(["400|COMPLETED|0:0"])
+        with patch(f"{MODULE}.subprocess.run", return_value=sacct_out):
+            self._run_monitor_once(retry_executor)
+
+        with pytest.raises(RemoteJobError, match="Traceback"):
+            future.result()
+        assert future.attempts == 1
+
+    def test_retries_exhausted(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """max_retries=1, two NODE_FAILs → error mentioning '2 attempt(s)'."""
+        executor = CrossClusterSlurmExecutor(
+            base_dir=tmp_path / "cc-jobs",
+            poll_interval=0.01,
+            max_retries=1,
+        )
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        (task_dir / "wrapper.sh").write_text("#!/bin/bash\n")
+        (task_dir / "input.pkl").write_bytes(b"dummy")
+
+        future = CrossClusterFuture(job_id="500", cluster=None)
+        executor._pending["500"] = (future, task_dir)
+
+        sbatch_count = 0
+
+        def fake_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+            return {jid: ("NODE_FAIL", "9:0") for jid in job_ids}
+
+        def fake_sbatch(task_dir: Path) -> tuple[str, str | None]:
+            nonlocal sbatch_count
+            sbatch_count += 1
+            return (f"50{sbatch_count}", None)
+
+        with (
+            patch.object(executor, "_query_sacct_batch", side_effect=fake_sacct),
+            patch.object(executor, "_sbatch", side_effect=fake_sbatch),
+            patch(f"{MODULE}.time.sleep"),
+        ):
+            executor._shutdown = True
+            executor._monitor()
+
+        with pytest.raises(RemoteJobError, match="2 attempt"):
+            future.result()
+
+    def test_no_retry_when_max_retries_zero(
+        self,
+        executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """Default max_retries=0: NODE_FAIL causes immediate error."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+
+        future = CrossClusterFuture(job_id="600", cluster=None)
+        executor._pending["600"] = (future, task_dir)
+
+        sacct_out = _sacct_result(["600|NODE_FAIL|9:0"])
+        with patch(f"{MODULE}.subprocess.run", return_value=sacct_out):
+            self._run_monitor_once(executor)
+
+        with pytest.raises(RemoteJobError, match="state=NODE_FAIL"):
+            future.result()
+        assert future.attempts == 1
+
+    def test_retry_cleans_stale_files(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """Verify stdout.log, stderr.log, and output.pkl are removed before resubmit."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        (task_dir / "wrapper.sh").write_text("#!/bin/bash\n")
+        (task_dir / "input.pkl").write_bytes(b"dummy")
+        # Create stale files
+        (task_dir / "output.pkl").write_bytes(b"stale")
+        (task_dir / "stdout.log").write_text("old stdout")
+        (task_dir / "stderr.log").write_text("old stderr")
+
+        future = CrossClusterFuture(job_id="700", cluster=None)
+
+        sbatch_called = False
+
+        def fake_sbatch(td: Path) -> tuple[str, str | None]:
+            nonlocal sbatch_called
+            sbatch_called = True
+            # At the point sbatch is called, stale files should be gone
+            assert not (td / "output.pkl").exists()
+            assert not (td / "stdout.log").exists()
+            assert not (td / "stderr.log").exists()
+            # input.pkl and wrapper.sh should still be there
+            assert (td / "input.pkl").exists()
+            assert (td / "wrapper.sh").exists()
+            return ("701", None)
+
+        with patch.object(retry_executor, "_sbatch", side_effect=fake_sbatch):
+            retry_executor._retry_job("700", future, task_dir, "NODE_FAIL", "9:0")
+
+        assert sbatch_called
+
+    def test_retry_updates_future_job_id(
+        self,
+        retry_executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """future.job_id and future.cluster reflect the retry job."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        (task_dir / "wrapper.sh").write_text("#!/bin/bash\n")
+        (task_dir / "input.pkl").write_bytes(b"dummy")
+
+        future = CrossClusterFuture(job_id="800", cluster=None)
+        assert future.job_id == "800"
+        assert future.cluster is None
+        assert future.attempts == 1
+
+        def fake_sbatch(td: Path) -> tuple[str, str | None]:
+            return ("801", "ionqgcp")
+
+        with patch.object(retry_executor, "_sbatch", side_effect=fake_sbatch):
+            new_id = retry_executor._retry_job("800", future, task_dir, "PREEMPTED", "0:15")
+
+        assert new_id == "801"
+        assert future.job_id == "801"
+        assert future.cluster == "ionqgcp"
+        assert future.attempts == 2
+        # New job_id should be in _pending
+        assert "801" in retry_executor._pending
+
+    def test_retry_e2e(self, tmp_path: Path) -> None:
+        """End-to-end: NODE_FAIL then COMPLETED with real monitor thread."""
+        executor = CrossClusterSlurmExecutor(
+            base_dir=tmp_path / "cc-jobs",
+            poll_interval=0.01,
+            max_retries=1,
+        )
+
+        call_count = 0
+
+        def fake_subprocess_run(cmd: list[str], **kwargs: Any) -> MagicMock:
+            nonlocal call_count
+            if cmd[0] == "sbatch":
+                call_count += 1
+                cwd = kwargs.get("cwd")
+                if cwd is not None and call_count >= 2:
+                    # Write output.pkl on the retry submission
+                    payload = {"status": "ok", "result": 77}
+                    Path(cwd, "output.pkl").write_bytes(pickle.dumps(payload))
+                return _sbatch_result(f"900{call_count}")
+            if cmd[0] == "sacct":
+                # Parse job IDs from the -j argument
+                job_ids_str = ""
+                for i, part in enumerate(cmd):
+                    if part == "-j" and i + 1 < len(cmd):
+                        job_ids_str = cmd[i + 1]
+                        break
+                rows: list[str] = []
+                for jid in job_ids_str.split(","):
+                    if jid == "9001":
+                        rows.append(f"{jid}|NODE_FAIL|9:0")
+                    elif jid == "9002":
+                        rows.append(f"{jid}|COMPLETED|0:0")
+                    else:
+                        rows.append(f"{jid}|PENDING|0:0")
+                return _sacct_result(rows)
+            msg = f"Unexpected command: {cmd}"
+            raise ValueError(msg)
+
+        with (
+            patch(f"{MODULE}.subprocess.run", side_effect=fake_subprocess_run),
+            patch(f"{MODULE}.time.sleep"),
+        ):
+            future = executor.submit(lambda: 77)
+            result = future.result(timeout=5)
+
+        assert result == 77
+        assert future.attempts == 2
+        executor.shutdown(wait=False)
+
+    def test_retryable_states_constant(self) -> None:
+        """RETRYABLE_STATES contains exactly NODE_FAIL and PREEMPTED."""
+        assert RETRYABLE_STATES == frozenset({"NODE_FAIL", "PREEMPTED"})
+
+    def test_max_retries_stored(self, tmp_path: Path) -> None:
+        """max_retries parameter is stored on the executor."""
+        ex = CrossClusterSlurmExecutor(base_dir=tmp_path, max_retries=3)
+        assert ex.max_retries == 3
+
+    def test_max_retries_default_zero(self, tmp_path: Path) -> None:
+        """max_retries defaults to 0."""
+        ex = CrossClusterSlurmExecutor(base_dir=tmp_path)
+        assert ex.max_retries == 0
+
+    def test_future_attempts_default(self) -> None:
+        """CrossClusterFuture.attempts starts at 1."""
+        future = CrossClusterFuture(job_id="999", cluster=None)
+        assert future.attempts == 1

@@ -29,6 +29,8 @@ import cloudpickle
 
 logger = logging.getLogger(__name__)
 
+RETRYABLE_STATES: frozenset[str] = frozenset({"NODE_FAIL", "PREEMPTED"})
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -67,6 +69,7 @@ class CrossClusterFuture(concurrent.futures.Future):
         super().__init__()
         self.job_id: str = job_id
         self.cluster: str | None = cluster
+        self.attempts: int = 1
 
     def cancel(self) -> bool:
         """Attempt to cancel the SLURM job via ``scancel``."""
@@ -116,6 +119,9 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         Extra ``#SBATCH`` flags (e.g. ``["--comment=gcp-consent", "--time=10:00"]``).
     poll_interval
         Seconds between ``sacct`` polls.
+    max_retries
+        Maximum number of automatic retries for transient SLURM failures
+        (``NODE_FAIL``, ``PREEMPTED``).  ``0`` (the default) disables retries.
 
     """
 
@@ -128,6 +134,7 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         extra_script: str = "",
         extra_sbatch: list[str] | None = None,
         poll_interval: float = 5.0,
+        max_retries: int = 0,
     ) -> None:
         self.cluster = cluster
         self.partition = partition
@@ -136,6 +143,7 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         self.extra_script = extra_script
         self.extra_sbatch: list[str] = extra_sbatch or []
         self.poll_interval = poll_interval
+        self.max_retries = max_retries
 
         self._run_id = uuid.uuid4().hex[:12]
         self._lock = threading.Lock()
@@ -376,10 +384,13 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
 
         if state == "COMPLETED" and exit_code == "0:0":
             self._resolve_completed_job(job_id, future, task_dir, exit_code, state)
+        elif state in RETRYABLE_STATES and future.attempts <= self.max_retries:
+            self._retry_job(job_id, future, task_dir, state, exit_code)
         else:
+            attempts_info = f" after {future.attempts} attempt(s)" if future.attempts > 1 else ""
             future.set_exception(
                 RemoteJobError(
-                    f"Job {job_id} failed with state={state}, exit_code={exit_code}. "
+                    f"Job {job_id} failed with state={state}, exit_code={exit_code}{attempts_info}. "
                     f"Check logs at {task_dir}/stderr.log.",
                     job_id=job_id,
                     exit_code=exit_code,
@@ -422,6 +433,48 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
                     state=state,
                 ),
             )
+
+    def _retry_job(
+        self,
+        job_id: str,
+        future: CrossClusterFuture,
+        task_dir: Path,
+        state: str,
+        exit_code: str,
+    ) -> str:
+        """Re-submit a failed job for retry.
+
+        Cleans stale output files, re-runs ``sbatch``, and updates
+        *future* and ``_pending`` so the monitor picks up the new job.
+
+        Returns the new job ID.
+        """
+        logger.info(
+            "Job %s failed with state=%s, retrying (%d/%d)",
+            job_id,
+            state,
+            future.attempts,
+            self.max_retries,
+        )
+
+        # Clean stale files so old results don't leak into the retry
+        for name in ("output.pkl", "stdout.log", "stderr.log"):
+            (task_dir / name).unlink(missing_ok=True)
+
+        # Re-submit (input.pkl and wrapper.sh are still there)
+        new_job_id, detected_cluster = self._sbatch(task_dir)
+        effective_cluster = detected_cluster or self.cluster
+
+        # Update future to track the new job
+        future.job_id = new_job_id
+        future.cluster = effective_cluster
+        future.attempts += 1
+
+        # Register new job_id in _pending
+        with self._lock:
+            self._pending[new_job_id] = (future, task_dir)
+
+        return new_job_id
 
     def _query_sacct_batch(
         self,
