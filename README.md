@@ -226,6 +226,103 @@ with CrossClusterSlurmExecutor(
     results = [f.result() for f in futures]
 ```
 
+## Architecture
+
+### SlurmExecutor (single cluster)
+
+```
+ pipeline.map_async()
+        │
+        ▼
+ ┌─────────────────────────────────────────────────┐
+ │  SlurmExecutor                                  │
+ │                                                 │
+ │  submit() x N ──► accumulate in _sequences      │
+ │                          │                      │
+ │  finalize() ◄────────────┘                      │
+ │      │                                          │
+ │      ▼                                          │
+ │  SequenceLearner (N data points)                │
+ │      │                                          │
+ │      ▼                                          │
+ │  slurm_run() ──► RunManager                     │
+ │                    ├── JobManager (sbatch)       │
+ │                    ├── DatabaseManager (state)   │
+ │                    └── KillManager (restarts)    │
+ └────────────────────────┬────────────────────────┘
+                          │ sbatch
+                          ▼
+              ┌───────────────────────┐
+              │   SLURM (local)       │
+              │                       │
+              │  adaptive.Runner      │
+              │    iterates learner   │
+              │    calls compute(x)   │
+              │    saves to file      │
+              └───────────┬───────────┘
+                          │ shared filesystem (NFS)
+                          ▼
+              ┌───────────────────────┐
+              │  Learner file on disk │
+              └───────────┬───────────┘
+                          │ _monitor_files() detects changes
+                          ▼
+                 SlurmTask futures resolved
+                          │
+                          ▼
+                  pipeline results
+```
+
+### CrossClusterSlurmExecutor (multi-cluster, SLURM federation)
+
+```
+ pipeline.map_async()
+        │
+        ▼
+ ┌──────────────────────────────────────────────────┐
+ │  CrossClusterSlurmExecutor                       │
+ │                                                  │
+ │  submit() x N  (each fires immediately)          │
+ │      │                                           │
+ │      ├── cloudpickle(fn, args) ──► input.pkl     │
+ │      ├── generate wrapper.sh                     │
+ │      └── sbatch [-M cluster] wrapper.sh          │
+ │              (run from task_dir for CWD sync)    │
+ │                                                  │
+ │  _monitor thread (polls sacct every 5s)          │
+ │      sacct [-M cluster] -j job1,job2,...         │
+ │      │                                           │
+ │      ├── COMPLETED ──► _fetch_result(output.pkl) │
+ │      ├── FAILED    ──► RemoteJobError            │
+ │      └── NODE_FAIL ──► retry                     │
+ └───────────┬──────────────────────────────────────┘
+             │ sbatch -M cluster
+             ▼
+ ┌───────────────────┐    CWD sync    ┌───────────────────┐
+ │  Local cluster    │ ─────────────► │  Remote cluster   │
+ │  (Obsidian)       │                │  (e.g. ionqgcp)   │
+ │                   │                │                   │
+ │  task_dir/        │                │  task_dir/        │
+ │   ├─ input.pkl    │  ──────────►   │   ├─ input.pkl    │
+ │   ├─ wrapper.sh   │               │   ├─ wrapper.sh   │
+ │   ├─ output.pkl ◄─┤  ◄──────────  │   ├─ output.pkl   │
+ │   ├─ stdout.log   │               │   └─ stderr.log   │
+ │   └─ stderr.log   │               │                   │
+ └───────────────────┘    CWD sync    └───────────────────┘
+             │                         wrapper.sh runs:
+             │                           unpickle input.pkl
+             ▼                           result = fn(*args)
+ CrossClusterFuture.set_result()         pickle → output.pkl
+             │
+             ▼
+      pipeline results
+```
+
+### Key differences
+
+- **SlurmExecutor** batches all calls into learners, uses a shared filesystem, and relies on adaptive-scheduler's full job management stack (RunManager, JobManager, DatabaseManager)
+- **CrossClusterSlurmExecutor** fires one job per call immediately, uses SLURM's built-in CWD sync for file transfer (no shared filesystem needed), and is self-contained with just a polling thread
+
 ## :warning: Limitations
 
 Currently, `adaptive_scheduler` only works for SLURM and PBS.
