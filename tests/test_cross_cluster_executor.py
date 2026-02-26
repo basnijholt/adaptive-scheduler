@@ -893,7 +893,7 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            _cluster: str | None = None,
+            cluster: str | None = None,  # noqa: ARG001
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -936,7 +936,7 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            _cluster: str | None = None,
+            cluster: str | None = None,  # noqa: ARG001
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -1027,7 +1027,7 @@ class TestRetryLogic:
 
         def fake_sacct(
             job_ids: list[str],
-            _cluster: str | None = None,
+            cluster: str | None = None,  # noqa: ARG001
         ) -> dict[str, tuple[str, str]]:
             return dict.fromkeys(job_ids, ("NODE_FAIL", "9:0"))
 
