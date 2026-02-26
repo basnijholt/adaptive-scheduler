@@ -197,6 +197,35 @@ pre-commit install
 
 in the repository.
 
+## CrossClusterSlurmExecutor
+
+A `concurrent.futures.Executor` that submits jobs to a remote cluster via SLURM multi-cluster (`sbatch -M`, `sacct -M`). No shared filesystem or SSH access to remote nodes is required — SLURM's built-in CWD sync handles file transfer.
+
+### How it works
+
+**Submit:** Creates a local task directory, pickles the callable + args into `input.pkl`, generates a `wrapper.sh` with relative paths, and runs `sbatch` from that directory. SLURM's CWD sync detects the cross-cluster submission and syncs the directory to the remote cluster before the job starts.
+
+**Monitor:** A single daemon thread polls `sacct [-M cluster]` on an interval, batching all pending job IDs into one call. Completed jobs trigger result retrieval; failed jobs resolve the future with a `RemoteJobError`.
+
+**Result retrieval:** After `sacct` reports COMPLETED, SLURM syncs the task directory back. Since `sacct` updates before the sync finishes, `_fetch_result` retries with backoff until `output.pkl` appears locally.
+
+**`-M` flag:** Every SLURM command conditionally adds `-M <cluster>`. When `cluster=None`, the flag is omitted and everything runs on the local cluster — useful for testing.
+
+### Usage
+
+```python
+from adaptive_scheduler import CrossClusterSlurmExecutor
+
+with CrossClusterSlurmExecutor(
+    cluster="ionqgcp",        # or None for local cluster
+    partition="c4dh8",
+    extra_sbatch=["--comment=gcp-consent"],
+    extra_script='micromamba activate arch',
+) as executor:
+    futures = [executor.submit(my_func, x=i) for i in range(10)]
+    results = [f.result() for f in futures]
+```
+
 ## :warning: Limitations
 
 Currently, `adaptive_scheduler` only works for SLURM and PBS.
