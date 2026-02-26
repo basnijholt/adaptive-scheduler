@@ -178,14 +178,15 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         (task_dir / "wrapper.sh").write_text(wrapper)
 
         # 4. Submit via sbatch (from the task dir so SLURM syncs it)
-        job_id = self._sbatch(task_dir)
+        job_id, detected_cluster = self._sbatch(task_dir)
+        effective_cluster = detected_cluster or self.cluster
 
         # 5. Create future and register with monitor
-        future = CrossClusterFuture(job_id=job_id, cluster=self.cluster)
+        future = CrossClusterFuture(job_id=job_id, cluster=effective_cluster)
         with self._lock:
             self._pending[job_id] = (future, task_dir)
 
-        cluster_name = self.cluster or "local"
+        cluster_name = effective_cluster or "local"
         logger.info("Submitted job %s (task %s) on %s", job_id, task_id, cluster_name)
 
         # Start monitor thread if not running
@@ -264,11 +265,19 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
         lines.append("")
         return "\n".join(lines) + "\n"
 
-    def _sbatch(self, task_dir: Path) -> str:
+    def _sbatch(self, task_dir: Path) -> tuple[str, str | None]:
         """Submit ``wrapper.sh`` via ``sbatch`` from *task_dir*.
 
         Running sbatch from the task directory ensures SLURM's CWD sync
         transfers the directory contents to the remote cluster.
+
+        Returns
+        -------
+        tuple[str, str | None]
+            ``(job_id, detected_cluster)`` parsed from sbatch stdout.
+            *detected_cluster* is ``None`` when sbatch does not report
+            ``"on cluster <name>"``.
+
         """
         cmd: list[str] = ["sbatch"]
         if self.cluster is not None:
@@ -282,14 +291,19 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
             check=True,
             cwd=task_dir,
         )
-        # Parse job ID from "Submitted batch job 12345 [on cluster ...]"
         stdout = result.stdout.strip()
         parts = stdout.split()
+        job_id: str | None = None
+        detected_cluster: str | None = None
         for i, part in enumerate(parts):
             if part == "job" and i + 1 < len(parts):
-                return parts[i + 1]
-        msg = f"Could not parse job ID from sbatch output: {stdout}"
-        raise RuntimeError(msg)
+                job_id = parts[i + 1]
+            if part == "cluster" and i + 1 < len(parts):
+                detected_cluster = parts[i + 1]
+        if job_id is None:
+            msg = f"Could not parse job ID from sbatch output: {stdout}"
+            raise RuntimeError(msg)
+        return job_id, detected_cluster
 
     def _ensure_monitor(self) -> None:
         """Start the monitor thread if it isn't running yet."""
@@ -316,9 +330,13 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
                 time.sleep(self.poll_interval)
                 continue
 
-            # Query sacct for all tracked jobs in one call
-            job_ids = list(pending_snapshot.keys())
-            states = self._query_sacct_batch(job_ids)
+            # Group pending jobs by cluster and query sacct per cluster
+            by_cluster: dict[str | None, list[str]] = {}
+            for job_id, (future, _task_dir) in pending_snapshot.items():
+                by_cluster.setdefault(future.cluster, []).append(job_id)
+            states: dict[str, tuple[str, str]] = {}
+            for cluster, cluster_job_ids in by_cluster.items():
+                states.update(self._query_sacct_batch(cluster_job_ids, cluster=cluster))
 
             resolved: list[str] = []
             for job_id, (future, task_dir) in pending_snapshot.items():
@@ -405,11 +423,15 @@ class CrossClusterSlurmExecutor(concurrent.futures.Executor):
                 ),
             )
 
-    def _query_sacct_batch(self, job_ids: list[str]) -> dict[str, tuple[str, str]]:
+    def _query_sacct_batch(
+        self,
+        job_ids: list[str],
+        cluster: str | None = None,
+    ) -> dict[str, tuple[str, str]]:
         """Return {job_id: (State, ExitCode)} for all *job_ids* via a single ``sacct`` call."""
         cmd: list[str] = ["sacct"]
-        if self.cluster is not None:
-            cmd.append(f"-M{self.cluster}")
+        if cluster is not None:
+            cmd.append(f"-M{cluster}")
         cmd.extend(["-j", ",".join(job_ids), "-n", "--format=JobID,State,ExitCode", "-P"])
 
         try:

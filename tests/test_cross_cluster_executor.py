@@ -192,8 +192,9 @@ class TestSbatch:
         task_dir = tmp_path / "task"
         task_dir.mkdir()
         with patch(f"{MODULE}.subprocess.run", return_value=_sbatch_result("99999")):
-            job_id = executor._sbatch(task_dir)
+            job_id, detected_cluster = executor._sbatch(task_dir)
         assert job_id == "99999"
+        assert detected_cluster is None
 
     def test_parse_multicluster_output(
         self,
@@ -207,8 +208,21 @@ class TestSbatch:
             f"{MODULE}.subprocess.run",
             return_value=_sbatch_result("55555", cluster="ionqgcp"),
         ):
-            job_id = cluster_executor._sbatch(task_dir)
+            job_id, detected_cluster = cluster_executor._sbatch(task_dir)
         assert job_id == "55555"
+        assert detected_cluster == "ionqgcp"
+
+    def test_auto_detect_cluster(self, executor: CrossClusterSlurmExecutor, tmp_path: Path) -> None:
+        """Test that cluster is auto-detected from sbatch output even without -M flag."""
+        task_dir = tmp_path / "task"
+        task_dir.mkdir()
+        with patch(
+            f"{MODULE}.subprocess.run",
+            return_value=_sbatch_result("44444", cluster="ionqgcp"),
+        ):
+            job_id, detected_cluster = executor._sbatch(task_dir)
+        assert job_id == "44444"
+        assert detected_cluster == "ionqgcp"
 
     def test_unparseable_raises(self, executor: CrossClusterSlurmExecutor, tmp_path: Path) -> None:
         """Test that unparseable sbatch output raises RuntimeError."""
@@ -271,6 +285,34 @@ class TestSubmit:
             future = executor.submit(lambda x: x, 1)
         assert future.job_id == "77777"
         assert future.cluster is None
+
+    def test_future_gets_detected_cluster(self, executor: CrossClusterSlurmExecutor) -> None:
+        """Test that future gets auto-detected cluster when executor.cluster is None."""
+        with (
+            patch(
+                f"{MODULE}.subprocess.run",
+                return_value=_sbatch_result("88888", cluster="ionqgcp"),
+            ),
+            patch.object(executor, "_ensure_monitor"),
+        ):
+            future = executor.submit(lambda x: x, 1)
+        assert future.job_id == "88888"
+        assert future.cluster == "ionqgcp"
+
+    def test_detected_cluster_overrides_explicit(
+        self,
+        cluster_executor: CrossClusterSlurmExecutor,
+    ) -> None:
+        """Test that detected cluster takes precedence over explicit self.cluster."""
+        with (
+            patch(
+                f"{MODULE}.subprocess.run",
+                return_value=_sbatch_result("66666", cluster="other-cluster"),
+            ),
+            patch.object(cluster_executor, "_ensure_monitor"),
+        ):
+            future = cluster_executor.submit(lambda x: x, 1)
+        assert future.cluster == "other-cluster"
 
     @pytest.mark.usefixtures("_mock_sbatch")
     def test_registers_pending(
@@ -337,13 +379,21 @@ class TestQuerySacctBatch:
             states = executor._query_sacct_batch(["12345"])
         assert states == {}
 
-    def test_cluster_flag(self, cluster_executor: CrossClusterSlurmExecutor) -> None:
-        """Test that the -M flag is passed when cluster is set."""
+    def test_cluster_flag(self, executor: CrossClusterSlurmExecutor) -> None:
+        """Test that the -M flag is passed when cluster parameter is given."""
         sacct_out = _sacct_result(["12345|RUNNING|0:0"])
         with patch(f"{MODULE}.subprocess.run", return_value=sacct_out) as mock_run:
-            cluster_executor._query_sacct_batch(["12345"])
+            executor._query_sacct_batch(["12345"], cluster="ionqgcp")
         cmd = mock_run.call_args[0][0]
         assert "-Mionqgcp" in cmd
+
+    def test_no_cluster_flag_when_none(self, executor: CrossClusterSlurmExecutor) -> None:
+        """Test that -M flag is omitted when cluster parameter is None."""
+        sacct_out = _sacct_result(["12345|RUNNING|0:0"])
+        with patch(f"{MODULE}.subprocess.run", return_value=sacct_out) as mock_run:
+            executor._query_sacct_batch(["12345"], cluster=None)
+        cmd = mock_run.call_args[0][0]
+        assert not any(part.startswith("-M") for part in cmd)
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +596,50 @@ class TestMonitor:
         with pytest.raises(RemoteJobError, match="failed to fetch result"):
             future.result()
 
+    def test_groups_sacct_by_cluster(
+        self,
+        executor: CrossClusterSlurmExecutor,
+        tmp_path: Path,
+    ) -> None:
+        """Test that monitor groups sacct calls by per-future cluster."""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        future_local = CrossClusterFuture(job_id="600", cluster=None)
+        future_remote = CrossClusterFuture(job_id="601", cluster="ionqgcp")
+        executor._pending["600"] = (future_local, dir_a)
+        executor._pending["601"] = (future_remote, dir_b)
+
+        sacct_calls: list[tuple[list[str], str | None]] = []
+
+        def tracking_sacct(job_ids: list[str], cluster: str | None = None) -> dict[str, tuple[str, str]]:
+            sacct_calls.append((job_ids, cluster))
+            return dict.fromkeys(job_ids, ("RUNNING", "0:0"))
+
+        executor._shutdown = True
+        # Need two iterations: first processes, second exits after clearing
+        call_count = 0
+
+        def fake_sleep(_: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 1:
+                with executor._lock:
+                    executor._pending.clear()
+
+        with (
+            patch.object(executor, "_query_sacct_batch", side_effect=tracking_sacct),
+            patch(f"{MODULE}.time.sleep", side_effect=fake_sleep),
+        ):
+            executor._monitor()
+
+        # Should have been called twice: once per cluster group
+        assert len(sacct_calls) == 2
+        clusters_called = {c for _, c in sacct_calls}
+        assert clusters_called == {None, "ionqgcp"}
+
 
 # ---------------------------------------------------------------------------
 # 9. CrossClusterFuture.cancel
@@ -715,3 +809,41 @@ class TestEndToEnd:
         assert any("-Mionqgcp" in c for c in sacct_cmds)
 
         cluster_executor.shutdown(wait=False)
+
+    def test_auto_detect_cluster_e2e(self, executor: CrossClusterSlurmExecutor) -> None:
+        """cluster=None executor with sbatch reporting 'on cluster ionqgcp' auto-routes sacct."""
+        cmds_seen: list[list[str]] = []
+
+        def fake_subprocess_run(cmd: list[str], **kwargs: Any) -> MagicMock:
+            cmds_seen.append(list(cmd))
+            if cmd[0] == "sbatch":
+                cwd = kwargs.get("cwd")
+                if cwd is not None:
+                    payload = {"status": "ok", "result": 7}
+                    Path(cwd, "output.pkl").write_bytes(pickle.dumps(payload))
+                # sbatch auto-routes to ionqgcp even though no -M was passed
+                return _sbatch_result("90003", cluster="ionqgcp")
+            if cmd[0] == "sacct":
+                return _sacct_result(["90003|COMPLETED|0:0"])
+            msg = f"Unexpected command: {cmd}"
+            raise ValueError(msg)
+
+        with (
+            patch(f"{MODULE}.subprocess.run", side_effect=fake_subprocess_run),
+            patch(f"{MODULE}.time.sleep"),
+        ):
+            future = executor.submit(lambda x: x, 7)
+            assert future.cluster == "ionqgcp"
+            result = future.result(timeout=5)
+
+        assert result == 7
+
+        # sbatch should NOT have -M (executor.cluster is None)
+        sbatch_cmds = [c for c in cmds_seen if c[0] == "sbatch"]
+        assert not any(any(p.startswith("-M") for p in c) for c in sbatch_cmds)
+
+        # sacct SHOULD have -Mionqgcp (auto-detected from sbatch output)
+        sacct_cmds = [c for c in cmds_seen if c[0] == "sacct"]
+        assert any("-Mionqgcp" in c for c in sacct_cmds)
+
+        executor.shutdown(wait=False)
