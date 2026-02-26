@@ -892,7 +892,8 @@ class TestRetryLogic:
         retry_executor._pending["100"] = (future, task_dir)
 
         def fake_sacct(
-            job_ids: list[str], cluster: str | None = None
+            job_ids: list[str],
+            cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -934,7 +935,8 @@ class TestRetryLogic:
         retry_executor._pending["200"] = (future, task_dir)
 
         def fake_sacct(
-            job_ids: list[str], cluster: str | None = None
+            job_ids: list[str],
+            cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             result: dict[str, tuple[str, str]] = {}
             for jid in job_ids:
@@ -1024,7 +1026,8 @@ class TestRetryLogic:
         sbatch_count = 0
 
         def fake_sacct(
-            job_ids: list[str], cluster: str | None = None
+            job_ids: list[str],
+            cluster: str | None = None,
         ) -> dict[str, tuple[str, str]]:
             return dict.fromkeys(job_ids, ("NODE_FAIL", "9:0"))
 
