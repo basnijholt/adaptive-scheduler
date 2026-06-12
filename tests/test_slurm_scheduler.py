@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -160,6 +160,25 @@ def test_slurm_partitions() -> None:
     ]
     partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=True)
     assert partitions == PARTITIONS
+
+
+def test_slurm_partitions_without_ncores_in_name() -> None:
+    """The number of cores comes from the CPUs column, not the partition name."""
+    mock_output = (
+        "CLUSTER: cluster1\n"
+        "compute*            64\n"
+        "gpu                 128\n"
+        "gpu                 96\n"
+        "bigmem              32+\n"
+    )
+    slurm_partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions
+    with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout=mock_output.encode("utf-8"))
+        slurm_partitions.cache_clear()
+        partitions = slurm_partitions(timeout=42)
+    slurm_partitions.cache_clear()
+    assert partitions == {"compute": 64, "gpu": 128, "bigmem": 32}
+    assert list(partitions) == ["compute", "bigmem", "gpu"]  # default partition first
 
 
 @pytest.mark.usefixtures("_mock_slurm_partitions")

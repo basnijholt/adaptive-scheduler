@@ -525,11 +525,11 @@ class SLURM(BaseScheduler):
             print(f"No running jobs found with name pattern '{name}-<integer>'")
 
 
-def _get_ncores(partition: str) -> int | None:
-    numbers = re.findall(r"\d+", partition)
-    if not numbers:
-        return None
-    return int(numbers[0])
+def _parse_ncores(value: str) -> int | None:
+    # The CPUS column may show e.g. ``32+`` when nodes in a partition
+    # have different CPU counts; take the leading number.
+    match = re.match(r"\d+", value)
+    return int(match.group()) if match else None
 
 
 @lru_cache(maxsize=1)
@@ -542,9 +542,12 @@ def slurm_partitions(
     try:
         # Try with -M all first to include partitions from all clusters in a
         # federation. Falls back to local-only if slurmdbd is not available.
+        # Explicit field widths prevent long partition names from running
+        # into the CPUs column (the default width is 20 characters).
+        fmt = "Partition:100,CPUs:25"
         for cmd in [
-            ["sinfo", "-ahO", "partition", "-M", "all"],
-            ["sinfo", "-ahO", "partition"],
+            ["sinfo", "-ahO", fmt, "-M", "all"],
+            ["sinfo", "-ahO", fmt],
         ]:
             output = subprocess.run(
                 cmd,
@@ -557,16 +560,29 @@ def slurm_partitions(
     except FileNotFoundError:
         return {} if with_ncores else []
     lines = output.stdout.decode("utf-8").split("\n")
-    partitions = sorted(partition for line in lines if (partition := line.strip()))
-    # Sort partitions alphabetically, but put the default partition first
-    partitions = sorted(partitions, key=lambda s: ("*" not in s, s))
-    # Remove asterisk, which is used for default partition, and deduplicate
-    # (partitions may appear multiple times when querying a federation)
-    partitions = list(dict.fromkeys(p.replace("*", "") for p in partitions))
+    entries = []
+    for line in lines:
+        fields = line.split()
+        if not fields or fields[0] == "CLUSTER:":  # -M all prints a header per cluster
+            continue
+        ncores = _parse_ncores(fields[1]) if len(fields) > 1 else None
+        entries.append((fields[0], ncores))
+    # Sort partitions alphabetically, but put the default partition
+    # (marked with an asterisk) first
+    entries.sort(key=lambda e: ("*" not in e[0], e[0]))
+    # Remove the asterisk and merge duplicates: a partition appears multiple
+    # times when querying a federation or when it contains nodes with
+    # different CPU counts, in which case we keep the largest count.
+    ncores_per_partition: dict[str, int | None] = {}
+    for partition, ncores in entries:
+        name = partition.replace("*", "")
+        current = ncores_per_partition.get(name)
+        if current is None or (ncores is not None and ncores > current):
+            ncores_per_partition[name] = ncores
     if not with_ncores:
-        return partitions
+        return list(ncores_per_partition)
 
-    return {partition: _get_ncores(partition) for partition in partitions}
+    return ncores_per_partition
 
 
 def _cores(
