@@ -542,9 +542,12 @@ def slurm_partitions(
     try:
         # Try with -M all first to include partitions from all clusters in a
         # federation. Falls back to local-only if slurmdbd is not available.
+        # Explicit field widths prevent long partition names from running
+        # into the CPUs column (the default width is 20 characters).
+        fmt = "Partition:100,CPUs:25"
         for cmd in [
-            ["sinfo", "-ahO", "Partition,CPUs", "-M", "all"],
-            ["sinfo", "-ahO", "Partition,CPUs"],
+            ["sinfo", "-ahO", fmt, "-M", "all"],
+            ["sinfo", "-ahO", fmt],
         ]:
             output = subprocess.run(
                 cmd,
