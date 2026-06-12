@@ -119,7 +119,12 @@ def job_manager(
 @pytest.fixture
 def _mock_slurm_partitions_output() -> Generator[None, None, None]:
     """Mock `slurm_partitions` function."""
-    mock_output = "hb120v2-low\nhb60-high\nnc24-low*\nnd40v2-mpi\n"
+    mock_output = (
+        "hb120v2-low         120\n"
+        "hb60-high           60\n"
+        "nc24-low*           24\n"
+        "nd40v2-mpi          40\n"
+    )
     with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_output.encode("utf-8"))
         yield
