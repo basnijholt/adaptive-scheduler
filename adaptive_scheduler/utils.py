@@ -79,6 +79,30 @@ EXECUTOR_TYPES = Literal[
 GoalTypes = Callable[[adaptive.BaseLearner], bool] | int | float | datetime | timedelta | None
 
 
+def _get_event_loop() -> asyncio.AbstractEventLoop:
+    """Get the event loop on which to schedule tasks from synchronous code.
+
+    Unlike `asyncio.get_event_loop`, this creates and sets a new event loop
+    if there is none: implicit creation was deprecated in Python 3.12 and
+    removed in 3.14, and e.g. ``pytest-asyncio>=1.4`` unsets the loop after
+    running async tests, in both cases making `asyncio.get_event_loop` raise
+    a `RuntimeError`.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:  # not inside a running event loop (e.g., not in Jupyter)
+        pass
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            return loop
+    except RuntimeError:  # no event loop is set for this thread
+        pass
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop
+
+
 def shuffle_list(*lists: list, seed: int | None = 0) -> zip:
     """Shuffle multiple lists in the same order."""
     combined = list(zip(*lists, strict=True))
@@ -1379,7 +1403,7 @@ def track_file_creation_progress(
     columns = (*Progress.get_default_columns(), TimeElapsedColumn())
     progress = Progress(*columns, auto_refresh=False)
     coro = _track_file_creation_progress(paths_dict, progress, interval)
-    ioloop = asyncio.get_event_loop()
+    ioloop = _get_event_loop()
     return ioloop.create_task(coro)
 
 

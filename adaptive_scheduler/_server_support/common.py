@@ -17,6 +17,7 @@ import zmq.ssh
 from rich.console import Console
 
 from adaptive_scheduler.utils import (
+    _get_event_loop,
     _progress,
     _remove_or_move_files,
 )
@@ -177,7 +178,7 @@ def periodically_clean_ipython_profiles(
                 _delete_old_ipython_profiles(scheduler, with_progress_bar=False)
             await asyncio.sleep(interval)
 
-    ioloop = asyncio.get_event_loop()
+    ioloop = _get_event_loop()
     coro = clean(interval)
     return ioloop.create_task(coro)
 
