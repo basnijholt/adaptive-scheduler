@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import abc
-import asyncio
 from typing import TYPE_CHECKING
 
+from adaptive_scheduler.utils import _get_event_loop
+
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import Coroutine
 
 
@@ -23,7 +25,7 @@ class BaseManager(metaclass=abc.ABCMeta):
             msg = f"{self.__class__} is already started!"
             raise ManagerAlreadyStartedError(msg)
         self._setup()
-        self.ioloop = asyncio.get_event_loop()
+        self.ioloop = _get_event_loop()
         self._coro = self._manage()
         self.task = self.ioloop.create_task(self._coro)
         return self

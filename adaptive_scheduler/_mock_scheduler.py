@@ -14,6 +14,8 @@ import zmq
 import zmq.asyncio
 from toolz.dicttoolz import dissoc
 
+from adaptive_scheduler.utils import _get_event_loop
+
 if TYPE_CHECKING:
     from collections.abc import Coroutine
     from typing import Any
@@ -71,7 +73,7 @@ class MockScheduler:
         self.startup_delay = startup_delay
         self.refresh_interval = refresh_interval
         self.bash = bash
-        self.ioloop = asyncio.get_event_loop()
+        self.ioloop = _get_event_loop()
         self.refresh_task = self.ioloop.create_task(self._refresh_coro())
         self.url = url or DEFAULT_URL
         self.command_listener_task = self.ioloop.create_task(self._command_listener())
@@ -198,7 +200,7 @@ def _external_command(command: tuple[str, ...], url: str) -> Any:
             return await socket.recv_pyobj()
 
     coro = _coro(command, url)
-    ioloop = asyncio.get_event_loop()
+    ioloop = _get_event_loop()
     task = ioloop.create_task(coro)
     return ioloop.run_until_complete(task)
 
