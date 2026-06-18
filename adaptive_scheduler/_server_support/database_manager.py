@@ -283,6 +283,8 @@ class DatabaseManager(BaseManager):
         self._last_reply: str | list[str] | Exception | None = None
         self._last_request: tuple[str, ...] | None = None
         self.failed: list[dict[str, Any]] = []
+        self.n_code_failures: int = 0
+        self.n_infra_failures: int = 0
         self._pickling_time: float | None = None
         self._total_learner_size: int | None = None
         self._db: SimpleDatabase | None = None
@@ -299,7 +301,16 @@ class DatabaseManager(BaseManager):
         )
 
     def update(self, queue: dict[str, dict[str, str]] | None = None) -> None:
-        """If the ``job_id`` isn't running anymore, replace it with None."""
+        """If the ``job_id`` isn't running anymore, replace it with None.
+
+        Failures are classified based on whether the job ever started running:
+        - **Infrastructure failure**: ``start_time is None`` — the worker process
+          never connected back (e.g., VM failed to provision on a cloud cluster).
+        - **Code failure**: ``start_time is not None`` — the worker started but
+          the job crashed (likely a bug in user code).
+
+        Only code failures count towards the ``max_fails_per_job`` budget.
+        """
         if self._db is None:
             return
         if queue is None:
@@ -308,10 +319,26 @@ class DatabaseManager(BaseManager):
         failed = self._db.get_all(
             lambda e: e.job_name is not None and e.job_name not in job_names_in_queue,  # type: ignore[operator]
         )
+        for _, entry in failed:
+            if entry.start_time is None:
+                self.n_infra_failures += 1
+                log.info(
+                    "infrastructure failure detected (job never started),"
+                    " not counting towards max_fails_per_job",
+                    job_name=entry.job_name,
+                    n_infra_failures=self.n_infra_failures,
+                )
+            else:
+                self.n_code_failures += 1
+                log.warning(
+                    "code failure detected (job started but crashed)",
+                    job_name=entry.job_name,
+                    n_code_failures=self.n_code_failures,
+                )
         self.failed.extend([_asdict_fast(entry) for _, entry in failed])
         indices = [index for index, _ in failed]
         self._db.update(
-            {"job_id": None, "job_name": None, "is_pending": False},
+            {"job_id": None, "job_name": None, "is_pending": False, "start_time": None},
             indices,
         )
 

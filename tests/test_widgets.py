@@ -89,6 +89,8 @@ class MockDatabaseManager:
     def __init__(self, tmp_folder: Path) -> None:
         """Initialize the MockDatabaseManager."""
         self.failed: list[dict[str, Any]] = []
+        self.n_code_failures: int = 0
+        self.n_infra_failures: int = 0
         self._total_learner_size = None
         self.fnames: list[str | Path] = []
 

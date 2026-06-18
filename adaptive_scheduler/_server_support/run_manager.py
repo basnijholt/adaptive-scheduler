@@ -120,10 +120,12 @@ class RunManager(BaseManager):
     max_log_lines
         The maximum number of lines to display in the log viewer widget.
     max_fails_per_job
-        Maximum number of times that a job can fail. This is here as a fail switch
-        because a job might fail instantly because of a bug inside your code.
-        The job manager will stop when
-        ``n_jobs * total_number_of_jobs_failed > max_fails_per_job`` is true.
+        Maximum number of times that a job can fail due to code errors. This is
+        here as a fail switch because a job might fail instantly because of a bug
+        inside your code. The job manager will stop when
+        ``total_code_failures > max_fails_per_job * n_jobs`` is true.
+        Infrastructure failures (e.g., VM provisioning failures on cloud clusters)
+        are not counted towards this limit and are retried indefinitely.
     max_simultaneous_jobs
         Maximum number of simultaneously running jobs. By default no more than 500
         jobs will be running. Keep in mind that if you do not specify a ``runner.goal``,

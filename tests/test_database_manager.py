@@ -395,6 +395,9 @@ def test_job_failure_after_start_request(db_manager: DatabaseManager) -> None:
     # job dies, disappearing from queue
     db_manager.update({})
     assert db_manager.failed
+    # This is a code failure (job started then crashed)
+    assert db_manager.n_code_failures == 1
+    assert db_manager.n_infra_failures == 0
 
 
 def test_job_failure_before_start_request(db_manager: DatabaseManager) -> None:
@@ -414,6 +417,9 @@ def test_job_failure_before_start_request(db_manager: DatabaseManager) -> None:
     # Job dies, disappearing from queue
     db_manager.update({})
     assert db_manager.failed
+    # This is an infrastructure failure (job never started running)
+    assert db_manager.n_infra_failures == 1
+    assert db_manager.n_code_failures == 0
 
 
 def test_job_failure_before_start_request_slow_update(
@@ -654,3 +660,58 @@ def test_asdict_fast(db_manager: DatabaseManager) -> None:
     entry = db_manager._db.get(lambda e: e.fname == _ensure_str(db_manager.fnames[0]))
     assert entry is not None
     assert _asdict_fast(entry) == asdict(entry)
+
+
+def test_failure_classification_mixed(db_manager: DatabaseManager) -> None:
+    """Test that infra and code failures are correctly classified."""
+    db_manager.create_empty_db()
+    assert db_manager._db is not None
+    assert db_manager.n_code_failures == 0
+    assert db_manager.n_infra_failures == 0
+
+    # --- First learner: infrastructure failure (never starts) ---
+    index1, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index1, "job1")
+    # Job dies before worker connects (VM didn't spin up)
+    db_manager.update({})
+    assert db_manager.n_infra_failures == 1
+    assert db_manager.n_code_failures == 0
+
+    # --- Second learner: code failure (starts then crashes) ---
+    index2, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index2, "job2")
+    db_manager.update({"2": {"job_name": "job2"}})
+    db_manager._start_request("2", "log2", "job2")
+    # Worker started, then job crashes
+    db_manager.update({})
+    assert db_manager.n_infra_failures == 1
+    assert db_manager.n_code_failures == 1
+
+    # Verify both are in the failed list
+    assert len(db_manager.failed) == 2
+
+
+def test_start_time_reset_on_failure(db_manager: DatabaseManager) -> None:
+    """Test that start_time is reset after a failure so re-submissions are classified correctly."""
+    db_manager.create_empty_db()
+    assert db_manager._db is not None
+
+    # First run: job starts successfully (start_time gets set), then crashes
+    index, _ = db_manager._choose_fname()
+    db_manager._confirm_submitted(index, "job1")
+    db_manager.update({"1": {"job_name": "job1"}})
+    db_manager._start_request("1", "log1", "job1")
+    # Job crashes
+    db_manager.update({})
+    assert db_manager.n_code_failures == 1
+    assert db_manager.n_infra_failures == 0
+
+    # Verify start_time was reset to None
+    entry = db_manager._db.all()[index]
+    assert entry.start_time is None
+
+    # Second run: same entry, but now it's an infra failure (VM doesn't spin up)
+    db_manager._confirm_submitted(index, "job1-retry")
+    db_manager.update({})
+    assert db_manager.n_code_failures == 1  # unchanged
+    assert db_manager.n_infra_failures == 1  # now incremented
