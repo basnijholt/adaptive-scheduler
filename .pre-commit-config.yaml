@@ -25,3 +25,4 @@ repos:
           - types-tqdm
           - pandas-stubs
           - types-psutil
+          - types-aiofiles
