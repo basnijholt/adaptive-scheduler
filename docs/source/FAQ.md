@@ -17,12 +17,15 @@ import adaptive
 import numpy as np
 from adaptive_scheduler.utils import split_in_balancing_learners, shuffle_list
 
+
 def jacobi(x, n, alpha, beta):
     from scipy.special import eval_jacobi
+
     return eval_jacobi(n, alpha, beta, x)
 
+
 combos = adaptive.utils.named_product(
-        n=[1, 2, 4, 8],
+    n=[1, 2, 4, 8],
     alpha=np.linspace(0, 2, 21),
     beta=np.linspace(0, 1, 21),
 )
@@ -39,10 +42,10 @@ learners, fnames = shuffle_list(*unshuffled)
 # `learners` will be a list of BalancingLeaners
 # `fnames` will be a list of lists with fnames
 learners, fnames = split_in_balancing_learners(
-        learners,
+    learners,
     fnames,
     n_parts=100,  # split into 100 BalancingLeaners
-    strategy="npoints"
+    strategy="npoints",
 )
 ```
 
@@ -60,15 +63,16 @@ For example modifying a job script for SLURM:
 
 ```python
 from adaptive_scheduler.scheduler import SLURM
+
 scheduler = SLURM(
-        cores=10,
+    cores=10,
     extra_scheduler=["--exclusive=user", "--time=1"],
     extra_env_vars=["TMPDIR='/scratch'", "PYTHONPATH='my_dir:$PYTHONPATH'"],
     mpiexec_executable="srun --mpi=pmi2",
 )  # pass this to `server_support.start_job_manager` or `RunManager`
 
 # see the job script with
-print(scheduler.job_script('this_will_be_the_job_name'))
+print(scheduler.job_script("this_will_be_the_job_name"))
 ```
 
 ## **Q: My code uses MPI so the `~mpi4py.futures.MPIPoolExecutor` won't work for me, I want to use `ipyparallel`, how?**
@@ -85,10 +89,9 @@ scheduler = SLURM(
 )
 
 run_manager = adaptive_scheduler.server_support.RunManager(
-        scheduler=scheduler,
+    scheduler=scheduler,
     learners=learners,
     fnames=fnames,
-
 )
 run_manager.start()
 ```
