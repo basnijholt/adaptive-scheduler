@@ -81,7 +81,7 @@ class PBS(BaseScheduler):
     @staticmethod
     def sanatize_job_id(job_id: str) -> str:
         """Changes '91722.hpc05.hpc' into '91722'."""
-        return job_id.split(".")[0]
+        return job_id.split(".", maxsplit=1)[0]
 
     def _calculate_nnodes(self) -> None:
         assert isinstance(self.cores, int), "self.cores must be an integer for PBS."

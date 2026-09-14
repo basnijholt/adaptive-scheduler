@@ -367,10 +367,12 @@ class DatabaseManager(BaseManager):
     def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
         entry = self._db.get(
-            lambda e: e.job_id is None
-            and not e.is_done
-            and not e.is_pending
-            and self._db.dependencies_satisfied(e),  # type: ignore[union-attr]
+            lambda e: (
+                e.job_id is None
+                and not e.is_done
+                and not e.is_pending
+                and self._db.dependencies_satisfied(e)
+            ),  # type: ignore[union-attr]
         )
         if all(e.is_done for e in self._db.all()):
             msg = "Requested a new job but no more learners to run in the database."

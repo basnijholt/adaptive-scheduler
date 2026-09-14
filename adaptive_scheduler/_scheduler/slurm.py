@@ -122,11 +122,11 @@ class SLURM(BaseScheduler):
     def __init__(  # noqa: PLR0915
         self,
         *,
-        cores: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
-        nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
-        cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
-        partition: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
-        memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
+        cores: int | tuple[int | Callable[[], int | None] | None, ...] | None = None,
+        nodes: int | tuple[int | Callable[[], int | None] | None, ...] | None = None,
+        cores_per_node: int | tuple[int | Callable[[], int | None] | None, ...] | None = None,
+        partition: str | tuple[str | Callable[[], str | None] | None, ...] | None = None,
+        memory: str | tuple[str | Callable[[], str | None] | None, ...] | None = None,
         exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
         python_executable: str | None = None,
         log_folder: str | Path = "",
@@ -586,9 +586,9 @@ def slurm_partitions(
 
 
 def _cores(
-    cores: int | None | Callable[[], int | None],
-    cores_per_node: int | None | Callable[[], int | None],
-    nodes: int | None | Callable[[], int | None],
+    cores: int | Callable[[], int | None] | None,
+    cores_per_node: int | Callable[[], int | None] | None,
+    nodes: int | Callable[[], int | None] | None,
 ) -> int | Callable[[], int]:
     if isinstance(cores, int):
         return cores
@@ -603,7 +603,7 @@ def _at_least_tuple(x: Any) -> tuple[Any, ...]:
 
 
 def _validate_partition(
-    partition: str | tuple[str | None | Callable[[], str | None], ...] | None,
+    partition: str | tuple[str | Callable[[], str | None] | None, ...] | None,
     partitions: dict[str, int | None],
 ) -> None:
     if partition is None:

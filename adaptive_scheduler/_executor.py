@@ -306,11 +306,11 @@ class SlurmExecutor(AdaptiveSchedulerExecutorBase):
     folder: str | Path | None = None  # `slurm_run` defaults to None
     # slurm_run: SLURM scheduler arguments
     partition: str | tuple[str | Callable[[], str], ...] | None = None
-    nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1
-    cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = (
+    nodes: int | tuple[int | Callable[[], int | None] | None, ...] | None = 1
+    cores_per_node: int | tuple[int | Callable[[], int | None] | None, ...] | None = (
         1  # `slurm_run` defaults to `None`
     )
-    memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None
+    memory: str | tuple[str | Callable[[], str | None] | None, ...] | None = None
     num_threads: int | tuple[int | Callable[[], int], ...] = 1
     exclusive: bool | tuple[bool | Callable[[], bool], ...] = False
     executor_type: EXECUTOR_TYPES | tuple[EXECUTOR_TYPES | Callable[[], EXECUTOR_TYPES], ...] = (
