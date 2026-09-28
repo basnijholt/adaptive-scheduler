@@ -168,7 +168,7 @@ class MockScheduler:
     def _dispatch(
         self,
         request: _RequestSubmitType | _RequestCancelType | _RequestQueueType,
-    ) -> str | None | dict[str, dict[str, Any]] | Exception:
+    ) -> str | dict[str, dict[str, Any]] | Exception | None:
         log.debug("got a request", request=request)
         request_type, *request_arg = request
         try:
