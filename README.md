@@ -60,16 +60,17 @@ You create a bunch of `learners` and corresponding `fnames` so they can be loade
 import adaptive
 from functools import partial
 
+
 def h(x, pow, a):
     return a * x**pow
+
 
 combos = adaptive.utils.named_product(
     pow=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     a=[0.1, 0.5],
 )  # returns list of dicts, cartesian product of all values
 
-learners = [adaptive.Learner1D(partial(h, **combo),
-            bounds=(-1, 1)) for combo in combos]
+learners = [adaptive.Learner1D(partial(h, **combo), bounds=(-1, 1)) for combo in combos]
 fnames = [f"data/{combo}" for combo in combos]
 ```
 
@@ -78,8 +79,10 @@ Then you start a process that creates and submits as many job-scripts as there a
 ```python
 import adaptive_scheduler
 
+
 def goal(learner):
     return learner.npoints > 200
+
 
 scheduler = adaptive_scheduler.scheduler.SLURM(cores=10)  # every learner gets this many cores
 
@@ -118,12 +121,8 @@ scheduler = adaptive_scheduler.scheduler.SLURM(cores=10)
 
 # create a new database that keeps track of job <-> learner
 db_fname = "running.json"
-url = (
-   server_support.get_allowed_url()
-)  # get a url where we can run the database_manager
-database_manager = server_support.DatabaseManager(
-   url, scheduler, db_fname, learners, fnames
-)
+url = server_support.get_allowed_url()  # get a url where we can run the database_manager
+database_manager = server_support.DatabaseManager(url, scheduler, db_fname, learners, fnames)
 database_manager.start()
 
 # create unique names for the jobs
