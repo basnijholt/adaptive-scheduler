@@ -31,9 +31,9 @@ def slurm_run(
     folder: str | Path = "",
     # SLURM scheduler arguments
     partition: str | tuple[str | Callable[[], str], ...] | None = None,
-    nodes: int | tuple[int | None | Callable[[], int | None], ...] | None = 1,
-    cores_per_node: int | tuple[int | None | Callable[[], int | None], ...] | None = None,
-    memory: str | tuple[str | None | Callable[[], str | None], ...] | None = None,
+    nodes: int | tuple[int | Callable[[], int | None] | None, ...] | None = 1,
+    cores_per_node: int | tuple[int | Callable[[], int | None] | None, ...] | None = None,
+    memory: str | tuple[str | Callable[[], str | None] | None, ...] | None = None,
     num_threads: int | tuple[int | Callable[[], int], ...] = 1,
     exclusive: bool | tuple[bool | Callable[[], bool], ...] = False,
     executor_type: EXECUTOR_TYPES
