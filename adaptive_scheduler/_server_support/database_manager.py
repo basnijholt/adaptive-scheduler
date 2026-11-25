@@ -367,10 +367,12 @@ class DatabaseManager(BaseManager):
     def _choose_fname(self) -> tuple[int, str | list[str] | None]:
         assert self._db is not None
         entry = self._db.get(
-            lambda e: e.job_id is None
-            and not e.is_done
-            and not e.is_pending
-            and self._db.dependencies_satisfied(e),  # type: ignore[union-attr]
+            lambda e: (
+                e.job_id is None
+                and not e.is_done
+                and not e.is_pending
+                and self._db.dependencies_satisfied(e)  # type: ignore[union-attr]
+            ),
         )
         if all(e.is_done for e in self._db.all()):
             msg = "Requested a new job but no more learners to run in the database."
@@ -408,7 +410,7 @@ class DatabaseManager(BaseManager):
                 f"The job_id {job_id} already exists in the database and "
                 f"runs {fname}. You might have forgotten to use the "
                 "`if __name__ == '__main__': ...` idiom in your code. Read the "
-                "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation.",
+                "warning in the [mpi4py](https://bit.ly/2HAk0GG) documentation."
             )
             raise JobIDExistsInDbError(msg)
         entry = self._db.get(lambda e: e.job_name == job_name and e.is_pending)

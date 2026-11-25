@@ -96,7 +96,7 @@ def test_ipyparallel() -> None:
     s = MockScheduler(cores=1, executor_type="ipyparallel")
     with pytest.raises(
         ValueError,
-        match="`ipyparalllel` uses 1 cores of the `adaptive.Runner`",
+        match=r"`ipyparalllel` uses 1 cores of the `adaptive\.Runner`",
     ):
         s._executor_specific("NAME", {})
 

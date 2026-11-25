@@ -81,7 +81,7 @@ class PBS(BaseScheduler):
     @staticmethod
     def sanatize_job_id(job_id: str) -> str:
         """Changes '91722.hpc05.hpc' into '91722'."""
-        return job_id.split(".")[0]
+        return job_id.split(".", maxsplit=1)[0]
 
     def _calculate_nnodes(self) -> None:
         assert isinstance(self.cores, int), "self.cores must be an integer for PBS."
@@ -252,5 +252,5 @@ class PBS(BaseScheduler):
     def _guess_cores_per_node(self) -> int:
         nodes = self._qnodes()
         cntr = collections.Counter([int(info["np"]) for info in nodes.values()])
-        ncores, freq = cntr.most_common(1)[0]
+        ncores, _freq = cntr.most_common(1)[0]
         return ncores

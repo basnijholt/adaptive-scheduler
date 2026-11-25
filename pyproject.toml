@@ -115,9 +115,7 @@ target-version = "py310"
 select = ["ALL"]
 ignore = [
     "T20",     # flake8-print
-    "ANN101",  # Missing type annotation for {name} in method
     "S101",    # Use of assert detected
-    "PD901",   # df is a bad variable name. Be kinder to your future self.
     "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed in {name}
     "D402",    # First line should not be the function's signature
     "PLW0603", # Using the global statement to update `X` is discouraged
@@ -126,10 +124,16 @@ ignore = [
     "S603",    # `subprocess` call: check for execution of untrusted input
     "S607",    # Starting a process with a partial executable path
     "PLR0913", # Too many arguments to function call (N > 5)
+    "PLR0917", # Too many positional arguments
     "TD002",   # Missing author in TODO; try: `# TODO(<author_name>): ...`
     "TD003",   # Missing issue link on the line following this TODO
     "FIX002",  # Line contains TODO"
     "E501",    # Line too long
+    "CPY001",  # Missing copyright notice at top of file
+    "PLC0415", # `import` should be at the top-level of a file
+    "COM812",  # Trailing comma missing (conflicts with ruff-format)
+    "D203",    # 1 blank line required before class docstring (conflicts with D211)
+    "D213",    # Multi-line docstring summary should start at the second line (conflicts with D212)
 ]
 
 [tool.ruff.lint.per-file-ignores]

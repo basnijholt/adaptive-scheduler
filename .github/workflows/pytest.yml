@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
 
+env:
+  # Restrict UCX to local/TCP transports on GitHub-hosted Azure runners so
+  # MPICH/UCX (initialized when mpi4py is imported during pytest) does not
+  # probe unopenable MANA RDMA/verbs NICs and abort with exit code 143.
+  UCX_TLS: tcp,sm,self
+
 jobs:
   test:
     runs-on: ubuntu-latest

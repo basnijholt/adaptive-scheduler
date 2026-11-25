@@ -272,7 +272,7 @@ async def test_task_await(executor: SlurmExecutor) -> None:
     # Create a background task to simulate result appearing
     async def simulate_result() -> None:
         await asyncio.sleep(0.1)
-        learner, fname = task._learner_and_fname
+        learner, _fname = task._learner_and_fname
         learner.data[0] = 42
         with patch.object(learner, "done", return_value=True):
             task._get()
@@ -290,7 +290,7 @@ def test_to_learners_mapping_single_function(tmp_path: Path) -> None:
     # Submit 5 tasks to example_func so that they are split into chunks of 2.
     for i in range(5):
         executor.submit(example_func, i)
-    learners, fnames, mapping = executor._to_learners()
+    learners, _fnames, mapping = executor._to_learners()
 
     # We expect ceil(5/2) = 3 learners.
     assert len(learners) == 3
@@ -375,7 +375,7 @@ def test_mapping_multiple_functions(tmp_path: Path) -> None:
     executor.submit(another_func, 6)
 
     # Directly call _to_learners to examine the mapping.
-    learners, fnames, mapping = executor._to_learners()
+    learners, _fnames, mapping = executor._to_learners()
 
     expected_mapping = {
         # For example_func: two tasks in one learner (since 2 tasks fit in one chunk).

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import adaptive_scheduler
-from adaptive_scheduler._scheduler.slurm import SLURM
+from adaptive_scheduler._scheduler import slurm
+from adaptive_scheduler.scheduler import SLURM
 
 from .helpers import PARTITIONS, temporary_working_directory
 
@@ -18,7 +18,7 @@ def test_init_cores() -> None:
     """Test that the cores are set correctly."""
     with pytest.raises(
         ValueError,
-        match="Specify either `nodes` and `cores_per_node`, or only `cores`, not both.",
+        match=r"Specify either `nodes` and `cores_per_node`, or only `cores`, not both\.",
     ):
         SLURM(cores=4, nodes=2, cores_per_node=2)
 
@@ -34,7 +34,7 @@ def test_init_nodes_cores_per_node() -> None:
     """Test that the nodes and cores_per_node are set correctly."""
     with pytest.raises(
         ValueError,
-        match="Specify either `nodes` and `cores_per_node`, or only `cores`, not both.",
+        match=r"Specify either `nodes` and `cores_per_node`, or only `cores`, not both\.",
     ):
         SLURM(nodes=2)
 
@@ -151,14 +151,14 @@ def test_slurm_job_script_custom() -> None:
 @pytest.mark.usefixtures("_mock_slurm_partitions_output")
 def test_slurm_partitions() -> None:
     """Test slurm_partitions function."""
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=False)
+    partitions = slurm.slurm_partitions(with_ncores=False)
     assert partitions == [
         "nc24-low",
         "hb120v2-low",
         "hb60-high",
         "nd40v2-mpi",
     ]
-    partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions(with_ncores=True)
+    partitions = slurm.slurm_partitions(with_ncores=True)
     assert partitions == PARTITIONS
 
 
@@ -171,7 +171,7 @@ def test_slurm_partitions_without_ncores_in_name() -> None:
         "gpu                 96\n"
         "bigmem              32+\n"
     )
-    slurm_partitions = adaptive_scheduler._scheduler.slurm.slurm_partitions
+    slurm_partitions = slurm.slurm_partitions
     with patch("adaptive_scheduler._scheduler.slurm.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_output.encode("utf-8"))
         slurm_partitions.cache_clear()
@@ -184,7 +184,7 @@ def test_slurm_partitions_without_ncores_in_name() -> None:
 @pytest.mark.usefixtures("_mock_slurm_partitions")
 def test_slurm_partitions_mock() -> None:
     """Test slurm_partitions function."""
-    assert adaptive_scheduler._scheduler.slurm.slurm_partitions() == PARTITIONS
+    assert slurm.slurm_partitions() == PARTITIONS
 
 
 def test_slurm_scheduler_job_script_ipyparallel() -> None:
@@ -328,7 +328,7 @@ def test_multiple_jobs() -> None:
     with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
         SLURM(cores="4")  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="All tuples should have the same length."):
+    with pytest.raises(ValueError, match=r"All tuples should have the same length\."):
         SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
 
     s = SLURM(cores=1, exclusive=(True, False))

@@ -51,7 +51,7 @@ async def test_kill_manager_init(kill_manager: KillManager) -> None:
 def test_logs_with_string_or_condition_invalid_error() -> None:
     """Test logs_with_string_or_condition with invalid error type."""
     database_manager = MagicMock(spec=DatabaseManager)
-    with pytest.raises(TypeError, match="`error` can only be a `str` or `callable`."):
+    with pytest.raises(TypeError, match=r"`error` can only be a `str` or `callable`\."):
         logs_with_string_or_condition(123, database_manager)  # type: ignore[arg-type]
 
 

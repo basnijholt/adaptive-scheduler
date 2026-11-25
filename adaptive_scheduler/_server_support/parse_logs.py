@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import json
 import os
 from contextlib import suppress
@@ -64,7 +64,7 @@ def parse_log_files(
             continue
         for info_dict in _get_infos(log_fname, only_last=only_last):
             info_dict.pop("event")  # this is always "current status"
-            info_dict["timestamp"] = datetime.datetime.strptime(  # noqa: DTZ007
+            info_dict["timestamp"] = dt.datetime.strptime(  # noqa: DTZ007
                 info_dict["timestamp"],
                 "%Y-%m-%d %H:%M.%S",
             )

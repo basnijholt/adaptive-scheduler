@@ -245,7 +245,7 @@ class RunManager(BaseManager):
             if key in self.job_manager_kwargs:
                 msg = (
                     f"The `{key}` argument is not allowed in `job_manager_kwargs`."
-                    " Please specify it in `RunManager.__init__` instead.",
+                    " Please specify it in `RunManager.__init__` instead."
                 )
                 raise ValueError(msg)
 
@@ -667,7 +667,7 @@ def start_one_by_one(
         if len({getattr(r, u) for r in run_managers}) != len(run_managers):
             msg = (
                 f"All `RunManager`s must have a unique {u}."
-                " If using `slurm_run` these are controlled through the `name` argument.",
+                " If using `slurm_run` these are controlled through the `name` argument."
             )
             raise ValueError(msg)
 
