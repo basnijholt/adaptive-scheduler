@@ -1085,7 +1085,7 @@ def _deserialize_from_b64(x: str) -> Any:
     return cloudpickle.loads(bytes_)
 
 
-_GLOBAL_CACHE = {}
+_GLOBAL_CACHE: dict[str | bytes, Callable[..., Any]] = {}
 
 
 class WrappedFunction:
@@ -1227,7 +1227,7 @@ async def sleep_unless_task_is_done(
         tasks_to_wait.append(event_task)
 
     # Await all tasks until any one is done
-    done, pending = await asyncio.wait(
+    _done, pending = await asyncio.wait(
         tasks_to_wait,
         return_when=asyncio.FIRST_COMPLETED,
     )

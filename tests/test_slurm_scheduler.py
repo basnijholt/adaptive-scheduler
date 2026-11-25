@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import adaptive_scheduler
+import adaptive_scheduler._scheduler.slurm
 from adaptive_scheduler._scheduler.slurm import SLURM
 
 from .helpers import PARTITIONS, temporary_working_directory
@@ -18,7 +18,7 @@ def test_init_cores() -> None:
     """Test that the cores are set correctly."""
     with pytest.raises(
         ValueError,
-        match="Specify either `nodes` and `cores_per_node`, or only `cores`, not both.",
+        match=r"Specify either `nodes` and `cores_per_node`, or only `cores`, not both\.",
     ):
         SLURM(cores=4, nodes=2, cores_per_node=2)
 
@@ -34,7 +34,7 @@ def test_init_nodes_cores_per_node() -> None:
     """Test that the nodes and cores_per_node are set correctly."""
     with pytest.raises(
         ValueError,
-        match="Specify either `nodes` and `cores_per_node`, or only `cores`, not both.",
+        match=r"Specify either `nodes` and `cores_per_node`, or only `cores`, not both\.",
     ):
         SLURM(nodes=2)
 
@@ -328,7 +328,7 @@ def test_multiple_jobs() -> None:
     with pytest.raises(TypeError, match=r"Expected `<class 'int'>`"):
         SLURM(cores="4")  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="All tuples should have the same length."):
+    with pytest.raises(ValueError, match=r"All tuples should have the same length\."):
         SLURM(cores_per_node=(4,), nodes=(2, 2))  # type: ignore[arg-type]
 
     s = SLURM(cores=1, exclusive=(True, False))

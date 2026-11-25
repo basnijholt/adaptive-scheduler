@@ -186,7 +186,7 @@ def test_run_manager_load_dataframes(
     rm = RunManager(mock_scheduler, learners, fnames, save_dataframe=False)
     with pytest.raises(
         ValueError,
-        match="The `save_dataframe` option was not set to True.",
+        match=r"The `save_dataframe` option was not set to True\.",
     ):
         rm.load_dataframes()
 

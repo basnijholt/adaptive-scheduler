@@ -596,7 +596,7 @@ async def test_dependencies(
     assert entry.job_name is None
     with pytest.raises(
         RuntimeError,
-        match="Requested a new job but no more learners to run in the database.",
+        match=r"Requested a new job but no more learners to run in the database\.",
     ):
         db_manager._choose_fname()
 
@@ -642,7 +642,7 @@ async def test_replace_learner(db_manager: DatabaseManager) -> None:
     # Try to replace a completed learner (should raise a ValueError)
     with pytest.raises(
         ValueError,
-        match="Learner at index 0 is already done and cannot be replaced.",
+        match=r"Learner at index 0 is already done and cannot be replaced\.",
     ):
         db_manager.replace_learner(0, new_learner)
 

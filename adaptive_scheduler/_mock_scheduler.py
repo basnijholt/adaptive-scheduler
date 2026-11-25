@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
+import datetime as dt
 import logging
 import os
 import signal
@@ -126,7 +126,7 @@ class MockScheduler:
             "job_name": job_name,
             "proc": None,
             "state": "P",
-            "timestamp": str(datetime.datetime.now()),  # noqa: DTZ005
+            "timestamp": str(dt.datetime.now()),  # noqa: DTZ005
         }
         self.ioloop.create_task(self._submit_coro(job_name, job_id, fname))
         return job_id
@@ -168,7 +168,7 @@ class MockScheduler:
     def _dispatch(
         self,
         request: _RequestSubmitType | _RequestCancelType | _RequestQueueType,
-    ) -> str | None | dict[str, dict[str, Any]] | Exception:
+    ) -> str | dict[str, dict[str, Any]] | Exception | None:
         log.debug("got a request", request=request)
         request_type, *request_arg = request
         try:

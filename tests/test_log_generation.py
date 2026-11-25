@@ -73,12 +73,12 @@ async def test_log_info(
 
     caplog.set_level(logging.INFO)
     interval = 0.05
-    log_task = client_support.log_info(runner, interval)
+    task = client_support.log_info(runner, interval)
 
     # Wait for some time to let the logging happen
     for _ in range(100):
-        if log_task.done():
-            assert log_task.exception() is None
+        if task.done():
+            assert task.exception() is None
         await asyncio.sleep(0.1)
         if len(caplog.records) > 10:
             break

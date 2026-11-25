@@ -68,7 +68,7 @@ def test_split_sequence_learner() -> None:
     """Test `utils.split_sequence_learner`."""
     big_learner = adaptive.SequenceLearner(lambda x: x, sequence=list(range(10)))
     n_learners = 3
-    new_learners, new_fnames = utils.split_sequence_learner(big_learner, n_learners)
+    new_learners, _new_fnames = utils.split_sequence_learner(big_learner, n_learners)
     assert len(new_learners) == n_learners
     assert all(isinstance(lrn, adaptive.SequenceLearner) for lrn in new_learners)
 

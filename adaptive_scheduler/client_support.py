@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import json
 import logging
 import os
@@ -148,7 +148,7 @@ def tell_done(url: str, fname: str | list[str]) -> None:
 def _get_log_entry(runner: AsyncRunner, npoints_start: int) -> dict[str, Any]:
     learner = runner.learner
     info: dict[str, float | str] = {}
-    Δt = datetime.timedelta(seconds=runner.elapsed_time())  # noqa: N806, PLC2401
+    Δt = dt.timedelta(seconds=runner.elapsed_time())  # noqa: N806, PLC2401
     info["elapsed_time"] = str(Δt)
     info["overhead"] = runner.overhead()
     npoints = _get_npoints(learner)

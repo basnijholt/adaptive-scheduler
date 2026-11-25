@@ -52,7 +52,7 @@ def test_multi_run_manager_add_duplicate_run_manager(mock_run_manager: RunManage
     """Test adding a duplicate RunManager to MultiRunManager."""
     mrm = MultiRunManager()
     mrm.add_run_manager(mock_run_manager)
-    with pytest.raises(ValueError, match="A RunManager with the name 'test-rm' already exists."):
+    with pytest.raises(ValueError, match=r"A RunManager with the name 'test-rm' already exists\."):
         mrm.add_run_manager(mock_run_manager)
 
 
@@ -71,7 +71,7 @@ def test_multi_run_manager_add_run_manager_with_invalid_wait_for(
 ) -> None:
     """Test adding a RunManager with an invalid wait_for parameter."""
     mrm = MultiRunManager()
-    with pytest.raises(KeyError, match="No RunManager with the name 'non-existent' exists."):
+    with pytest.raises(KeyError, match=r"No RunManager with the name 'non-existent' exists\."):
         mrm.add_run_manager(mock_run_manager, start=True, wait_for="non-existent")
 
 
@@ -88,7 +88,7 @@ def test_multi_run_manager_add_run_manager_with_wait_for_without_start(
             job_name="rm1",
         ),
     )
-    with pytest.raises(ValueError, match="`start` must be True if `wait_for` is used."):
+    with pytest.raises(ValueError, match=r"`start` must be True if `wait_for` is used\."):
         mrm.add_run_manager(mock_run_manager, wait_for="rm1")
 
 
@@ -103,7 +103,7 @@ def test_multi_run_manager_remove_run_manager(mock_run_manager: RunManager) -> N
 def test_multi_run_manager_remove_non_existent_run_manager() -> None:
     """Test removing a non-existent RunManager from MultiRunManager."""
     mrm = MultiRunManager()
-    with pytest.raises(KeyError, match="No RunManager with the name 'non-existent' exists."):
+    with pytest.raises(KeyError, match=r"No RunManager with the name 'non-existent' exists\."):
         mrm.remove_run_manager("non-existent")
 
 
